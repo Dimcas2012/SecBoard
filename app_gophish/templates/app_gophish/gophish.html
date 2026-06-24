@@ -1,0 +1,298 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Gophish Integration" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_gophish/includes/gophish_styles.html" %}
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid gophish-page">
+    <div class="row">
+        <div class="col-12">
+            <div class="gophish-nav d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <nav class="nav nav-pills" id="gophish-navigation">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
+                       href="{% url 'app_gophish:dashboard' %}">
+                        <i class="fas fa-tachometer-alt"></i> {% trans "Dashboard" %}
+                    </a>
+                    {% if can_view_campaigns %}
+                    <a class="nav-link {% if request.resolver_match.url_name == 'campaign_list' or request.resolver_match.url_name == 'campaign_detail' %}active{% endif %}" 
+                       href="{% url 'app_gophish:campaign_list' %}">
+                        <i class="fas fa-bullhorn"></i> {% trans "Campaigns" %}
+                    </a>
+                    {% endif %}
+                    {% if can_manage_servers %}
+                    <a class="nav-link {% if request.resolver_match.url_name == 'server_list' or request.resolver_match.url_name == 'server_detail' or request.resolver_match.url_name == 'server_create' or request.resolver_match.url_name == 'server_edit' %}active{% endif %}" 
+                       href="{% url 'app_gophish:server_list' %}">
+                        <i class="fas fa-server"></i> {% trans "Servers" %}
+                    </a>
+                    {% endif %}
+                    {% if can_view_templates %}
+                    <a class="nav-link {% if request.resolver_match.url_name == 'email_template_list' %}active{% endif %}" 
+                       href="{% url 'app_gophish:email_template_list' %}">
+                        <i class="fas fa-envelope"></i> {% trans "Email Templates" %}
+                    </a>
+                    {% endif %}
+                    {% if can_view_landing_pages %}
+                    <a class="nav-link {% if request.resolver_match.url_name == 'landing_page_list' %}active{% endif %}" 
+                       href="{% url 'app_gophish:landing_page_list' %}">
+                        <i class="fas fa-globe"></i> {% trans "Landing Pages" %}
+                    </a>
+                    {% endif %}
+                    {% if can_view_sending_profiles %}
+                    <a class="nav-link {% if request.resolver_match.url_name == 'sending_profile_list' %}active{% endif %}" 
+                       href="{% url 'app_gophish:sending_profile_list' %}">
+                        <i class="fas fa-paper-plane"></i> {% trans "Sending Profiles" %}
+                    </a>
+                    {% endif %}
+                    {% if can_view_groups %}
+                    <a class="nav-link {% if request.resolver_match.url_name == 'group_list' %}active{% endif %}" 
+                       href="{% url 'app_gophish:group_list' %}">
+                        <i class="fas fa-users"></i> {% trans "Groups" %}
+                    </a>
+                    {% endif %}
+                    {% if can_view_campaigns %}
+                    <a class="nav-link {% if request.resolver_match.url_name == 'events_list' or request.resolver_match.url_name == 'events_export_excel' %}active{% endif %}" 
+                       href="{% url 'app_gophish:events_list' %}">
+                        <i class="fas fa-bolt"></i> {% trans "Events" %}
+                    </a>
+                    {% endif %}
+                    {% if can_sync %}
+                    <a class="nav-link {% if request.resolver_match.url_name == 'sync_data' or request.resolver_match.url_name == 'sync_logs' or request.resolver_match.url_name == 'sync_log_detail' %}active{% endif %}" 
+                       href="{% url 'app_gophish:sync_data' %}">
+                        <i class="fas fa-sync"></i> {% trans "Sync" %}
+                    </a>
+                    {% endif %}
+                </nav>
+                <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="gophishGuideBtn" data-bs-toggle="modal" data-bs-target="#gophishGuideModal"
+                        title="{% trans 'Guide' %}">
+                    <i class="bi bi-book"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4 gophish-content">
+        <div class="col-12">
+            {% block gophish_content %}
+            {% endblock %}
+        </div>
+    </div>
+
+    <!-- Gophish Guide Modal -->
+    <div class="modal fade" id="gophishGuideModal" tabindex="-1" aria-labelledby="gophishGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'app_gophish:gophish_guide' %}">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="gophishGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Gophish Guide" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="gophishGuideModalBody">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                        <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var guideUrl = document.getElementById('gophishGuideModal').getAttribute('data-guide-url');
+        if (!guideUrl) return;
+        function onGuideShow() {
+            var body = document.getElementById('gophishGuideModalBody');
+            if (!body) return;
+            body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+            if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+                jQuery.getJSON(guideUrl)
+                    .done(function(data) {
+                        if (data && data.content) {
+                            body.innerHTML = data.content;
+                        } else {
+                            body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                        }
+                    })
+                    .fail(function() {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    });
+            } else {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', guideUrl, true);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                        } catch (e) {
+                            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                        }
+                    } else {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                };
+                xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+                xhr.send();
+            }
+        }
+        var modal = document.getElementById('gophishGuideModal');
+        if (modal) modal.addEventListener('show.bs.modal', onGuideShow);
+    })();
+    </script>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Gophish Guide modal: handler lives in content block (inline) so it runs on dashboard etc. which override extra_js
+
+    // Disabled auto-refresh to prevent duplication
+    // Auto-refresh events every 30 seconds for campaign pages
+    // if (window.location.pathname.includes('/campaigns/') && typeof refreshEvents === 'function') {
+    //     // Wait a bit to ensure the page is fully loaded
+    //     setTimeout(function() {
+    //         setInterval(function() {
+    //             refreshEvents();
+    //         }, 30000);
+    //     }, 2000);
+    // }
+    
+    // AJAX form handling for server data loading
+    $('select[name="server"]').change(function() {
+        var serverId = $(this).val();
+        var dataType = $(this).closest('form').find('select[name*="template"], select[name*="landing_page"], select[name*="sending_profile"], select[name*="groups"]').attr('name');
+        
+        if (serverId && dataType) {
+            $.ajax({
+                url: '{% url "app_gophish:ajax_load_server_data" %}',
+                method: 'POST',
+                data: {
+                    'server_id': serverId,
+                    'data_type': dataType.replace('server', '').replace('_', ''),
+                    'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+                },
+                success: function(response) {
+                    if (response.data) {
+                        var select = $('select[name="' + dataType + '"]');
+                        select.empty();
+                        select.append('<option value="">{% trans "Select..." %}</option>');
+                        
+                        $.each(response.data, function(index, item) {
+                            select.append('<option value="' + item.id + '">' + item.name + '</option>');
+                        });
+                    }
+                }
+            });
+        }
+    });
+});
+
+// Initialize DataTables for all Gophish tables
+function initGophishDataTables() {
+    $('.gophish-data-table').each(function() {
+        if (!$.fn.DataTable.isDataTable(this)) {
+            var $table = $(this);
+            var $thead = $table.find('thead');
+            var $tbody = $table.find('tbody');
+            
+            // Validate table structure before initializing
+            if ($thead.length === 0) {
+                console.warn('DataTables: Table has no thead, skipping initialization', $table);
+                return;
+            }
+            
+            var headerCols = $thead.find('th').length;
+            if (headerCols === 0) {
+                console.warn('DataTables: Table has no header columns, skipping initialization', $table);
+                return;
+            }
+            
+            // Check if all body rows have the correct number of columns
+            var $bodyRows = $tbody.find('tr');
+            var hasInvalidRows = false;
+            $bodyRows.each(function() {
+                var rowCols = $(this).find('td').length;
+                if (rowCols > 0 && rowCols !== headerCols) {
+                    console.error('DataTables: Row column mismatch. Header:', headerCols, 'Row:', rowCols, $(this));
+                    hasInvalidRows = true;
+                }
+            });
+            
+            if (hasInvalidRows) {
+                console.error('DataTables: Table has rows with incorrect column count, skipping initialization', $table);
+                return;
+            }
+            
+            try {
+                $table.DataTable({
+                    responsive: true,
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                    language: {
+                        "emptyTable": "{% trans 'No campaigns found' %}",
+                        "search": "{% trans 'Search:' %}",
+                        "lengthMenu": "{% trans 'Show _MENU_ entries' %}",
+                        "info": "{% trans 'Showing _START_ to _END_ of _TOTAL_ entries' %}",
+                        "infoEmpty": "{% trans 'Showing 0 to 0 of 0 entries' %}",
+                        "infoFiltered": "{% trans '(filtered from _MAX_ total entries)' %}",
+                        "loadingRecords": "{% trans 'Loading...' %}",
+                        "processing": "{% trans 'Processing...' %}",
+                        "zeroRecords": "{% trans 'No matching records found' %}",
+                        "paginate": {
+                            "first": "{% trans 'First' %}",
+                            "last": "{% trans 'Last' %}",
+                            "next": "{% trans 'Next' %}",
+                            "previous": "{% trans 'Previous' %}"
+                        }
+                    },
+                    dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+                         '<"row"<"col-sm-12"tr>>' +
+                         '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+                    columnDefs: [
+                        {
+                            targets: 'no-sort',
+                            orderable: false
+                        },
+                        {
+                            targets: 'text-center',
+                            className: 'text-center'
+                        },
+                        {
+                            targets: 'text-right',
+                            className: 'text-end'
+                        }
+                    ]
+                });
+            } catch (e) {
+                console.error('DataTables initialization error:', e, $table);
+            }
+        }
+    });
+}
+
+// Initialize DataTables when page loads
+$(document).ready(function() {
+    initGophishDataTables();
+});
+</script>
+{% endblock %}
+

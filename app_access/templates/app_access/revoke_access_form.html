@@ -1,0 +1,1929 @@
+<!-- SecBoard\templates\app_access\revoke_access_form.html -->
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block styles %}
+{{ block.super }}
+{% include "app_access/includes/access_styles.html" %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<!-- Bootstrap Icons -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+<!-- Toastr CSS for toast notifications -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet" />
+<!-- Flatpickr CSS -->
+<link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet" />
+<style>
+    /* Компактні стилі для форми */
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .form-label.required:after {
+        content: " *";
+        color: red;
+    }
+
+    .compact-form .mb-3 {
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .compact-form .card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .compact-form .card-body {
+        padding: 1rem;
+    }
+    
+    .compact-form .card-header {
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .compact-form .form-control,
+    .compact-form .form-select {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .compact-form .btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .compact-form .form-label {
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        font-weight: 600;
+    }
+    
+    .compact-form .form-text {
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+    
+    .compact-form .alert {
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+    }
+    
+    /* Стилі для карток запитів доступу */
+    .access-request-card {
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        background-color: #fff;
+    }
+    
+    .access-request-card:hover {
+        border-color: #dc3545;
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    .access-request-card.selected {
+        border-color: #dc3545;
+        background-color: #fff5f5;
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.25);
+    }
+    
+    .access-request-card .card-header {
+        background-color: transparent;
+        border-bottom: 1px solid #dee2e6;
+        padding: 0 0 0.5rem 0;
+        margin-bottom: 0.75rem;
+        color: inherit;
+    }
+    
+    .user-info {
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        padding: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .role-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: white;
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .environment-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .environment-production {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .environment-test {
+        background-color: #ffc107;
+        color: #000;
+    }
+    
+    .environment-development {
+        background-color: #198754;
+        color: white;
+    }
+    
+    /* Стилі для Select2 */
+    .select2-container--bootstrap-5 .select2-selection--single {
+        height: calc(1.5em + 0.75rem + 2px) !important;
+    }
+    
+    .select2-container--bootstrap-5 .select2-selection__rendered {
+        line-height: calc(1.5em + 0.75rem) !important;
+    }
+    
+    /* Заборонений стан */
+    .disabled-section {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    
+    /* Анімація завантаження */
+    .loading-spinner {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid #dc3545;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Стилі для revoked Access Records */
+    .access-record-item.revoked {
+        opacity: 0.6;
+        background-color: rgba(220, 53, 69, 0.05);
+        border-color: rgba(220, 53, 69, 0.3) !important;
+    }
+    
+    .access-record-item.revoked .form-check-label strong {
+        text-decoration: line-through;
+        color: #6c757d;
+    }
+    
+    .access-record-item.revoked .role-badge {
+        text-decoration: line-through;
+        opacity: 0.8;
+    }
+    
+    /* Компактні стилі для великої кількості записів доступу */
+    .access-record-item {
+        padding: 0.4rem !important;
+        margin-bottom: 0.3rem !important;
+        font-size: 0.85rem;
+    }
+    
+    .access-record-item .form-check-label {
+        font-size: 0.85rem;
+        line-height: 1.2;
+    }
+    
+    .access-record-item .role-badge {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.3rem;
+        margin-right: 0.15rem;
+        margin-bottom: 0.15rem;
+    }
+    
+    .access-record-item small {
+        font-size: 0.75rem;
+        line-height: 1.2;
+    }
+    
+    /* Компактний стиль для користувацької інформації */
+    .user-info {
+        padding: 0.4rem !important;
+        margin-bottom: 0.5rem !important;
+        font-size: 0.85rem;
+    }
+    
+    .user-info strong {
+        font-size: 0.9rem;
+    }
+    
+    .user-info small {
+        font-size: 0.75rem;
+        line-height: 1.3;
+    }
+    
+    /* Стилі для згортання/розгортання записів доступу */
+    .access-records-container {
+        position: relative;
+    }
+    
+    .access-records-list {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        background-color: #fff;
+    }
+    
+    .access-records-table {
+        width: 100%;
+        font-size: 0.85rem;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    
+    .access-records-table th {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        padding: 0.5rem 0.4rem;
+        font-weight: 600;
+        font-size: 0.8rem;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        text-align: left;
+    }
+    
+    .access-records-table td {
+        padding: 0.4rem;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: middle;
+    }
+    
+    .access-records-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .access-records-table .checkbox-col {
+        width: 40px;
+        text-align: center;
+    }
+    
+    .access-records-table .object-col {
+        width: 40%;
+        font-weight: 500;
+    }
+    
+    .access-records-table .status-col {
+        width: 12%;
+        white-space: nowrap;
+        text-align: left;
+    }
+    
+    .access-records-table .roles-col {
+        width: 33%;
+    }
+    
+    .access-records-table .grant-id-col {
+        width: 15%;
+        white-space: nowrap;
+    }
+    
+    .role-badge-mini {
+        display: inline-block;
+        padding: 0; /* no frame */
+        margin: 0.1rem 0.2rem 0.1rem 0;
+        border-radius: 0; /* no rounded badge */
+        font-size: 0.85rem; /* match Object font size */
+        background: transparent; /* no background */
+        color: inherit; /* color comes from inline style */
+        font-weight: 600;
+    }
+    
+    .revoked-row {
+        opacity: 0.6;
+        background-color: rgba(220, 53, 69, 0.05) !important;
+    }
+    
+    .revoked-row .object-col {
+        text-decoration: line-through;
+        color: #6c757d;
+    }
+    
+    /* Strike-through and mute roles for revoked records */
+    .revoked-row .roles-col .role-badge-mini {
+        text-decoration: line-through;
+        color: #6c757d !important;
+    }
+    
+    .access-records-summary {
+        background-color: #e9ecef;
+        padding: 0.5rem;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    /* Reduce overall width of the "Access Records to Revoke" block */
+    .access-request-card {
+        max-width: 50%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    @media (max-width: 992px) {
+        .access-request-card { max-width: 100%; }
+    }
+
+    /* Approved Access Requests: show two request cards per row */
+    #accessRequestsList {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+    #accessRequestsList .access-request-card {
+        max-width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+    }
+    @media (max-width: 1200px) {
+        #accessRequestsList { grid-template-columns: 1fr; }
+    }
+    
+    .toggle-records-btn {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+    }
+    
+    /* Стилі для компактного відображення ролей в одному рядку */
+    .roles-inline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.2rem;
+        margin-top: 0.2rem;
+    }
+    
+    .access-record-compact {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.3rem;
+        margin-bottom: 0.2rem;
+        border: 1px solid #e9ecef;
+        border-radius: 3px;
+        background-color: #fff;
+        font-size: 0.8rem;
+    }
+    
+    .access-record-compact:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .access-record-compact .form-check {
+        margin: 0;
+    }
+    
+    .access-record-compact .object-info {
+        flex: 1;
+        margin-left: 0.5rem;
+        min-width: 0;
+    }
+    
+    .access-record-compact .object-name {
+        font-weight: 500;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .access-record-compact .roles-count {
+        font-size: 0.75rem;
+        color: #6c757d;
+        margin-top: 0.1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid access-page px-2 py-1">
+    <div class="row">
+        <div class="col-12">
+            <!-- Заголовок сторінки -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h4 class="mb-1">
+                        <i class="bi bi-x-circle text-danger me-2"></i>
+                        {% trans "Revoke Access" %}
+                    </h4>
+                    <p class="text-muted mb-0">
+                        {% trans "Select approved access requests to revoke" %}
+                    </p>
+                </div>
+                <div>
+                    <a href="{% url 'user_access_request' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>
+                        {% trans "Back to Access Requests" %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- Форма вибору параметрів -->
+            <div class="card compact-form">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-funnel me-2"></i>
+                        {% trans "Filter Parameters" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form id="revokeFilterForm" class="needs-validation row g-3" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Company -->
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <label for="company" class="form-label required">{% trans "Company" %}</label>
+                            <select class="form-select" id="company" required>
+                                <option value="">{% trans "Select Company..." %}</option>
+                                {% for company in companies %}
+                                    <option value="{{ company.id }}">{{ company.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="invalid-feedback">
+                                {% trans "Please select a company" %}
+                            </div>
+                        </div>
+
+                        <!-- Information System -->
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <label for="system" class="form-label required">{% trans "Information System" %}</label>
+                            <select class="form-select" id="system" required disabled>
+                                <option value="">{% trans "Select System..." %}</option>
+                            </select>
+                            <div class="invalid-feedback">
+                                {% trans "Please select an information system" %}
+                            </div>
+                        </div>
+
+                        <!-- Environment -->
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <label for="environment" class="form-label required">{% trans "Environment" %}</label>
+                            <select class="form-select" id="environment" required disabled>
+                                <option value="">{% trans "Select Environment..." %}</option>
+                                <option value="production">{% trans "Production" %}</option>
+                                <option value="test">{% trans "Test" %}</option>
+                                <option value="development">{% trans "Development" %}</option>
+                            </select>
+                            <div class="invalid-feedback">
+                                {% trans "Please select an environment" %}
+                            </div>
+                        </div>
+
+                        <!-- User Type -->
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <label class="form-label required">{% trans "User Type" %}</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="userType" id="revokeUserTypeThirdParty" value="third_parties" disabled required>
+                                <label class="form-check-label" for="revokeUserTypeThirdParty">
+                                    {% trans "Third parties" %}
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="userType" id="revokeUserTypeEmployees" value="employees" disabled checked required>
+                                <label class="form-check-label" for="revokeUserTypeEmployees">
+                                    {% trans "Employees" %}
+                                </label>
+                            </div>
+                            <div class="invalid-feedback" id="revokeUserTypeInvalidFeedback">
+                                {% trans "Please select a user type" %}
+                            </div>
+                            <div class="form-text">
+                                {% trans "Choose either Third parties OR Employees (only one can be selected)" %}
+                            </div>
+                        </div>
+
+                        <!-- Specific User moved to header toolbar -->
+
+                        <!-- Third Party Filters moved to header toolbar -->
+
+                        <!-- Кнопка пошуку (прихована, оскільки запити завантажуються автоматично) -->
+                        <div class="col-12 text-end d-none">
+                            <button type="button" id="searchAccessRequests" class="btn btn-danger" disabled>
+                                <i class="bi bi-search me-1"></i>
+                                {% trans "Search Approved Access Requests" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Результати пошуку -->
+            <div id="searchResults" class="d-none">
+                <div class="card compact-form">
+                        <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-nowrap gap-2">
+                            <h6 class="mb-0">
+                                <i class="bi bi-list-check me-2"></i>
+                                {% trans "Available Access Requests" %}
+                                <span id="resultsCount" class="badge bg-light text-dark ms-2">0</span>
+                            </h6>
+                            <div class="d-flex align-items-center gap-2 flex-nowrap" style="max-width: 100%; overflow: hidden;">
+                                <!-- Employee filters in toolbar -->
+                                <div id="specificUserToolbarContainer" class="d-none d-flex align-items-center gap-2 flex-nowrap">
+                                    <select id="specificUserToolbar" class="form-select form-select-sm" style="min-width: 220px;">
+                                        <option value="all">{% trans "All Cabinet Users" %}</option>
+                                    </select>
+                                    <select id="employeeDepartmentToolbar" class="form-select form-select-sm" style="min-width: 180px;">
+                                        <option value="">{% trans "All Departments" %}</option>
+                                    </select>
+                                    <select id="employeePositionToolbar" class="form-select form-select-sm" style="min-width: 180px;">
+                                        <option value="">{% trans "All Positions" %}</option>
+                                    </select>
+                                </div>
+                                <!-- Third Party Filters in toolbar -->
+                                <div id="thirdPartyFiltersToolbar" class="d-none d-flex gap-2 align-items-center flex-nowrap">
+                                    <select id="thirdPartyOrganizationToolbar" class="form-select form-select-sm" style="min-width: 200px;">
+                                        <option value="all">{% trans "All Organizations" %}</option>
+                                    </select>
+                                    <select id="thirdPartyUserToolbar" class="form-select form-select-sm" style="min-width: 200px;">
+                                        <option value="all">{% trans "All Users" %}</option>
+                                    </select>
+                                </div>
+                                <!-- Client-side requests filter -->
+                                <div class="input-group flex-nowrap" style="max-width: 360px; flex: 1 1 auto;">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" id="requestsSearchInput" class="form-control" placeholder="{% trans 'Filter by user, object, role or ID...' %}" style="min-width: 160px;">
+                                    <button class="btn btn-outline-secondary" type="button" id="requestsSearchClear">{% trans "Clear" %}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="noResults" class="alert alert-info d-none">
+                            <i class="bi bi-info-circle me-2"></i>
+                            {% trans "No approved access requests found for the selected criteria." %}
+                        </div>
+                        
+                        <div id="accessRequestsList">
+                            <!-- Тут будуть відображатися знайдені запити доступу -->
+                        </div>
+                        <!-- Pagination for Available Access Requests -->
+                        <div class="d-flex justify-content-between align-items-center mt-2" id="requestsPagerContainer" style="display: none;">
+                            <div class="small text-muted" id="requestsPageInfo"></div>
+                            <nav aria-label="Requests pagination">
+                                <ul class="pagination pagination-sm mb-0" id="requestsPagination"></ul>
+                            </nav>
+                        </div>
+                        
+                        <div id="selectedRequestInfo" class="alert alert-success d-none">
+                            <h6 class="alert-heading">
+                                <i class="bi bi-check-circle me-2"></i>
+                                {% trans "Selected Request for Revocation" %}
+                            </h6>
+                            <div id="selectedRequestDetails"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Форма підтвердження скасування -->
+            <div id="revokeConfirmation" class="card compact-form d-none">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        {% trans "Revoke Access Request" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form id="revokeAccessForm" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Access Justification (required) -->
+                        <div class="mb-3">
+                            <label for="accessJustification" class="form-label required">{% trans "Access Justification" %}</label>
+                            <select class="form-select form-select-sm mb-2" id="revokeJustificationTemplate">
+                                <option value="">{% trans "Select justification template..." %}</option>
+                                {% for tpl in access_justification_templates %}
+                                    <option value="{{ tpl.id }}" data-template-text="{{ tpl.content|escape }}">
+                                        {{ tpl.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <textarea class="form-control" id="accessJustification" rows="3" required
+                                placeholder="{% trans 'Please provide a detailed justification for revoking this access...' %}"></textarea>
+                            <div class="invalid-feedback">
+                                {% trans "Access justification is required" %}
+                            </div>
+                            <div class="form-text">
+                                {% trans "Explain why this access needs to be revoked (e.g., role change, project completion, security concerns)" %}
+                            </div>
+                        </div>
+
+                        <!-- Additional Requirements (optional) -->
+                        <div class="mb-3">
+                            <label for="additionalRequirements" class="form-label">{% trans "Additional Requirements" %}</label>
+                            <textarea class="form-control" id="additionalRequirements" rows="2"
+                                placeholder="{% trans 'Any additional requirements or conditions for this revocation...' %}"></textarea>
+                            <div class="form-text">
+                                {% trans "Specify any special requirements or conditions that should be considered" %}
+                            </div>
+                        </div>
+
+                        <!-- Notes (optional) -->
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">{% trans "Notes" %}</label>
+                            <textarea class="form-control" id="notes" rows="2"
+                                placeholder="{% trans 'Any additional notes or comments...' %}"></textarea>
+                            <div class="form-text">
+                                {% trans "Additional notes for approvers or administrators" %}
+                            </div>
+                        </div>
+
+                        <!-- Revocation Timing -->
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "Revocation Timing" %}</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="revocationTiming" id="immediately" value="immediately" checked>
+                                <label class="form-check-label" for="immediately">
+                                    <i class="bi bi-lightning me-1"></i>
+                                    {% trans "Immediately upon approval" %} <span class="badge bg-danger ms-1">{% trans "Default" %}</span>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="revocationTiming" id="scheduled" value="scheduled">
+                                <label class="form-check-label" for="scheduled">
+                                    <i class="bi bi-calendar-event me-1"></i>
+                                    {% trans "Scheduled revocation" %}
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Scheduled Revocation Dates (hidden by default) -->
+                        <div id="scheduledRevocationDates" class="row g-3 mb-3 d-none">
+                            <div class="col-md-6">
+                                <label for="startDate" class="form-label">{% trans "Start Date" %}</label>
+                                <input type="text" class="form-control" id="startDate" placeholder="dd.mm.yyyy hh:mm">
+                                <div class="form-text">
+                                    {% trans "When should the revocation take effect? Leave empty for immediate effect upon approval." %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="endDate" class="form-label">{% trans "End Date" %}</label>
+                                <input type="text" class="form-control" id="endDate" placeholder="dd.mm.yyyy hh:mm">
+                                <div class="form-text">
+                                    {% trans "When should the revocation end? Leave empty for permanent revocation." %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Прикріплені файли -->
+                        <div class="mb-3">
+                            <label for="attachments" class="form-label">{% trans "Attachments" %}</label>
+                            <input type="file" class="form-control" id="attachments" multiple 
+                                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xlsx,.xls">
+                            <div class="form-text">
+                                {% trans "Attach supporting documents (PDF, DOC, DOCX, TXT, JPG, PNG, XLSX, XLS). Maximum 10MB per file." %}
+                            </div>
+                            <div id="selectedFiles" class="mt-2"></div>
+                        </div>
+
+                        <!-- Кнопки дій -->
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" id="cancelRevoke" class="btn btn-secondary">
+                                <i class="bi bi-x-lg me-1"></i>
+                                {% trans "Cancel" %}
+                            </button>
+                            <button type="submit" id="submitRevoke" class="btn btn-danger">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                {% trans "Submit Revoke Request" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- Toastr JS for toast notifications -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<!-- Flatpickr JS -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<script>
+// Функції для багатомовності
+function getEnvironmentTranslation(environment) {
+    const translations = {
+        'production': '{% trans "Production" %}',
+        'test': '{% trans "Test" %}', 
+        'development': '{% trans "Development" %}'
+    };
+    return translations[environment] || environment;
+}
+
+// Глобальна змінна для поточної мови
+const currentLanguage = '{{ current_language }}';
+console.log('DEBUG: Current language from template:', currentLanguage);
+console.log('DEBUG: Django language code:', '{{ LANGUAGE_CODE }}');
+console.log('DEBUG: Browser language:', navigator.language);
+console.log('DEBUG: Browser languages:', navigator.languages);
+
+function getRoleTranslation(role) {
+    // Використовуємо назву відповідно до мови сайту (не браузера)
+    if (role.name) {
+        return role.name;
+    }
+    
+    // Fallback: якщо немає перекладу для поточної мови, використовуємо доступні
+    if (role.name) {
+        return role.name;
+    }
+    
+    // Останній fallback
+    return `Role #${role.id}`;
+}
+
+function localDateTimeToIso(value) {
+    if (!value) return '';
+    const v = String(value).trim();
+    const localPattern = /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/;
+    const m = v.match(localPattern);
+    let dt = null;
+    if (m) {
+        const [, dd, mm, yyyy, hh, min] = m;
+        dt = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), 0);
+    } else {
+        dt = new Date(v);
+    }
+    if (!dt || Number.isNaN(dt.getTime())) return value;
+    return dt.toISOString();
+}
+
+$(document).ready(function() {
+    // Ініціалізуємо Select2
+    $('#company, #system, #environment, #userType, #specificUser, #thirdPartyOrganization, #thirdPartyUser, #thirdPartyOrganizationToolbar, #thirdPartyUserToolbar, #specificUserToolbar, #employeeDepartmentToolbar, #employeePositionToolbar').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: function() {
+            return $(this).find('option:first').text();
+        }
+    });
+
+    if (typeof flatpickr !== 'undefined') {
+        flatpickr('#startDate', {
+            enableTime: true,
+            time_24hr: true,
+            dateFormat: 'd.m.Y H:i',
+            minuteIncrement: 1,
+            allowInput: true
+        });
+        flatpickr('#endDate', {
+            enableTime: true,
+            time_24hr: true,
+            dateFormat: 'd.m.Y H:i',
+            minuteIncrement: 1,
+            allowInput: true
+        });
+    }
+
+    // Змінні для зберігання стану
+    let selectedAccessRequest = null;
+    let selectedFiles = [];
+    let selectedAccessRecords = [];
+    let currentAccessRequests = [];
+
+    // Функції для показу повідомлень
+    function showSuccess(message) {
+        toastr.success(message);
+    }
+
+    function showError(message) {
+        toastr.error(message);
+    }
+
+    function showInfo(message) {
+        toastr.info(message);
+    }
+
+    // Justification templates
+    $('#revokeJustificationTemplate').on('change', function() {
+        const selectedText = $(this).find(':selected').data('template-text') || '';
+        if (!selectedText) return;
+        $('#accessJustification').val(selectedText).trigger('input');
+    });
+
+    // Обробник зміни компанії
+    $('#company').on('change', function() {
+        const companyId = $(this).val();
+        loadRevokeJustificationTemplates(companyId);
+        
+        // Очищуємо і блокуємо наступні поля
+        $('#system').empty().append('<option value="">{% trans "Select System..." %}</option>').prop('disabled', !companyId).trigger('change.select2');
+        $('#environment').prop('disabled', !companyId).val('').trigger('change.select2');
+        $('input[name="userType"]').prop('disabled', !companyId).prop('checked', false);
+        $('#searchAccessRequests').prop('disabled', true);
+        hideResults();
+
+        if (companyId) {
+            // Завантажуємо системи для вибраної компанії
+            loadSystemsForCompany(companyId);
+        }
+        
+        // Автоматично завантажуємо запити доступу, якщо всі поля вже заповнені
+        const system = $('#system').val();
+        const environment = $('#environment').val();
+        const userType = $('input[name="userType"]:checked').val();
+        if (companyId && system && environment && userType) {
+            setTimeout(() => {
+                loadAccessRequests();
+            }, 100);
+        }
+    });
+
+    $('#startDate, #endDate').on('blur', function() {
+        const value = $(this).val();
+        const iso = localDateTimeToIso(value);
+        if (iso && iso !== value) {
+            const dt = new Date(iso);
+            const pad = (n) => String(n).padStart(2, '0');
+            $(this).val(`${pad(dt.getDate())}.${pad(dt.getMonth() + 1)}.${dt.getFullYear()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`);
+        }
+    });
+
+    // Обробник зміни системи
+    $('#system').on('change', function() {
+        const systemId = $(this).val();
+        
+        $('#environment').prop('disabled', !systemId);
+        $('input[name="userType"]').prop('disabled', !systemId);
+        if (!systemId) {
+            $('#environment').val('').trigger('change.select2');
+            // Uncheck all radio buttons when system is cleared
+            $('input[name="userType"]').prop('checked', false);
+        }
+        $('#searchAccessRequests').prop('disabled', true);
+        hideResults();
+        
+        if (systemId) {
+            // Завантажуємо користувачів для системи (для Cabinet Users dropdown)
+            loadUsersForSystem(systemId);
+        }
+        
+        // Автоматично завантажуємо запити доступу, якщо середовище та тип користувача вже вибрано
+        const environment = $('#environment').val();
+        const userType = $('input[name="userType"]:checked').val();
+        if (systemId && environment && userType) {
+            setTimeout(() => {
+                loadAccessRequests();
+            }, 100);
+        }
+    });
+
+    // Обробник зміни середовища
+    $('#environment').on('change', function() {
+        const environment = $(this).val();
+        $('input[name="userType"]').prop('disabled', !environment);
+        if (!environment) {
+            // Uncheck all radio buttons when environment is cleared
+            $('input[name="userType"]').prop('checked', false);
+        }
+        updateSearchButton();
+        hideResults();
+        
+        // Автоматично завантажуємо запити доступу, якщо тип користувача вже вибрано
+        const userType = $('input[name="userType"]:checked').val();
+        if (environment && userType) {
+            setTimeout(() => {
+                loadAccessRequests();
+            }, 100);
+        }
+    });
+
+    // Обробник зміни типу користувача
+    $('input[name="userType"]').on('change', function() {
+        const userType = $(this).val();
+        
+        if (userType === 'employees') {
+            $('#specificUserSection').show();
+            $('#thirdPartyFiltersToolbar').addClass('d-none');
+            $('#specificUserToolbarContainer').removeClass('d-none');
+            // Sync toolbar with hidden select
+            const currentVal = $('#specificUser').val() || 'all';
+            $('#specificUserToolbar').val(currentVal).trigger('change.select2');
+            // Trigger initial filtering by dept/position (if any values stored)
+            setTimeout(() => { loadAccessRequests(); }, 100);
+            // Очищуємо фільтри третіх сторін (selects kept hidden)
+            $('#thirdPartyOrganization, #thirdPartyUser').val('all').trigger('change.select2');
+            // Автоматично завантажуємо запити доступу для employees
+            setTimeout(() => {
+                loadAccessRequests();
+            }, 100);
+        } else if (userType === 'third_parties') {
+            $('#specificUserSection').hide();
+            $('#thirdPartyFiltersToolbar').removeClass('d-none');
+            $('#specificUserToolbarContainer').addClass('d-none');
+            $('#specificUser').val('all').trigger('change.select2');
+            // Завантажуємо організації для третіх сторін
+            loadThirdPartyOrganizations();
+        } else {
+            $('#specificUserSection').hide();
+            $('#thirdPartyFiltersToolbar').addClass('d-none');
+            $('#specificUserToolbarContainer').addClass('d-none');
+            $('#specificUser, #thirdPartyOrganization, #thirdPartyUser').val('all').trigger('change.select2');
+        }
+        
+        updateSearchButton();
+        hideResults();
+    });
+
+    // Обробник зміни конкретного користувача
+    // Keep toolbar and hidden select in sync (and filter immediately)
+    $('#specificUser, #specificUserToolbar').on('change', function() {
+        const val = $(this).val();
+        $('#specificUser, #specificUserToolbar').val(val).trigger('change.select2');
+        filterDisplayedRequests();
+    });
+
+    // Employee Department/Position toolbar filters (client-side)
+    $('#employeeDepartmentToolbar, #employeePositionToolbar').on('change', function() {
+        filterDisplayedRequests();
+    });
+
+    // Обробник зміни організації третіх сторін
+    // Organization filter (toolbar)
+    $('#thirdPartyOrganization, #thirdPartyOrganizationToolbar').on('change', function() {
+        const val = $(this).val();
+        // keep toolbar and hidden select in sync
+        $('#thirdPartyOrganization, #thirdPartyOrganizationToolbar').val(val).trigger('change.select2');
+        const organizationId = $(this).val();
+        
+        // Завантажуємо користувачів для вибраної організації
+        if (organizationId) {
+            loadThirdPartyUsers(organizationId);
+        } else {
+            $('#thirdPartyUser').empty().append('<option value="all">{% trans "All Users" %}</option>').trigger('change.select2');
+        }
+        
+        updateSearchButton();
+        hideResults();
+        
+        // Автоматично завантажуємо запити доступу для third parties
+        setTimeout(() => {
+            loadAccessRequests();
+        }, 100);
+    });
+
+    // Обробник зміни користувача третіх сторін
+    // Third party user filter (toolbar)
+    $('#thirdPartyUser, #thirdPartyUserToolbar').on('change', function() {
+        const val = $(this).val();
+        // keep toolbar and hidden select in sync
+        $('#thirdPartyUser, #thirdPartyUserToolbar').val(val).trigger('change.select2');
+        updateSearchButton();
+        hideResults();
+        
+        // Автоматично завантажуємо запити доступу для third parties
+        setTimeout(() => {
+            loadAccessRequests();
+        }, 100);
+    });
+
+    // (Removed) Third party search input handlers
+
+    // Функція оновлення стану кнопки пошуку
+    function updateSearchButton() {
+        const company = $('#company').val();
+        const system = $('#system').val();
+        const environment = $('#environment').val();
+        const userType = $('input[name="userType"]:checked').val();
+        
+        const isValid = company && system && environment && userType;
+        $('#searchAccessRequests').prop('disabled', !isValid);
+    }
+
+    // Функція завантаження систем для компанії
+    async function loadSystemsForCompany(companyId) {
+        try {
+            const response = await fetch(`/app_access/get-available-systems/${companyId}/`);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const systemSelect = $('#system');
+                systemSelect.empty().append('<option value="">{% trans "Select System..." %}</option>');
+                
+                data.systems.forEach(system => {
+                    systemSelect.append(`<option value="${system.id}">${system.name}</option>`);
+                });
+                
+                systemSelect.prop('disabled', false).trigger('change.select2');
+            } else {
+                showError(data.message || '{% trans "Error loading systems" %}');
+            }
+        } catch (error) {
+            showError('{% trans "Error loading systems" %}');
+        }
+    }
+
+    async function loadRevokeJustificationTemplates(companyId) {
+        const templateSelect = $('#revokeJustificationTemplate');
+        const emptyOption = '<option value="">{% trans "Select justification template..." %}</option>';
+        templateSelect.empty().append(emptyOption);
+        $('#accessJustification').val('');
+
+        if (!companyId) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`{% url "get_access_justification_templates" %}?company_id=${encodeURIComponent(companyId)}`);
+            const data = await response.json();
+
+            if (data.status !== 'success' || !Array.isArray(data.templates)) {
+                return;
+            }
+
+            data.templates.forEach((tpl) => {
+                const option = new Option(tpl.name, tpl.id, false, false);
+                option.dataset.templateText = tpl.content || '';
+                templateSelect.append(option);
+            });
+            templateSelect.trigger('change.select2');
+        } catch (error) {
+            showError('{% trans "Error loading access justification templates" %}');
+        }
+    }
+
+    // Функція завантаження користувачів для системи
+    async function loadUsersForSystem(systemId) {
+        try {
+            const response = await fetch(`/app_access/get-available-users/${systemId}/`);
+            const data = await response.json();
+            
+             if (data.status === 'success') {
+                 const userSelect = $('#specificUser, #specificUserToolbar');
+                userSelect.empty().append('<option value="all">{% trans "All Cabinet Users" %}</option>');
+                 
+                 const deptSelect = $('#employeeDepartmentToolbar');
+                 const posSelect = $('#employeePositionToolbar');
+                 // reset filters
+                 deptSelect.find('option:not(:first)').remove();
+                 posSelect.find('option:not(:first)').remove();
+                 
+                 const deptsSet = new Set();
+                 const positionsSet = new Set();
+                 
+                 data.users.forEach(user => {
+                     if (user.id !== 'third_parties') {
+                         const dept = user.department || '';
+                         const pos = user.position || '';
+                         userSelect.append(`<option value="${user.id}" data-department="${dept}" data-position="${pos}">${user.name}</option>`);
+                         if (dept) deptsSet.add(dept);
+                         if (pos) positionsSet.add(pos);
+                     }
+                 });
+ 
+                 // populate dept/position toolbars
+                 Array.from(deptsSet).sort().forEach(d => deptSelect.append(`<option value="${d}">${d}</option>`));
+                 Array.from(positionsSet).sort().forEach(p => posSelect.append(`<option value="${p}">${p}</option>`));
+                
+                userSelect.trigger('change.select2');
+                
+                // Автоматично завантажуємо запити доступу для employees
+                setTimeout(() => {
+                    loadAccessRequests();
+                }, 100);
+            }
+        } catch (error) {
+            // Error loading users - fail silently
+        }
+    }
+
+    // Функція завантаження організацій третіх сторін
+    async function loadThirdPartyOrganizations() {
+        const company = $('#company').val();
+        const system = $('#system').val();
+        const environment = $('#environment').val();
+        
+        if (!company || !system || !environment) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/app_access/get-third-party-organizations/${company}/${system}/${environment}/`);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const orgSelect = $('#thirdPartyOrganization, #thirdPartyOrganizationToolbar');
+                orgSelect.empty().append('<option value="all">{% trans "All Organizations" %}</option>');
+                
+                data.organizations.forEach(org => {
+                    orgSelect.append(`<option value="${org.id}" title="${org.description}">${org.name}</option>`);
+                });
+                
+                orgSelect.trigger('change.select2');
+                
+                // Очищуємо список користувачів
+                $('#thirdPartyUser, #thirdPartyUserToolbar').empty().append('<option value="all">{% trans "All Users" %}</option>').trigger('change.select2');
+                
+                // Автоматично завантажуємо запити доступу для third parties
+                setTimeout(() => {
+                    loadAccessRequests();
+                }, 100);
+            } else {
+                showError(data.message || '{% trans "Error loading organizations" %}');
+            }
+        } catch (error) {
+            showError('{% trans "Error loading organizations" %}');
+        }
+    }
+
+    // Функція завантаження користувачів третіх сторін за організацією
+    async function loadThirdPartyUsers(organizationId) {
+        const company = $('#company').val();
+        const system = $('#system').val();
+        const environment = $('#environment').val();
+        
+        if (!company || !system || !environment) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/app_access/get-third-party-users/${company}/${system}/${environment}/${organizationId}/`);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const userSelect = $('#thirdPartyUser, #thirdPartyUserToolbar');
+                userSelect.empty().append('<option value="all">{% trans "All Users" %}</option>');
+                
+                data.users.forEach(user => {
+                    userSelect.append(`<option value="${user.id}" title="${user.email} - ${user.organization_name}">${user.name}</option>`);
+                });
+                
+                userSelect.trigger('change.select2');
+                
+                // Автоматично завантажуємо запити доступу для third parties
+                setTimeout(() => {
+                    loadAccessRequests();
+                }, 100);
+            } else {
+                showError(data.message || '{% trans "Error loading users" %}');
+            }
+        } catch (error) {
+            showError('{% trans "Error loading users" %}');
+        }
+    }
+
+    // Функція приховування результатів
+    function hideResults() {
+        $('#searchResults, #revokeConfirmation').addClass('d-none');
+        selectedAccessRequest = null;
+    }
+
+    // Функція автоматичного завантаження запитів доступу
+    async function loadAccessRequests() {
+        const company = $('#company').val();
+        const system = $('#system').val();
+        const environment = $('#environment').val();
+        const userType = $('input[name="userType"]:checked').val();
+        
+        if (!company || !system || !environment || !userType) {
+            return; // Не завантажуємо, якщо не всі обов'язкові поля заповнені
+        }
+
+         const userId = userType === 'employees' ? ($('#specificUserToolbar').val() || $('#specificUser').val()) : 'all';
+
+        try {
+            // Формуємо URL з додатковими параметрами для третіх сторін
+            let url = `/app_access/get-approved-access-requests/${company}/${system}/${environment}/${userType}/${userId}/`;
+            
+            if (userType === 'third_parties') {
+                const organizationId = $('#thirdPartyOrganizationToolbar').val() || $('#thirdPartyOrganization').val() || 'all';
+                const thirdPartyUserId = $('#thirdPartyUserToolbar').val() || $('#thirdPartyUser').val() || 'all';
+                
+                const params = new URLSearchParams();
+                if (organizationId !== 'all') {
+                    params.append('organization_id', organizationId);
+             } else if (userType === 'employees') {
+                 // Optional: pass department/position filters if backend supports them
+                 const dept = ($('#employeeDepartmentToolbar').val() || '').trim();
+                 const pos = ($('#employeePositionToolbar').val() || '').trim();
+                 const params = new URLSearchParams();
+                 if (dept) { params.append('department', dept); }
+                 if (pos) { params.append('position', pos); }
+                 if (params.toString()) {
+                     url += (url.includes('?') ? '&' : '?') + params.toString();
+                 }
+             }
+                if (thirdPartyUserId !== 'all') {
+                    params.append('third_party_user_id', thirdPartyUserId);
+                }
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+            }
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                displaySearchResults(data.requests);
+            } else {
+                console.log('Error loading access requests:', data.message);
+            }
+        } catch (error) {
+            console.log('Error loading access requests:', error);
+        }
+    }
+
+    // Обробник кнопки пошуку
+    $('#searchAccessRequests').on('click', async function() {
+        const company = $('#company').val();
+        const system = $('#system').val();
+        const environment = $('#environment').val();
+        const userType = $('input[name="userType"]:checked').val();
+        const userId = userType === 'employees' ? $('#specificUser').val() : 'all';
+        
+        if (!company || !system || !environment || !userType) {
+            showError('{% trans "Please fill in all required fields" %}');
+            return;
+        }
+
+        // Показуємо індикатор завантаження
+        const button = $(this);
+        const originalText = button.html();
+        button.html('<span class="loading-spinner me-2"></span>{% trans "Searching..." %}').prop('disabled', true);
+
+        try {
+            // Формуємо URL з додатковими параметрами для третіх сторін
+            let url = `/app_access/get-approved-access-requests/${company}/${system}/${environment}/${userType}/${userId}/`;
+            
+            if (userType === 'third_parties') {
+                const organizationId = $('#thirdPartyOrganization').val() || 'all';
+                const thirdPartyUserId = $('#thirdPartyUser').val() || 'all';
+                
+                const params = new URLSearchParams();
+                if (organizationId !== 'all') {
+                    params.append('organization_id', organizationId);
+                }
+                if (thirdPartyUserId !== 'all') {
+                    params.append('third_party_user_id', thirdPartyUserId);
+                }
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+            }
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                displaySearchResults(data.requests);
+            } else {
+                showError(data.message || '{% trans "Error searching access requests" %}');
+            }
+        } catch (error) {
+            showError('{% trans "Error searching access requests" %}');
+        } finally {
+            button.html(originalText).prop('disabled', false);
+        }
+    });
+
+    // Функція відображення результатів пошуку (через єдиний пайплайн фільтрації)
+    function displaySearchResults(requests) {
+        // Кешуємо сирі результати і рендеримо через клієнтські фільтри
+        currentAccessRequests = Array.isArray(requests) ? requests : [];
+        $('#searchResults').removeClass('d-none');
+        filterDisplayedRequests();
+    }
+
+    // Client-side filter for Available Access Requests (supports Specific User/Dept/Position) + Pagination
+    function filterDisplayedRequests() {
+        const term = ($('#requestsSearchInput').val() || '').trim().toLowerCase();
+        const listContainer = $('#accessRequestsList');
+        const noResults = $('#noResults');
+        const resultsCount = $('#resultsCount');
+        const userType = $('input[name="userType"]:checked').val();
+        const selectedUserId = ($('#specificUserToolbar').val() || 'all');
+        const selectedUserText = ($('#specificUserToolbar option:selected').text() || '').trim().toLowerCase();
+        const deptFilter = ($('#employeeDepartmentToolbar').val() || '').trim().toLowerCase();
+        const posFilter = ($('#employeePositionToolbar').val() || '').trim().toLowerCase();
+
+        const allMatches = (currentAccessRequests || []).filter(req => {
+            const users = req.users || [];
+            const usersText = users.map(u => `${u.name} ${u.email || ''} ${u.organization || ''} ${u.department || ''} ${u.position || ''}`).join(' ').toLowerCase();
+            const recordsText = (req.access_records || []).map(r => {
+                const roleNames = (r.roles||[]).map(getRoleTranslation).join(' ');
+                const requestedName = (r.requested_role && getRoleTranslation(r.requested_role)) ? getRoleTranslation(r.requested_role) : '';
+                return `${r.object_name || ''} ${roleNames} ${requestedName}`.toLowerCase();
+            }).join(' ');
+            const idsText = `${req.id}`.toLowerCase();
+            const blob = `${usersText} ${recordsText} ${idsText}`;
+
+            const textOk = term ? blob.includes(term) : true;
+
+            let employeesOk = true;
+            if (userType === 'employees') {
+                employeesOk = users.some(u => {
+                    const idOk = selectedUserId === 'all' || String(u.id) === String(selectedUserId) || ((u.name || '').trim().toLowerCase() === selectedUserText);
+                    const deptOk = !deptFilter || (u.department || '').trim().toLowerCase() === deptFilter;
+                    const posOk = !posFilter || (u.position || '').trim().toLowerCase() === posFilter;
+                    return idOk && deptOk && posOk;
+                });
+            }
+
+            return textOk && employeesOk;
+        });
+
+        // Pagination state
+        window.requestsPageSize = window.requestsPageSize || 10;
+        window.requestsCurrentPage = Math.max(1, window.requestsCurrentPage || 1);
+        const total = allMatches.length;
+        const totalPages = Math.max(1, Math.ceil(total / window.requestsPageSize));
+        if (window.requestsCurrentPage > totalPages) window.requestsCurrentPage = totalPages;
+        const startIdx = (window.requestsCurrentPage - 1) * window.requestsPageSize;
+        const endIdx = Math.min(startIdx + window.requestsPageSize, total);
+        const pageItems = allMatches.slice(startIdx, endIdx);
+
+        // Render page
+        listContainer.empty();
+        pageItems.forEach(r => listContainer.append(createAccessRequestCard(r)));
+        resultsCount.text(total);
+        noResults.toggleClass('d-none', total !== 0);
+
+        // Render pager
+        renderRequestsPager(window.requestsCurrentPage, totalPages, total, startIdx, endIdx);
+    }
+
+    function renderRequestsPager(current, totalPages, totalItems, startIdx, endIdx) {
+        const pager = $('#requestsPagination');
+        const container = $('#requestsPagerContainer');
+        const info = $('#requestsPageInfo');
+
+        if (totalItems <= 0) {
+            container.hide();
+            return;
+        }
+
+        container.show();
+        info.text(`${startIdx + 1}–${endIdx} / ${totalItems}`);
+
+        pager.empty();
+        const addItem = (label, page, disabled=false, active=false) => {
+            const li = $(`<li class="page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}"><a class="page-link" href="#">${label}</a></li>`);
+            if (!disabled && !active) {
+                li.on('click', (e) => {
+                    e.preventDefault();
+                    window.requestsCurrentPage = page;
+                    filterDisplayedRequests();
+                });
+            }
+            pager.append(li);
+        };
+
+        addItem('«', Math.max(1, current - 1), current === 1);
+        // show small range around current
+        const range = 2;
+        const start = Math.max(1, current - range);
+        const end = Math.min(totalPages, current + range);
+        for (let p = start; p <= end; p++) {
+            addItem(String(p), p, false, p === current);
+        }
+        addItem('»', Math.min(totalPages, current + 1), current === totalPages);
+    }
+
+    let reqFilterDebounce = null;
+    $(document).on('input', '#requestsSearchInput', function() {
+        clearTimeout(reqFilterDebounce);
+        reqFilterDebounce = setTimeout(filterDisplayedRequests, 200);
+    });
+    $(document).on('click', '#requestsSearchClear', function() {
+        $('#requestsSearchInput').val('');
+        filterDisplayedRequests();
+    });
+
+    // Функція створення картки запиту доступу
+    function createAccessRequestCard(request) {
+        const environmentClass = `environment-${request.environment}`;
+        const environmentDisplay = getEnvironmentTranslation(request.environment);
+        
+        // Debug: перевіряємо ролі
+        if (request.access_records && request.access_records.length > 0 && request.access_records[0].roles) {
+            console.log('Sample role data:', request.access_records[0].roles[0]);
+        }
+        
+        // Форматуємо інформацію про користувачів
+        let usersHtml = '';
+        request.users.forEach(user => {
+            if (user.type === 'third_party') {
+                usersHtml += `
+                    <div class="user-info">
+                        <strong><i class="bi bi-person-badge me-1"></i>${user.name}</strong><br>
+                        <small class="text-muted">
+                            <i class="bi bi-envelope me-1"></i>${user.email}<br>
+                            <i class="bi bi-building me-1"></i>${user.organization || '{% trans "No organization" %}'}
+                        </small>
+                    </div>
+                `;
+            } else {
+                usersHtml += `
+                    <div class="user-info">
+                        <strong><i class="bi bi-person me-1"></i>${user.name}</strong><br>
+                        <small class="text-muted">
+                            <i class="bi bi-envelope me-1"></i>${user.email}<br>
+                            ${user.department ? `<i class="bi bi-building me-1"></i>${user.department}<br>` : ''}
+                            ${user.position ? `<i class="bi bi-briefcase me-1"></i>${user.position}` : ''}
+                        </small>
+                    </div>
+                `;
+            }
+        });
+        
+        // Відсортовуємо записи: активні зверху, revoked знизу
+        const sortedRecords = (request.access_records || []).slice().sort((a, b) => {
+            return Number(a.is_revoked) - Number(b.is_revoked);
+        });
+
+        // Створюємо компактне відображення для великої кількості записів
+        const totalRecords = sortedRecords.length;
+        const activeRecords = sortedRecords.filter(r => !r.is_revoked).length;
+        const revokedRecords = totalRecords - activeRecords;
+        
+        let rolesHtml = `
+            <div class="access-records-summary">
+                <div>
+                    <strong>${totalRecords}</strong> {% trans "records" %} 
+                    (<span class="text-success">${activeRecords} {% trans "active" %}</span>
+                    ${revokedRecords > 0 ? `, <span class="text-danger">${revokedRecords} {% trans "revoked" %}</span>` : ''})
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input select-all-records" type="checkbox" 
+                           id="selectAll_${request.id}" data-request-id="${request.id}">
+                    <label class="form-check-label fw-bold" for="selectAll_${request.id}">
+                        <i class="bi bi-check-all me-1"></i>{% trans "Select All" %}
+                    </label>
+                </div>
+            </div>
+            <div class="access-records-list">
+                <table class="access-records-table">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-col"></th>
+                            <th class="object-col">{% trans "Object" %}</th>
+                            <th class="status-col">{% trans "Status" %}</th>
+                            <th class="roles-col">{% trans "Roles" %}</th>
+                            <th class="grant-id-col">{% trans "Grant Access Record ID" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        sortedRecords.forEach((record, index) => {
+            const recordId = `${request.id}_${record.id}`;
+            const isRevoked = record.is_revoked;
+            const revokedClass = isRevoked ? ' revoked' : '';
+            const disabledAttr = isRevoked ? ' disabled' : '';
+            const revokedTooltip = isRevoked ? 
+                ` title="{% trans 'This access record is already revoked' %}${record.revoke_request ? 
+                    `\n{% trans 'Revoke Request' %}: #${record.revoke_request.id}` : 
+                    ''}${record.original_grant_request ? 
+                    `\n{% trans 'Originally granted by' %}: ${record.original_grant_request.requested_by || '{% trans "Unknown" %}'}\n{% trans 'Grant Request' %}: #${record.original_grant_request.id}` : 
+                    ''}"` : '';
+            
+            // Рядок таблиці для запису
+            const rowClass = isRevoked ? 'revoked-row' : '';
+            rolesHtml += `
+                <tr class="${rowClass}"${revokedTooltip}>
+                    <td class="checkbox-col">
+                        <input class="form-check-input access-record-checkbox" type="checkbox" 
+                               id="record_${recordId}" 
+                               data-request-id="${request.id}" 
+                               data-record-id="${record.id}"
+                               data-object-name="${record.object_name || ''}"
+                                data-grant-access-record-id="${(record.grant_access_record_id && record.grant_access_record_id.indexOf('.')>0) ? record.grant_access_record_id : `${record.id}.${request.id}.${record.order_number || 1}` }"
+                               data-order-number="${record.order_number || 1}"
+                               value="${record.id}"${disabledAttr}>
+                    </td>
+                    <td class="object-col" style="color: ${record.object_color || '#495057'};">
+                        ${record.object_name || '{% trans "Default Object" %}'}
+                    </td>
+                    <td class="status-col">
+                        ${isRevoked ? `<span class=\"badge bg-danger\">{% trans 'Revoked' %}</span>` : ''}
+                    </td>
+                    <td class="roles-col">
+                        ${record.requested_role
+                            ? `<span class="role-badge-mini fw-semibold" style="color: ${record.requested_role.color || '#6c757d'};" title="${getRoleTranslation(record.requested_role)}">${getRoleTranslation(record.requested_role)}</span>`
+                            : (record.roles || []).map(role => {
+                                const roleName = getRoleTranslation(role);
+                                return `<span class="role-badge-mini" style="color: ${role.color || '#6c757d'};" title="${roleName}">${roleName}</span>`;
+                            }).join('')
+                        }
+                    </td>
+                    <td class="grant-id-col">
+                        <strong>${record.grant_access_record_id_full || record.grant_access_record_id || `${record.id}.${request.id}.${record.order_number || 1}.0`}</strong>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        rolesHtml += `
+                    </tbody>
+                </table>
+            </div>`;
+        
+        const card = $(`
+            <div class="access-request-card" data-request-id="${request.id}">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <h6 class="mb-0 me-3">
+                                <i class="bi bi-key me-1"></i>
+                                {% trans "Request" %} #${request.id}
+                            </h6>
+                            <span class="environment-badge ${environmentClass}">
+                                ${environmentDisplay}
+                            </span>
+                        </div>
+                        <small class="text-muted">
+                            <i class="bi bi-calendar me-1"></i>
+                            ${formatDate(request.created_at)}
+                        </small>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="text-muted mb-2">{% trans "Users" %}</h6>
+                        ${usersHtml}
+                    </div>
+                    <div class="col-md-8">
+                        <h6 class="text-muted mb-2">{% trans "Access Records to Revoke" %}</h6>
+                        ${rolesHtml}
+                    </div>
+                </div>
+            </div>
+        `);
+        
+        // Додаємо обробники для чекбоксів
+        card.find('.select-all-records').on('change', function() {
+            const isChecked = $(this).is(':checked');
+            const requestId = $(this).data('request-id');
+            $(`.access-record-checkbox[data-request-id="${requestId}"]`).prop('checked', isChecked);
+            updateSelectedRecords();
+        });
+        
+        card.find('.access-record-checkbox').on('change', function() {
+            const requestId = $(this).data('request-id');
+            const allCheckboxes = $(`.access-record-checkbox[data-request-id="${requestId}"]`);
+            const checkedCheckboxes = allCheckboxes.filter(':checked');
+            
+            // Оновлюємо стан "Select All"
+            const selectAllCheckbox = $(`.select-all-records[data-request-id="${requestId}"]`);
+            selectAllCheckbox.prop('checked', checkedCheckboxes.length === allCheckboxes.length);
+            selectAllCheckbox.prop('indeterminate', checkedCheckboxes.length > 0 && checkedCheckboxes.length < allCheckboxes.length);
+            
+            updateSelectedRecords();
+        });
+        
+        // Додаємо обробник кліку на картку (але не на чекбокси)
+        card.on('click', function(e) {
+            if ($(e.target).is('input[type="checkbox"]') || $(e.target).is('label')) {
+                return; // Не обробляємо клік на чекбокси
+            }
+            
+            $('.access-request-card').removeClass('selected');
+            $(this).addClass('selected');
+            selectedAccessRequest = request;
+        });
+        
+        return card;
+    }
+
+    // Функція оновлення вибраних записів доступу
+    function updateSelectedRecords() {
+        selectedAccessRecords = [];
+        
+        $('.access-record-checkbox:checked').each(function() {
+            const requestId = $(this).data('request-id');
+            const recordId = $(this).data('record-id');
+            const objectName = $(this).data('object-name');
+            const grantAccessRecordId = $(this).data('grant-access-record-id');
+            const orderNumber = $(this).data('order-number');
+            
+            selectedAccessRecords.push({
+                request_id: requestId,
+                record_id: recordId,
+                object_name: objectName,
+                grant_access_record_id: grantAccessRecordId,
+                order_number: orderNumber
+            });
+        });
+        
+        // Показуємо або приховуємо форму підтвердження
+        if (selectedAccessRecords.length > 0) {
+            showSelectedRecordsInfo();
+            $('#revokeConfirmation').removeClass('d-none');
+        } else {
+            $('#selectedRequestInfo, #revokeConfirmation').addClass('d-none');
+        }
+    }
+
+    // Функція показу інформації про вибрані записи
+    function showSelectedRecordsInfo() {
+        const infoContainer = $('#selectedRequestInfo');
+        const detailsContainer = $('#selectedRequestDetails');
+        
+        if (selectedAccessRecords.length === 0) {
+            infoContainer.addClass('d-none');
+            return;
+        }
+        
+        // Групуємо записи по запитах
+        const recordsByRequest = {};
+        selectedAccessRecords.forEach(record => {
+            if (!recordsByRequest[record.request_id]) {
+                recordsByRequest[record.request_id] = [];
+            }
+            recordsByRequest[record.request_id].push(record);
+        });
+        
+        let detailsHtml = '';
+        Object.keys(recordsByRequest).forEach(requestId => {
+            const records = recordsByRequest[requestId];
+            detailsHtml += `
+                <div class="mb-2">
+                    <strong>{% trans "Request" %} #${requestId}</strong>
+                    <ul class="mb-1">
+                        ${records.map(record => 
+                            `<li><strong>Grant Access Record ID: ${record.grant_access_record_id}</strong> - ${record.object_name || '{% trans "Default Object" %}'}</li>`
+                        ).join('')}
+                    </ul>
+                </div>
+            `;
+        });
+        
+        detailsContainer.html(`
+            <p class="mb-2">
+                <strong>{% trans "Selected Access Records" %}: ${selectedAccessRecords.length}</strong>
+            </p>
+            ${detailsHtml}
+        `);
+        
+        infoContainer.removeClass('d-none');
+    }
+
+    // Функція показу інформації про вибраний запит
+    function showSelectedRequestInfo(request) {
+        const infoContainer = $('#selectedRequestInfo');
+        const detailsContainer = $('#selectedRequestDetails');
+        
+        detailsContainer.html(`
+            <p class="mb-2">
+                <strong>{% trans "Request" %} #${request.id}</strong> - ${request.system_name} (${request.environment_display})
+            </p>
+            <p class="mb-0">
+                <strong>{% trans "Users" %}:</strong> ${request.users.map(u => u.name).join(', ')}
+            </p>
+        `);
+        
+        infoContainer.removeClass('d-none');
+        $('#revokeConfirmation').removeClass('d-none');
+    }
+
+    // Функція форматування дати
+    function formatDate(dateString) {
+        if (!dateString) return '{% trans "Not specified" %}';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('{{ current_language }}', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // Обробники для радіо-кнопок часу скасування
+    $('input[name="revocationTiming"]').on('change', function() {
+        const timing = $(this).val();
+        
+        if (timing === 'immediately') {
+            $('#scheduledRevocationDates').addClass('d-none');
+            $('#startDate, #endDate').val('');
+        } else if (timing === 'scheduled') {
+            $('#scheduledRevocationDates').removeClass('d-none');
+            if (!$('#startDate').val()) {
+                const now = new Date();
+                const plus30 = new Date(now.getTime() + 30 * 60000);
+                const pad = (n) => String(n).padStart(2, '0');
+                $('#startDate').val(`${pad(plus30.getDate())}.${pad(plus30.getMonth() + 1)}.${plus30.getFullYear()} ${pad(plus30.getHours())}:${pad(plus30.getMinutes())}`);
+            }
+        }
+    });
+
+    // Обробник вибору файлів
+    $('#attachments').on('change', function() {
+        const files = Array.from(this.files);
+        selectedFiles = files;
+        displaySelectedFiles(files);
+    });
+
+    // Функція відображення вибраних файлів
+    function displaySelectedFiles(files) {
+        const container = $('#selectedFiles');
+        container.empty();
+        
+        if (files.length === 0) return;
+        
+        files.forEach((file, index) => {
+            const fileSize = (file.size / 1024 / 1024).toFixed(2);
+            const fileElement = $(`
+                <div class="d-flex justify-content-between align-items-center p-2 border rounded mb-2">
+                    <div>
+                        <i class="bi bi-file-earmark me-2"></i>
+                        <span>${file.name}</span>
+                        <small class="text-muted ms-2">(${fileSize} MB)</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-file" data-index="${index}">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+            `);
+            container.append(fileElement);
+        });
+    }
+
+    // Обробник видалення файлу
+    $(document).on('click', '.remove-file', function() {
+        const index = parseInt($(this).data('index'));
+        selectedFiles.splice(index, 1);
+        
+        // Оновлюємо input файлів
+        const dt = new DataTransfer();
+        selectedFiles.forEach(file => dt.items.add(file));
+        $('#attachments')[0].files = dt.files;
+        
+        displaySelectedFiles(selectedFiles);
+    });
+
+    // Обробник скасування
+    $('#cancelRevoke').on('click', function() {
+        $('#revokeConfirmation').addClass('d-none');
+        $('.access-request-card').removeClass('selected');
+        selectedAccessRequest = null;
+        $('#selectedRequestInfo').addClass('d-none');
+    });
+
+    // Обробник подання форми скасування
+    $('#revokeAccessForm').on('submit', async function(e) {
+        e.preventDefault();
+        
+        if (selectedAccessRecords.length === 0) {
+            showError('{% trans "Please select at least one access record to revoke" %}');
+            return;
+        }
+
+        // Validate user type selection
+        const userType = $('input[name="userType"]:checked').val();
+        if (!userType) {
+            showError('{% trans "Please select a user type" %}');
+            return;
+        }
+
+        const form = this;
+        if (!form.checkValidity()) {
+            e.stopPropagation();
+            form.classList.add('was-validated');
+            return;
+        }
+
+        const submitButton = $('#submitRevoke');
+        const originalText = submitButton.html();
+        submitButton.html('<span class="loading-spinner me-2"></span>{% trans "Submitting..." %}').prop('disabled', true);
+
+        try {
+            const formData = new FormData();
+            formData.append('request_type', 'revoke');
+            formData.append('company_id', $('#company').val());
+            formData.append('system_id', $('#system').val());
+            formData.append('environment', $('#environment').val());
+            formData.append('user_type', userType);
+            
+            // Додаємо вибрані записи доступу
+            formData.append('selected_access_records', JSON.stringify(selectedAccessRecords));
+            
+            // Додаємо дані форми
+            formData.append('access_justification', $('#accessJustification').val());
+            formData.append('additional_requirements', $('#additionalRequirements').val());
+            formData.append('notes', $('#notes').val());
+            
+            // Додаємо дані про час скасування
+            const revocationTiming = $('input[name="revocationTiming"]:checked').val();
+            formData.append('revocation_timing', revocationTiming);
+            
+            if (revocationTiming === 'scheduled') {
+                const startDate = $('#startDate').val();
+                const endDate = $('#endDate').val();
+                
+                if (startDate) formData.append('start_date', localDateTimeToIso(startDate));
+                if (endDate) formData.append('end_date', localDateTimeToIso(endDate));
+            }
+            
+            // Додаємо файли
+            selectedFiles.forEach(file => {
+                formData.append('attachments', file);
+            });
+
+            const csrfTokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (!csrfTokenElement) {
+                throw new Error('CSRF token not found. Please refresh the page and try again.');
+            }
+            const csrfToken = csrfTokenElement.value;
+
+            const response = await fetch('{% url "submit_access_request" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showSuccess('{% trans "Revoke access request submitted successfully" %}');
+                
+                // Очищуємо форму та повертаємося до початкового стану
+                setTimeout(() => {
+                    resetForm();
+                }, 2000);
+            } else {
+                showError(data.message || '{% trans "Error submitting revoke request" %}');
+            }
+        } catch (error) {
+            showError('{% trans "Error submitting revoke request" %}: ' + error.message);
+        } finally {
+            submitButton.html(originalText).prop('disabled', false);
+        }
+    });
+
+    // Функція скидання форми
+    function resetForm() {
+        // Очищуємо всі поля
+        $('#company, #system, #environment, #specificUser, #thirdPartyOrganization, #thirdPartyUser').val('').trigger('change.select2');
+        $('#accessJustification, #additionalRequirements, #notes').val('');
+        $('#revokeJustificationTemplate').val('');
+        $('#immediately').prop('checked', true);
+        $('#startDate, #endDate').val('');
+        $('#scheduledRevocationDates').addClass('d-none');
+        $('#attachments').val('');
+        
+        // Очищуємо стан
+        selectedFiles = [];
+        selectedAccessRequest = null;
+        selectedAccessRecords = [];
+        
+        // Очищуємо всі чекбокси
+        $('.access-record-checkbox, .select-all-records').prop('checked', false);
+        
+        // Приховуємо результати та форму
+        hideResults();
+        $('#selectedFiles').empty();
+        
+        // Скидаємо валідацію
+        $('#revokeAccessForm').removeClass('was-validated');
+        
+        // Блокуємо поля та скидаємо radio buttons
+        $('#system, #environment, #searchAccessRequests').prop('disabled', true);
+        $('input[name="userType"]').prop('disabled', true).prop('checked', false);
+        $('#specificUserSection, #thirdPartyFilters').hide();
+    }
+});
+</script>
+{% endblock %}

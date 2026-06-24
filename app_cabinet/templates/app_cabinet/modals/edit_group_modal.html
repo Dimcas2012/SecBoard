@@ -1,0 +1,361 @@
+<!--SecBoard/templates/app_cabinet/modals/edit_group_modal.html-->
+{% load i18n %}
+
+<!-- Edit Group Modal -->
+<div class="modal fade" id="editGroupModal" tabindex="-1" aria-labelledby="editGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editGroupModalLabel">{% trans "Edit Group" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editGroupForm" method="POST">
+                {% csrf_token %}
+                <input type="hidden" id="edit_group_id" name="group_id">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="edit_system_group_name" class="required">{% trans "System Group Name" %}</label>
+                                <input type="text" class="form-control" id="edit_system_group_name" name="group_name" required>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="edit_company" class="required">{% trans "Company" %}</label>
+                                <select class="form-control" id="edit_company" name="company" required>
+                                    <option value="">{% trans "Select Company" %}</option>
+                                    {% for company in companies %}
+                                        <option value="{{ company.id }}">{{ company.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cabinet Users (based on selected Company) -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label class="d-flex align-items-center justify-content-between">
+                                    <span>{% trans "Cabinet Users (Selected Company)" %}</span>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary me-1" id="editSelectAllUsers">
+                                            <i class="fas fa-check-square"></i> {% trans "Select All" %}
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary me-1" id="editDeselectAllUsers">
+                                            <i class="fas fa-square"></i> {% trans "Deselect All" %}
+                                        </button>
+                                        <span class="badge bg-secondary" id="editCompanyUsersCount">0</span>
+                                    </div>
+                                </label>
+                                <input type="text" class="form-control mb-2" id="editCompanyUsersSearch" placeholder="{% trans 'Search users...' %}">
+                                <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;" id="editCompanyUsersList">
+                                    <small class="text-muted">{% trans "Select a company to load users" %}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label for="edit_group_name" class="required">{% trans "Name" %}</label>
+                                <input type="text" class="form-control" id="edit_group_name" name="name" required maxlength="50">
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label for="edit_description">{% trans "Description" %}</label>
+                                <textarea class="form-control" id="edit_description" name="description" rows="3"></textarea>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="edit_color">{% trans "Group Color" %}</label>
+                                <div class="input-group">
+                                    <input type="color" class="form-control form-control-color" id="edit_color" name="color" value="#000000" style="max-width: 60px;">
+                                    <input type="text" class="form-control" id="edit_color_hex" name="color_hex" value="#000000" maxlength="7" pattern="^#([A-Fa-f0-9]{6})$" title="{% trans 'Please enter a valid HEX color code.' %}">
+                                </div>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Save Changes" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block edit_group_modal_scripts %}
+<script>
+// Prevent double initialization
+if (typeof window.editGroupModalInitialized === 'undefined') {
+    window.editGroupModalInitialized = false;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Prevent double initialization
+    if (window.editGroupModalInitialized) {
+        return;
+    }
+    window.editGroupModalInitialized = true;
+    
+    const editGroupForm = document.getElementById('editGroupForm');
+    const editGroupModal = document.getElementById('editGroupModal');
+    const editColor = document.getElementById('edit_color');
+    const editColorHex = document.getElementById('edit_color_hex');
+    const editCompany = document.getElementById('edit_company');
+    const editUsersList = document.getElementById('editCompanyUsersList');
+    const editUsersCount = document.getElementById('editCompanyUsersCount');
+    const editUsersSearch = document.getElementById('editCompanyUsersSearch');
+
+    function loadCompanyUsersForEdit(companyId) {
+        if (!companyId) {
+            editUsersList.innerHTML = '<small class="text-muted">{% trans "Select a company to load users" %}</small>';
+            editUsersCount.textContent = '0';
+            return;
+        }
+        const currentLang = window.location.pathname.split('/')[1];
+        const url = `/${currentLang}/app_cabinet/api/company/${companyId}/users/`;
+        
+        editUsersList.innerHTML = '<div class="text-center py-2"><span class="spinner-border spinner-border-sm"></span></div>';
+        fetch(url, {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            const allUsers = data.users || data || [];
+            // Filter only active users
+            const users = allUsers.filter(u => u.is_active);
+            editUsersCount.textContent = users.length;
+            if (!users.length) {
+                editUsersList.innerHTML = '<small class="text-muted">{% trans "No active users found for this company" %}</small>';
+                return;
+            }
+            const items = users.map(u => {
+                const deptPos = [];
+                if (u.department_name) deptPos.push(u.department_name);
+                if (u.position_name) deptPos.push(u.position_name);
+                const deptPosText = deptPos.length > 0 ? deptPos.join(' / ') : '-';
+                
+                return `
+                <div class="edit-user-row d-flex justify-content-between align-items-center py-1 border-bottom" data-user-id="${u.id}">
+                    <div class="form-check d-flex align-items-center">
+                        <input class="form-check-input me-2" type="checkbox" name="users" value="${u.id}" id="edit_user_${u.id}">
+                        <label class="form-check-label" for="edit_user_${u.id}" style="cursor: pointer;">
+                            <strong>${u.full_name || u.username || '-'}</strong>
+                            <div class="text-muted" style="font-size: 0.875rem;">${u.email || ''}</div>
+                            <div class="text-muted" style="font-size: 0.8rem;"><i class="fas fa-briefcase me-1"></i>${deptPosText}</div>
+                        </label>
+                    </div>
+                    <span class="badge bg-success">{% trans "Active" %}</span>
+                </div>
+            `}).join('');
+            
+            // Clear existing content before adding new
+            editUsersList.innerHTML = items;
+        })
+        .catch(error => {
+            console.error('Error loading users:', error);
+            editUsersList.innerHTML = '<div class="text-danger">{% trans "Error loading users" %}</div>';
+            editUsersCount.textContent = '0';
+        });
+    }
+
+    if (editCompany) {
+        editCompany.addEventListener('change', function() {
+            loadCompanyUsersForEdit(this.value);
+        });
+    }
+    
+    // NOTE: Auto-loading users on modal open is disabled
+    // Users are now loaded in loadGroupData() in groups.html
+    // This prevents loading with undefined company_id
+    /*
+    if (editGroupModal) {
+        editGroupModal.addEventListener('shown.bs.modal', function() {
+            console.log('Edit Group Modal opened');
+            console.log('Company select element:', editCompany);
+            console.log('Company select value:', editCompany ? editCompany.value : 'SELECT NOT FOUND');
+            
+            const selectedCompanyId = editCompany ? editCompany.value : null;
+            console.log('Selected company ID:', selectedCompanyId);
+            
+            if (selectedCompanyId) {
+                loadCompanyUsersForEdit(selectedCompanyId);
+            }
+        }, { once: false });
+    }
+    */
+
+    if (editUsersSearch && !editUsersSearch.dataset.listenerAdded) {
+        editUsersSearch.dataset.listenerAdded = 'true';
+        
+        let editSearchTimeout = null;
+        
+        editUsersSearch.addEventListener('keyup', function(event) {
+            // Clear previous timeout
+            if (editSearchTimeout) {
+                clearTimeout(editSearchTimeout);
+            }
+            
+            const inputElement = this;
+            
+            // Debounce: wait 100ms after user stops typing
+            editSearchTimeout = setTimeout(() => {
+                const term = inputElement.value.toLowerCase();
+                const rows = editUsersList.querySelectorAll('.edit-user-row');
+                
+                let visible = 0;
+                rows.forEach((row) => {
+                    const text = row.textContent.toLowerCase();
+                    const show = term === '' || text.indexOf(term) > -1;
+                    
+                    // Use class instead of inline style to ensure it works with flex layouts
+                    if (show) {
+                        row.classList.remove('d-none');
+                        row.style.display = '';
+                    } else {
+                        row.classList.add('d-none');
+                    }
+                    
+                    if (show) visible++;
+                });
+                
+                // Update count badge
+                const totalRows = rows.length;
+                if (term === '') {
+                    editUsersCount.textContent = totalRows;
+                } else {
+                    editUsersCount.textContent = `${visible}/${totalRows}`;
+                }
+            }, 100); // 100ms debounce delay
+        });
+    }
+
+    // Handle Select All Users button for Edit
+    const editSelectAllBtn = document.getElementById('editSelectAllUsers');
+    if (editSelectAllBtn) {
+        editSelectAllBtn.addEventListener('click', function() {
+            const checkboxes = editUsersList.querySelectorAll('input[type="checkbox"]:not([disabled])');
+            checkboxes.forEach(cb => {
+                if (cb.closest('.edit-user-row') && !cb.closest('.edit-user-row').classList.contains('d-none')) {
+                    cb.checked = true;
+                }
+            });
+        });
+    }
+    
+    // Handle Deselect All Users button for Edit
+    const editDeselectAllBtn = document.getElementById('editDeselectAllUsers');
+    if (editDeselectAllBtn) {
+        editDeselectAllBtn.addEventListener('click', function() {
+            const checkboxes = editUsersList.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+        });
+    }
+
+    // Color input synchronization
+    if (editColor && editColorHex) {
+        editColor.addEventListener('input', function() {
+            editColorHex.value = this.value;
+        });
+
+        editColorHex.addEventListener('input', function() {
+            if (/^#([A-Fa-f0-9]{6})$/.test(this.value)) {
+                editColor.value = this.value;
+            }
+        });
+    }
+
+    if (editGroupForm) {
+        editGroupForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            editGroupForm.querySelectorAll('.is-invalid').forEach(element => {
+                element.classList.remove('is-invalid');
+            });
+            const formData = new FormData(editGroupForm);
+            const groupId = document.getElementById('edit_group_id').value;
+            const currentLang = window.location.pathname.split('/')[1];
+            fetch(`/${currentLang}/app_cabinet/groups/${groupId}/edit/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.message);
+                    const modalInstance = bootstrap.Modal.getInstance(editGroupModal);
+                    if (modalInstance) {
+                        modalInstance.hide();
+                    }
+                    editGroupForm.reset();
+                    window.location.reload();
+                } else {
+                    const errors = data.errors;
+                    Object.keys(errors).forEach(key => {
+                        const field = editGroupForm.querySelector(`[name="${key}"]`);
+                        if (field) {
+                            field.classList.add('is-invalid');
+                            const feedback = field.nextElementSibling;
+                            if (feedback && feedback.classList.contains('invalid-feedback')) {
+                                feedback.textContent = errors[key].join(' ');
+                            }
+                        }
+                    });
+                    alert(data.message || '{% trans "Error updating group" %}');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('{% trans "An unexpected error occurred" %}');
+            });
+        });
+    }
+
+    // NOTE: loadGroupData is now defined in groups.html
+    // This old definition has been removed to prevent conflicts
+
+    // Reset form when modal is hidden
+    if (editGroupModal) {
+        editGroupModal.addEventListener('hidden.bs.modal', function () {
+            editGroupForm.reset();
+            editGroupForm.querySelectorAll('.is-invalid').forEach(element => {
+                element.classList.remove('is-invalid');
+            });
+            if (editColor && editColorHex) {
+                editColor.value = '#000000';
+                editColorHex.value = '#000000';
+            }
+            editUsersList.innerHTML = '<small class="text-muted">{% trans "Select a company to load users" %}</small>';
+            editUsersCount.textContent = '0';
+        });
+    }
+});
+</script>
+{% endblock %}

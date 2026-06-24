@@ -1,0 +1,239 @@
+﻿{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Edit Framework" %} - {{ framework.name }}{% endblock %}
+
+{% block extra_css %}
+{% include "includes/sb_compact_css.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-3">
+        <div class="col-md-8 offset-md-2 text-end">
+            <a href="{% url 'compliance:control_mapping' %}" class="btn btn-sm btn-outline-info">
+                <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+            </a>
+            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#frameworkComplianceGuideModal">
+                <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+            </button>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h3><i class="fas fa-edit"></i> {% trans "Edit Framework" %}</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'compliance:framework_update' framework.id %}">
+                        {% csrf_token %}
+                        
+                        <div class="form-group">
+                            <label for="name">{% trans "Framework Name" %} *</label>
+                            <input type="text" 
+                                   class="form-control form-control-lg" 
+                                   id="name" 
+                                   name="name" 
+                                   value="{{ framework.name }}"
+                                   required>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="framework_type">{% trans "Framework Type" %} *</label>
+                                <select class="form-control" id="framework_type" name="framework_type" required>
+                                    <option value="pci_dss" {% if framework.framework_type == 'pci_dss' %}selected{% endif %}>PCI DSS</option>
+                                    <option value="iso_27001" {% if framework.framework_type == 'iso_27001' %}selected{% endif %}>ISO 27001</option>
+                                    <option value="soc2" {% if framework.framework_type == 'soc2' %}selected{% endif %}>SOC 2</option>
+                                    <option value="hipaa" {% if framework.framework_type == 'hipaa' %}selected{% endif %}>HIPAA</option>
+                                    <option value="gdpr" {% if framework.framework_type == 'gdpr' %}selected{% endif %}>GDPR</option>
+                                    <option value="nist" {% if framework.framework_type == 'nist' %}selected{% endif %}>NIST</option>
+                                    <option value="cobit" {% if framework.framework_type == 'cobit' %}selected{% endif %}>COBIT</option>
+                                    <option value="cis" {% if framework.framework_type == 'cis' %}selected{% endif %}>CIS Controls</option>
+                                    <option value="custom" {% if framework.framework_type == 'custom' %}selected{% endif %}>{% trans "Custom" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group col-md-6">
+                                <label for="version">{% trans "Version" %} *</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="version" 
+                                       name="version" 
+                                       value="{{ framework.version }}"
+                                       required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="description">{% trans "Description" %}</label>
+                            <textarea class="form-control" 
+                                      id="description" 
+                                      name="description" 
+                                      rows="4">{{ framework.description }}</textarea>
+                        </div>
+                        
+                        {% if framework.is_template %}
+                        <div class="form-group">
+                            <label>{% trans "Applied to Companies" %}</label>
+                            <div class="card">
+                                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="table table-sm table-borderless">
+                                        <thead>
+                                            <tr>
+                                                <th width="50">{% trans "Apply" %}</th>
+                                                <th>{% trans "Company" %}</th>
+                                                <th width="150">{% trans "Mandatory" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for comp in companies %}
+                                            <tr>
+                                                <td>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input company-checkbox" type="checkbox" 
+                                                               name="companies" value="{{ comp.id }}" 
+                                                               id="company_{{ comp.id }}"
+                                                               {% if comp.id in applied_companies %}checked{% endif %}>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <label class="form-check-label mb-0" for="company_{{ comp.id }}">
+                                                        <strong>{{ comp.name }}</strong>
+                                                        {% if comp.id in applied_companies %}
+                                                        <span class="badge badge-success ml-2">
+                                                            <i class="fas fa-check"></i> {% trans "Applied" %}
+                                                        </span>
+                                                        {% endif %}
+                                                    </label>
+                                                </td>
+                                                <td>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox" 
+                                                               name="mandatory_{{ comp.id }}" value="1" 
+                                                               id="mandatory_{{ comp.id }}"
+                                                               {% if comp.id in applied_companies_mandatory %}checked{% endif %}>
+                                                        <label class="form-check-label" for="mandatory_{{ comp.id }}">
+                                                            <span class="badge badge-danger">
+                                                                <i class="fas fa-exclamation-circle"></i> {% trans "Mandatory" %}
+                                                            </span>
+                                                        </label>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> {% trans "Select companies and set if the framework is mandatory for each company individually." %}
+                            </small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="status">{% trans "Template Status" %}</label>
+                            <select class="form-control" id="status" name="status">
+                                <option value="draft" {% if framework.status == 'draft' %}selected{% endif %}>{% trans "Draft" %}</option>
+                                <option value="active" {% if framework.status == 'active' %}selected{% endif %}>{% trans "Active" %}</option>
+                                <option value="archived" {% if framework.status == 'archived' %}selected{% endif %}>{% trans "Archived" %}</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                {% trans "Template status (Draft templates can be edited before applying)" %}
+                            </small>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            {% trans "This is a Framework Application" %}
+                            {% if framework.template %}
+                            <br><strong>{% trans "Template:" %}</strong> {{ framework.template.name }} {{ framework.template.version }}
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="company">{% trans "Company" %} *</label>
+                                <select class="form-control" id="company" name="company" required>
+                                    {% for comp in companies %}
+                                    <option value="{{ comp.id }}" {% if framework.company and framework.company.id == comp.id %}selected{% endif %}>{{ comp.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="form-group col-md-6">
+                                <label for="status">{% trans "Status" %}</label>
+                                <select class="form-control" id="status" name="status">
+                                    <option value="draft" {% if framework.status == 'draft' %}selected{% endif %}>{% trans "Draft" %}</option>
+                                    <option value="active" {% if framework.status == 'active' %}selected{% endif %}>{% trans "Active" %}</option>
+                                    <option value="archived" {% if framework.status == 'archived' %}selected{% endif %}>{% trans "Archived" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="is_mandatory" name="is_mandatory" value="1" {% if framework.is_mandatory %}checked{% endif %}>
+                            <label class="form-check-label" for="is_mandatory">
+                                <strong>{% trans "This is a mandatory framework for this company" %}</strong>
+                            </label>
+                        </div>
+                        {% endif %}
+                        
+                        <hr class="my-4">
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <a href="{% url 'compliance:framework_detail' framework.id %}" class="btn btn-secondary btn-block btn-lg">
+                                    <i class="fas fa-times"></i> {% trans "Cancel" %}
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="submit" class="btn btn-warning btn-block btn-lg">
+                                    <i class="fas fa-save"></i> {% trans "Save Changes" %}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Framework Compliance Guide Modal -->
+<div class="modal fade" id="frameworkComplianceGuideModal" tabindex="-1" aria-labelledby="frameworkComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:framework_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="frameworkComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Framework Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="frameworkComplianceGuideModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('frameworkComplianceGuideModal').addEventListener('show.bs.modal', function() {
+    var body = document.getElementById('frameworkComplianceGuideModalBody');
+    var url = this.getAttribute('data-guide-url');
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+    fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+        })
+        .catch(function() {
+            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+        });
+});
+</script>
+{% endblock %}
+

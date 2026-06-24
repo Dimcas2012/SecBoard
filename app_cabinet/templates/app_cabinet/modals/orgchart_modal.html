@@ -1,0 +1,1334 @@
+<!-- app_cabinet/modals/orgchart_modal.html -->
+{% load i18n %}
+{% load static %}
+
+<!-- Organization Chart Modal -->
+<div class="modal fade" id="orgChartModal" tabindex="-1" aria-labelledby="orgChartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="orgChartModalLabel">
+                    <i class="bi bi-diagram-3 me-2"></i>{% trans "Organization Chart" %}
+                </h5>
+                <div class="ms-auto me-3 d-flex align-items-center">
+                    <div class="badge bg-light text-dark rounded-pill px-3 py-2 me-3" id="chartStatsLabel">
+                        <span id="chartDeptCount" class="badge bg-primary me-1">0</span> {% trans "Depts" %} | 
+                        <span id="chartPosCount" class="badge bg-primary me-1">0</span> {% trans "Positions" %} | 
+                        <span id="chartUserCount" class="badge bg-primary">0</span> {% trans "Users" %}
+            </div>
+                    <div class="btn-group" role="group" aria-label="{% trans 'Quick actions' %}">
+                        <button type="button" class="btn btn-sm btn-outline-light" id="printChart" title="{% trans 'Print Chart' %}">
+                            <i class="bi bi-printer"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-light" id="fullscreenBtn" title="{% trans 'Toggle Fullscreen' %}">
+                            <i class="bi bi-fullscreen"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <!-- Main container with sidebar and chart area -->
+                <div class="d-flex h-100">
+                    <!-- Sidebar for controls -->
+                    <div class="chart-sidebar bg-light border-end" style="width: 280px; overflow-y: auto;">
+                        <div class="p-3">
+                            <h6 class="border-bottom pb-2 mb-3">
+                                <i class="bi bi-sliders me-2"></i>{% trans "Controls" %}
+                            </h6>
+                            
+                            <!-- Layout Section -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-secondary small mb-2">
+                                    <i class="bi bi-layout-three-columns me-1"></i>{% trans "Layout" %}
+                                </label>
+                                <div class="d-grid gap-2">
+                                    <div class="btn-group" role="group">
+                                        <input type="radio" class="btn-check" name="layoutDirection" id="layoutVertical" autocomplete="off" checked>
+                                        <label class="btn btn-sm btn-outline-secondary" for="layoutVertical">
+                                            <i class="bi bi-arrow-down"></i> {% trans "Vertical" %}
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="layoutDirection" id="layoutHorizontal" autocomplete="off">
+                                        <label class="btn btn-sm btn-outline-secondary" for="layoutHorizontal">
+                                            <i class="bi bi-arrow-right"></i> {% trans "Horizontal" %}
+                                        </label>
+                                    </div>
+                                </div>
+                    </div>
+
+                            <!-- Display Options Section -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-secondary small mb-2">
+                                    <i class="bi bi-eye me-1"></i>{% trans "Display Options" %}
+                                </label>
+                                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showPositionsChart" checked>
+                        <label class="form-check-label" for="showPositionsChart">
+                                            <i class="bi bi-person-badge me-1"></i>{% trans "Show Positions" %}
+                        </label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showUsersChart" checked>
+                        <label class="form-check-label" for="showUsersChart">
+                                            <i class="bi bi-people me-1"></i>{% trans "Show Users" %}
+                        </label>
+                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="showNodeDetails" checked>
+                                        <label class="form-check-label" for="showNodeDetails">
+                                            <i class="bi bi-info-circle me-1"></i>{% trans "Show Details" %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Zoom Controls Section -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-secondary small mb-2">
+                                    <i class="bi bi-zoom-in me-1"></i>{% trans "Zoom" %}
+                                </label>
+                                <div class="d-flex align-items-center mb-2">
+                                    <input type="range" class="form-range me-2" id="zoomSlider" min="50" max="200" value="100">
+                                    <span class="badge bg-secondary" id="zoomPercent">100%</span>
+                                </div>
+                                <div class="btn-group w-100">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="zoomIn">
+                                        <i class="bi bi-zoom-in"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="resetZoom">
+                                        <i class="bi bi-arrows-fullscreen"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="zoomOut">
+                                        <i class="bi bi-zoom-out"></i>
+                        </button>
+                    </div>
+                </div>
+
+                            <!-- Export Controls Section -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-secondary small mb-2">
+                                    <i class="bi bi-download me-1"></i>{% trans "Export" %}
+                                </label>
+                                <div class="d-grid gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="exportPDF">
+                                        <i class="bi bi-file-pdf me-1"></i>{% trans "Export PDF" %}
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="exportPNG">
+                                        <i class="bi bi-file-image me-1"></i>{% trans "Export PNG" %}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Legend Section -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-secondary small mb-2">
+                                    <i class="bi bi-info-square me-1"></i>{% trans "Legend" %}
+                                </label>
+                                <div class="legend-container p-2 border rounded bg-white">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <div class="legend-icon department-icon me-2"></div>
+                                        <small>{% trans "Department" %}</small>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <div class="legend-icon position-icon me-2"></div>
+                                        <small>{% trans "Position" %}</small>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="legend-icon user-icon me-2"></div>
+                                        <small>{% trans "User" %}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Container Area -->
+                    <div class="chart-area-wrapper flex-grow-1 position-relative">
+                        <!-- Chart Controls Toolbar -->
+                        <div class="chart-toolbar p-2 border-bottom d-flex justify-content-between align-items-center">
+                            <button class="btn btn-sm btn-outline-secondary" id="toggleSidebar" title="{% trans 'Toggle Sidebar' %}">
+                                <i class="bi bi-layout-sidebar"></i>
+                            </button>
+                            
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-secondary" id="expandAllNodes" title="{% trans 'Expand All' %}">
+                                    <i class="bi bi-chevron-expand"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" id="collapseAllNodes" title="{% trans 'Collapse All' %}">
+                                    <i class="bi bi-chevron-contract"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="input-group input-group-sm" style="max-width: 200px;">
+                                <input type="text" class="form-control" id="chartSearchInput" placeholder="{% trans 'Search...' %}">
+                                <button class="btn btn-outline-secondary" type="button" id="chartSearchClear">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Main Chart Container -->
+                <div id="orgChartContainer" class="chart-container">
+                    <div id="orgChart"></div>
+                </div>
+                        
+                        <!-- Loading Overlay -->
+                        <div id="chartLoadingOverlay" class="chart-loading-overlay d-none">
+                            <div class="spinner-grow text-primary" role="status">
+                                <span class="visually-hidden">{% trans "Loading..." %}</span>
+                            </div>
+                            <p class="mt-3 text-primary fw-bold">{% trans "Generating chart..." %}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Required libraries -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/orgchart/5.0.0/css/jquery.orgchart.min.css" rel="stylesheet">
+<script>
+// Check if jQuery is available
+if (typeof jQuery === 'undefined') {
+    console.error('jQuery is not loaded. OrgChart requires jQuery to function properly.');
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/orgchart/5.0.0/js/jquery.orgchart.min.js"></script>
+<script>
+// Verify that the orgchart plugin is loaded
+if (typeof jQuery !== 'undefined' && typeof jQuery.fn.orgchart === 'undefined') {
+    console.error('jQuery OrgChart plugin failed to load properly');
+}
+
+// Fix for MutationObserver issue in older browsers
+if (typeof window.MutationObserver === 'undefined') {
+    window.MutationObserver = window.WebKitMutationObserver || window.MozMutationObserver;
+}
+</script>
+
+<!-- Custom CSS for the org chart -->
+<style>
+/* Main chart containers */
+.chart-container {
+    height: calc(100vh - 180px);
+    overflow: auto;
+    position: relative;
+    background: #f8f9fa;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.chart-sidebar {
+    transition: all 0.3s ease;
+    z-index: 5;
+}
+
+.chart-sidebar.collapsed {
+    margin-left: -280px;
+}
+
+.chart-toolbar {
+    background-color: #f8f9fa;
+    z-index: 4;
+}
+
+.chart-area-wrapper {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Chart loading overlay */
+.chart-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+/* Legend styling */
+.legend-container {
+    font-size: 12px;
+}
+
+.legend-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.legend-icon.department-icon {
+    background-color: #e3f2fd;
+    border-left: 4px solid #0d6efd;
+}
+
+.legend-icon.department-icon::before {
+    content: "\F37D";
+    font-family: "bootstrap-icons";
+    color: #0d6efd;
+}
+
+.legend-icon.position-icon {
+    background-color: #e6f7ff;
+    border-left: 3px solid #0dcaf0;
+}
+
+.legend-icon.position-icon::before {
+    content: "\F4DA";
+    font-family: "bootstrap-icons";
+    color: #0dcaf0;
+}
+
+.legend-icon.user-icon {
+    background-color: #f0fdf4;
+    border-left: 2px solid #198754;
+}
+
+.legend-icon.user-icon::before {
+    content: "\F4DA";
+    font-family: "bootstrap-icons";
+    color: #198754;
+}
+
+/* OrgChart styling */
+#orgChart {
+    width: 100%;
+    height: 100%;
+}
+
+.orgchart {
+    background: transparent !important;
+}
+
+.orgchart td.left,
+.orgchart td.right,
+.orgchart td.top {
+    border-color: #adb5bd;
+}
+
+.orgchart td>.down {
+    background-color: #adb5bd;
+}
+
+.orgchart .lines .downLine {
+    background-color: #adb5bd;
+}
+
+.orgchart .lines .rightLine {
+    border-right: 1px solid #adb5bd;
+}
+
+.orgchart .lines .leftLine {
+    border-left: 1px solid #adb5bd;
+}
+
+.orgchart .lines .topLine {
+    border-top: 1px solid #adb5bd;
+}
+
+/* Node styling */
+.orgchart .node {
+    min-width: 150px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    margin: 0 10px;
+}
+
+.orgchart .node:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.orgchart .node.department {
+    border: none;
+    border-left: 4px solid #0d6efd;
+    background: linear-gradient(to right, #e3f2fd, #ffffff);
+}
+
+.orgchart .node.position {
+    border: none;
+    border-left: 3px solid #0dcaf0;
+    background: linear-gradient(to right, #e6f7ff, #ffffff);
+}
+
+.orgchart .node.user {
+    border: none;
+    border-left: 2px solid #198754;
+    background: linear-gradient(to right, #f0fdf4, #ffffff);
+}
+
+.orgchart .node .title {
+    height: auto;
+    min-height: 40px;
+    width: 100%;
+    padding: 8px 10px;
+    text-align: left;
+    box-sizing: border-box;
+    background-color: transparent;
+    color: #212529;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+.orgchart .node .content {
+    height: auto;
+    min-height: 40px;
+    width: 100%;
+    padding: 8px 10px;
+    line-height: 1.4;
+    text-align: left;
+    font-size: 12px;
+    color: #6c757d;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+/* User node specific styling */
+.orgchart .node.user .title {
+    display: flex;
+    align-items: center;
+}
+
+.user-avatar-container {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.user-avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.user-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #e9ecef;
+    color: #6c757d;
+    font-weight: 600;
+}
+
+.node-title-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.node-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.node-subtitle {
+    font-size: 11px;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Node badges */
+.node-badge {
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 10px;
+    margin-left: 5px;
+    background-color: rgba(13, 110, 253, 0.15);
+    color: #0d6efd;
+}
+
+/* Highlighted node */
+.orgchart .node.highlighted {
+    box-shadow: 0 0 0 3px #0d6efd, 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 10;
+}
+
+/* Node collapse/expand control */
+.orgchart .node .oc-node-collapse-expand {
+    position: absolute;
+    bottom: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 50%;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    font-size: 12px;
+    z-index: 2;
+}
+
+.orgchart .node .oc-node-collapse-expand:hover {
+    background-color: #f8f9fa;
+    color: #0d6efd;
+}
+
+/* Print styles */
+@media print {
+    .chart-sidebar, 
+    .chart-toolbar,
+    .modal-header,
+    .oc-node-collapse-expand {
+        display: none !important;
+    }
+    
+    .chart-container {
+        height: auto !important;
+        overflow: visible !important;
+        padding: 0 !important;
+    }
+    
+    .orgchart {
+        transform: scale(1) !important;
+        background: white !important;
+    }
+
+    .orgchart .node {
+        page-break-inside: avoid;
+    }
+    
+    .chart-area-wrapper {
+        overflow: visible !important;
+    }
+}
+
+/* Add tree-like structure styles */
+.tree-like-chart.orgchart {
+    background: transparent !important;
+}
+
+.tree-like-structure .node {
+    margin: 0 10px 30px 10px;
+}
+
+.tree-like-structure table {
+    margin: 0 auto;
+}
+
+.tree-like-structure .lines {
+    position: relative;
+}
+
+.centered-root {
+    margin: 0 auto !important;
+    text-align: center;
+    position: relative;
+    left: 50% !important;
+    transform: translateX(-50%);
+}
+
+.tree-like-structure .node:nth-child(odd) {
+    margin-right: 40px;
+}
+
+.tree-like-structure .node:nth-child(even) {
+    margin-left: 40px;
+}
+
+.tree-like-structure.orgchart .nodes.vertical {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.tree-like-structure .nodes.vertical .hierarchy {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.tree-like-structure.orgchart .node.department {
+    background: linear-gradient(to right, #e3f2fd, #ffffff);
+}
+
+.tree-like-structure.orgchart .node.position {
+    background: linear-gradient(to right, #e6f7ff, #ffffff);
+}
+
+.tree-like-structure.orgchart .node.user {
+    background: linear-gradient(to right, #f0fdf4, #ffffff);
+}
+
+.tree-like-structure.orgchart .lines .downLine {
+    background-color: #adb5bd;
+    height: 30px;
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+
+<!-- Fix the jsPDF initialization -->
+<script>
+    // Ensure jsPDF is properly initialized
+    if (typeof window.jspdf === 'undefined') {
+        window.jspdf = {};
+    }
+</script>
+
+<!-- Chart Initialization Script -->
+<script>
+$(document).ready(function() {
+    let orgChart = null;
+    let zoomLevel = 1;
+    let currentOrientation = 't2b'; // top-to-bottom
+    let sidebarCollapsed = false;
+
+    // Initialize event listeners
+    function initChartEvents() {
+        // Sidebar toggle
+        $('#toggleSidebar').on('click', function() {
+            $('.chart-sidebar').toggleClass('collapsed');
+            sidebarCollapsed = !sidebarCollapsed;
+            $(this).find('i').toggleClass('bi-layout-sidebar bi-layout-sidebar-reverse');
+            
+            // Trigger resize to reposition the chart
+            setTimeout(() => {
+                if (orgChart) {
+                    try {
+                        if (typeof orgChart.resetLayout === 'function') {
+                            orgChart.resetLayout();
+                        } else {
+                            $('#orgChart').empty();
+                            initializeOrgChart();
+                        }
+                    } catch (e) {
+                        console.warn('Error resetting layout:', e);
+                    }
+                }
+            }, 300);
+        });
+        
+        // Layout direction
+        $('#layoutVertical').on('change', function() {
+            if ($(this).is(':checked')) {
+                currentOrientation = 't2b';
+                initializeOrgChart();
+            }
+        });
+        
+        $('#layoutHorizontal').on('change', function() {
+            if ($(this).is(':checked')) {
+                currentOrientation = 'l2r';
+                initializeOrgChart();
+            }
+        });
+        
+        // Zoom controls
+        $('#zoomSlider').on('input', function() {
+            zoomLevel = parseInt($(this).val()) / 100;
+            $('#zoomPercent').text($(this).val() + '%');
+            $('#orgChart').css('transform', `scale(${zoomLevel})`);
+        });
+        
+        $('#zoomIn').on('click', function() {
+            const newZoom = Math.min(parseInt($('#zoomSlider').val()) + 10, 200);
+            $('#zoomSlider').val(newZoom).trigger('input');
+        });
+        
+        $('#zoomOut').on('click', function() {
+            const newZoom = Math.max(parseInt($('#zoomSlider').val()) - 10, 50);
+            $('#zoomSlider').val(newZoom).trigger('input');
+        });
+        
+        $('#resetZoom').on('click', function() {
+            $('#zoomSlider').val(100).trigger('input');
+        });
+        
+        // Display options
+        $('#showPositionsChart, #showUsersChart, #showNodeDetails').on('change', function() {
+            initializeOrgChart();
+        });
+        
+        // Export controls
+        $('#exportPDF').on('click', exportChartToPDF);
+        $('#exportPNG').on('click', exportChartToPNG);
+        
+        // Print button
+        $('#printChart').on('click', function() {
+            window.print();
+        });
+        
+        // Fullscreen button
+        $('#fullscreenBtn').on('click', toggleFullscreen);
+        
+        // Search functionality
+        let searchTimeout;
+        $('#chartSearchInput').on('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const searchTerm = $(this).val().toLowerCase();
+                if (searchTerm.length >= 2) {
+                    searchNodes(searchTerm);
+                } else {
+                    clearNodeHighlights();
+                }
+            }, 300);
+        });
+        
+        $('#chartSearchClear').on('click', function() {
+            $('#chartSearchInput').val('');
+            clearNodeHighlights();
+        });
+        
+        // Expand/collapse all nodes
+        $('#expandAllNodes').on('click', function() {
+            $('.orgchart').find('.hidden').removeClass('hidden');
+            $('.orgchart').find('.oc-node-collapse-expand').each(function() {
+                $(this).html('<i class="bi bi-dash-circle"></i>');
+            });
+        });
+        
+        $('#collapseAllNodes').on('click', function() {
+            // Skip the root node and collapse all others
+            $('.orgchart').find('.nodes').not(':first').addClass('hidden');
+            $('.orgchart').find('.oc-node-collapse-expand').each(function() {
+                $(this).html('<i class="bi bi-plus-circle"></i>');
+            });
+        });
+    }
+    
+    // Search for nodes
+    function searchNodes(term) {
+        clearNodeHighlights();
+        
+        $('.orgchart .node').each(function() {
+            const nodeText = $(this).text().toLowerCase();
+            if (nodeText.includes(term)) {
+                $(this).addClass('highlighted');
+                
+                // Ensure all parent nodes are expanded
+                let parent = $(this).closest('table').parent();
+                while (parent.length) {
+                    parent.removeClass('hidden');
+                    parent = parent.parent().closest('table').parent();
+                }
+            }
+        });
+        
+        // Scroll to first highlighted node
+        const firstHighlighted = $('.orgchart .node.highlighted').first();
+        if (firstHighlighted.length) {
+            $('#orgChartContainer').animate({
+                scrollTop: firstHighlighted.offset().top - $('#orgChartContainer').offset().top + $('#orgChartContainer').scrollTop() - 100
+            }, 500);
+        }
+    }
+    
+    // Clear node highlights
+    function clearNodeHighlights() {
+        $('.orgchart .node').removeClass('highlighted');
+    }
+    
+    // Toggle fullscreen
+    function toggleFullscreen() {
+        const modalElement = document.getElementById('orgChartModal');
+        
+        if (!document.fullscreenElement) {
+            if (modalElement.requestFullscreen) {
+                modalElement.requestFullscreen();
+            } else if (modalElement.webkitRequestFullscreen) {
+                modalElement.webkitRequestFullscreen();
+            } else if (modalElement.msRequestFullscreen) {
+                modalElement.msRequestFullscreen();
+            }
+            $('#fullscreenBtn i').removeClass('bi-fullscreen').addClass('bi-fullscreen-exit');
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+            $('#fullscreenBtn i').removeClass('bi-fullscreen-exit').addClass('bi-fullscreen');
+        }
+    }
+
+    // Helper function to get current language
+    const getCurrentLanguage = () => $('html').attr('lang') || 'en';
+
+    // Initialize the chart when the modal is shown
+    $('#orgChartModal').on('shown.bs.modal', function() {
+        initChartEvents();
+        initializeOrgChart();
+    });
+
+    // Clean up when the modal is hidden
+    $('#orgChartModal').on('hidden.bs.modal', function() {
+        if (orgChart) {
+            $('#orgChart').empty();
+            orgChart = null;
+        }
+    });
+
+    function buildHierarchy(departments, positions, users) {
+        if (!departments || departments.length === 0) return null;
+
+        const showPositions = $('#showPositionsChart').is(':checked');
+        const showUsers = $('#showUsersChart').is(':checked');
+        const showDetails = $('#showNodeDetails').is(':checked');
+
+        const deptMap = new Map();
+
+        // First pass: Create all department nodes
+        departments.forEach(dept => {
+            deptMap.set(dept.id, {
+                'id': dept.id,
+                'name': getLocalizedName(dept, 'department'),
+                'title': showDetails ? getLocalizedDescription(dept) : '',
+                'className': 'department',
+                'children': [],
+                'parent_id': dept.parent_id,
+                'color': dept.color || '#0d6efd',
+                'relationship': '001', // Default to having children
+                'level': calculateDepartmentLevel(dept, departments)
+            });
+        });
+
+        // Create position map for quick lookup
+        const positionMap = new Map(positions.map(p => [p.id, p]));
+
+        // Second pass: Build department hierarchy
+        departments.forEach(dept => {
+            const deptNode = deptMap.get(dept.id);
+            // Check for parent department
+            if (dept.parent_id && deptMap.has(dept.parent_id) && !dept.parent_position_id) {
+                const parentNode = deptMap.get(dept.parent_id);
+                parentNode.children.push(deptNode);
+            }
+        });
+
+        // Find root departments (no parent_id and no parent_position_id)
+        const rootDepartments = departments.filter(d => 
+            !d.parent_id && (!d.parent_position_id || !positionMap.has(d.parent_position_id))
+        );
+
+        // Create root node
+        let rootNode;
+        if (rootDepartments.length === 1) {
+            rootNode = deptMap.get(rootDepartments[0].id);
+        } else {
+            // Create a virtual root for multiple top-level departments
+            rootNode = {
+                'id': 'root',
+                'name': 'Organization',
+                'className': 'department root',
+                'children': rootDepartments.map(d => deptMap.get(d.id)),
+                'color': '#0d6efd'
+            };
+        }
+
+        // Create position nodes map
+        const posMap = new Map();
+
+        // Add positions if enabled
+        if (showPositions) {
+            positions.forEach(pos => {
+                const positionNode = {
+                    'id': `pos_${pos.id}`,
+                    'name': getLocalizedName(pos, 'position'),
+                    'title': showDetails ? getLocalizedDescription(pos) : '',
+                    'className': 'position',
+                    'children': [],
+                    'color': pos.color || '#0dcaf0',
+                    'relationship': '001',
+                    'staff_count': pos.users?.length || 0,
+                    'parent_position_id': pos.parent_position_id,
+                    'department_id': pos.department_id
+                };
+
+                // Add users if enabled
+                if (showUsers && pos.users) {
+                    pos.users.forEach(user => {
+                        if (!user.is_active) return;
+
+                        positionNode.children.push({
+                            'id': `user_${user.id}`,
+                            'name': user.full_name,
+                            'title': showDetails ? (user.email || '') : '',
+                            'className': 'user',
+                            'relationship': '000',
+                            'color': '#198754',
+                            'avatar_url': user.avatar_url,
+                            'initials': user.initials,
+                            'email': user.email
+                        });
+                    });
+                }
+
+                posMap.set(pos.id, positionNode);
+
+                // Add to parent department (if has department_id, not parent_position_id)
+                if (pos.department_id && deptMap.has(pos.department_id) && !pos.parent_position_id) {
+                    const parentDept = deptMap.get(pos.department_id);
+                    parentDept.children.push(positionNode);
+                }
+            });
+
+            // Second pass: Add positions with parent_position_id
+            positions.forEach(pos => {
+                if (pos.parent_position_id && posMap.has(pos.parent_position_id)) {
+                    const parentPos = posMap.get(pos.parent_position_id);
+                    const childPos = posMap.get(pos.id);
+                    if (childPos && parentPos) {
+                        parentPos.children.push(childPos);
+                    }
+                }
+            });
+
+            // Add departments with parent_position_id to positions
+            departments.forEach(dept => {
+                if (dept.parent_position_id && posMap.has(dept.parent_position_id)) {
+                    const parentPos = posMap.get(dept.parent_position_id);
+                    const deptNode = deptMap.get(dept.id);
+                    if (deptNode && parentPos) {
+                        parentPos.children.push(deptNode);
+                    }
+                }
+            });
+
+            // Add root positions (positions with parent_position_id but parent doesn't exist)
+            positions.forEach(pos => {
+                if (!pos.department_id && 
+                    (!pos.parent_position_id || !posMap.has(pos.parent_position_id))) {
+                    const posNode = posMap.get(pos.id);
+                    if (posNode && rootNode && rootNode.children) {
+                        // Check if already added
+                        const alreadyAdded = rootNode.children.some(child => child.id === posNode.id);
+                        if (!alreadyAdded) {
+                            rootNode.children.push(posNode);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update relationships (has children flag)
+        function updateRelationships(node) {
+            if (node.children && node.children.length > 0) {
+                node.relationship = '001';
+                node.children.forEach(updateRelationships);
+            } else {
+                node.relationship = '000';
+            }
+            return node;
+        }
+
+        // Update chart statistics
+        updateChartStats(departments, positions);
+
+        return updateRelationships(rootNode);
+    }
+
+    function calculateDepartmentLevel(dept, allDepartments) {
+        let level = 0;
+        let currentDept = dept;
+        while (currentDept.parent_id) {
+            level++;
+            currentDept = allDepartments.find(d => d.id === currentDept.parent_id);
+            if (!currentDept) break;
+        }
+        return level;
+    }
+
+    function updateChartStats(departments, positions) {
+        // Count users
+        const userCount = positions.reduce((total, pos) => {
+            return total + (pos.users?.filter(u => u.is_active)?.length || 0);
+        }, 0);
+        
+        // Update UI
+        $('#chartDeptCount').text(departments.length);
+        $('#chartPosCount').text(positions.length);
+        $('#chartUserCount').text(userCount);
+    }
+
+    function createCustomNode($node, data) {
+        // Add appropriate class based on node type
+        const isPosition = data.className === 'position';
+        const isUser = data.className === 'user';
+        const isDepartment = !isPosition && !isUser;
+
+        $node.addClass(data.className);
+
+        // Style based on color
+        if (data.color) {
+            $node.css('border-left-color', data.color);
+        }
+
+        const titleElement = $node.find('.title');
+        const contentElement = $node.find('.content');
+        
+        if (titleElement.length > 0) {
+            const currentName = titleElement.text().trim();
+
+            if (isUser) {
+                // Handle user nodes with avatars
+                let avatarHtml = '';
+                if (data.avatar_url) {
+                    avatarHtml = `
+                        <div class="user-avatar-container">
+                            <img src="${data.avatar_url}"
+                                 alt="User avatar"
+                                 class="user-avatar"
+                                 onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\'user-avatar-placeholder\'>${data.initials || ''}</div>';">
+                        </div>`;
+                } else if (data.initials) {
+                    avatarHtml = `
+                        <div class="user-avatar-container">
+                            <div class="user-avatar-placeholder">${data.initials}</div>
+                        </div>`;
+                }
+
+                titleElement.html(`
+                    ${avatarHtml}
+                    <div class="node-title-content">
+                        <span class="node-name">${currentName}</span>
+                    </div>
+                `);
+                
+                // Add email to content if shown
+                if (data.email && $('#showNodeDetails').is(':checked')) {
+                    contentElement.html(`
+                        <i class="bi bi-envelope-fill me-1 text-muted"></i>${data.email}
+                    `);
+                }
+            } else if (isPosition) {
+                // Position node
+                const staffCount = data.staff_count || 0;
+                const badgeHtml = staffCount > 0 ? 
+                    `<span class="node-badge"><i class="bi bi-people-fill me-1"></i>${staffCount}</span>` : '';
+                
+                titleElement.html(`
+                    <i class="bi bi-person-badge-fill me-2" style="color: ${data.color}"></i>
+                    <div class="node-title-content">
+                        <span class="node-name">${currentName}</span>
+                    </div>
+                    ${badgeHtml}
+                `);
+            } else {
+                // Department node
+                const childrenCount = data.children?.length || 0;
+                const badgeHtml = childrenCount > 0 ? 
+                    `<span class="node-badge"><i class="bi bi-diagram-3 me-1"></i>${childrenCount}</span>` : '';
+
+                titleElement.html(`
+                    <i class="bi bi-building me-2" style="color: ${data.color}"></i>
+                    <div class="node-title-content">
+                        <span class="node-name">${currentName}</span>
+                    </div>
+                    ${badgeHtml}
+                `);
+            }
+        }
+
+        // Add expand/collapse control for nodes with children
+        if (data.children && data.children.length > 0) {
+            $node.append(`
+                <div class="oc-node-collapse-expand">
+                    <i class="bi bi-dash-circle"></i>
+                </div>
+            `);
+            
+            $node.find('.oc-node-collapse-expand').on('click', function(e) {
+                e.stopPropagation();
+                const $this = $(this);
+                const $childrenNodes = $this.closest('tr').next('tr').find('table');
+                
+                if ($childrenNodes.hasClass('hidden')) {
+                    $childrenNodes.removeClass('hidden');
+                    $this.html('<i class="bi bi-dash-circle"></i>');
+                } else {
+                    $childrenNodes.addClass('hidden');
+                    $this.html('<i class="bi bi-plus-circle"></i>');
+                }
+            });
+        }
+    }
+
+    // Initialize the org chart
+    function initializeOrgChart() {
+        const companyId = $('#companySelect').val();
+        const currentLanguage = getCurrentLanguage();
+
+        if (!companyId) {
+            console.error('No company selected');
+            return;
+        }
+
+        // Show loading state
+        $('#chartLoadingOverlay').removeClass('d-none');
+
+        // Fetch data
+        $.when(
+            $.get(`/${currentLanguage}/companies/${companyId}/departments/`),
+            $.get(`/${currentLanguage}/companies/${companyId}/positions/`)
+        ).done(function(deptResponse, posResponse) {
+            const departments = deptResponse[0];
+            const positions = posResponse[0];
+
+            const chartData = buildHierarchy(departments, positions);
+
+            if (chartData) {
+                $('#orgChart').empty();
+                try {
+                    // Check if jQuery.orgchart is available
+                    if (typeof $.fn.orgchart !== 'function') {
+                        throw new Error('jQuery.orgchart is not properly loaded');
+                    }
+
+                    orgChart = $('#orgChart').orgchart({
+                        'data': chartData,
+                        'nodeContent': 'title',
+                        'direction': currentOrientation,
+                        'pan': true,
+                        'zoom': true,
+                        'toggleSiblingsResp': true,
+                        'createNode': function($node, data) {
+                            createCustomNode($node, data);
+                        },
+                        'verticalLevel': function(node) {
+                            return node.level || 0;
+                        },
+                        'visibleLevel': 100,
+                        'nodeTemplate': function(data) {
+                            return `<div class="title">${data.name || ''}</div><div class="content">${data.title || ''}</div>`;
+                        },
+                        'parentNodeSymbol': 'fa-users',
+                        'ajaxURL': null,
+                        'depth': 100,
+                        'chartClass': 'tree-like-chart',
+                        'draggable': false
+                    });
+
+                    // Apply tree-like layout with alternating left-right pattern
+                    $('.orgchart').addClass('tree-like-structure');
+                    
+                    // Center the root node
+                    $('.orgchart > table:first-child').addClass('centered-root');
+
+                    // Add responsive behavior
+                    $(window).off('resize.orgchart')
+                        .on('resize.orgchart', _.debounce(function() {
+                            if (orgChart) {
+                                try {
+                                    if (typeof orgChart.resetLayout === 'function') {
+                                orgChart.resetLayout();
+                                    } else {
+                                        $('#orgChart').empty();
+                                        initializeOrgChart();
+                                    }
+                                } catch (e) {
+                                    console.warn('Error resetting layout:', e);
+                                }
+                            }
+                        }, 250));
+
+                } catch (error) {
+                    console.error('Error creating chart:', error);
+                    $('#orgChart').html(`
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Error rendering organization chart: ${error.message}
+                        </div>
+                    `);
+                }
+            } else {
+                $('#orgChart').html(`
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle me-2"></i>
+                        {% trans "No data available" %}
+                    </div>
+                `);
+            }
+            
+            // Hide loading overlay
+            $('#chartLoadingOverlay').addClass('d-none');
+            
+        }).fail(function(error) {
+            console.error('Error fetching data:', error);
+            $('#orgChart').html(`
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    {% trans "Error loading organization chart" %}
+                </div>
+            `);
+            $('#chartLoadingOverlay').addClass('d-none');
+        });
+    }
+
+    // Helper function to get localized name
+    function getLocalizedName(item, type) {
+        if (!item) return 'Undefined';
+
+        if (item && item.name) return item.name;
+        const currentLanguage = getCurrentLanguage();
+        if (type === 'department') {
+            if (currentLanguage === 'ru' && item.department_name_ru) return item.department_name_ru;
+            if (currentLanguage === 'en' && item.department_name_en) return item.department_name_en;
+            if (item.department_name_ua) return item.department_name_ua;
+        } else if (type === 'position' || type === 'user') {
+            if (currentLanguage === 'ru' && item.position_name_ru) return item.position_name_ru;
+            if (currentLanguage === 'en' && item.position_name_en) return item.position_name_en;
+            if (item.position_name_ua) return item.position_name_ua;
+        }
+        return item && item.name ? item.name : 'Undefined';
+    }
+
+    // Helper function to get localized description (API sends item.description in site language)
+    function getLocalizedDescription(item) {
+        if (!item) return '';
+        if (item.description) return item.description;
+        const currentLanguage = getCurrentLanguage();
+        if (currentLanguage === 'ru' && item.description_ru) return item.description_ru;
+        if (currentLanguage === 'en' && item.description_en) return item.description_en;
+        if (item.description_ua) return item.description_ua;
+        return '';
+    }
+
+    // Export to PDF functionality
+    async function exportChartToPDF() {
+        try {
+            // Show loading indicator
+            $('#chartLoadingOverlay').removeClass('d-none');
+
+            const chartElement = document.getElementById('orgChart');
+
+            // Store current transform
+            const currentTransform = chartElement.style.transform;
+            chartElement.style.transform = 'none';
+
+            // Create canvas
+            const canvas = await html2canvas(chartElement, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            // Restore transform
+            chartElement.style.transform = currentTransform;
+
+            // Create PDF
+            // Check if jsPDF is properly loaded
+            if (!window.jsPDF && window.jspdf && window.jspdf.jsPDF) {
+                window.jsPDF = window.jspdf.jsPDF;
+            }
+
+            if (!window.jsPDF) {
+                throw new Error('jsPDF library not found. Please check if it is properly loaded.');
+            }
+
+            const imgWidth = 210; // A4 width in mm
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const pdf = new window.jsPDF('p', 'mm', 'a4');
+
+            // Add title
+            pdf.setFontSize(16);
+            pdf.text('Organization Chart', 105, 15, { align: 'center' });
+
+            // Add date
+            const currentDate = new Date().toLocaleDateString();
+            pdf.setFontSize(10);
+            pdf.text(`Generated: ${currentDate}`, 105, 22, { align: 'center' });
+
+            // Add chart image
+            pdf.addImage(
+                canvas.toDataURL('image/jpeg', 1.0),
+                'JPEG',
+                0,
+                30,
+                imgWidth,
+                imgHeight
+            );
+
+            // Save file
+            const company = $('#companySelect option:selected').text();
+            pdf.save(`organization-chart-${company}-${new Date().toISOString().split('T')[0]}.pdf`);
+
+            // Hide loading indicator
+            $('#chartLoadingOverlay').addClass('d-none');
+
+        } catch (error) {
+            console.error('Error exporting PDF:', error);
+            $('#chartLoadingOverlay').addClass('d-none');
+            alert('Error generating PDF. Please try again.');
+        }
+    }
+
+    // Export to PNG functionality
+    async function exportChartToPNG() {
+        try {
+            // Show loading indicator
+            $('#chartLoadingOverlay').removeClass('d-none');
+
+            const chartElement = document.getElementById('orgChart');
+            
+            if (!chartElement) {
+                throw new Error('Chart element not found. Please try again.');
+            }
+
+            // Store current transform
+            const currentTransform = chartElement.style.transform;
+            chartElement.style.transform = 'none';
+
+            // Create canvas
+            const canvas = await html2canvas(chartElement, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            // Restore transform
+            chartElement.style.transform = currentTransform;
+
+            // Convert to PNG and download
+            const dataUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            const company = $('#companySelect option:selected').text();
+            
+            link.download = `organization-chart-${company}-${new Date().toISOString().split('T')[0]}.png`;
+            link.href = dataUrl;
+            link.click();
+
+            // Hide loading indicator
+            $('#chartLoadingOverlay').addClass('d-none');
+
+        } catch (error) {
+            console.error('Error exporting PNG:', error);
+            $('#chartLoadingOverlay').addClass('d-none');
+            alert('Error generating PNG. Please try again.');
+        }
+    }
+});
+</script>

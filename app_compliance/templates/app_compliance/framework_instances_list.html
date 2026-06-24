@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Framework Company Requirements" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_compliance/includes/compliance_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 compliance-page">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1><i class="bi bi-building me-2"></i>{% trans "Framework Company Requirements" %}</h1>
+            <p class="text-muted">{% trans "Framework requirements applied to specific companies" %}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            {% include "app_compliance/includes/compliance_framework_nav_toolbar.html" with active="applications" %}
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>{% trans "Note:" %}</strong> 
+                {% trans "To edit structure (categories/controls) or manage applied companies, edit the Template Framework. Applications are read-only and managed through templates." %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Application Excel Modal -->
+    <div class="modal fade" id="importInstanceExcelModal" tabindex="-1" aria-labelledby="importInstanceExcelModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" action="{% url 'compliance:framework_import_excel' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="as_instance" value="1">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title" id="importInstanceExcelModalLabel">
+                            <i class="fas fa-file-import"></i> {% trans "Import Framework Company Requirement from Excel" %}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="text-center mb-3 p-3 import-template-banner">
+                            <div class="mb-2 text-muted">
+                                <i class="fas fa-download fa-2x"></i>
+                            </div>
+                            <a href="{% url 'compliance:framework_excel_template' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-download"></i> {% trans "Download Excel Template" %}
+                            </a>
+                            <div class="text-muted mt-2 small">
+                                {% trans "Start with our ready-to-use template with examples" %}
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="form-group mb-3">
+                            <label class="form-label">{% trans "Company" %} *</label>
+                            <select name="company" class="form-control" required>
+                                <option value="">{% trans "Select company" %}</option>
+                                {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="excelInstanceFile" class="form-label">{% trans "Select Excel File" %} (.xlsx) *</label>
+                            <input type="file" class="form-control" id="excelInstanceFile" name="file" accept=".xlsx" required>
+                            <small class="form-text text-muted" style="font-size: 0.65rem;">
+                                {% trans "Maximum file size: 10MB" %}
+                            </small>
+                        </div>
+                        
+                            <div class="alert alert-warning" style="font-size: 0.75rem;">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                {% trans "The imported framework will be created as a Company Requirement for the selected company with 'Draft' status." %}
+                            </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times"></i> {% trans "Cancel" %}
+                        </button>
+                        <button type="submit" class="btn btn-info">
+                            <i class="fas fa-file-import"></i> {% trans "Import" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% with filters_expanded=search or selected_company or selected_template or selected_status %}
+    <div class="card mb-2 filter-section access-request-filters compliance-filters-card">
+        {% url 'compliance:framework_instances_list' as framework_instances_clear_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="frameworkInstanceFiltersCollapse" toggle_id="toggleFrameworkInstanceFilters" icon_id="frameworkInstanceFiltersToggleIcon" filter_clear_url=framework_instances_clear_url filters_expanded=filters_expanded %}
+        <div class="collapse{% if filters_expanded %} show{% endif %}" id="frameworkInstanceFiltersCollapse">
+        <div class="card-body py-2">
+            <form method="get" id="filterForm" class="row g-1 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Search" %}</label>
+                    <input type="text" name="search" class="form-control form-control-sm"
+                           placeholder="{% trans 'Search company requirements...' %}"
+                           value="{{ search }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Company" %}</label>
+                    <select name="company" class="form-select form-select-sm">
+                        <option value="">{% trans "All Companies" %}</option>
+                        {% for comp in companies %}
+                        <option value="{{ comp.id }}" {% if selected_company == comp.id|stringformat:"s" %}selected{% endif %}>{{ comp.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Template" %}</label>
+                    <select name="template" class="form-select form-select-sm">
+                        <option value="">{% trans "All Templates" %}</option>
+                        {% for tmpl in templates %}
+                        <option value="{{ tmpl.id }}" {% if selected_template == tmpl.id|stringformat:"s" %}selected{% endif %}>{{ tmpl.name }} {{ tmpl.version }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Status" %}</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">{% trans "All Statuses" %}</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+    {% endwith %}
+
+    <!-- Applications Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul me-1"></i>{% trans "Framework Company Requirements" %} ({{ instances.paginator.count }})
+                </h5>
+                {% if permissions.can_add_frameworks %}
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action" data-bs-toggle="modal" data-bs-target="#importInstanceExcelModal"
+                        title="{% trans 'Import Excel' %}">
+                    <i class="bi bi-file-earmark-arrow-up"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Bulk Actions Toolbar -->
+            <div id="bulkActionsToolbar" class="alert alert-info mb-3" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-check-square"></i>
+                        <span id="selectedCount">0</span> {% trans "selected" %}
+                    </div>
+                    <div class="btn-group" role="group">
+                        {% if permissions.can_edit_frameworks %}
+                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#bulkStatusModal">
+                            <i class="fas fa-edit"></i> {% trans "Change Status" %}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-toggle="modal" data-bs-target="#bulkMandatoryModal">
+                            <i class="fas fa-exclamation-circle"></i> {% trans "Toggle Mandatory" %}
+                        </button>
+                        {% endif %}
+                        {% if permissions.can_export %}
+                        <button type="button" class="btn btn-sm btn-primary" onclick="bulkExport()">
+                            <i class="fas fa-file-export"></i> {% trans "Export Selected" %}
+                        </button>
+                        {% endif %}
+                        {% if permissions.can_delete_frameworks %}
+                        <button type="button" class="btn btn-sm btn-danger" onclick="bulkDelete()">
+                            <i class="fas fa-trash"></i> {% trans "Delete" %}
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="clearSelection()">
+                            <i class="fas fa-times"></i> {% trans "Clear" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table" id="instancesTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px;">
+                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)">
+                            </th>
+                            <th>{% trans "Framework" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "Template" %}</th>
+                            <th>{% trans "Status" %}</th>
+                            <th>{% trans "Mandatory" %}</th>
+                            <th>{% trans "Categories" %}</th>
+                            <th>{% trans "Controls" %}</th>
+                            <th>{% trans "Completion" %}</th>
+                            <th>{% trans "Created" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for instance in instances %}
+                        <tr data-instance-id="{{ instance.id }}">
+                            <td>
+                                <input type="checkbox" class="instance-checkbox" value="{{ instance.id }}" onchange="updateBulkActions()">
+                            </td>
+                            <td>
+                                <a href="{% url 'compliance:framework_detail' instance.id %}">
+                                    <strong>{{ instance.name }}</strong> v{{ instance.version }}
+                                </a>
+                            </td>
+                            <td>
+                                <span style="color: #17a2b8; font-weight: bold;">
+                                    <i class="fas fa-building"></i> {{ instance.company.name|default:"N/A" }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if instance.template %}
+                                <a href="{% url 'compliance:framework_detail' instance.template.id %}" style="color: #6c757d; font-weight: bold; text-decoration: none;">
+                                    <i class="fas fa-file-alt"></i> {{ instance.template.name }}
+                                </a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span style="{% if instance.status == 'active' %}color: #28a745;
+                                    {% elif instance.status == 'draft' %}color: #ffc107;
+                                    {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                    {% if instance.status == 'active' %}<i class="fas fa-check-circle"></i>
+                                    {% elif instance.status == 'draft' %}<i class="fas fa-edit"></i>
+                                    {% else %}<i class="fas fa-archive"></i>{% endif %}
+                                    {{ instance.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                {% if instance.is_mandatory %}
+                                <span style="color: #dc3545; font-weight: bold;">
+                                    <i class="fas fa-exclamation-circle"></i> {% trans "Yes" %}
+                                </span>
+                                {% else %}
+                                <span style="color: #6c757d; font-weight: normal;">
+                                    <i class="fas fa-minus-circle"></i> {% trans "No" %}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">{{ instance.total_categories }}</td>
+                            <td class="text-center">{{ instance.total_controls }}</td>
+                            <td>
+                                <div class="progress" style="height: 20px; min-width: 80px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ instance.completion }}%" 
+                                         aria-valuenow="{{ instance.completion }}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        {{ instance.completion }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ instance.created_date|date:"d.m.Y" }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    {% if permissions.can_edit_frameworks %}
+                                    <a href="{% url 'compliance:framework_detail' instance.id %}" 
+                                       class="btn btn-sm btn-primary" title="{% trans 'View and Manage Company Requirement' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if permissions.can_export %}
+                                    <a href="{% url 'compliance:framework_export_excel' instance.id %}" 
+                                       class="btn btn-sm btn-success" title="{% trans 'Export to Excel' %}">
+                                        <i class="fas fa-file-excel"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="text-center text-muted">
+                                <i class="fas fa-inbox"></i> {% trans "No framework company requirements found" %}
+                                <br><small>{% trans "Apply templates to companies to create company requirements" %}</small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if instances.has_other_pages %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if instances.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ instances.previous_page_number }}&search={{ search }}&company={{ selected_company }}&template={{ selected_template }}&status={{ selected_status }}">
+                    {% trans "Previous" %}
+                </a>
+            </li>
+            {% endif %}
+            
+            <li class="page-item disabled">
+                <span class="page-link">
+                    {% trans "Page" %} {{ instances.number }} {% trans "of" %} {{ instances.paginator.num_pages }}
+                </span>
+            </li>
+            
+            {% if instances.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ instances.next_page_number }}&search={{ search }}&company={{ selected_company }}&template={{ selected_template }}&status={{ selected_status }}">
+                    {% trans "Next" %}
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<!-- Bulk Change Status Modal -->
+<div class="modal fade" id="bulkStatusModal" tabindex="-1" aria-labelledby="bulkStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:bulk_change_instance_status' %}" id="bulkStatusForm">
+                {% csrf_token %}
+                <input type="hidden" name="instance_ids" id="bulkStatusInstanceIds">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title" id="bulkStatusModalLabel">
+                        <i class="fas fa-edit"></i> {% trans "Change Status" %}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "New Status" %} *</label>
+                        <select name="status" class="form-control" required>
+                            <option value="draft">{% trans "Draft" %}</option>
+                            <option value="active">{% trans "Active" %}</option>
+                            <option value="archived">{% trans "Archived" %}</option>
+                        </select>
+                    </div>
+                    <div class="alert alert-warning" style="font-size: 0.75rem;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "This will change the status of all selected company requirements." %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> {% trans "Change Status" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Toggle Mandatory Modal -->
+<div class="modal fade" id="bulkMandatoryModal" tabindex="-1" aria-labelledby="bulkMandatoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:bulk_toggle_mandatory' %}" id="bulkMandatoryForm">
+                {% csrf_token %}
+                <input type="hidden" name="instance_ids" id="bulkMandatoryInstanceIds">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title" id="bulkMandatoryModalLabel">
+                        <i class="fas fa-exclamation-circle"></i> {% trans "Toggle Mandatory" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "Set Mandatory" %} *</label>
+                        <select name="is_mandatory" class="form-control" required>
+                            <option value="true">{% trans "Yes - Mark as Mandatory" %}</option>
+                            <option value="false">{% trans "No - Mark as Optional" %}</option>
+                        </select>
+                    </div>
+                    <div class="alert alert-info" style="font-size: 0.75rem;">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "This will update the mandatory flag for all selected company requirements." %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-secondary">
+                        <i class="fas fa-save"></i> {% trans "Update" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Framework Compliance Guide Modal -->
+<div class="modal fade" id="frameworkComplianceGuideModal" tabindex="-1" aria-labelledby="frameworkComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:framework_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="frameworkComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Framework Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="frameworkComplianceGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var modal = document.getElementById('frameworkComplianceGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('frameworkComplianceGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl).done(function(data) {
+                body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+            }).fail(function() {
+                body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+            });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+
+// Bulk operations JavaScript for instances
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.instance-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateBulkActions();
+}
+
+function updateBulkActions() {
+    const checkboxes = document.querySelectorAll('.instance-checkbox:checked');
+    const count = checkboxes.length;
+    const toolbar = document.getElementById('bulkActionsToolbar');
+    const countSpan = document.getElementById('selectedCount');
+    const selectAll = document.getElementById('selectAll');
+    
+    countSpan.textContent = count;
+    
+    if (count > 0) {
+        toolbar.style.display = 'block';
+    } else {
+        toolbar.style.display = 'none';
+    }
+    
+    // Update Select All checkbox state
+    const allCheckboxes = document.querySelectorAll('.instance-checkbox');
+    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+    selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+}
+
+function getSelectedIds() {
+    const checkboxes = document.querySelectorAll('.instance-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+function clearSelection() {
+    document.querySelectorAll('.instance-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAll').checked = false;
+    updateBulkActions();
+}
+
+function bulkExport() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('{% trans "Please select at least one company requirement" %}');
+        return;
+    }
+    
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "compliance:bulk_export_instances" %}';
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    form.innerHTML = `
+        <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+        <input type="hidden" name="instance_ids" value="${ids.join(',')}">
+    `;
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+function bulkDelete() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('{% trans "Please select at least one company requirement" %}');
+        return;
+    }
+    
+    if (!confirm('{% trans "Are you sure you want to delete selected company requirements? This action cannot be undone." %}')) {
+        return;
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "compliance:bulk_delete_instances" %}';
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    form.innerHTML = `
+        <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+        <input type="hidden" name="instance_ids" value="${ids.join(',')}">
+    `;
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+// Update hidden fields when modals open
+document.addEventListener('DOMContentLoaded', function() {
+    const bulkStatusModal = document.getElementById('bulkStatusModal');
+    if (bulkStatusModal) {
+        bulkStatusModal.addEventListener('show.bs.modal', function() {
+            const ids = getSelectedIds();
+            document.getElementById('bulkStatusInstanceIds').value = ids.join(',');
+        });
+    }
+    
+    const bulkMandatoryModal = document.getElementById('bulkMandatoryModal');
+    if (bulkMandatoryModal) {
+        bulkMandatoryModal.addEventListener('show.bs.modal', function() {
+            const ids = getSelectedIds();
+            document.getElementById('bulkMandatoryInstanceIds').value = ids.join(',');
+        });
+    }
+});
+</script>
+{% endblock %}
+

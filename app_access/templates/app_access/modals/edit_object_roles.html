@@ -1,0 +1,2858 @@
+<!-- SecBoard\templates\app_access\modals\edit_object_roles.html -->
+{% load i18n %}
+
+<div class="modal fade" id="editObjectRolesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Edit Object Roles" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <span id="selectedObjectRoleInfo">{% trans "Please wait while loading..." %}</span>
+                </div>
+
+                <!-- Alert контейнер -->
+                <div id="objectRolesModalAlert" style="display: none;"></div>
+
+                <!-- Loading Spinner -->
+                <div id="objectRolesLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                    <p class="mt-2">{% trans "Loading roles..." %}</p>
+                </div>
+
+                <!-- Error Alert -->
+                <div id="objectRolesError" class="alert alert-danger d-none">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="objectRolesErrorMessage"></span>
+                </div>
+
+                <!-- Success Alert -->
+                <div id="objectRolesSuccess" class="alert alert-success d-none">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span id="objectRolesSuccessMessage"></span>
+                </div>
+
+                <!-- Roles Management Content -->
+                <div id="objectRolesContent" class="d-none">
+                    <div class="row">
+                        <!-- Available Roles -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-list me-2"></i>{% trans "Available Roles" %}
+                                        <span class="badge bg-secondary ms-2" id="availableRolesCount">0</span>
+                                    </h6>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="toggleRoleReorderMode" title="{% trans 'Toggle Reorder Mode' %}">
+                                            <i class="fas fa-sort me-1"></i><span class="btn-text">{% trans "Reorder" %}</span>
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-success btn-sm" 
+                                                id="addNewRoleBtn">
+                                            <i class="fas fa-plus me-1"></i> {% trans "Add New" %}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0">
+                                    <!-- Search -->
+                                    <div class="p-3 border-bottom">
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control" id="searchAvailableRoles" 
+                                                   placeholder="{% trans 'Search roles...' %}">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Roles List -->
+                                    <div class="roles-list" style="max-height: 500px; overflow-y: auto;">
+                                        <div id="availableRolesList" class="list-group list-group-flush">
+                                            <div class="text-center text-muted p-4">
+                                                <i class="bi bi-hourglass-split fs-1 mb-3"></i>
+                                                <p>{% trans "Loading available roles..." %}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <button type="button" class="btn btn-primary btn-sm" id="addSelectedRoles" disabled>
+                                        <i class="fas fa-arrow-right me-2"></i>{% trans "Add Selected" %}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="selectAllAvailableRoles">
+                                        <i class="fas fa-check-square me-2"></i>{% trans "Select All" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Assigned Roles -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-check-circle me-2"></i>{% trans "Assigned Roles" %}
+                                        <span class="badge bg-light text-dark ms-2" id="assignedRolesCount">0</span>
+                                    </h6>
+                                    <button type="button" class="btn btn-outline-light btn-sm" id="toggleAssignedRoleReorderMode" title="{% trans 'Toggle Assigned Roles Reorder Mode' %}">
+                                        <i class="fas fa-sort me-1"></i><span class="btn-text">{% trans "Reorder" %}</span>
+                                    </button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <!-- Search -->
+                                    <div class="p-3 border-bottom">
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control" id="searchAssignedRoles" 
+                                                   placeholder="{% trans 'Search assigned roles...' %}">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Roles List -->
+                                    <div class="roles-list" style="max-height: 500px; overflow-y: auto;">
+                                        <div id="selectedRolesList" class="list-group list-group-flush">
+                                            <div class="text-center text-muted p-3" id="noSelectedRoles">
+                                                <i class="bi bi-plus-circle fs-1 mb-2"></i>
+                                                <p>{% trans "No roles selected. Click on roles above to add them." %}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <button type="button" class="btn btn-danger btn-sm" id="removeSelectedRoles" disabled>
+                                        <i class="fas fa-trash me-2"></i>{% trans "Remove Selected" %}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm ms-2" id="selectAllAssignedRoles">
+                                        <i class="fas fa-check-square me-2"></i>{% trans "Select All" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Форма для створення нової ролі -->
+                <div id="newRoleForm" class="card mt-3" style="display: none;">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0">{% trans "Create New Role" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="createRoleForm">
+                            <div class="mb-3">
+                                <label for="newRoleName" class="form-label required">{% trans "Name" %} *</label>
+                                <input type="text" class="form-control" id="newRoleName" name="name" required placeholder="{% trans 'Enter role name...' %}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="newRoleColor" class="form-label">{% trans "Color" %}</label>
+                                <input type="color" class="form-control form-control-color" id="newRoleColor" name="color" value="#0d6efd">
+                            </div>
+                            <div class="mb-3">
+                                <label for="newRoleDescription" class="form-label">{% trans "Description" %}</label>
+                                <textarea class="form-control" id="newRoleDescription" name="description" rows="2" placeholder="{% trans 'Enter role description...' %}"></textarea>
+                            </div>
+                            <div class="d-flex justify-content-end">
+                                <button type="button" class="btn btn-secondary me-2" id="cancelRoleBtn">
+                                    {% trans "Cancel" %}
+                                </button>
+                                <button type="submit" class="btn btn-success" id="saveRoleBtn">
+                                    <i class="bi bi-plus-circle"></i> {% trans "Create Role" %}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Close" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="refreshObjectRoles">
+                    <i class="fas fa-sync-alt me-2"></i>{% trans "Refresh" %}
+                </button>
+                <button type="button" class="btn btn-success" id="saveObjectRolesBtn">
+                    <i class="bi bi-check-lg"></i> {% trans "Save Changes" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Custom Role Modal -->
+<div class="modal fade" id="editCustomRoleModal" tabindex="-1" aria-labelledby="editCustomRoleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="editCustomRoleModalLabel">
+                    <i class="fas fa-edit me-2"></i>{% trans "Edit Custom Role" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCustomRoleForm">
+                    <input type="hidden" id="editCustomRoleId">
+                    <div class="mb-3">
+                        <label for="editCustomRoleName" class="form-label required">{% trans "Name" %} <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editCustomRoleName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCustomRoleColor" class="form-label">{% trans "Color" %}</label>
+                        <input type="color" class="form-control form-control-color" id="editCustomRoleColor" value="#0d6efd">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCustomRoleDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="editCustomRoleDescription" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            {% trans "This custom role is specific to this object only." %}
+                        </small>
+                    </div>
+                </form>
+                
+                <!-- Edit Custom Role Alerts -->
+                <div id="editCustomRoleError" class="alert alert-danger d-none mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="editCustomRoleErrorMessage"></span>
+                </div>
+                
+                <div id="editCustomRoleSuccess" class="alert alert-success d-none mt-3">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span id="editCustomRoleSuccessMessage"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-warning" id="updateCustomRoleBtn">
+                    <i class="fas fa-save me-2"></i>{% trans "Update Role" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentObjectRoleId = null;
+let currentSystemRoleId = null;
+let availableRoles = [];
+let assignedRoles = [];
+let availableRolesReorderMode = false;
+let assignedRolesReorderMode = false;
+let rolesChanges = {
+    added: [],
+    removed: [],
+    reordered: []
+};
+
+// Функція для показу повідомлень (використовуємо toastr)
+function showRoleNotification(type, message) {
+    if (typeof toastr !== 'undefined') {
+        // Перетворюємо тип до правильного формату toastr
+        const toastrType = type === 'danger' ? 'error' : type;
+        if (typeof toastr[toastrType] === 'function') {
+            toastr[toastrType](message);
+        } else {
+            console.log(`${type}: ${message}`);
+        }
+    } else {
+        // Використовуємо встроєні алерти якщо toastr недоступний
+        showAlert(type, message);
+    }
+}
+
+// Функція для показу алертів через вбудовані елементи
+function showAlert(type, message) {
+    const alertContainer = document.getElementById('objectRolesModalAlert');
+    if (alertContainer) {
+        const alertClass = type === 'danger' ? 'alert-danger' : 
+                          type === 'success' ? 'alert-success' : 
+                          type === 'info' ? 'alert-info' : 'alert-warning';
+        
+        alertContainer.innerHTML = `
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        alertContainer.style.display = 'block';
+        
+        // Автоматично приховати через 5 секунд
+        setTimeout(() => {
+            alertContainer.style.display = 'none';
+        }, 5000);
+    } else {
+        console.log(`${type}: ${message}`);
+    }
+}
+
+// Функція для приховування помилки
+function hideError() {
+    const errorAlert = document.getElementById('objectRolesError');
+    if (errorAlert) {
+        errorAlert.classList.add('d-none');
+    }
+}
+
+// Функція відображення успіху
+function showSuccess(message) {
+    document.getElementById('objectRolesSuccess').classList.remove('d-none');
+    document.getElementById('objectRolesSuccessMessage').textContent = message;
+
+    // Приховати через 5 секунд
+    setTimeout(() => {
+        document.getElementById('objectRolesSuccess').classList.add('d-none');
+    }, 5000);
+}
+
+// Функція завантаження ролей об'єкта
+function loadCurrentObjectRoles(objectId) {
+    if (!objectId) return;
+    
+    console.log('Loading roles for object:', objectId);
+    
+    // Показуємо індикатор завантаження
+    document.getElementById('objectRolesLoading').style.display = 'block';
+    document.getElementById('objectRolesContent').classList.add('d-none');
+    hideError();
+    
+    // Отримуємо поточну мову
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    // Завантажуємо дані ролей
+    fetch(`/${languagePrefix}/app_access/object-roles/${objectId}/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Roles data received:', data);
+            
+            if (data.status === 'success') {
+                // Backend повертає 'roles' замість 'assigned_roles'
+                assignedRoles = data.roles || [];
+                currentObjectRoleId = objectId;
+                
+                // Перетворюємо дані в правильний формат для відображення (single name/description)
+                assignedRoles = assignedRoles.map(role => ({
+                    id: role.id,
+                    role_id: role.role_id,
+                    name: role.name || role.role_name_ua || '',
+                    description: role.description || role.description_ua || '',
+                    color: role.color,
+                    order: role.order,
+                    is_active: role.is_active,
+                    is_object_specific: role.is_object_specific
+                }));
+                
+                console.log('Processed assigned roles:', assignedRoles);
+                
+                // Завантажуємо доступні ролі (потрібно знати system_id)
+                // Отримуємо system_id з першої ролі або з іншого джерела
+                return loadAvailableRoles(currentSystemRoleId);
+            } else {
+                throw new Error(data.message || 'Failed to load roles');
+            }
+        })
+        .then(() => {
+            // Відображаємо ролі
+            displayAvailableRoles();
+            displaySelectedRoles();
+            updateRoleCounts();
+            
+            // Оновлюємо стан кнопок після завантаження
+            updateAddSelectedButton();
+            updateRemoveSelectedButton();
+            
+            // Ініціалізуємо drag-and-drop між списками
+            initializeDragAndDrop();
+            
+            // Приховуємо індикатор завантаження та показуємо контент
+            document.getElementById('objectRolesLoading').style.display = 'none';
+            document.getElementById('objectRolesContent').classList.remove('d-none');
+        })
+        .catch(error => {
+            console.error('Error loading object roles:', error);
+            showError(`Error loading roles: ${error.message}`);
+        });
+}
+
+// Функція завантаження доступних ролей
+function loadAvailableRoles(systemId) {
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    return fetch(`/${languagePrefix}/app_access/object-roles/${currentObjectRoleId}/available/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Available roles data received:', data);
+            
+            if (data.status === 'success') {
+                // Backend повертає 'roles' для доступних ролей
+                const rawAvailableRoles = data.roles || [];
+                const currentLang = languagePrefix || 'ua';
+                
+                availableRoles = rawAvailableRoles.map(role => {
+                    return {
+                        id: role.id,
+                        name: role.name || '',
+                        description: role.description || '',
+                        color: role.color,
+                        is_object_specific: role.is_object_specific,
+                        order: 0 // Available roles don't have order initially
+                    };
+                });
+                
+                // Фільтруємо ролі, які вже призначені
+                console.log('Before filtering - availableRoles count:', availableRoles.length);
+                console.log('Available roles before filter:', availableRoles.map(r => ({id: r.id, name: r.name})));
+                console.log('Assigned roles for comparison:', assignedRoles.map(r => ({id: r.id, role_id: r.role_id, name: r.name})));
+                
+                const originalAvailableCount = availableRoles.length;
+                availableRoles = availableRoles.filter(availableRole => {
+                    const isAlreadyAssigned = assignedRoles.some(assignedRole => {
+                        // Порівнюємо з role_id (оригінальний ID ролі) або з id якщо role_id відсутній
+                        const roleIdToCompare = assignedRole.role_id || assignedRole.id;
+                        return roleIdToCompare === availableRole.id;
+                    });
+                    if (isAlreadyAssigned) {
+                        console.log(`Filtering out role ${availableRole.name} (ID: ${availableRole.id}) - already assigned`);
+                    }
+                    return !isAlreadyAssigned;
+                });
+                
+                console.log(`After filtering - removed ${originalAvailableCount - availableRoles.length} roles`);
+                console.log('Processed available roles:', availableRoles.map(r => ({id: r.id, name: r.name})));
+            } else {
+                throw new Error(data.message || 'Failed to load available roles');
+            }
+        });
+}
+
+// Функція відображення доступних ролей
+function displayAvailableRoles() {
+    const container = document.getElementById('availableRolesList');
+    
+    if (!availableRoles || availableRoles.length === 0) {
+        container.innerHTML = `
+            <div class="list-group-item text-center text-muted no-drag">
+                <i class="bi bi-info-circle fs-4 mb-2"></i>
+                <p class="mb-0">{% trans "No available roles" %}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    // Сортуємо за order для доступних ролей
+    const sortedAvailableRoles = [...availableRoles].sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    sortedAvailableRoles.forEach((role, index) => {
+        const isReorderMode = availableRolesReorderMode;
+        
+        const itemHtml = `
+            <div class="list-group-item list-group-item-action ${isReorderMode ? 'reorder-mode reorder-item' : ''} ${role.is_object_specific ? 'custom-role-item' : ''}" 
+                 data-role-id="${role.id}"
+                 data-role-name="${role.name}">
+                <div class="d-flex align-items-center">
+                    ${isReorderMode ? '<i class="fas fa-grip-vertical drag-handle me-2 text-muted"></i>' : ''}
+                    ${isReorderMode ? `<span class="badge bg-secondary order-indicator me-2">${index + 1}</span>` : ''}
+                    
+                    <input type="checkbox" class="form-check-input me-2 available-role-checkbox"
+                           data-role-id="${role.id}">
+                    
+                    <div class="role-color-indicator me-2" 
+                         style="background-color: ${role.color}; width: 12px; height: 12px; border-radius: 50%;"></div>
+                    
+                    <div class="flex-grow-1">
+                        <div class="fw-medium">
+                            ${role.name}
+                            ${role.is_object_specific ? '<span class="badge bg-info ms-2 custom-role-badge">Custom</span>' : ''}
+                        </div>
+                        ${role.description ? `<small class="text-muted">${role.description}</small>` : ''}
+                    </div>
+                    
+                    <div class="d-flex align-items-center">
+                        ${role.is_object_specific ? `
+                            <button type="button" class="btn btn-sm btn-outline-warning me-1" 
+                                    onclick="editCustomRole(${role.id})" 
+                                    title="{% trans 'Edit Custom Role' %}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger me-1" 
+                                    onclick="deleteCustomRole(${role.id}, '${role.name}')" 
+                                    title="{% trans 'Delete Custom Role' %}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : ''}
+                        
+                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                onclick="addObjectRole(${role.id})"
+                                title="{% trans 'Add role' %}">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', itemHtml);
+    });
+    
+    // Оновлюємо стан кнопки після рендерингу
+    setTimeout(() => {
+        updateAddSelectedButton();
+        // Реініціалізуємо drag-and-drop якщо не в режимі reorder
+        if (!availableRolesReorderMode) {
+            initializeDragAndDrop();
+        }
+    }, 0);
+}
+
+// Функція відображення обраних ролей
+function displaySelectedRoles() {
+    const container = document.getElementById('selectedRolesList');
+    
+    if (!assignedRoles || assignedRoles.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted p-3 no-drag" id="noSelectedRoles">
+                <i class="bi bi-plus-circle fs-1 mb-2"></i>
+                <p>{% trans "No roles selected. Drag roles from the left or click Add buttons." %}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Сортуємо за order
+    const sortedRoles = [...assignedRoles].sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    container.innerHTML = '';
+    
+    sortedRoles.forEach((role, index) => {
+        const isReorderMode = assignedRolesReorderMode;
+        
+        const itemHtml = `
+            <div class="list-group-item list-group-item-action ${isReorderMode ? 'reorder-mode reorder-item' : ''} ${role.is_object_specific ? 'custom-role-item' : ''}" 
+                 data-role-id="${role.id}"
+                 data-object-role-id="${role.id}"
+                 data-actual-role-id="${role.role_id || role.id}"
+                 data-role-name="${role.name}">
+                <div class="d-flex align-items-center">
+                    ${isReorderMode ? '<i class="fas fa-grip-vertical drag-handle me-2 text-muted"></i>' : ''}
+                    ${isReorderMode ? `<span class="badge bg-primary order-indicator me-2">${index + 1}</span>` : ''}
+                    
+                    <input type="checkbox" class="form-check-input me-2 assigned-role-checkbox"
+                           data-role-id="${role.id}">
+                    
+                    <div class="role-color-indicator me-2" 
+                         style="background-color: ${role.color}; width: 12px; height: 12px; border-radius: 50%;"></div>
+                    
+                    <div class="flex-grow-1">
+                        <div class="fw-medium">
+                            ${role.name}
+                            ${role.is_object_specific ? '<span class="badge bg-info ms-2 custom-role-badge">Custom</span>' : ''}
+                        </div>
+                        ${role.description ? `<small class="text-muted">${role.description}</small>` : ''}
+                    </div>
+                    
+                    <div class="d-flex align-items-center">
+                        ${role.is_object_specific ? `
+                            <button type="button" class="btn btn-sm btn-outline-warning me-1" 
+                                    onclick="editCustomRole(${role.role_id || role.id})" 
+                                    title="{% trans 'Edit Custom Role' %}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger me-1" 
+                                    onclick="deleteCustomRole(${role.role_id || role.id}, '${role.name}')" 
+                                    title="{% trans 'Delete Custom Role' %}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : ''}
+                        
+                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                onclick="removeObjectRole(${role.id})"
+                                title="{% trans 'Remove role' %}">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', itemHtml);
+    });
+    
+    // Оновлюємо стан кнопки після рендерингу
+    setTimeout(() => {
+        updateRemoveSelectedButton();
+        // Реініціалізуємо drag-and-drop якщо не в режимі reorder
+        if (!assignedRolesReorderMode) {
+            initializeDragAndDrop();
+        }
+    }, 0);
+}
+
+// Функція перемикання режиму реордерування
+function toggleRolesReorderMode() {
+    const container = $('#availableRolesList');
+    
+    // Знищуємо існуючий sortable, якщо є
+    if (container.hasClass('ui-sortable')) {
+        container.sortable('destroy');
+    }
+    
+    availableRolesReorderMode = !availableRolesReorderMode;
+    const button = document.getElementById('toggleRoleReorderMode');
+    const buttonText = button.querySelector('.btn-text');
+    
+    if (availableRolesReorderMode) {
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-warning');
+        buttonText.textContent = '{% trans "Exit Reorder" %}';
+        
+        showRoleNotification('info', '{% trans "Reorder mode activated. Drag items to reorder them." %}');
+        
+        // Відключаємо drag-and-drop між списками
+        destroyDragAndDrop();
+        
+        // Перерендерюємо елементи з drag handles
+        displayAvailableRoles();
+        
+        // Ініціалізуємо sortable після рендерингу
+        setTimeout(() => {
+            if (typeof $ !== 'undefined' && $.fn.sortable) {
+                container.sortable({
+                    handle: '.drag-handle',
+                    placeholder: 'sortable-placeholder',
+                    helper: 'clone',
+                    start: function(event, ui) {
+                        console.log('Sortable start event triggered for available roles');
+                    },
+                    update: function(event, ui) {
+                        console.log('Sortable update event triggered for available roles');
+                        try {
+                            updateRoleOrderIndicators(container.get(0));
+                            // Оновлюємо порядок в локальних даних
+                            updateAvailableRolesOrder();
+                        } catch (error) {
+                            console.error('Error updating role order indicators:', error);
+                        }
+                    }
+                });
+                console.log('Available roles sortable initialized');
+            } else {
+                console.error('jQuery UI sortable is not available!');
+            }
+        }, 100);
+        
+    } else {
+        button.classList.remove('btn-warning');
+        button.classList.add('btn-outline-primary');
+        buttonText.textContent = '{% trans "Reorder" %}';
+        
+        // Зберігаємо порядок
+        saveAvailableRolesOrder();
+        
+        // Перерендерюємо без drag handles
+        displayAvailableRoles();
+        
+        // Включаємо назад drag-and-drop між списками
+        setTimeout(() => initializeDragAndDrop(), 100);
+    }
+}
+
+// Функція перемикання режиму реордерування призначених ролей
+function toggleAssignedRolesReorderMode() {
+    const container = $('#selectedRolesList');
+    
+    // Знищуємо існуючий sortable, якщо є
+    if (container.hasClass('ui-sortable')) {
+        container.sortable('destroy');
+    }
+    
+    assignedRolesReorderMode = !assignedRolesReorderMode;
+    const button = document.getElementById('toggleAssignedRoleReorderMode');
+    const buttonText = button.querySelector('.btn-text');
+    
+    if (assignedRolesReorderMode) {
+        button.classList.remove('btn-outline-light');
+        button.classList.add('btn-warning');
+        buttonText.textContent = '{% trans "Exit Reorder" %}';
+        
+        showRoleNotification('info', '{% trans "Reorder mode activated for assigned roles. Drag items to reorder them." %}');
+        
+        // Відключаємо drag-and-drop між списками
+        destroyDragAndDrop();
+        
+        // Перерендерюємо елементи з drag handles
+        displaySelectedRoles();
+        
+        // Ініціалізуємо sortable після рендерингу
+        setTimeout(() => {
+            if (typeof $ !== 'undefined' && $.fn.sortable) {
+                container.sortable({
+                    handle: '.drag-handle',
+                    placeholder: 'sortable-placeholder',
+                    helper: 'clone',
+                    start: function(event, ui) {
+                        console.log('Sortable start event triggered for assigned roles');
+                    },
+                    update: function(event, ui) {
+                        console.log('Sortable update event triggered for assigned roles');
+                        try {
+                            updateRoleOrderIndicators(container.get(0));
+                            // Оновлюємо порядок в локальних даних
+                            updateAssignedRolesOrder();
+                        } catch (error) {
+                            console.error('Error updating role order indicators:', error);
+                        }
+                    }
+                });
+                console.log('Assigned roles sortable initialized');
+            } else {
+                console.error('jQuery UI sortable is not available!');
+            }
+        }, 100);
+        
+    } else {
+        button.classList.remove('btn-warning');
+        button.classList.add('btn-outline-light');
+        buttonText.textContent = '{% trans "Reorder" %}';
+        
+        // Зберігаємо порядок
+        saveAssignedRolesOrder();
+        
+        // Також зберігаємо всі призначені ролі з новим порядком
+        setTimeout(() => debouncedSaveRoles(), 500);
+        
+        // Перерендерюємо без drag handles
+        displaySelectedRoles();
+        
+        // Включаємо назад drag-and-drop між списками
+        setTimeout(() => initializeDragAndDrop(), 100);
+    }
+}
+
+// Функція збереження порядку доступних ролей
+function saveAvailableRolesOrder() {
+    const container = document.getElementById('availableRolesList');
+    const items = container.querySelectorAll('[data-role-id]');
+    const newOrder = Array.from(items).map((item, index) => ({
+        id: parseInt(item.dataset.roleId),
+        order: index + 1
+    }));
+    
+    console.log('Saving available roles order:', newOrder);
+    
+    // Оновлюємо локальні дані для доступних ролей
+    newOrder.forEach(orderItem => {
+        const roleIndex = availableRoles.findIndex(r => r.id === orderItem.id);
+        if (roleIndex !== -1) {
+            availableRoles[roleIndex].order = orderItem.order;
+        }
+    });
+    
+    // Поки що тільки локальне оновлення для доступних ролей
+    showRoleNotification('success', '{% trans "Available roles order updated" %}');
+}
+
+// Функція збереження порядку призначених ролей
+function saveAssignedRolesOrder() {
+    const container = document.getElementById('selectedRolesList');
+    const items = container.querySelectorAll('[data-role-id]');
+    const newOrder = Array.from(items).map((item, index) => {
+        // Для ObjectRoles використовуємо actual-role-id (це role_id в базі)
+        const roleId = item.dataset.actualRoleId || item.dataset.roleId;
+        return {
+            id: parseInt(roleId),
+            order: index + 1
+        };
+    });
+    
+    console.log('Saving assigned roles order:', newOrder);
+    
+    // Оновлюємо локальні дані перед відправкою на сервер
+    newOrder.forEach(orderItem => {
+        // Шукаємо за role_id або id (залежно від структури даних)
+        const roleIndex = assignedRoles.findIndex(r => 
+            (r.role_id && r.role_id === orderItem.id) || r.id === orderItem.id
+        );
+        if (roleIndex !== -1) {
+            assignedRoles[roleIndex].order = orderItem.order;
+        }
+    });
+    
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    const requestData = {
+        roles: newOrder.map(item => ({
+            role_id: item.id,  // це вже role_id (ID самої ролі)
+            order: item.order
+        }))
+    };
+    
+    console.log('Request URL:', `/${languagePrefix}/app_access/object-roles/${currentObjectRoleId}/update-order/`);
+    console.log('Request data:', requestData);
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+    console.log('CSRF Token:', csrfToken);
+    
+    if (!csrfToken) {
+        console.error('CSRF token not found');
+        showRoleNotification('danger', '{% trans "CSRF token not found. Please reload the page." %}');
+        return;
+    }
+    
+    fetch(`/${languagePrefix}/app_access/object-roles/${currentObjectRoleId}/update-order/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Error response text:', text);
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.status === 'success' || data.success) {
+            showRoleNotification('success', '{% trans "Assigned roles order saved successfully" %}');
+        } else {
+            showRoleNotification('danger', data.message || data.error || '{% trans "Error saving roles order" %}');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving roles order:', error);
+        showRoleNotification('danger', '{% trans "Error saving roles order" %}');
+    });
+}
+
+// Функція оновлення індикаторів порядку для ролей
+function updateRoleOrderIndicators(container) {
+    const indicators = container.querySelectorAll('.order-indicator');
+    indicators.forEach((indicator, index) => {
+        indicator.textContent = index + 1;
+    });
+}
+
+// Функція оновлення порядку доступних ролей в локальних даних
+function updateAvailableRolesOrder() {
+    const container = document.getElementById('availableRolesList');
+    const items = container.querySelectorAll('[data-role-id]');
+    
+    Array.from(items).forEach((item, index) => {
+        const roleId = parseInt(item.dataset.roleId);
+        const roleIndex = availableRoles.findIndex(r => r.id === roleId);
+        if (roleIndex !== -1) {
+            availableRoles[roleIndex].order = index + 1;
+        }
+    });
+}
+
+// Функція оновлення порядку призначених ролей в локальних даних
+function updateAssignedRolesOrder() {
+    const container = document.getElementById('selectedRolesList');
+    const items = container.querySelectorAll('[data-role-id]');
+    
+    Array.from(items).forEach((item, index) => {
+        // Використовуємо actual-role-id для ідентифікації
+        const roleId = parseInt(item.dataset.actualRoleId || item.dataset.roleId);
+        const roleIndex = assignedRoles.findIndex(r => 
+            (r.role_id && r.role_id === roleId) || r.id === roleId
+        );
+        if (roleIndex !== -1) {
+            assignedRoles[roleIndex].order = index + 1;
+        }
+    });
+}
+
+// Ініціалізація drag-and-drop між списками
+function initializeDragAndDrop() {
+    if (typeof $ === 'undefined' || !$.fn.sortable) {
+        console.warn('jQuery UI sortable is not available for drag-and-drop between lists');
+        return;
+    }
+    
+    // Спочатку знищуємо існуючі sortable
+    destroyDragAndDrop();
+    
+    // Ініціалізуємо sortable для доступних ролей
+    $('#availableRolesList').sortable({
+        connectWith: '#selectedRolesList',
+        items: '.list-group-item:not(.no-drag):not(.reorder-item)',
+        helper: 'clone',
+        placeholder: 'sortable-placeholder',
+        cursor: 'grabbing',
+        tolerance: 'pointer',
+        appendTo: 'body',
+        scroll: false,
+        
+        start: function(event, ui) {
+            console.log('Drag started from available roles');
+            ui.item.addClass('dragging');
+            ui.placeholder.height(ui.item.outerHeight());
+        },
+        
+        stop: function(event, ui) {
+            ui.item.removeClass('dragging');
+            console.log('Drag stopped');
+        },
+        
+        remove: function(event, ui) {
+            console.log('Role removed from available list');
+            const roleId = parseInt(ui.item.data('role-id'));
+            
+            // Знаходимо роль в availableRoles
+            const roleIndex = availableRoles.findIndex(r => r.id === roleId);
+            if (roleIndex !== -1) {
+                const role = availableRoles[roleIndex];
+                
+                // Видаляємо з availableRoles
+                availableRoles.splice(roleIndex, 1);
+                
+                // Додаємо до assignedRoles
+                assignedRoles.push({
+                    ...role,
+                    order: assignedRoles.length + 1
+                });
+                
+                console.log('Role moved to assigned:', role.name);
+                
+                // Оновлюємо лічильники
+                updateRoleCounts();
+                
+                // Показуємо повідомлення
+                showRoleNotification('success', `{% trans "Role" %} "${role.name}" {% trans "assigned successfully" %}`);
+                
+                // Зберігаємо зміни на сервер з затримкою
+                debouncedSaveRoles();
+            }
+        }
+    });
+    
+    // Ініціалізуємо sortable для призначених ролей
+    $('#selectedRolesList').sortable({
+        connectWith: '#availableRolesList',
+        items: '.list-group-item:not(.no-drag):not(.reorder-item)',
+        helper: 'clone',
+        placeholder: 'sortable-placeholder',
+        cursor: 'grabbing',
+        tolerance: 'pointer',
+        appendTo: 'body',
+        scroll: false,
+        
+        start: function(event, ui) {
+            console.log('Drag started from assigned roles');
+            ui.item.addClass('dragging');
+            ui.placeholder.height(ui.item.outerHeight());
+        },
+        
+        stop: function(event, ui) {
+            ui.item.removeClass('dragging');
+            console.log('Drag stopped');
+        },
+        
+        remove: function(event, ui) {
+            console.log('Role removed from assigned list');
+            const roleId = parseInt(ui.item.data('role-id'));
+            
+            // Знаходимо роль в assignedRoles
+            const roleIndex = assignedRoles.findIndex(r => r.id === roleId);
+            if (roleIndex !== -1) {
+                const role = assignedRoles[roleIndex];
+                
+                // Видаляємо з assignedRoles
+                assignedRoles.splice(roleIndex, 1);
+                
+                // Додаємо назад до availableRoles
+                availableRoles.push(role);
+                availableRoles.sort((a, b) => a.name.localeCompare(b.name));
+                
+                // Перенумеровуємо order для assignedRoles
+                assignedRoles.forEach((role, index) => {
+                    role.order = index + 1;
+                });
+                
+                console.log('Role moved back to available:', role.name);
+                
+                // Оновлюємо лічильники
+                updateRoleCounts();
+                
+                // Показуємо повідомлення
+                showRoleNotification('success', `{% trans "Role" %} "${role.name}" {% trans "removed successfully" %}`);
+                
+                // Зберігаємо зміни на сервер з затримкою
+                debouncedSaveRoles();
+            }
+        },
+        
+        update: function(event, ui) {
+            // Оновлюємо порядок тільки якщо елемент залишився в тому ж списку
+            if (ui.item.parent().attr('id') === 'selectedRolesList') {
+                console.log('Updating assigned roles order after reorder');
+                updateAssignedRolesOrder();
+                
+                // Зберігаємо зміни з затримкою
+                debouncedSaveRoles();
+            }
+        }
+    });
+    
+    console.log('Drag-and-drop between lists initialized');
+}
+
+// Збереження всіх призначених ролей на сервер
+function saveAllAssignedRoles() {
+    const languagePrefix = window.location.pathname.split('/')[1];
+    const url = `/${languagePrefix}/app_access/object-roles/${currentObjectRoleId}/update/`;
+    
+    console.log(`Saving all assigned roles for object ${currentObjectRoleId}`);
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+    if (!csrfToken) {
+        console.error('CSRF token not found');
+        showRoleNotification('danger', '{% trans "CSRF token not found. Please reload the page." %}');
+        return;
+    }
+    
+    // Готуємо дані для відправки
+    console.log('Current assignedRoles before mapping:', assignedRoles);
+    
+    const rolesData = assignedRoles.map((role, index) => {
+        const mappedRole = {
+            role_id: role.role_id || role.id, // Використовуємо role_id якщо доступний
+            order: role.order || index + 1,
+            is_active: true
+        };
+        console.log(`Mapping role ${role.name || role.id}: original=`, role, 'mapped=', mappedRole);
+        return mappedRole;
+    });
+    
+    const requestData = {
+        roles: rolesData
+    };
+    
+    console.log('Sending roles data:', requestData);
+    
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('Save response status:', response.status);
+        
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Error saving roles:', text);
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('Save response data:', data);
+        
+        if (data.status === 'success' || data.success) {
+            console.log('All assigned roles saved successfully');
+            // Перезавантажуємо дані для синхронізації
+            loadCurrentObjectRoles(currentObjectRoleId);
+        } else {
+            console.error('Failed to save roles:', data.message || data.error);
+            showRoleNotification('danger', data.message || data.error || `{% trans "Error saving role assignments" %}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving roles:', error);
+        showRoleNotification('danger', `{% trans "Error saving role assignments" %}: ${error.message}`);
+    });
+}
+
+// Debounced функція збереження для запобігання частим запитам
+let saveRolesTimeout;
+function debouncedSaveRoles() {
+    clearTimeout(saveRolesTimeout);
+    saveRolesTimeout = setTimeout(() => {
+        saveAllAssignedRoles();
+    }, 1000); // Затримка 1 секунда
+}
+
+// Знищення drag-and-drop між списками
+function destroyDragAndDrop() {
+    if (typeof $ === 'undefined' || !$.fn.sortable) {
+        return;
+    }
+    
+    // Знищуємо sortable якщо існує
+    if ($('#availableRolesList').hasClass('ui-sortable')) {
+        $('#availableRolesList').sortable('destroy');
+        console.log('Destroyed sortable for available roles');
+    }
+    
+    if ($('#selectedRolesList').hasClass('ui-sortable')) {
+        $('#selectedRolesList').sortable('destroy');
+        console.log('Destroyed sortable for selected roles');
+    }
+}
+
+// Функція фільтрації доступних ролей
+function filterAvailableRoles() {
+    const searchInput = document.getElementById('searchAvailableRoles');
+    const filter = searchInput.value.toLowerCase();
+    const items = document.querySelectorAll('#availableRolesList .list-group-item');
+    
+    items.forEach(item => {
+        const roleName = item.dataset.roleName || '';
+        const text = item.textContent.toLowerCase();
+        
+        if (roleName.toLowerCase().includes(filter) || text.includes(filter)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// Функція фільтрації призначених ролей
+function filterAssignedRoles() {
+    const searchInput = document.getElementById('searchAssignedRoles');
+    const filter = searchInput.value.toLowerCase();
+    const items = document.querySelectorAll('#selectedRolesList .list-group-item');
+    
+    items.forEach(item => {
+        const roleName = item.dataset.roleName || '';
+        const text = item.textContent.toLowerCase();
+        
+        if (roleName.toLowerCase().includes(filter) || text.includes(filter)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// Функція додавання обраних ролей
+function addSelectedRoles() {
+    const checkboxes = document.querySelectorAll('#availableRolesList .available-role-checkbox:checked');
+    const rolesToAdd = [];
+    
+    console.log('Add selected roles called, found:', checkboxes.length, 'checked boxes');
+    
+    checkboxes.forEach(checkbox => {
+        const roleId = parseInt(checkbox.getAttribute('data-role-id'));
+        const role = availableRoles.find(r => r.id === roleId);
+        
+        console.log('Processing role ID:', roleId, 'Role found:', !!role);
+        
+        if (role) {
+            // Перевіряємо чи роль вже призначена
+            const alreadyAssigned = assignedRoles.find(r => r.id === roleId);
+            if (!alreadyAssigned) {
+                rolesToAdd.push(role);
+            }
+        }
+    });
+    
+    console.log('Roles to add:', rolesToAdd.length);
+    
+    if (rolesToAdd.length === 0) {
+        showRoleNotification('warning', '{% trans "No roles selected or roles already assigned" %}');
+        return;
+    }
+    
+    // Додаємо ролі до призначених
+    rolesToAdd.forEach(role => {
+        assignedRoles.push({
+            ...role,
+            role_id: role.id, // Додаємо role_id для сервера
+            order: assignedRoles.length + 1
+        });
+    });
+    
+    // Видаляємо додані ролі з availableRoles
+    availableRoles = availableRoles.filter(role => 
+        !rolesToAdd.some(addedRole => addedRole.id === role.id)
+    );
+    
+    // Відображаємо оновлені списки
+    displayAvailableRoles();
+    displaySelectedRoles();
+    updateRoleCounts();
+    
+    // Оновлюємо стан кнопок
+    updateAddSelectedButton();
+    updateRemoveSelectedButton();
+    
+    showRoleNotification('success', `{% trans "Added" %} ${rolesToAdd.length} {% trans "roles" %}`);
+    
+    // Зберігаємо зміни на сервер з затримкою
+    debouncedSaveRoles();
+}
+
+// Функція видалення обраних ролей
+function removeSelectedRoles() {
+    const checkboxes = document.querySelectorAll('#selectedRolesList .assigned-role-checkbox:checked');
+    const rolesToRemove = [];
+    
+    console.log('Remove selected roles called, found:', checkboxes.length, 'checked boxes');
+    
+    checkboxes.forEach(checkbox => {
+        const roleId = parseInt(checkbox.getAttribute('data-role-id'));
+        const role = assignedRoles.find(r => r.id === roleId);
+        
+        console.log('Processing role ID:', roleId, 'Role found:', !!role);
+        
+        if (role) {
+            rolesToRemove.push(role);
+        }
+    });
+    
+    console.log('Roles to remove:', rolesToRemove.length);
+    
+    if (rolesToRemove.length === 0) {
+        showRoleNotification('warning', '{% trans "No roles selected for removal" %}');
+        return;
+    }
+    
+    console.log('Roles to remove:', rolesToRemove.map(r => ({id: r.id, role_id: r.role_id, name: r.name})));
+    
+    // Видаляємо ролі з призначених та додаємо їх назад до доступних
+    rolesToRemove.forEach(roleToRemove => {
+        // Видаляємо з assignedRoles
+        assignedRoles = assignedRoles.filter(role => role.id !== roleToRemove.id);
+        
+        // Створюємо роль для повернення до availableRoles з правильним ID
+        const roleForAvailable = {
+            ...roleToRemove,
+            id: roleToRemove.role_id || roleToRemove.id, // Використовуємо оригінальний ID ролі
+            order: 0 // Available roles don't have order initially
+        };
+        
+        // Перевіряємо чи роль вже існує в доступних (щоб уникнути дублювання)
+        const alreadyExists = availableRoles.some(existingRole => existingRole.id === roleForAvailable.id);
+        if (!alreadyExists) {
+            availableRoles.push(roleForAvailable);
+            console.log(`Added role ${roleForAvailable.name} (ID: ${roleForAvailable.id}) back to available roles`);
+        } else {
+            console.log(`Role ${roleForAvailable.name} (ID: ${roleForAvailable.id}) already exists in available roles`);
+        }
+    });
+    
+    // Перенумеровуємо order для призначених ролей
+    assignedRoles.forEach((role, index) => {
+        role.order = index + 1;
+    });
+    
+    // Сортуємо доступні ролі за назвою
+    availableRoles.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Відображаємо оновлені списки
+    displayAvailableRoles();
+    displaySelectedRoles();
+    updateRoleCounts();
+    
+    // Оновлюємо стан кнопок
+    updateAddSelectedButton();
+    updateRemoveSelectedButton();
+    
+    showRoleNotification('success', `{% trans "Removed" %} ${rolesToRemove.length} {% trans "roles" %}`);
+    
+    // Зберігаємо зміни на сервер з затримкою
+    debouncedSaveRoles();
+}
+
+// Функція оновлення лічильників ролей
+function updateRoleCounts() {
+    const availableCount = availableRoles ? availableRoles.length : 0;
+    const assignedCount = assignedRoles ? assignedRoles.length : 0;
+    
+    const availableCountBadge = document.querySelector('#availableRolesCount');
+    const assignedCountBadge = document.querySelector('#assignedRolesCount');
+    
+    if (availableCountBadge) {
+        availableCountBadge.textContent = availableCount;
+    }
+    
+    if (assignedCountBadge) {
+        assignedCountBadge.textContent = assignedCount;
+    }
+}
+
+// Функція оновлення кнопки "Add Selected"
+function updateAddSelectedButton() {
+    try {
+        console.log('updateAddSelectedButton called');
+        
+        const allCheckboxes = document.querySelectorAll('#availableRolesList .available-role-checkbox');
+        const checkedBoxes = document.querySelectorAll('#availableRolesList .available-role-checkbox:checked');
+        const addButton = document.getElementById('addSelectedRoles');
+        
+        console.log('Total available checkboxes:', allCheckboxes.length);
+        console.log('Checked available checkboxes:', checkedBoxes.length);
+        console.log('Add button found:', !!addButton);
+        
+        if (addButton) {
+            addButton.disabled = checkedBoxes.length === 0;
+            console.log('Add button disabled:', addButton.disabled);
+        } else {
+            console.log('Add button not found!');
+        }
+    } catch (error) {
+        console.error('Error in updateAddSelectedButton:', error);
+    }
+}
+
+// Функція оновлення кнопки "Remove Selected"
+function updateRemoveSelectedButton() {
+    try {
+        console.log('updateRemoveSelectedButton called');
+        
+        const allCheckboxes = document.querySelectorAll('#selectedRolesList .assigned-role-checkbox');
+        const checkedBoxes = document.querySelectorAll('#selectedRolesList .assigned-role-checkbox:checked');
+        const removeButton = document.getElementById('removeSelectedRoles');
+        
+        console.log('Total assigned checkboxes:', allCheckboxes.length);
+        console.log('Checked assigned checkboxes:', checkedBoxes.length);
+        console.log('Remove button found:', !!removeButton);
+        
+        if (removeButton) {
+            removeButton.disabled = checkedBoxes.length === 0;
+            console.log('Remove button disabled:', removeButton.disabled);
+        } else {
+            console.log('Remove button not found!');
+        }
+    } catch (error) {
+        console.error('Error in updateRemoveSelectedButton:', error);
+    }
+}
+
+// Функція додавання ролі до об'єкта
+function addObjectRole(roleId) {
+    // Знаходимо роль в доступних
+    const roleToAdd = availableRoles.find(r => r.id === roleId);
+    if (!roleToAdd) {
+        showRoleNotification('error', '{% trans "Role not found" %}');
+        return;
+    }
+    
+    // Перевіряємо чи роль вже призначена
+    const alreadyAssigned = assignedRoles.find(r => r.id === roleId);
+    if (alreadyAssigned) {
+        showRoleNotification('warning', '{% trans "Role is already assigned" %}');
+        return;
+    }
+    
+    // Додаємо роль до призначених
+    assignedRoles.push({
+        ...roleToAdd,
+        order: assignedRoles.length + 1
+    });
+    
+    // Видаляємо роль з доступних
+    availableRoles = availableRoles.filter(role => role.id !== roleId);
+    
+    // Оновлюємо відображення
+    displayAvailableRoles();
+    displaySelectedRoles();
+    updateRoleCounts();
+    
+    showRoleNotification('success', '{% trans "Role added successfully" %}');
+    
+    // Зберігаємо зміни на сервер з затримкою
+    debouncedSaveRoles();
+}
+
+// Функція видалення ролі з об'єкта
+function removeObjectRole(roleId) {
+    // Знаходимо роль в призначених
+    const roleToRemove = assignedRoles.find(r => r.id === roleId);
+    if (!roleToRemove) {
+        showRoleNotification('error', '{% trans "Role not found in assigned roles" %}');
+        return;
+    }
+    
+    // Видаляємо роль з призначених
+    assignedRoles = assignedRoles.filter(role => role.id !== roleId);
+    
+    // Повертаємо роль до доступних
+    availableRoles.push(roleToRemove);
+    availableRoles.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Перенумеровуємо order для призначених ролей
+    assignedRoles.forEach((role, index) => {
+        role.order = index + 1;
+    });
+    
+    // Оновлюємо відображення
+    displayAvailableRoles();
+    displaySelectedRoles();
+    updateRoleCounts();
+    
+    showRoleNotification('success', '{% trans "Role removed successfully" %}');
+    
+    // Зберігаємо зміни на сервер з затримкою
+    debouncedSaveRoles();
+}
+
+// Функція перемикання вибору всіх доступних ролей
+function toggleSelectAllAvailableRoles() {
+    const checkboxes = document.querySelectorAll('#availableRolesList .available-role-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    console.log('Toggle select all available roles, found:', checkboxes.length, 'checkboxes');
+    
+    checkboxes.forEach(cb => {
+        cb.checked = !allChecked;
+    });
+    
+    updateAddSelectedButton();
+}
+
+// Функція перемикання вибору всіх призначених ролей
+function toggleSelectAllAssignedRoles() {
+    const checkboxes = document.querySelectorAll('#selectedRolesList .assigned-role-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    console.log('Toggle select all assigned roles, found:', checkboxes.length, 'checkboxes');
+    
+    checkboxes.forEach(cb => {
+        cb.checked = !allChecked;
+    });
+    
+    updateRemoveSelectedButton();
+}
+
+// Збереження при закритті модального вікна
+$('#editObjectRolesModal').on('hidden.bs.modal', function() {
+    console.log('Modal closing, saving final changes...');
+    // Зберігаємо остаточні зміни без затримки
+    clearTimeout(saveRolesTimeout);
+    saveAllAssignedRoles();
+});
+
+// Event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Пошук доступних ролей
+    document.getElementById('searchAvailableRoles').addEventListener('input', filterAvailableRoles);
+    
+    // Пошук призначених ролей
+    document.getElementById('searchAssignedRoles').addEventListener('input', filterAssignedRoles);
+    
+    // Кнопки реордерування
+    document.getElementById('toggleRoleReorderMode').addEventListener('click', toggleRolesReorderMode);
+    document.getElementById('toggleAssignedRoleReorderMode').addEventListener('click', toggleAssignedRolesReorderMode);
+    
+    // Кнопки масових операцій
+    document.getElementById('addSelectedRoles').addEventListener('click', addSelectedRoles);
+    document.getElementById('removeSelectedRoles').addEventListener('click', removeSelectedRoles);
+    document.getElementById('selectAllAvailableRoles').addEventListener('click', toggleSelectAllAvailableRoles);
+    document.getElementById('selectAllAssignedRoles').addEventListener('click', toggleSelectAllAssignedRoles);
+    
+    // Event delegation для checkbox'ів доступних ролей
+    document.getElementById('availableRolesList').addEventListener('change', function(e) {
+        console.log('Change event on available roles list. Target:', e.target);
+        console.log('Target classes:', e.target.classList);
+        console.log('Has available-role-checkbox class:', e.target.classList.contains('available-role-checkbox'));
+        
+        if (e.target.classList.contains('available-role-checkbox')) {
+            console.log('Available role checkbox changed - calling updateAddSelectedButton');
+            console.log('updateAddSelectedButton function exists:', typeof updateAddSelectedButton);
+            
+            try {
+                // Інлайн оновлення кнопки для діагностики
+                console.log('Inline button update - start');
+                const checkedBoxes = document.querySelectorAll('#availableRolesList .available-role-checkbox:checked');
+                const addButton = document.getElementById('addSelectedRoles');
+                console.log('Inline - found', checkedBoxes.length, 'checked boxes');
+                console.log('Inline - add button found:', !!addButton);
+                
+                if (addButton) {
+                    addButton.disabled = checkedBoxes.length === 0;
+                    console.log('Inline - button disabled set to:', addButton.disabled);
+                }
+                
+                // Спробуємо також викликати функцію
+                if (typeof updateAddSelectedButton === 'function') {
+                    console.log('Calling updateAddSelectedButton function...');
+                    try {
+                        updateAddSelectedButton();
+                        console.log('updateAddSelectedButton completed successfully');
+                    } catch (funcError) {
+                        console.error('Error in updateAddSelectedButton function:', funcError);
+                    }
+                } else {
+                    console.error('updateAddSelectedButton is not a function!');
+                }
+            } catch (error) {
+                console.error('Error in inline update:', error);
+            }
+        } else {
+            console.log('Event target does not have available-role-checkbox class');
+        }
+    });
+    
+    // Event delegation для checkbox'ів призначених ролей
+    document.getElementById('selectedRolesList').addEventListener('change', function(e) {
+        console.log('Change event on assigned roles list. Target:', e.target);
+        console.log('Target classes:', e.target.classList);
+        console.log('Has assigned-role-checkbox class:', e.target.classList.contains('assigned-role-checkbox'));
+        
+        if (e.target.classList.contains('assigned-role-checkbox')) {
+            console.log('Assigned role checkbox changed - calling updateRemoveSelectedButton');
+            console.log('updateRemoveSelectedButton function exists:', typeof updateRemoveSelectedButton);
+            
+            try {
+                // Інлайн оновлення кнопки для діагностики
+                console.log('Inline remove button update - start');
+                const checkedBoxes = document.querySelectorAll('#selectedRolesList .assigned-role-checkbox:checked');
+                const removeButton = document.getElementById('removeSelectedRoles');
+                console.log('Inline - found', checkedBoxes.length, 'checked boxes');
+                console.log('Inline - remove button found:', !!removeButton);
+                
+                if (removeButton) {
+                    removeButton.disabled = checkedBoxes.length === 0;
+                    console.log('Inline - remove button disabled set to:', removeButton.disabled);
+                }
+                
+                // Спробуємо також викликати функцію
+                if (typeof updateRemoveSelectedButton === 'function') {
+                    console.log('Calling updateRemoveSelectedButton function...');
+                    try {
+                        updateRemoveSelectedButton();
+                        console.log('updateRemoveSelectedButton completed successfully');
+                    } catch (funcError) {
+                        console.error('Error in updateRemoveSelectedButton function:', funcError);
+                    }
+                } else {
+                    console.error('updateRemoveSelectedButton is not a function!');
+                }
+            } catch (error) {
+                console.error('Error in inline remove update:', error);
+            }
+        } else {
+            console.log('Event target does not have assigned-role-checkbox class');
+        }
+    });
+    
+    // Кнопка оновлення
+    document.getElementById('refreshObjectRoles').addEventListener('click', function() {
+        if (currentObjectRoleId) {
+            loadCurrentObjectRoles(currentObjectRoleId);
+        }
+    });
+    
+    // Кнопки форми
+    document.getElementById('cancelRoleBtn').addEventListener('click', function() {
+        document.getElementById('newRoleForm').style.display = 'none';
+    });
+    
+    document.getElementById('addNewRoleBtn').addEventListener('click', function() {
+        const form = document.getElementById('newRoleForm');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+});
+
+// Функція для відкриття модального вікна Object Roles
+function openObjectRolesModal(objectId, objectName, systemId, companyId) {
+    console.log('Opening object roles modal:', objectId, objectName, systemId, companyId);
+    
+    currentObjectRoleId = objectId;
+    currentSystemRoleId = systemId;
+    
+    // Скидаємо режими reorder
+    availableRolesReorderMode = false;
+    assignedRolesReorderMode = false;
+    
+    // Оновлюємо інформацію про об'єкт
+    document.getElementById('selectedObjectRoleInfo').textContent = 
+        `Editing roles for object: ${objectName}`;
+    
+    // Очищаємо попередні дані
+    assignedRoles = [];
+    availableRoles = [];
+    
+    // Показуємо завантаження та ховаємо контент
+    document.getElementById('objectRolesLoading').style.display = 'block';
+    document.getElementById('objectRolesContent').classList.add('d-none');
+    hideError();
+    
+    // Показуємо модальне вікно
+    const modal = new bootstrap.Modal(document.getElementById('editObjectRolesModal'));
+    modal.show();
+    
+    // Завантажуємо дані
+    loadCurrentObjectRoles(objectId);
+}
+
+// Функція для відкриття модального вікна створення ролі
+function openCreateRoleModal() {
+    document.getElementById('newRoleForm').style.display = 'block';
+}
+
+// Функція для закриття модального вікна створення ролі  
+function closeCreateRoleModal() {
+    document.getElementById('newRoleForm').style.display = 'none';
+    document.getElementById('createRoleForm').reset();
+}
+
+// Функція для збереження нової ролі
+function saveNewRole() {
+    const form = document.getElementById('createRoleForm');
+    const name = (form.querySelector('[name="name"]')?.value || '').trim();
+    if (!name) {
+        showRoleNotification('danger', '{% trans "Please enter role name" %}');
+        return;
+    }
+    const data = {
+        object_id: currentObjectRoleId,
+        name: name,
+        description: (form.querySelector('[name="description"]')?.value || '').trim(),
+        color: form.querySelector('[name="color"]')?.value || '#0d6efd'
+    };
+    
+    console.log('Creating custom role with data:', data);
+    
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    fetch(`/${languagePrefix}/app_access/object-roles/save-custom/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.text().then(text => {
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (_e) {
+                data = {};
+            }
+            if (!response.ok) {
+                const msg = (data && data.message) ? data.message : text || ('HTTP ' + response.status);
+                showRoleNotification('danger', msg);
+                throw new Error(msg);
+            }
+            return data;
+        });
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data && data.status === 'success') {
+            showRoleNotification('success', '{% trans "Role created successfully" %}');
+            closeCreateRoleModal();
+            loadCurrentObjectRoles(currentObjectRoleId);
+        } else {
+            showRoleNotification('danger', (data && data.message) || '{% trans "Error creating role" %}');
+        }
+    })
+    .catch(error => {
+        if (error.message && error.message !== 'Failed to fetch') {
+            console.error('Error creating role:', error.message);
+        } else {
+            console.error('Error creating role:', error);
+            showRoleNotification('danger', '{% trans "Error creating role" %}');
+        }
+    });
+}
+
+// Додамо функції для роботи з toastr
+function showNotification(type, message) {
+    // Якщо toastr доступний, використовуємо його
+    if (typeof toastr !== 'undefined') {
+        toastr[type](message);
+    } else {
+        // Інакше використовуємо showRoleNotification
+        showRoleNotification(type === 'success' ? 'success' : 'danger', message);
+    }
+}
+
+// Event listeners для форми створення ролі
+document.addEventListener('DOMContentLoaded', function() {
+    // ... existing code ...
+    
+    // Форма створення ролі
+    const createRoleForm = document.getElementById('createRoleForm');
+    if (createRoleForm) {
+        createRoleForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveNewRole();
+        });
+    }
+    
+    // Кнопка відміни
+    const cancelRoleBtn = document.getElementById('cancelRoleBtn');
+    if (cancelRoleBtn) {
+        cancelRoleBtn.addEventListener('click', closeCreateRoleModal);
+    }
+    
+    // Кнопка додавання нової ролі
+    const addNewRoleBtn = document.getElementById('addNewRoleBtn');
+    if (addNewRoleBtn) {
+        addNewRoleBtn.addEventListener('click', openCreateRoleModal);
+    }
+});
+</script>
+
+<style>
+/* Виправлення проблем зі скролінгом */
+html, body {
+    overflow-x: hidden;
+}
+
+body {
+    overflow-y: auto !important;
+}
+
+/* Переконуємося, що після закриття модального вікна скролінг відновлюється */
+body:not(.modal-open) {
+    overflow: auto !important;
+    padding-right: 0 !important;
+}
+
+/* Стилі для форми створення нової ролі */
+#newRoleForm {
+    border: 2px dashed #28a745;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    transition: all 0.3s ease;
+}
+
+#newRoleForm:hover {
+    border-color: #20c997;
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.15);
+}
+
+#newRoleForm .card-header {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border-bottom: none;
+}
+
+/* Стилі для кастомних ролей */
+.custom-role-badge {
+    font-size: 0.65rem;
+    padding: 0.25em 0.5em;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Додаткові стилі для позначення кастомних ролей */
+.list-group-item:has(.custom-role-badge) {
+    background-color: rgba(13, 202, 240, 0.05);
+    border-left: 3px solid #0dcaf0;
+}
+
+.list-group-item:has(.custom-role-badge):hover {
+    background-color: rgba(13, 202, 240, 0.1);
+}
+
+/* Альтернативний стиль для старих браузерів, що не підтримують :has() */
+.list-group-item.custom-role-item {
+    background-color: rgba(13, 202, 240, 0.05);
+    border-left: 3px solid #0dcaf0;
+}
+
+.list-group-item.custom-role-item:hover {
+    background-color: rgba(13, 202, 240, 0.1);
+}
+
+/* Покращені стилі для role-item карток */
+.role-item .card {
+    transition: all 0.2s ease;
+    border: 1px solid #dee2e6;
+}
+
+.role-item .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: #0d6efd;
+}
+
+.role-item .card.border-success {
+    border-color: #28a745 !important;
+    background: linear-gradient(135deg, #f8fff8 0%, #e8f5e8 100%);
+}
+
+/* Стилі для color picker */
+.form-control-color {
+    width: 60px;
+    height: 38px;
+    border-radius: 6px;
+    border: 2px solid #dee2e6;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.form-control-color:hover {
+    border-color: #0d6efd;
+    transform: scale(1.05);
+}
+
+/* Стилі для selected роли */
+.selected-role-item {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 1px solid #dee2e6 !important;
+    transition: all 0.2s ease;
+}
+
+.selected-role-item:hover {
+    border-color: #0d6efd !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Стилі для кнопок */
+#addNewRoleBtn {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+    transition: all 0.2s ease;
+}
+
+#addNewRoleBtn:hover {
+    background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+/* Анімації */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#newRoleForm {
+    animation: slideDown 0.3s ease;
+}
+
+/* Покращений min-height для обраних ролей */
+.min-height-100 {
+    min-height: 120px;
+}
+
+/* Стилі для пошукового поля */
+#roleSearchInput {
+    border-radius: 25px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+#roleSearchInput:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Стилі для color dots */
+.color-dot {
+    transition: all 0.2s ease;
+}
+
+.role-item:hover .color-dot {
+    transform: scale(1.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Стилі для reorder функціоналу */
+.reorder-mode {
+    border: 2px dashed #fd7e14 !important;
+    background-color: #fff8f0 !important;
+}
+
+.order-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+}
+
+.order-indicator .badge {
+    font-size: 0.75rem;
+    min-width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.drag-handle {
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    padding: 5px;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.drag-handle i {
+    font-size: 14px;
+}
+
+.sortable-placeholder {
+    border: 2px dashed #007bff !important;
+    background-color: #f8f9fa !important;
+    opacity: 0.7;
+    margin: 2px 0;
+}
+
+.sortable-placeholder div {
+    color: #007bff;
+    font-weight: bold;
+}
+
+/* Стилі для list-group items */
+.list-group-item.role-item {
+    border: 1px solid #dee2e6;
+    margin-bottom: 2px;
+    transition: all 0.2s ease;
+    padding: 0.75rem;
+}
+
+.list-group-item.role-item:hover {
+    background-color: #f8f9fa;
+    border-color: #007bff;
+}
+
+.list-group-item.role-item .color-dot {
+    flex-shrink: 0;
+}
+
+.list-group-item.role-item .btn {
+    transition: all 0.2s ease;
+}
+
+.list-group-item.role-item .btn:hover {
+    transform: scale(1.05);
+}
+
+/* Стилі для чекбоксів */
+.form-check-input {
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* Стилі для кнопок масових дій */
+.btn-group .btn {
+    flex: 1;
+}
+
+/* Анімації */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.role-item {
+    animation: fadeIn 0.3s ease;
+}
+
+/* Responsive стилі */
+@media (max-width: 768px) {
+    .list-group-item.role-item {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .list-group-item.role-item .btn-group {
+        margin-top: 10px;
+        width: 100%;
+    }
+    
+    .order-indicator,
+    .drag-handle {
+        margin-bottom: 5px;
+    }
+}
+
+/* Custom scrollbar for roles list */
+.roles-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.roles-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.roles-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.roles-list::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Sortable placeholder for reorder mode */
+.ui-sortable-placeholder {
+    border: 2px dashed #fd7e14 !important;
+    background: rgba(253, 126, 20, 0.1) !important;
+    height: 60px;
+    margin: 2px 0;
+    border-radius: 6px;
+}
+
+.ui-sortable-placeholder:before {
+    content: "Drop here";
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #fd7e14;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.ui-sortable-helper {
+    opacity: 0.8;
+    transform: scale(1.02);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Reorder mode styles */
+.list-group-item.reorder-mode {
+    border: 2px dashed #fd7e14 !important;
+    background: rgba(253, 126, 20, 0.05) !important;
+    transition: all 0.2s ease;
+    cursor: move;
+}
+
+.list-group-item.reorder-mode:hover {
+    background: rgba(253, 126, 20, 0.1) !important;
+    border-color: #e76700 !important;
+}
+
+.list-group-item.reorder-mode .drag-handle {
+    opacity: 1;
+    color: #fd7e14;
+}
+
+/* Order indicators */
+.order-indicator .badge {
+    font-size: 0.7rem;
+    font-weight: bold;
+    min-width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Drag handle styles */
+.drag-handle {
+    cursor: grab;
+    padding: 5px;
+    transition: color 0.2s ease;
+}
+
+.drag-handle:hover {
+    color: #fd7e14 !important;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+/* Color dot improvements */
+.role-color-indicator {
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.list-group-item:hover .role-color-indicator {
+    transform: scale(1.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Checkbox styles */
+.form-check-input {
+    border-width: 2px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Button improvements */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.775rem;
+    transition: all 0.2s ease;
+}
+
+.btn-sm:hover {
+    transform: translateY(-1px);
+}
+
+/* Card improvements */
+.card {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+    font-weight: 600;
+}
+
+.card-header.bg-light {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+}
+
+.card-header.bg-primary {
+    background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%) !important;
+}
+
+/* List group improvements */
+.list-group-item {
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.list-group-item:first-child {
+    border-top: none !important;
+}
+
+.list-group-item:last-child {
+    border-bottom: none !important;
+}
+
+.list-group-item:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+    border-color: #0d6efd;
+    transform: translateX(2px);
+}
+
+/* Search input improvements */
+.input-group-text {
+    background-color: #f8f9fa;
+    border-color: #e9ecef;
+    color: #6c757d;
+}
+
+.form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Form improvements */
+#newRoleForm .card {
+    border: 2px solid #28a745;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);
+    animation: slideDown 0.3s ease;
+}
+
+#newRoleForm .form-control:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+#newRoleForm .form-control-color {
+    width: 60px;
+    height: 40px;
+    border-radius: 8px;
+}
+
+/* Alert improvements */
+.alert {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid;
+}
+
+.alert-success {
+    border-left-color: #28a745;
+}
+
+.alert-danger {
+    border-left-color: #dc3545;
+}
+
+.alert-info {
+    border-left-color: #17a2b8;
+}
+
+/* Spinner overlay */
+.spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Badge improvements */
+.badge {
+    font-size: 0.7rem;
+    padding: 0.35em 0.65em;
+    font-weight: 600;
+}
+
+.badge.bg-secondary {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+}
+
+.badge.bg-primary {
+    background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%) !important;
+}
+
+/* Text muted improvements */
+.text-muted {
+    color: #6c757d !important;
+    font-size: 0.85rem;
+}
+
+/* Loading state improvements */
+#objectRolesLoading {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+/* No data state improvements */
+#noSelectedRoles {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    margin: 10px;
+}
+
+/* Icon improvements */
+.fas, .bi {
+    transition: all 0.2s ease;
+}
+
+.btn:hover .fas,
+.btn:hover .bi {
+    transform: scale(1.1);
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .modal-xl {
+        max-width: 95%;
+    }
+    
+    .row {
+        margin: 0;
+    }
+    
+    .col-md-6 {
+        padding: 0.5rem;
+    }
+    
+    .card-header h6 {
+        font-size: 0.9rem;
+    }
+    
+    .btn-sm {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .list-group-item {
+        padding: 0.5rem !important;
+    }
+    
+    .role-color-indicator {
+        width: 8px !important;
+        height: 8px !important;
+    }
+    
+    .d-flex.gap-2 {
+        flex-direction: column;
+        gap: 0.5rem !important;
+    }
+    
+    .card-footer .btn {
+        font-size: 0.75rem;
+        margin-bottom: 0.25rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .row {
+        flex-direction: column;
+    }
+    
+    .col-md-6 {
+        max-width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .roles-list {
+        max-height: 300px !important;
+    }
+    
+    .card-header .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .badge {
+        margin-top: 0.25rem;
+    }
+}
+
+/* Accessibility improvements */
+.list-group-item:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+.btn:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .card {
+        border: 2px solid #000;
+    }
+    
+    .list-group-item {
+        border: 1px solid #000 !important;
+    }
+    
+    .role-color-indicator {
+        border: 2px solid #000;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .list-group-item,
+    .btn,
+    .card,
+    .role-color-indicator,
+    .drag-handle {
+        transition: none;
+    }
+    
+    .list-group-item:hover {
+        transform: none;
+    }
+    
+    .btn:hover {
+        transform: none;
+    }
+    
+    #newRoleForm {
+        animation: none;
+    }
+}
+
+/* Animation improvements */
+.list-group-item {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Focus states for keyboard navigation */
+.list-group-item-action:focus {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-color: #0d6efd;
+}
+
+/* Improved button states */
+.btn-outline-primary:hover {
+    background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%);
+}
+
+.btn-outline-light:hover {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    color: #212529;
+}
+
+.btn-outline-danger:hover {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+}
+
+/* Improved form styling */
+.form-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.form-control {
+    border-radius: 6px;
+    border: 2px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.form-control:hover {
+    border-color: #ced4da;
+}
+
+/* Card footer improvements */
+.card-footer {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-top: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Modal footer improvements */
+.modal-footer {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-top: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Improved empty state */
+.text-center.text-muted {
+    padding: 2rem 1rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    margin: 0.5rem;
+}
+
+.text-center.text-muted .bi,
+.text-center.text-muted .fas {
+    opacity: 0.6;
+    margin-bottom: 1rem;
+}
+
+/* CSS для drag-and-drop між списками */
+.list-group-item {
+    cursor: grab;
+    transition: all 0.2s ease;
+}
+
+.list-group-item:hover:not(.no-drag) {
+    background-color: #f8f9fa;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.list-group-item.dragging {
+    opacity: 0.5;
+    transform: rotate(3deg) scale(1.02);
+    z-index: 1000;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.ui-sortable-placeholder {
+    background: linear-gradient(45deg, #e3f2fd, #bbdefb);
+    border: 2px dashed #2196f3 !important;
+    border-radius: 8px;
+    height: 60px;
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1976d2;
+    font-weight: bold;
+    position: relative;
+}
+
+.ui-sortable-placeholder:before {
+    content: "🎯 Drop role here";
+    font-size: 14px;
+    text-align: center;
+}
+
+#availableRolesList.ui-sortable-over,
+#selectedRolesList.ui-sortable-over {
+    background: linear-gradient(135deg, #e8f5e8, #d4edda);
+    border: 2px dashed #28a745;
+    border-radius: 8px;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}
+
+/* Стилі для reorder режиму */
+.reorder-mode .list-group-item {
+    cursor: grab;
+    border-left: 4px solid #ffc107;
+}
+
+.reorder-mode .ui-sortable-helper {
+    background: white;
+    border: 2px solid #ffc107;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    transform: rotate(2deg);
+}
+
+.sortable-placeholder {
+    height: 50px;
+    background: linear-gradient(45deg, #fff3cd, #ffeaa7);
+    border: 2px dashed #ffc107;
+    margin: 2px 0;
+    border-radius: 4px;
+}
+
+.drag-handle {
+    cursor: grab;
+    color: #6c757d;
+    transition: color 0.2s ease;
+}
+
+.drag-handle:hover {
+    color: #495057;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.order-indicator {
+    font-weight: bold;
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+</style> 
+
+<!-- jQuery UI для sortable функціоналу -->
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/ui-lightness/jquery-ui.css">
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+<script>
+// Ініціалізація після завантаження jQuery UI
+$(document).ready(function() {
+    console.log('Object Roles Modal JavaScript initialized');
+    console.log('Initial reorder modes - Available:', availableRolesReorderMode, 'Assigned:', assignedRolesReorderMode);
+    
+    // Перевіряємо наявність jQuery UI
+    if ($.ui && $.ui.version) {
+        console.log('jQuery UI is loaded. Version:', $.ui.version);
+    } else {
+        console.error('jQuery UI is not loaded!');
+    }
+});
+
+// === CUSTOM ROLE EDIT & DELETE FUNCTIONS ===
+
+// Global function to edit custom role
+window.editCustomRole = function(roleId) {
+    console.log('Editing custom role:', roleId);
+    
+    // Load role data for editing
+    loadCustomRoleForEdit(roleId);
+};
+
+// Global function to delete custom role
+window.deleteCustomRole = function(roleId, roleName) {
+    console.log('Deleting custom role:', roleId, roleName);
+    
+    if (!confirm(`{% trans "Are you sure you want to delete the custom role" %} "${roleName}"?\n\n{% trans "This action cannot be undone and will remove the role from all objects." %}`)) {
+        return;
+    }
+    
+    deleteCustomRoleConfirmed(roleId);
+};
+
+// Load custom role data for editing
+function loadCustomRoleForEdit(roleId) {
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    console.log('Loading custom role data for editing:', roleId);
+    
+    fetch(`/${languagePrefix}/app_access/object-roles/${currentObjectRoleId}/custom/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.success) {
+                const customRoles = data.roles || [];
+                const roleToEdit = customRoles.find(r => r.id == roleId);
+                
+                if (roleToEdit) {
+                    populateEditRoleForm(roleToEdit);
+                    $('#editCustomRoleModal').modal('show');
+                } else {
+                    showRoleNotification('error', '{% trans "Custom role not found" %}');
+                }
+            } else {
+                showRoleNotification('error', '{% trans "Failed to load custom role data" %}');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading custom role data:', error);
+            showRoleNotification('error', '{% trans "Failed to load custom role data" %}');
+        });
+}
+
+// Populate edit role form
+function populateEditRoleForm(role) {
+    $('#editCustomRoleId').val(role.id);
+    $('#editCustomRoleName').val(role.name || '');
+    $('#editCustomRoleDescription').val(role.description || '');
+    $('#editCustomRoleColor').val(role.color || '#0d6efd');
+    console.log('Populated edit form with role data:', role);
+}
+
+// Update custom role
+$('#updateCustomRoleBtn').on('click', function() {
+    updateCustomRole();
+});
+
+// Update custom role function
+function updateCustomRole() {
+    const roleId = $('#editCustomRoleId').val();
+    const name = ($('#editCustomRoleName').val() || '').trim();
+    const description = ($('#editCustomRoleDescription').val() || '').trim();
+    const color = $('#editCustomRoleColor').val();
+    const roleData = {
+        role_id: roleId,
+        object_id: currentObjectRoleId,
+        name: name,
+        description: description,
+        color: color
+    };
+
+    if (!name) {
+        showEditCustomRoleError('{% trans "Role name is required" %}');
+        return;
+    }
+
+    if (!roleId || !currentObjectRoleId) {
+        showEditCustomRoleError('{% trans "Role ID or Object ID is missing" %}');
+        return;
+    }
+
+    console.log('Updating custom role with data:', roleData);
+
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    // Disable the update button while processing
+    $('#updateCustomRoleBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Updating..." %}');
+
+    fetch(`/${languagePrefix}/app_access/object-roles/edit-custom/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(roleData)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Error response text:', text);
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Custom role update response:', data);
+        
+        if (data && (data.status === 'success' || data.success)) {
+            showEditCustomRoleSuccess('{% trans "Custom role updated successfully" %}');
+            
+            // Close modal after a short delay
+            setTimeout(() => {
+                $('#editCustomRoleModal').modal('hide');
+                // Refresh the role lists
+                loadCurrentObjectRoles(currentObjectRoleId);
+            }, 1500);
+            
+        } else {
+            showEditCustomRoleError(data.message || data.error || '{% trans "Failed to update custom role" %}');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating custom role:', error);
+        showEditCustomRoleError('{% trans "Failed to update custom role" %}');
+    })
+    .finally(() => {
+        // Re-enable the update button
+        $('#updateCustomRoleBtn').prop('disabled', false).html('<i class="fas fa-save me-2"></i>{% trans "Update Role" %}');
+    });
+}
+
+// Delete custom role confirmed
+function deleteCustomRoleConfirmed(roleId, forceDelete = false) {
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    console.log('Deleting custom role:', roleId, 'Force delete:', forceDelete);
+    
+    fetch(`/${languagePrefix}/app_access/object-roles/delete-custom/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            role_id: roleId,
+            object_id: currentObjectRoleId,
+            force_delete: forceDelete
+        })
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Error response text:', text);
+                
+                // Try to parse as JSON for structured error handling
+                try {
+                    const errorData = JSON.parse(text);
+                    if (errorData.status === 'warning' && errorData.requires_confirmation) {
+                        // Handle dependency warning - show confirmation dialog
+                        return { warning: true, data: errorData };
+                    }
+                    throw new Error(`HTTP ${response.status}: ${errorData.message || text}`);
+                } catch (parseError) {
+                    throw new Error(`HTTP ${response.status}: ${text}`);
+                }
+            });
+        }
+        return response.json();
+    })
+    .then(result => {
+        if (result.warning) {
+            // Show confirmation dialog for force delete
+            const confirmMessage = `${result.data.message}\n\n{% trans "This action cannot be undone." %}\n\n{% trans "Do you want to proceed?" %}`;
+            if (confirm(confirmMessage)) {
+                // Retry with force_delete flag
+                deleteCustomRoleConfirmed(roleId, true);
+            }
+            return;
+        }
+        
+        console.log('Delete custom role response:', result);
+        
+        if (result && result.status === 'success') {
+            showRoleNotification('success', result.message || '{% trans "Custom role deleted successfully" %}');
+            
+            // Refresh the role lists
+            loadCurrentObjectRoles(currentObjectRoleId);
+        } else {
+            showRoleNotification('error', result.message || '{% trans "Failed to delete custom role" %}');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting custom role:', error);
+        
+        // Try to parse error response for better error messages
+        let errorMessage = '{% trans "Failed to delete custom role" %}';
+        if (error.message && error.message.includes('HTTP 400:')) {
+            try {
+                const errorData = JSON.parse(error.message.replace('HTTP 400: ', ''));
+                errorMessage = errorData.message || errorData.error || errorMessage;
+            } catch (e) {
+                // Use default message
+            }
+        }
+        
+        showRoleNotification('error', errorMessage);
+    });
+}
+
+// Show edit custom role error
+function showEditCustomRoleError(message) {
+    $('#editCustomRoleErrorMessage').text(message);
+    $('#editCustomRoleError').removeClass('d-none');
+    $('#editCustomRoleSuccess').addClass('d-none');
+    
+    setTimeout(() => {
+        $('#editCustomRoleError').addClass('d-none');
+    }, 5000);
+}
+
+// Show edit custom role success
+function showEditCustomRoleSuccess(message) {
+    $('#editCustomRoleSuccessMessage').text(message);
+    $('#editCustomRoleSuccess').removeClass('d-none');
+    $('#editCustomRoleError').addClass('d-none');
+    
+    setTimeout(() => {
+        $('#editCustomRoleSuccess').addClass('d-none');
+    }, 3000);
+}
+
+// Reset edit custom role form when modal is hidden
+$('#editCustomRoleModal').on('hidden.bs.modal', function() {
+    $('#editCustomRoleForm')[0].reset();
+    $('#editCustomRoleColor').val('#0d6efd');
+    $('#editCustomRoleError').addClass('d-none');
+    $('#editCustomRoleSuccess').addClass('d-none');
+    $('#updateCustomRoleBtn').prop('disabled', false).html('<i class="fas fa-save me-2"></i>{% trans "Update Role" %}');
+});
+
+</script> 

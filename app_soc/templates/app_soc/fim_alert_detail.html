@@ -1,0 +1,601 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "FIM Alert Details" %} - {{ alert.alert_id }}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_soc/includes/soc_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_soc/css/soc-detail-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid soc-page soc-detail-page">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="mb-0"><i class="bi bi-bell me-2"></i>{% trans "FIM Alert Details" %}</h1>
+                <div class="btn-group sb-toolbar" role="group">
+                    <a href="{% url 'app_soc:fim_dashboard' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                       title="{% trans 'Back to Dashboard' %}">
+                        <i class="bi bi-arrow-left"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Alert Information and Status in one row -->
+            <div class="row mb-4">
+                <!-- Alert Information Card -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Alert Information" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>{% trans "Alert ID" %}:</strong></td>
+                                            <td><code>{{ alert.alert_id }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>{% trans "Rule ID" %}:</strong></td>
+                                            <td><code class="text-primary">{{ alert.rule_id }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>{% trans "Rule Name" %}:</strong></td>
+                                            <td>{{ alert.rule_name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>{% trans "Severity Level" %}:</strong></td>
+                                            <td>
+                                                {% if alert.level <= 1 %}
+                                                    <span class="badge bg-dark text-white">
+                                                        <i class="fas fa-skull-crossbones"></i> {{ alert.get_severity_display }} ({{ alert.level }})
+                                                    </span>
+                                                {% elif alert.level <= 2 %}
+                                                    <span class="badge bg-danger text-white">
+                                                        <i class="fas fa-exclamation-triangle"></i> {{ alert.get_severity_display }} ({{ alert.level }})
+                                                    </span>
+                                                {% elif alert.level <= 3 %}
+                                                    <span class="badge bg-danger text-white">
+                                                        <i class="fas fa-exclamation-circle"></i> {{ alert.get_severity_display }} ({{ alert.level }})
+                                                    </span>
+                                                {% elif alert.level <= 4 %}
+                                                    <span class="badge bg-warning text-dark">
+                                                        <i class="fas fa-exclamation"></i> {{ alert.get_severity_display }} ({{ alert.level }})
+                                                    </span>
+                                                {% elif alert.level <= 5 %}
+                                                    <span class="badge bg-info text-white">
+                                                        <i class="fas fa-info-circle"></i> {{ alert.get_severity_display }} ({{ alert.level }})
+                                                    </span>
+                                                {% elif alert.level <= 6 %}
+                                                    <span class="badge bg-primary text-white">
+                                                        <i class="fas fa-info"></i> {{ alert.get_severity_display }} ({{ alert.level }})
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-light text-dark border">
+                                                        <i class="fas fa-bug"></i> {{ alert.get_severity_display }} ({{ alert.level }})
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>{% trans "Alert Type" %}:</strong></td>
+                                            <td>
+                                                {% if alert.alert_type == 'added' %}
+                                                    <span class="badge bg-success text-white">
+                                                        <i class="fas fa-plus-circle"></i> {{ alert.get_alert_type_display }}
+                                                    </span>
+                                                {% elif alert.alert_type == 'modified' %}
+                                                    <span class="badge bg-warning text-dark">
+                                                        <i class="fas fa-edit"></i> {{ alert.get_alert_type_display }}
+                                                    </span>
+                                                {% elif alert.alert_type == 'deleted' %}
+                                                    <span class="badge bg-danger text-white">
+                                                        <i class="fas fa-trash"></i> {{ alert.get_alert_type_display }}
+                                                    </span>
+                                                {% elif alert.alert_type == 'read' %}
+                                                    <span class="badge bg-info text-white">
+                                                        <i class="fas fa-eye"></i> {{ alert.get_alert_type_display }}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary text-white">
+                                                        <i class="fas fa-question"></i> {{ alert.get_alert_type_display }}
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>{% trans "Timestamp" %}:</strong></td>
+                                            <td>{{ alert.timestamp|date:"d-m-Y H:i:s" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>{% trans "Received At" %}:</strong></td>
+                                            <td>{{ alert.received_at|date:"d-m-Y H:i:s" }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <strong>{% trans "Description" %}:</strong>
+                                    <p class="mt-2">{{ alert.description }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Current Status and History Card -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>{% trans "Current Status and History" %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-4" style="margin-bottom: 0.75rem !important;">
+                                <div class="col-md-6">
+                                    <h6 class="text-primary" style="font-size: 0.704rem !important; font-weight: 600 !important; margin-bottom: 0.25rem !important; line-height: 1.2 !important;">
+                                        <i class="fas fa-info-circle me-2"></i>{% trans "Current Status" %}
+                                    </h6>
+                                    <div class="card" style="border: 1px solid #dee2e6;">
+                                        <div class="card-body py-2">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <span class="badge bg-primary me-2" id="detailsCurrentStatus">{% trans "Pending" %}</span>
+                                                <small class="text-muted" id="detailsStatusDate"></small>
+                                            </div>
+                                            <div class="mb-2">
+                                                <strong>{% trans "Risk Assessment" %}:</strong>
+                                                <span class="badge bg-secondary ms-1" id="detailsCurrentRisk">{% trans "Not Assessed" %}</span>
+                                            </div>
+                                            <div>
+                                                <strong>{% trans "Processed By" %}:</strong>
+                                                <span id="detailsCurrentProcessedBy">{% trans "System" %}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-primary" style="font-size: 0.704rem !important; font-weight: 600 !important; margin-bottom: 0.25rem !important; line-height: 1.2 !important;">
+                                        <i class="fas fa-history me-2"></i>{% trans "Status History" %}
+                                    </h6>
+                                    <div class="card" style="border: 1px solid #dee2e6; max-height: 200px; overflow-y: auto;">
+                                        <div class="card-body py-2">
+                                            <div id="detailsStatusHistory">
+                                                <div class="text-center text-muted py-3">
+                                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                                    {% trans "Loading status history..." %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- File Information and Agent Information in one row -->
+            <div class="row mb-4">
+                <!-- File Information Card (75% width) -->
+                <div class="col-md-9">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "File Information" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-9">
+                                    <table class="table table-sm file-info-table">
+                                        <tr>
+                                            <td><strong>{% trans "File Name" %}:</strong></td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <code class="me-2">{{ alert.file_name }}</code>
+                                                    <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard('{{ alert.file_name }}')" title="{% trans 'Copy to clipboard' %}" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>{% trans "File Path" %}:</strong></td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <code class="file-path-code me-2">{{ alert.file_path }}</code>
+                                                    <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard('{{ alert.file_path }}')" title="{% trans 'Copy to clipboard' %}" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% if alert.file_size %}
+                                        <tr>
+                                            <td><strong>{% trans "File Size" %}:</strong></td>
+                                            <td>{{ alert.file_size|filesizeformat }}</td>
+                                        </tr>
+                                        {% endif %}
+                                        {% if alert.file_hash_md5 %}
+                                        <tr>
+                                            <td><strong>{% trans "MD5" %}:</strong></td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <code class="hash-code me-2">{{ alert.file_hash_md5 }}</code>
+                                                    <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard('{{ alert.file_hash_md5 }}')" title="{% trans 'Copy to clipboard' %}" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                        {% if alert.file_hash_sha1 %}
+                                        <tr>
+                                            <td><strong>{% trans "SHA1" %}:</strong></td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <code class="hash-code me-2">{{ alert.file_hash_sha1 }}</code>
+                                                    <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard('{{ alert.file_hash_sha1 }}')" title="{% trans 'Copy to clipboard' %}" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                        {% if alert.file_hash_sha256 %}
+                                        <tr>
+                                            <td><strong>{% trans "SHA256" %}:</strong></td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <code class="hash-code me-2">{{ alert.file_hash_sha256 }}</code>
+                                                    <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard('{{ alert.file_hash_sha256 }}')" title="{% trans 'Copy to clipboard' %}" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    </table>
+                                </div>
+                                <div class="col-md-3">
+                                    <!-- Empty column for spacing -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Agent Information Card (25% width) -->
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Agent Information" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>{% trans "Agent ID" %}:</strong></td>
+                                    <td><code>{{ alert.agent_id }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>{% trans "Agent Name" %}:</strong></td>
+                                    <td>{{ alert.agent_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>{% trans "Agent IP" %}:</strong></td>
+                                    <td>{{ alert.agent_ip }}</td>
+                                </tr>
+                            </table>
+                            {% if alert.agent_id %}
+                            <a href="{% url 'app_soc:agent_detail' alert.agent_id %}" class="btn btn-outline-primary btn-sm w-100">
+                                <i class="bi bi-eye me-1"></i> {% trans "View Agent Details" %}
+                            </a>
+                            {% else %}
+                            <span class="text-muted">{% trans "No Agent ID" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tags Card -->
+            {% if alert.tags %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Tags" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% for tag in alert.tags %}
+                        <span class="badge bg-secondary text-white me-2">
+                            <i class="fas fa-tag"></i> {{ tag }}
+                        </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Raw Data Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Raw Data" %}</h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-3"><code>{{ alert.raw_data|pprint }}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load alert status information and history
+function loadAlertStatusInfo(alertId) {
+    console.log('🔍 Loading status info for alert:', alertId);
+    
+    // Check if status display elements exist
+    const statusEl = document.getElementById('detailsCurrentStatus');
+    const historyEl = document.getElementById('detailsStatusHistory');
+    console.log('Status element found:', !!statusEl);
+    console.log('History element found:', !!historyEl);
+    
+    if (!statusEl || !historyEl) {
+        console.error('❌ Status display elements not found!');
+        return;
+    }
+    
+    fetch(`/app_soc/api/alert/${alertId}/status-history/`)
+        .then(response => {
+            console.log('📡 API Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 API Response data:', data);
+            if (data.success) {
+                console.log('✅ Updating status display');
+                // Update current status display
+                updateCurrentStatusDisplay(data);
+                
+                // Update status history display
+                updateStatusHistoryDisplay(data.status_history);
+            } else {
+                console.error('❌ Failed to load status info:', data.error);
+                showStatusError();
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error loading status info:', error);
+            showStatusError();
+        });
+}
+
+// Update current status display
+function updateCurrentStatusDisplay(data) {
+    console.log('🔄 Updating current status display with data:', data);
+    
+    const statusEl = document.getElementById('detailsCurrentStatus');
+    const riskEl = document.getElementById('detailsCurrentRisk');
+    const processedByEl = document.getElementById('detailsCurrentProcessedBy');
+    const statusDateEl = document.getElementById('detailsStatusDate');
+    
+    if (statusEl) {
+        console.log('📝 Updating status badge:', data.current_status);
+        statusEl.textContent = getStatusDisplay(data.current_status);
+        statusEl.className = `badge ${getStatusBadgeClass(data.current_status)} me-2`;
+    }
+    
+    if (riskEl) {
+        console.log('📝 Updating risk assessment:', data.current_risk);
+        if (data.current_risk) {
+            riskEl.textContent = getRiskDisplay(data.current_risk);
+            riskEl.className = `badge ${getRiskBadgeClass(data.current_risk)} ms-1`;
+        } else {
+            riskEl.textContent = '{% trans "Not Assessed" %}';
+            riskEl.className = 'badge bg-secondary ms-1';
+        }
+    }
+    
+    if (processedByEl) {
+        console.log('📝 Updating processed by:', data.processed_by);
+        processedByEl.textContent = data.processed_by || 'System';
+    }
+    
+    if (statusDateEl && data.processed_at) {
+        statusDateEl.textContent = formatDateTime(data.processed_at);
+    }
+}
+
+// Update status history display
+function updateStatusHistoryDisplay(statusHistory) {
+    console.log('🔄 Updating status history display with:', statusHistory);
+    
+    const historyEl = document.getElementById('detailsStatusHistory');
+    if (!historyEl) {
+        console.error('❌ History element not found!');
+        return;
+    }
+    
+    if (!statusHistory || statusHistory.length === 0) {
+        console.log('📝 No status history available');
+        historyEl.innerHTML = '<div class="text-center text-muted py-2"><i class="fas fa-info-circle me-2"></i>No status history available</div>';
+        return;
+    }
+    
+    let historyHtml = '';
+    statusHistory.forEach((entry, index) => {
+        const isLatest = index === 0;
+        const timestamp = entry.timestamp ? formatDateTime(entry.timestamp) : 'Unknown';
+        const badgeClass = getStatusBadgeClass(entry.status);
+        
+        historyHtml += `
+            <div class="d-flex align-items-start mb-2 ${isLatest ? 'border-start border-primary border-2 ps-2' : ''}">
+                <div class="me-2">
+                    <span class="badge ${badgeClass}">${entry.status_display}</span>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="small text-muted">${timestamp}</div>
+                    <div class="small">${entry.processed_by || 'System'}</div>
+                    ${entry.notes ? `<div class="small text-muted">${entry.notes}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    console.log('📝 Setting history HTML:', historyHtml.substring(0, 200) + '...');
+    historyEl.innerHTML = historyHtml;
+    console.log('✅ Status history display updated');
+}
+
+function getStatusBadgeClass(status) {
+    const statusClasses = {
+        'pending': 'badge bg-warning',
+        'investigating': 'badge bg-info',
+        'confirmed': 'badge bg-danger',
+        'false_positive': 'badge bg-secondary',
+        'resolved': 'badge bg-success',
+        'escalated': 'badge bg-primary',
+        'ignored': 'badge bg-dark',
+        'created': 'badge bg-primary',
+        'risk_assessed': 'badge bg-info'
+    };
+    return statusClasses[status] || 'badge bg-secondary';
+}
+
+function getRiskBadgeClass(risk) {
+    const riskClasses = {
+        'low': 'badge bg-success',
+        'medium': 'badge bg-warning',
+        'high': 'badge bg-danger',
+        'critical': 'badge bg-dark'
+    };
+    return riskClasses[risk] || 'badge bg-secondary';
+}
+
+function getStatusDisplay(status) {
+    const statusDisplays = {
+        'pending': '{% trans "Pending Review" %}',
+        'investigating': '{% trans "Under Investigation" %}',
+        'confirmed': '{% trans "Confirmed Incident" %}',
+        'false_positive': '{% trans "False Positive" %}',
+        'resolved': '{% trans "Resolved" %}',
+        'escalated': '{% trans "Escalated" %}',
+        'ignored': '{% trans "Ignored" %}'
+    };
+    return statusDisplays[status] || status;
+}
+
+function getRiskDisplay(risk) {
+    const riskDisplays = {
+        'low': '{% trans "Low Risk" %}',
+        'medium': '{% trans "Medium Risk" %}',
+        'high': '{% trans "High Risk" %}',
+        'critical': '{% trans "Critical Risk" %}'
+    };
+    return riskDisplays[risk] || risk;
+}
+
+function showStatusError() {
+    const historyEl = document.getElementById('detailsStatusHistory');
+    if (historyEl) {
+        historyEl.innerHTML = '<div class="text-center text-danger py-2"><i class="fas fa-exclamation-triangle me-2"></i>Failed to load status history</div>';
+    }
+}
+
+// Utility function to format datetime
+function formatDateTime(dateString) {
+    if (!dateString) return 'Unknown';
+    
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        
+        return date.toLocaleString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Invalid Date';
+    }
+}
+
+// Load status info when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    const alertId = '{{ alert.alert_id }}';
+    if (alertId) {
+        loadAlertStatusInfo(alertId);
+    }
+});
+
+// Function to copy text to clipboard
+function copyToClipboard(text) {
+    // Create a temporary textarea element
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    
+    // Select and copy the text
+    textarea.select();
+    textarea.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            // Show success feedback
+            const button = event.target.closest('button');
+            if (button) {
+                const originalIcon = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check text-success"></i>';
+                button.classList.add('btn-success');
+                button.classList.remove('btn-outline-secondary');
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    button.innerHTML = originalIcon;
+                    button.classList.remove('btn-success');
+                    button.classList.add('btn-outline-secondary');
+                }, 2000);
+            }
+        } else {
+            // Fallback for modern browsers
+            navigator.clipboard.writeText(text).then(() => {
+                const button = event.target.closest('button');
+                if (button) {
+                    const originalIcon = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-check text-success"></i>';
+                    button.classList.add('btn-success');
+                    button.classList.remove('btn-outline-secondary');
+                    
+                    setTimeout(() => {
+                        button.innerHTML = originalIcon;
+                        button.classList.remove('btn-success');
+                        button.classList.add('btn-outline-secondary');
+                    }, 2000);
+                }
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('Failed to copy to clipboard');
+            });
+        }
+    } catch (err) {
+        console.error('Failed to copy text: ', err);
+        alert('Failed to copy to clipboard');
+    }
+    
+    // Remove the temporary element
+    document.body.removeChild(textarea);
+}
+</script>
+{% endblock %}

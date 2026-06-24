@@ -1,0 +1,242 @@
+﻿{% extends "app_gdpr/base_gdpr.html" %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Data Subject Requests" %}{% endblock %}
+
+{% block gdpr_content %}
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2 class="mb-0"><i class="fas fa-file-alt me-2"></i>{% trans "Data Subject Requests" %}</h2>
+        <p class="text-muted mb-0">{% trans "Manage and track DSR requests (GDPR Articles 15-22)" %}</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="sb-toolbar d-flex flex-wrap gap-1 justify-content-end">
+            <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-tachometer-alt me-1"></i>{% trans "Dashboard" %}
+            </a>
+            <a href="{% url 'app_gdpr:dsr_dashboard' %}" class="btn btn-outline-info btn-sm">
+                <i class="fas fa-chart-bar me-1"></i>{% trans "DSR Dashboard" %}
+            </a>
+            {% if can_process_dsr %}
+            <a href="{% url 'app_gdpr:dsr_create' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-plus me-1"></i>{% trans "New Request" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% url 'app_gdpr:dsr_list' as dsr_list_clear_url %}
+{% filters_expanded 'search' 'request_type' 'status' 'company' 'due_filter' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="dsrFiltersCollapse" toggle_id="toggleDsrFilters" icon_id="dsrFiltersToggleIcon" filter_clear_url=dsr_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="dsrFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" id="filterForm" class="row g-1 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" name="search" id="filterSearch" class="form-control form-control-sm"
+                       placeholder="{% trans 'Search by request #, subject...' %}" value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterRequestType">{% trans "Request Type" %}</label>
+                <select name="request_type" id="filterRequestType" class="form-select form-select-sm">
+                    <option value="">{% trans "All Types" %}</option>
+                    <option value="access" {% if request.GET.request_type == 'access' %}selected{% endif %}>{% trans "Access" %}</option>
+                    <option value="rectification" {% if request.GET.request_type == 'rectification' %}selected{% endif %}>{% trans "Rectification" %}</option>
+                    <option value="erasure" {% if request.GET.request_type == 'erasure' %}selected{% endif %}>{% trans "Erasure" %}</option>
+                    <option value="restriction" {% if request.GET.request_type == 'restriction' %}selected{% endif %}>{% trans "Restriction" %}</option>
+                    <option value="portability" {% if request.GET.request_type == 'portability' %}selected{% endif %}>{% trans "Portability" %}</option>
+                    <option value="object" {% if request.GET.request_type == 'object' %}selected{% endif %}>{% trans "Object" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                <select name="status" id="filterStatus" class="form-select form-select-sm">
+                    <option value="">{% trans "All Statuses" %}</option>
+                    <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>{% trans "Pending" %}</option>
+                    <option value="in_progress" {% if request.GET.status == 'in_progress' %}selected{% endif %}>{% trans "In Progress" %}</option>
+                    <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>{% trans "Completed" %}</option>
+                    <option value="rejected" {% if request.GET.status == 'rejected' %}selected{% endif %}>{% trans "Rejected" %}</option>
+                    <option value="extended" {% if request.GET.status == 'extended' %}selected{% endif %}>{% trans "Extended" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                <select name="company" id="filterCompany" class="form-select form-select-sm">
+                    <option value="">{% trans "All Companies" %}</option>
+                    {% for company in accessible_companies %}
+                    <option value="{{ company.id }}" {% if request.GET.company == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterDue">{% trans "Due Date" %}</label>
+                <select name="due_filter" id="filterDue" class="form-select form-select-sm">
+                    <option value="">{% trans "All" %}</option>
+                    <option value="overdue" {% if request.GET.due_filter == 'overdue' %}selected{% endif %}>{% trans "Overdue" %}</option>
+                    <option value="due_soon" {% if request.GET.due_filter == 'due_soon' %}selected{% endif %}>{% trans "Due Soon (7 days)" %}</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label" for="filterSort">{% trans "Sort" %}</label>
+                <select name="sort" id="filterSort" class="form-select form-select-sm">
+                    <option value="-request_date" {% if request.GET.sort == '-request_date' or not request.GET.sort %}selected{% endif %}>{% trans "Newest" %}</option>
+                    <option value="request_date" {% if request.GET.sort == 'request_date' %}selected{% endif %}>{% trans "Oldest" %}</option>
+                    <option value="due_date" {% if request.GET.sort == 'due_date' %}selected{% endif %}>{% trans "Due Date" %}</option>
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+<!-- DSR Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "Data Subject Requests" %} ({{ page_obj.paginator.count }})</h4>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Request #" %}</th>
+                            <th>{% trans "Data Subject" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Status" %}</th>
+                            <th>{% trans "Request Date" %}</th>
+                            <th>{% trans "Due Date" %}</th>
+                            <th>{% trans "Assigned To" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dsr in requests %}
+                        <tr {% if dsr.is_overdue %}class="overdue-row"{% endif %}>
+                            <td>
+                                <strong>{{ dsr.request_number }}</strong>
+                            </td>
+                            <td>
+                                <div>
+                                    <strong>{{ dsr.data_subject.first_name }} {{ dsr.data_subject.last_name }}</strong>
+                                    <br><small class="text-muted">{{ dsr.data_subject.email }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    <i class="fas fa-building"></i> {{ dsr.company.name }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ dsr.get_request_type_display|truncatewords:2 }}</span>
+                            </td>
+                            <td>
+                                {% if dsr.status == 'pending' %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-hourglass-half"></i> {{ dsr.get_status_display }}
+                                    </span>
+                                {% elif dsr.status == 'in_progress' %}
+                                    <span class="badge bg-primary">
+                                        <i class="fas fa-tasks"></i> {{ dsr.get_status_display }}
+                                    </span>
+                                {% elif dsr.status == 'completed' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> {{ dsr.get_status_display }}
+                                    </span>
+                                {% elif dsr.status == 'rejected' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-times-circle"></i> {{ dsr.get_status_display }}
+                                    </span>
+                                {% elif dsr.status == 'extended' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock"></i> {{ dsr.get_status_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ dsr.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar-plus"></i>
+                                    {{ dsr.request_date|date:"d.m.Y" }}
+                                </small>
+                            </td>
+                            <td>
+                                <small {% if dsr.is_overdue %}class="text-danger fw-bold"{% else %}class="text-muted"{% endif %}>
+                                    <i class="fas fa-calendar-check"></i>
+                                    {{ dsr.due_date|date:"d.m.Y" }}
+                                    {% if dsr.is_overdue %}
+                                        <i class="fas fa-exclamation-triangle text-danger ms-1"></i>
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                {% if dsr.assigned_to %}
+                                    <small>
+                                        <i class="fas fa-user"></i>
+                                        {{ dsr.assigned_to.get_full_name|default:dsr.assigned_to.username }}
+                                    </small>
+                                {% else %}
+                                    <span class="text-muted">{% trans "Unassigned" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'app_gdpr:dsr_detail' dsr.pk %}" 
+                                       class="btn btn-sm btn-info"
+                                       title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_process_dsr and dsr.status != 'completed' %}
+                                    <a href="{% url 'app_gdpr:dsr_process' dsr.pk %}" 
+                                       class="btn btn-sm btn-warning"
+                                       title="{% trans 'Process Request' %}">
+                                        <i class="fas fa-tasks"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                {% trans "No data subject requests found" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% include 'app_gdpr/includes/gdpr_table_pagination.html' with pagination_item_label=_("requests") pagination_aria_label=_("DSR pagination") %}
+        </div>
+    </div>
+    
+    <!-- About DSR (collapsible) -->
+    <div class="card mt-4">
+        <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#aboutDSR">
+            <h4 class="mb-0">
+                <i class="fas fa-info-circle text-primary"></i> 
+                {% trans "About Data Subject Requests" %}
+                <i class="fas fa-chevron-down float-end"></i>
+            </h4>
+        </div>
+        <div id="aboutDSR" class="collapse">
+            <div class="card-body">
+                <p style="font-size: 0.75rem;">
+                    {% trans "Data Subject Requests (DSR) are formal requests made by individuals to exercise their rights under GDPR. Organizations must respond within 30 days (or 60 days for complex cases)." %}
+                </p>
+                <div class="alert alert-warning" style="font-size: 0.7rem;">
+                    <strong><i class="fas fa-clock"></i> {% trans "30-Day Response Time" %}:</strong>
+                    {% trans "You must respond to data subject requests within 30 days (can be extended to 60 days in complex cases)" %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,213 @@
+﻿{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Retention Policies" %}{% endblock %}
+
+{% block gdpr_content %}
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2 class="mb-0"><i class="fas fa-hourglass-half me-2"></i>{% trans "Data Retention Policies" %}</h2>
+        <p class="text-muted mb-0">{% trans "Define data retention periods and deletion procedures" %}</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="sb-toolbar d-flex flex-wrap gap-1 justify-content-end">
+            <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-tachometer-alt me-1"></i>{% trans "Dashboard" %}
+            </a>
+            {% if can_edit_policies %}
+            <a href="{% url 'app_gdpr:policy_create' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-plus me-1"></i>{% trans "New Policy" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% url 'app_gdpr:policy_list' as policy_list_clear_url %}
+{% filters_expanded 'search' 'deletion_method' 'status' 'company' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="policyFiltersCollapse" toggle_id="togglePolicyFilters" icon_id="policyFiltersToggleIcon" filter_clear_url=policy_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="policyFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" id="filterForm" class="row g-1 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" name="search" id="filterSearch" class="form-control form-control-sm"
+                       placeholder="{% trans 'Search by policy name, category...' %}" value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filterDeletionMethod">{% trans "Deletion Method" %}</label>
+                <select name="deletion_method" id="filterDeletionMethod" class="form-select form-select-sm">
+                    <option value="">{% trans "All Methods" %}</option>
+                    <option value="deletion" {% if request.GET.deletion_method == 'deletion' %}selected{% endif %}>{% trans "Permanent Deletion" %}</option>
+                    <option value="anonymization" {% if request.GET.deletion_method == 'anonymization' %}selected{% endif %}>{% trans "Anonymization" %}</option>
+                    <option value="pseudonymization" {% if request.GET.deletion_method == 'pseudonymization' %}selected{% endif %}>{% trans "Pseudonymization" %}</option>
+                    <option value="archival" {% if request.GET.deletion_method == 'archival' %}selected{% endif %}>{% trans "Secure Archival" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                <select name="status" id="filterStatus" class="form-select form-select-sm">
+                    <option value="">{% trans "All Statuses" %}</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>{% trans "Active" %}</option>
+                    <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>{% trans "Inactive" %}</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                <select name="company" id="filterCompany" class="form-select form-select-sm">
+                    <option value="">{% trans "All Companies" %}</option>
+                    {% for company in accessible_companies %}
+                    <option value="{{ company.id }}" {% if request.GET.company == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+    <!-- Policies Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "Retention Policies" %} ({{ page_obj.paginator.count }})</h4>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "ID" %}</th>
+                            <th>{% trans "Policy Name" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "Data Category" %}</th>
+                            <th>{% trans "Retention Period" %}</th>
+                            <th>{% trans "Deletion Method" %}</th>
+                            <th>{% trans "Auto Apply" %}</th>
+                            <th>{% trans "Status" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for policy in policies %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-light text-dark border">{{ policy.id }}</span>
+                            </td>
+                            <td>
+                                <strong>{{ policy.get_name }}</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    <i class="fas fa-building"></i> {{ policy.company.name }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ policy.data_category }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-dark">
+                                    <i class="fas fa-hourglass-half"></i>
+                                    {{ policy.retention_period_days }} {% trans "days" %}
+                                    {% if policy.retention_period_days >= 365 %}
+                                        ({{ policy.retention_period_days|floatformat:0|divisibleby:365|yesno:"1,0" }} {% if policy.retention_period_days >= 365 %}{{ policy.retention_period_days|floatformat:0|divisibleby:365|add:"0" }}{% endif %} {% trans "yrs" %})
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if policy.deletion_method == 'deletion' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-trash"></i> {{ policy.get_deletion_method_display }}
+                                    </span>
+                                {% elif policy.deletion_method == 'anonymization' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-user-secret"></i> {{ policy.get_deletion_method_display }}
+                                    </span>
+                                {% elif policy.deletion_method == 'pseudonymization' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-mask"></i> {{ policy.get_deletion_method_display }}
+                                    </span>
+                                {% elif policy.deletion_method == 'archival' %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-archive"></i> {{ policy.get_deletion_method_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ policy.get_deletion_method_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if policy.auto_apply %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-robot"></i> {% trans "Yes" %}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-hand-paper"></i> {% trans "Manual" %}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if policy.is_active %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> {% trans "Active" %}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-ban"></i> {% trans "Inactive" %}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'app_gdpr:policy_detail' policy.pk %}" 
+                                       class="btn btn-sm btn-info"
+                                       title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_edit_policies %}
+                                    <a href="{% url 'app_gdpr:policy_update' policy.pk %}" 
+                                       class="btn btn-sm btn-warning"
+                                       title="{% trans 'Edit' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                {% trans "No retention policies found" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% include 'app_gdpr/includes/gdpr_table_pagination.html' with pagination_item_label=_("policies") pagination_aria_label=_("Retention policies pagination") %}
+        </div>
+    </div>
+    
+    <!-- About Retention Policies (collapsible) -->
+    <div class="card mt-4">
+        <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#aboutPolicies">
+            <h4 class="mb-0">
+                <i class="fas fa-info-circle text-primary"></i> 
+                {% trans "About Data Retention Policies" %}
+                <i class="fas fa-chevron-down float-end"></i>
+            </h4>
+        </div>
+        <div id="aboutPolicies" class="collapse">
+            <div class="card-body">
+                <p style="font-size: 0.75rem;">
+                    {% trans "Under GDPR Article 5(1)(e), personal data must be kept for no longer than necessary. Organizations must establish clear retention periods and implement automated deletion processes." %}
+                </p>
+            </div>
+        </div>
+    </div>
+{% endblock %}

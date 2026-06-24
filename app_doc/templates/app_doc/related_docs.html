@@ -1,0 +1,1864 @@
+<!-- SecBoard\SecBoard\templates\app_doc\related_docs.html-->
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Related Documents" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_doc/includes/doc_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_doc/css/related_docs-page.css' %}">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid mt-3 doc-page">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="mb-1">
+                <i class="bi bi-link-45deg me-2"></i>{% trans "Related Documents" %}
+            </h1>
+            <p class="text-muted mb-0">{% trans "Manage documents that are related to main registry" %}</p>
+        </div>
+    </div>
+
+    <div class="card mb-2 filter-section access-request-filters">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="relatedDocsFiltersCollapse" toggle_id="toggleRelatedDocsFilters" icon_id="relatedDocsFiltersToggleIcon" %}
+        <div class="collapse" id="relatedDocsFiltersCollapse">
+        <div class="card-body py-2">
+            <div class="row g-1">
+                <div class="col-md-4">
+                    <label class="form-label" for="globalSearch">{% trans "Search" %}</label>
+                    <input type="text" id="globalSearch" class="form-control form-control-sm" placeholder="{% trans 'Search in all columns...' %}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                    <select id="filterCompany" class="form-select form-select-sm">
+                        <option value="">{% trans "All" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterDateFrom">{% trans "Date From" %}</label>
+                    <input type="date" id="filterDateFrom" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterDateTo">{% trans "Date To" %}</label>
+                    <input type="date" id="filterDateTo" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                    <select id="filterStatus" class="form-select form-select-sm">
+                        <option value="">{% trans "All" %}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Main Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="export-controls mb-2">
+                <div class="row align-items-center g-1">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#addRelDocModal"
+                                    title="{% trans 'Add Related Document' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            <a href="{% url 'reg_docs' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                               title="{% trans 'View Register Documents' %}">
+                                <i class="bi bi-folder2-open"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="small text-muted mb-2">
+                <i class="bi bi-info-circle me-1"></i><span id="recordsCount">{% trans "Loading..." %}</span>
+            </p>
+            <div class="table-responsive full-width-table"><table id="relatedDocsTable" class="table table-hover table-sm table-sm-font sb-data-table w-100 mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "Name" %}</th>
+                        <th>{% trans "Company" %}</th>
+                        <th>{% trans "Version" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Status" %}</th>
+                        <th data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Level / access restriction' %}">
+                            {% trans "Level" %}
+                        </th>
+                        <th>{% trans "Description" %}</th>
+                        <th>{% trans "HTML Version" %}</th>
+                        <th>{% trans "File" %}</th>
+                        <th>{% trans "Groups" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+            </table>
+            </div>
+            {% include "app_doc/includes/doc_table_pagination_client.html" with pagination_id="relatedDocsTablePagination" %}
+        </div>
+    </div>
+</div>
+
+<!-- HTML Version Modal -->
+<div class="modal fade" id="htmlVersionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "HTML Version" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="htmlContent" class="html-content"></div>
+                <button class="btn btn-secondary mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#sourceCode">
+                    {% trans "Show/hide source code" %}
+                </button>
+                <div class="collapse" id="sourceCode">
+                    <div class="source-code"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Related Document Modal -->
+<div class="modal fade" id="addRelDocModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Add Related Document" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addRelDocForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="name_rel_doc" class="form-label">{% trans "Name" %}*</label>
+                        <input type="text" class="form-control" id="name_rel_doc" name="name_rel_doc" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="company" class="form-label">{% trans "Company" %}</label>
+                        <select class="form-select" id="company" name="company">
+                            <option value="">{% trans "Select company" %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="vers_rel_doc" class="form-label">{% trans "Version" %}*</label>
+                        <input type="text" class="form-control" id="vers_rel_doc" name="vers_rel_doc" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="status_rel_doc" class="form-label">{% trans "Document Status" %}</label>
+                        <select class="form-select" id="status_rel_doc" name="status_rel_doc">
+                            <option value="">{% trans "Select Status" %}</option>
+                            {% for status in doc_statuses %}
+                                <option value="{{ status.id }}" {% if status.sort_order == 0 %}selected{% endif %}>{{ status.get_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="access_classification" class="form-label">{% trans "Level" %}</label>
+                        <select class="form-select" id="access_classification" name="access_classification">
+                            <option value="">{% trans "Select Level" %}</option>
+                            {% for classification in access_classifications %}
+                                <option value="{{ classification.id }}"
+                                        data-color="{{ classification.color }}"
+                                        data-icon="{{ classification.icon }}"
+                                        style="color: {{ classification.color }}">
+                                    <i class="fas {{ classification.icon }}"></i>
+                                    {{ classification.get_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small">
+                            <i class="fas fa-info-circle"></i> {% trans "Level" %}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="date_rel_doc" class="form-label">{% trans "Date" %}*</label>
+                        <input type="date" class="form-control" id="date_rel_doc" name="date_rel_doc" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description_rel_doc" class="form-label">{% trans "Description" %}*</label>
+                        <textarea class="form-control" id="description_rel_doc" name="description_rel_doc" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="vers_rel_doc_html" class="form-label">{% trans "HTML Version" %}</label>
+                        <textarea class="form-control" id="vers_rel_doc_html" name="vers_rel_doc_html" rows="5"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="file_rel_doc" class="form-label">{% trans "File" %}</label>
+                        <input type="file" class="form-control" id="file_rel_doc" name="file_rel_doc">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Groups" %}*</label>
+                        <div id="addGroupsContainer" class="row">
+                            <div class="col-12 text-center text-muted py-4">
+                                <i class="fas fa-building fa-2x mb-2 opacity-50"></i>
+                                <p class="mb-0">{% trans "Please select a company first" %}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                        <button type="submit" class="btn btn-primary">{% trans "Save" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Related Document Modal -->
+<div class="modal fade" id="editRelDocModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Edit Related Document" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editRelDocForm" class="needs-validation" novalidate enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" id="edit_rel_doc_id" name="id">
+
+                    <div class="mb-3">
+                        <label for="edit_name_rel_doc" class="form-label">{% trans "Name" %}*</label>
+                        <input type="text" class="form-control" id="edit_name_rel_doc"
+                               name="name_rel_doc" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_company" class="form-label">{% trans "Company" %}</label>
+                        <select class="form-select" id="edit_company" name="company">
+                            <option value="">{% trans "Select company" %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_vers_rel_doc" class="form-label">{% trans "Version" %}*</label>
+                        <input type="text" class="form-control" id="edit_vers_rel_doc"
+                               name="vers_rel_doc" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_status_rel_doc" class="form-label">{% trans "Document Status" %}</label>
+                        <select class="form-select" id="edit_status_rel_doc" name="status_rel_doc">
+                            <option value="">{% trans "Select Status" %}</option>
+                            {% for status in doc_statuses %}
+                                <option value="{{ status.id }}">{{ status.get_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_access_classification" class="form-label">{% trans "Level" %}</label>
+                        <select class="form-select" id="edit_access_classification" name="access_classification">
+                            <option value="">{% trans "Select Level" %}</option>
+                            {% for classification in access_classifications %}
+                                <option value="{{ classification.id }}"
+                                        data-color="{{ classification.color }}"
+                                        data-icon="{{ classification.icon }}"
+                                        style="color: {{ classification.color }}">
+                                    <i class="fas {{ classification.icon }}"></i>
+                                    {{ classification.get_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small">
+                            <i class="fas fa-info-circle"></i> {% trans "Level" %}
+                        </div>
+                        <div id="editAccessDescription" class="form-text mt-2"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_date_rel_doc" class="form-label">{% trans "Date" %}*</label>
+                        <input type="date" class="form-control" id="edit_date_rel_doc"
+                               name="date_rel_doc" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_description_rel_doc" class="form-label">{% trans "Description" %}*</label>
+                        <textarea class="form-control" id="edit_description_rel_doc"
+                                  name="description_rel_doc" rows="3" required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_vers_rel_doc_html" class="form-label">{% trans "HTML Version" %}</label>
+                        <textarea class="form-control" id="edit_vers_rel_doc_html"
+                                  name="vers_rel_doc_html" rows="5"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Current File" %}</label>
+                        <div id="currentFileInfo" class="mb-2"></div>
+                        <label for="edit_file_rel_doc" class="form-label">{% trans "Upload New File" %}</label>
+                        <input type="file" class="form-control" id="edit_file_rel_doc" name="file_rel_doc">
+                        <div class="form-text">{% trans "Leave empty to keep current file" %}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Groups" %}*</label>
+                        <div id="editGroupsContainer" class="row">
+                            <div class="col-12 text-center text-muted py-4">
+                                <i class="fas fa-building fa-2x mb-2 opacity-50"></i>
+                                <p class="mb-0">{% trans "Please select a company first" %}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-end">
+                        <button type="button" class="btn btn-secondary"
+                                data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                        <button type="submit" class="btn btn-primary">{% trans "Save Changes" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteRelDocModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Delete Related Document" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Are you sure you want to delete the related document:" %} <span id="deleteRelDocName"></span>?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteRelDoc">{% trans "Delete" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay d-none">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">{% trans "Loading..." %}</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- JavaScript dependencies -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.10.2/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+// Global variables
+window.currentLanguage = '{{ current_language }}';
+
+// Prepare access classifications data for JavaScript
+window.accessClassificationsData = [
+    {% for classification in access_classifications %}
+    {
+        id: {{ classification.id }},
+        name: {
+            uk: "{{ classification.name_uk|escapejs }}",
+            en: "{{ classification.name_en|escapejs }}",
+            ru: "{{ classification.name_ru|escapejs }}"
+        },
+        description: {
+            uk: "{{ classification.description_uk|escapejs }}",
+            en: "{{ classification.description_en|escapejs }}",
+            ru: "{{ classification.description_ru|escapejs }}"
+        },
+        color: "{{ classification.color }}",
+        icon: "{{ classification.icon }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+// Global text utilities
+window.getLocalizedText = function(key) {
+    const translations = {
+        'Edit document': {
+            'en': 'Edit document',
+            'uk': 'Редагувати документ',
+            'ru': 'Редактировать документ'
+        },
+        'Delete document': {
+            'en': 'Delete document',
+            'uk': 'Видалити документ',
+            'ru': 'Удалить документ'
+        },
+        'No data available in table': {
+            'en': 'No data available in table',
+            'uk': 'Немає даних у таблиці',
+            'ru': 'Нет данных в таблице'
+        },
+        'Showing _START_ to _END_ of _TOTAL_ entries': {
+            'en': 'Showing _START_ to _END_ of _TOTAL_ entries',
+            'uk': 'Показано від _START_ до _END_ з _TOTAL_ записів',
+            'ru': 'Показано от _START_ до _END_ из _TOTAL_ записей'
+        },
+        'Showing 0 to 0 of 0 entries': {
+            'en': 'Showing 0 to 0 of 0 entries',
+            'uk': 'Показано 0 записів',
+            'ru': 'Показано 0 записей'
+        },
+        '(filtered from _MAX_ total entries)': {
+            'en': '(filtered from _MAX_ total entries)',
+            'uk': '(відфільтровано з _MAX_ записів)',
+            'ru': '(отфильтровано из _MAX_ записей)'
+        },
+        'Show _MENU_ entries': {
+            'en': 'Show _MENU_ entries',
+            'uk': 'Показати _MENU_ записів',
+            'ru': 'Показать _MENU_ записей'
+        },
+        'Loading...': {
+            'en': 'Loading...',
+            'uk': 'Завантаження...',
+            'ru': 'Загрузка...'
+        },
+        'Processing...': {
+            'en': 'Processing...',
+            'uk': 'Обробка...',
+            'ru': 'Обработка...'
+        },
+        'Search:': {
+            'en': 'Search:',
+            'uk': 'Пошук:',
+            'ru': 'Поиск:'
+        },
+        'No matching records found': {
+            'en': 'No matching records found',
+            'uk': 'Відповідних записів не знайдено',
+            'ru': 'Соответствующих записей не найдено'
+        },
+        'First': {
+            'en': 'First',
+            'uk': 'Перша',
+            'ru': 'Первая'
+        },
+        'Last': {
+            'en': 'Last',
+            'uk': 'Остання',
+            'ru': 'Последняя'
+        },
+        'Next': {
+            'en': 'Next',
+            'uk': 'Наступна',
+            'ru': 'Следующая'
+        },
+        'Previous': {
+            'en': 'Previous',
+            'uk': 'Попередня',
+            'ru': 'Предыдущая'
+        },
+        'Document updated successfully': {
+            'en': 'Document updated successfully',
+            'uk': 'Документ успішно оновлено',
+            'ru': 'Документ успешно обновлен'
+        },
+        'Error': {
+            'en': 'Error',
+            'uk': 'Помилка',
+            'ru': 'Ошибка'
+        },
+        'Error updating document': {
+            'en': 'Error updating document',
+            'uk': 'Помилка оновлення документу',
+            'ru': 'Ошибка обновления документа'
+        },
+        'Error loading HTML content': {
+            'en': 'Error loading HTML content',
+            'uk': 'Помилка завантаження HTML контенту',
+            'ru': 'Ошибка загрузки HTML контента'
+        },
+        'Please select a company first': {
+            'en': 'Please select a company first',
+            'uk': 'Будь ласка, спочатку виберіть компанію',
+            'ru': 'Пожалуйста, сначала выберите компанию'
+        },
+        'Access denied. Please check your permissions.': {
+            'en': 'Access denied. Please check your permissions.',
+            'uk': 'Доступ заборонено. Перевірте свої права.',
+            'ru': 'Доступ запрещен. Проверьте свои права.'
+        },
+        'Resource not found.': {
+            'en': 'Resource not found.',
+            'uk': 'Ресурс не знайдено.',
+            'ru': 'Ресурс не найден.'
+        },
+        'Server error occurred. Please try again later.': {
+            'en': 'Server error occurred. Please try again later.',
+            'uk': 'Сталася помилка сервера. Спробуйте пізніше.',
+            'ru': 'Произошла ошибка сервера. Попробуйте позже.'
+        },
+        'Your session has expired. Please refresh the page.': {
+            'en': 'Your session has expired. Please refresh the page.',
+            'uk': 'Ваша сесія закінчилася. Оновіть сторінку.',
+            'ru': 'Ваша сессия истекла. Обновите страницу.'
+        },
+        'Download file': {
+            'en': 'Download file',
+            'uk': 'Завантажити файл',
+            'ru': 'Скачать файл'
+        },
+        'Download': {
+            'en': 'Download',
+            'uk': 'Завантажити',
+            'ru': 'Скачать'
+        },
+        'Remove file': {
+            'en': 'Remove file',
+            'uk': 'Видалити файл',
+            'ru': 'Удалить файл'
+        },
+        'Remove': {
+            'en': 'Remove',
+            'uk': 'Видалити',
+            'ru': 'Удалить'
+        },
+        'No file': {
+            'en': 'No file',
+            'uk': 'Немає файлу',
+            'ru': 'Нет файла'
+        },
+        'No HTML': {
+            'en': 'No HTML',
+            'uk': 'Немає HTML',
+            'ru': 'Нет HTML'
+        },
+        'View': {
+            'en': 'View',
+            'uk': 'Переглянути',
+            'ru': 'Просмотреть'
+        }
+    };
+
+    const lang = window.currentLanguage.substring(0, 2);
+    return translations[key]?.[lang] || translations[key]?.['en'] || key;
+};
+
+// Function to update Access Classification description
+function updateAccessClassificationDescription(selectElementId = 'edit_access_classification', descriptionElementId = 'editAccessDescription') {
+    const selectedOption = $(`#${selectElementId} option:selected`);
+    const selectedValue = selectedOption.val();
+
+    console.log(`Updating access classification description for ${selectElementId}:`, {
+        selectedValue,
+        accessClassificationsData: window.accessClassificationsData
+    });
+
+    if (!selectedValue) {
+        $(`#${descriptionElementId}`).empty();
+        return;
+    }
+
+    const item = window.accessClassificationsData.find(ac => ac.id === parseInt(selectedValue));
+    console.log('Found access classification item:', item);
+
+    if (!item) {
+        $(`#${descriptionElementId}`).empty();
+        return;
+    }
+
+    const currentLang = window.currentLanguage.substring(0, 2);
+    console.log('Current language:', currentLang);
+
+    let description;
+    if (typeof item.description === 'object') {
+        description = item.description[currentLang] ||
+                    item.description[currentLang === 'uk' ? 'ua' : currentLang] ||
+                    item.description.en ||
+                    item.description.uk ||
+                    item.description.ua;
+    } else {
+        description = item.description;
+    }
+
+    console.log('Found access classification description:', description);
+
+    if (description) {
+        $(`#${descriptionElementId}`)
+            .text(description)
+            .css('color', item.color || '#6c757d')
+            .show();
+    } else {
+        $(`#${descriptionElementId}`).empty();
+    }
+}
+
+// Assign update function to window object
+window.updateAccessClassificationDescription = function() {
+    console.log('Updating access classification description');
+    console.log('accessClassificationsData:', window.accessClassificationsData);
+    updateAccessClassificationDescription();
+};
+
+// Global functions
+window.formatDate = function(dateString) {
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString(window.currentLanguage || 'en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+    } catch (e) {
+        console.warn('Date formatting error:', e);
+        return dateString;
+    }
+};
+
+// Функція для безпечного екранування рядків для HTML атрибутів
+function escapeHtmlAttribute(str) {
+    if (!str) return '';
+    return str.replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/&/g, '&amp;');
+}
+
+// Функція для декодування URL та отримання оригінальної назви файлу
+function decodeFileName(fileUrl) {
+    try {
+        // Розділяємо URL за останнім слешем
+        const urlParts = fileUrl.split('/');
+        const encodedFileName = urlParts[urlParts.length - 1];
+
+        // Декодуємо двічі для коректної обробки кирилиці
+        return decodeURIComponent(decodeURIComponent(encodedFileName));
+    } catch (e) {
+        console.warn('Error decoding filename:', e);
+        // Якщо виникла помилка, повертаємо оригінальну назву
+        const urlParts = fileUrl.split('/');
+        return urlParts[urlParts.length - 1];
+    }
+}
+
+// Функція для форматування розміру файлу
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Функція для отримання іконки в залежності від типу файлу
+function getFileIcon(fileName) {
+    const extension = fileName.split('.').pop().toLowerCase();
+    const iconMap = {
+        'pdf': 'fa-file-pdf',
+        'doc': 'fa-file-word',
+        'docx': 'fa-file-word',
+        'xls': 'fa-file-excel',
+        'xlsx': 'fa-file-excel',
+        'txt': 'fa-file-alt',
+        'rtf': 'fa-file-alt',
+        'zip': 'fa-file-archive',
+        'rar': 'fa-file-archive',
+        'jpg': 'fa-file-image',
+        'jpeg': 'fa-file-image',
+        'png': 'fa-file-image',
+        'gif': 'fa-file-image'
+    };
+    return iconMap[extension] || 'fa-file';
+}
+
+// Оновлена функція відображення файлу в модальному вікні
+function displayFileInfo(fileUrl, fileName, fileSize = null) {
+    const decodedFileName = decodeFileName(fileName || fileUrl);
+    const escapedFileName = escapeHtmlAttribute(decodedFileName);
+    const fileIcon = getFileIcon(decodedFileName);
+
+    let sizeInfo = '';
+    if (fileSize) {
+        sizeInfo = `<small class="text-muted d-block mt-1">${formatFileSize(fileSize)}</small>`;
+    }
+
+    return `
+        <div class="current-file-container border">
+            <div class="d-flex align-items-center">
+                <div class="file-icon me-3">
+                    <i class="fas ${fileIcon} fa-3x text-primary"></i>
+                </div>
+                <div class="file-info flex-grow-1">
+                    <div class="file-name text-break mb-1">
+                        ${decodedFileName}
+                    </div>
+                    ${sizeInfo}
+                    <div class="file-actions mt-3">
+                        <a href="${fileUrl}"
+                           class="btn btn-sm btn-primary"
+                           download="${escapedFileName}"
+                           title="${window.getLocalizedText('Download file')}">
+                            <i class="fas fa-download me-1"></i>
+                            ${window.getLocalizedText('Download')}
+                        </a>
+                        <button type="button"
+                                class="btn btn-sm btn-danger"
+                                id="removeCurrentFile"
+                                title="${window.getLocalizedText('Remove file')}">
+                            <i class="fas fa-trash-alt me-1"></i>
+                            ${window.getLocalizedText('Remove')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+window.showNotification = function(type, message) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
+
+    // Remove existing notifications
+    $('.notification-alert').remove();
+
+    const alert = $(`
+        <div class="alert ${alertClass} alert-dismissible fade show notification-alert position-fixed top-0 end-0 m-3"
+             role="alert" style="z-index: 9999">
+            <i class="fas fa-${icon} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `);
+
+    $('body').append(alert);
+    setTimeout(() => alert.alert('close'), 5000);
+};
+
+function cleanupModal() {
+    $('.modal-backdrop').remove();
+    $('body').removeClass('modal-open').css('overflow', '');
+    $('body').css('padding-right', '');
+}
+
+// Додаємо стилі
+const styles = `
+    <style>
+        .current-file-container {
+            background-color: #f8f9fa;
+            transition: all 0.3s ease;
+            border-radius: 6px;
+            padding: 15px;
+        }
+
+        .current-file-container:hover {
+            background-color: #e9ecef;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .file-icon {
+            width: 50px;
+            text-align: center;
+        }
+
+        .file-name {
+            font-size: 0.95rem;
+            color: #495057;
+            word-break: break-all;
+            font-weight: 600;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-sm:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .text-break {
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+        }
+
+        .file-info .text-muted {
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+    </style>
+`;
+$(document).ready(function() {
+    // Додаємо стилі до head один раз при ініціалізації
+    if (!$('#file-display-styles').length) {
+        $('head').append(`<div id="file-display-styles">${styles}</div>`);
+    }
+
+    let loadingDocData = false;
+
+    // Function to load groups for selected company
+    window.loadCompanyGroups = function(companyId, containerSelector, selectedGroups = [], prefix = 'add') {
+        const container = $(containerSelector);
+        
+        if (!companyId) {
+            container.html(`
+                <div class="col-12 text-center text-muted py-4">
+                    <i class="fas fa-building fa-2x mb-2 opacity-50"></i>
+                    <p class="mb-0">{% trans "Please select a company first" %}</p>
+                </div>
+            `);
+            return;
+        }
+
+        // Show loading
+        container.html(`
+            <div class="col-12 text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">{% trans "Loading..." %}</span>
+                </div>
+                <p class="mb-0 mt-2 text-muted">{% trans "Loading groups..." %}</p>
+            </div>
+        `);
+
+        $.ajax({
+            url: '{% url "get_company_groups" %}',
+            data: { company_id: companyId },
+            method: 'GET',
+            success: function(response) {
+                if (response.success && response.groups.length > 0) {
+                    let html = '';
+                    response.groups.forEach(group => {
+                        const groupColor = group.color || '#0dcaf0';
+                        const isChecked = selectedGroups.includes(group.id);
+                        const checkboxClass = prefix === 'edit' ? 'edit-group-checkbox' : 'add-group-checkbox';
+                        const checkboxId = `${prefix}Group${group.id}`;
+                        
+                        html += `
+                            <div class="col-md-4 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input ${checkboxClass}" 
+                                           type="checkbox" 
+                                           name="groups[]"
+                                           value="${group.id}" 
+                                           id="${checkboxId}"
+                                           ${isChecked ? 'checked' : ''}>
+                                    <label class="form-check-label" for="${checkboxId}">
+                                        <span style="color: ${groupColor}">
+                                            <i class="fas fa-users me-1"></i>${group.name}
+                                        </span>
+                                        ${group.description ? `<br><small class="text-muted">${group.description}</small>` : ''}
+                                    </label>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    container.html(html);
+                } else {
+                    container.html(`
+                        <div class="col-12 text-center text-muted py-4">
+                            <i class="fas fa-info-circle fa-2x mb-2 opacity-50"></i>
+                            <p class="mb-0">{% trans "No groups found for this company" %}</p>
+                        </div>
+                    `);
+                }
+            },
+            error: function(xhr) {
+                console.error('Error loading groups:', xhr.responseText);
+                container.html(`
+                    <div class="col-12 text-center text-danger py-4">
+                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                        <p class="mb-0">{% trans "Error loading groups" %}</p>
+                    </div>
+                `);
+            }
+        });
+    };
+
+    // Initialize all modals
+    document.querySelectorAll('.modal').forEach(modalEl => {
+        new bootstrap.Modal(modalEl, {
+            backdrop: 'static',
+            keyboard: false
+        });
+    });
+
+    // Set default status when Add modal is opened
+    $('#addRelDocModal').on('show.bs.modal', function() {
+        // Find and select the status with sort_order = 0 (highest priority)
+        const defaultStatusOption = $('#status_rel_doc option[selected]');
+        if (defaultStatusOption.length > 0) {
+            $('#status_rel_doc').val(defaultStatusOption.val());
+        }
+    });
+
+    // Handle company change in Add Related Document modal
+    $('#company').on('change', function() {
+        const companyId = $(this).val();
+        window.loadCompanyGroups(companyId, '#addGroupsContainer', [], 'add');
+    });
+
+    // Handle company change in Edit Related Document modal
+    $('#edit_company').on('change', function() {
+        const companyId = $(this).val();
+        // Get currently selected groups before reloading
+        const selectedGroups = [];
+        $('.edit-group-checkbox:checked').each(function() {
+            selectedGroups.push(parseInt($(this).val()));
+        });
+        window.loadCompanyGroups(companyId, '#editGroupsContainer', selectedGroups, 'edit');
+    });
+
+    // Initialize DataTables
+    window.relatedDocsTable = $('#relatedDocsTable').DataTable({
+        processing: true,
+        serverSide: false,
+        responsive: false,
+        scrollX: true,
+        scrollCollapse: true,
+        autoWidth: false,
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+        lengthChange: false,
+        dom: '<"row"<"col-sm-12"tr>>',
+        ajax: {
+            url: "{% url 'related_docs_list' %}",
+            type: 'GET',
+            beforeSend: function() {
+                $('.loading-overlay').removeClass('d-none');
+            },
+            complete: function() {
+                $('.loading-overlay').addClass('d-none');
+            }
+        },
+        columns: [
+            { data: "name_rel_doc" },
+            { data: "company" },
+            { data: "vers_rel_doc" },
+            {
+                data: "date_rel_doc",
+                width: "80px",
+                render: function(data, type) {
+                    if (type === 'sort' || type === 'type') {
+                        return data || '';
+                    }
+                    return window.formatDate(data);
+                }
+            },
+            {
+                data: "status_rel_doc",
+                render: function(data, type, row) {
+                    if (data) {
+                        return `<span class="badge bg-info">${data}</span>`;
+                    }
+                    return '<span class="text-muted">-</span>';
+                }
+            },
+            {
+                data: "access_classification",
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        if (data) {
+                            return `<div class="text-center">
+                                      <i class="fas ${data.icon}"
+                                         data-bs-toggle="tooltip"
+                                         data-bs-placement="top"
+                                         title="${data.text}"
+                                         style="color: ${data.color}; font-size: 1.1rem;"></i>
+                                   </div>`;
+                        }
+                        return '<span class="text-muted small">-</span>';
+                    }
+                    return data?.text || '';
+                }
+            },
+            {
+                data: "description_rel_doc",
+                render: function(data) {
+                    if (!data) return '';
+                    const escapedData = escapeHtmlAttribute(data);
+                    return data.length > 50 ?
+                        `<span title="${escapedData}">${data.substring(0, 50)}...</span>` :
+                        data;
+                }
+            },
+            {
+                data: "vers_rel_doc_html",
+                render: function(data, type, row) {
+                    return data ?
+                        `<button class="btn btn-info btn-sm view-html" data-id="${row.id}">
+                            <i class="fas fa-code me-1"></i>${window.getLocalizedText('View')}
+                        </button>` :
+                        `<span class="badge bg-secondary">${window.getLocalizedText('No HTML')}</span>`;
+                }
+            },
+            {
+               data: "file_rel_doc",
+               render: function(data, type, row) {
+                   if (data) {
+                       const fileName = decodeFileName(data);
+                       const escapedFileName = escapeHtmlAttribute(fileName);
+                       return `<a href="{% url 'protected_file_download' 0 %}".replace('0', row.id)
+                                 class="btn btn-primary btn-sm file-download-btn"
+                                 data-doc-id="${row.id}"
+                                 data-filename="${escapedFileName}"
+                                 data-bs-toggle="tooltip"
+                                 data-bs-placement="top"
+                                 title="${escapedFileName}">
+                               <i class="fas fa-download me-1"></i>
+                               <span class="d-none d-md-inline">${window.getLocalizedText('Download')}</span>
+                              </a>`;
+                   }
+                   return `<span class="badge bg-secondary">${window.getLocalizedText('No file')}</span>`;
+               }
+           },
+            {
+                data: "groups",
+                render: function(data) {
+                    return data.map(group =>
+                        `<span class="badge bg-info">${group}</span>`
+                    ).join(' ');
+                }
+            },
+            {
+                data: null,
+                orderable: false,
+                width: "90px",
+                render: function(data, type, row) {
+                    return `
+                        <div class="btn-group">
+                            <button class="btn btn-info btn-sm edit-rel-doc"
+                                    data-id="${row.id}"
+                                    title="${window.getLocalizedText('Edit document')}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm delete-rel-doc"
+                                    data-id="${row.id}"
+                                    data-name="${escapeHtmlAttribute(row.name_rel_doc)}"
+                                    title="${window.getLocalizedText('Delete document')}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>`;
+                }
+            }
+        ],
+        columnDefs: [
+            {
+                targets: 0,
+                width: "110px",
+                className: "document-name-cell"
+            },
+            {
+                targets: 6,
+                width: "90px",
+                className: "text-truncate"
+            },
+            {
+                targets: 3,
+                width: "80px"
+            },
+            {
+                targets: 10,
+                width: "90px",
+                orderable: false
+            }
+        ],
+        order: [[0, 'asc']],
+        language: {
+            emptyTable: window.getLocalizedText('No data available in table'),
+            info: window.getLocalizedText('Showing _START_ to _END_ of _TOTAL_ entries'),
+            infoEmpty: window.getLocalizedText('Showing 0 to 0 of 0 entries'),
+            infoFiltered: window.getLocalizedText('(filtered from _MAX_ total entries)'),
+            lengthMenu: window.getLocalizedText('Show _MENU_ entries'),
+            loadingRecords: window.getLocalizedText('Loading...'),
+            processing: window.getLocalizedText('Processing...'),
+            search: window.getLocalizedText('Search:'),
+            zeroRecords: window.getLocalizedText('No matching records found'),
+            paginate: {
+                first: window.getLocalizedText('First'),
+                last: window.getLocalizedText('Last'),
+                next: window.getLocalizedText('Next'),
+                previous: window.getLocalizedText('Previous')
+            }
+        },
+        initComplete: function(settings) {
+            populateFilters();
+            updateRecordsCount(this.api());
+            syncHeaderScroll();
+            if (window.initDocDataTablePagination) {
+                window.initDocDataTablePagination({
+                    api: this.api(),
+                    containerId: 'relatedDocsTablePagination',
+                    paginationAriaLabel: '{% trans "Related documents pagination" %}',
+                    labels: {
+                        showing: '{% trans "Showing" %}',
+                        of: '{% trans "of" %}',
+                        items: '{% trans "documents" %}',
+                        perPage: '{% trans "Per page" %}'
+                    }
+                });
+            }
+        },
+        drawCallback: function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip('dispose').tooltip({
+                trigger: 'hover'
+            });
+            updateRecordsCount(this.api());
+            syncHeaderScroll();
+        }
+    });
+    
+    // Function to sync header scroll with body scroll
+    function syncHeaderScroll() {
+        setTimeout(function() {
+            const scrollBody = $('.dataTables_scrollBody');
+            const scrollHead = $('.dataTables_scrollHead');
+            
+            if (scrollBody.length && scrollHead.length) {
+                // Remove previous event handlers to avoid duplicates
+                scrollBody.off('scroll.DT_sync');
+                
+                // Add scroll synchronization
+                scrollBody.on('scroll.DT_sync', function() {
+                    const scrollLeft = $(this).scrollLeft();
+                    scrollHead.scrollLeft(scrollLeft);
+                });
+                
+                // Initial sync
+                const scrollLeft = scrollBody.scrollLeft();
+                if (scrollLeft > 0) {
+                    scrollHead.scrollLeft(scrollLeft);
+                }
+            }
+        }, 150);
+    }
+    
+    // Function to update records count display
+    function updateRecordsCount(tableInstance) {
+        const table = tableInstance || window.relatedDocsTable;
+        
+        if (!table) {
+            $('#recordsCount').html('{% trans "Loading..." %}');
+            return;
+        }
+        
+        const info = table.page.info();
+        const recordsFiltered = info.recordsDisplay || 0;
+        const recordsTotal = info.recordsTotal || 0;
+        
+        let countText = '';
+        
+        if (recordsFiltered < recordsTotal) {
+            countText = `{% trans "Filtered" %}: <strong>${recordsFiltered}</strong> {% trans "from" %} <strong>${recordsTotal}</strong>`;
+        } else {
+            countText = `{% trans "Total documents" %}: <strong>${recordsTotal}</strong>`;
+        }
+        
+        $('#recordsCount').html(countText);
+    }
+    
+    // Populate filter dropdowns
+    function populateFilters() {
+        if (!window.relatedDocsTable) {
+            return;
+        }
+        
+        // Clear existing options (except "All")
+        $('#filterCompany').find('option:not(:first)').remove();
+        $('#filterStatus').find('option:not(:first)').remove();
+        
+        // Populate Company filter
+        const companies = new Set();
+        window.relatedDocsTable.rows().data().each(function(row) {
+            if (row.company) {
+                companies.add(row.company);
+            }
+        });
+        
+        const companiesArray = Array.from(companies).sort();
+        companiesArray.forEach(function(company) {
+            $('#filterCompany').append(
+                $('<option></option>').val(company).text(company)
+            );
+        });
+        
+        // Populate Status filter
+        const statuses = new Set();
+        window.relatedDocsTable.rows().data().each(function(row) {
+            if (row.status_rel_doc) {
+                statuses.add(row.status_rel_doc);
+            }
+        });
+        
+        const statusesArray = Array.from(statuses).sort();
+        statusesArray.forEach(function(status) {
+            $('#filterStatus').append(
+                $('<option></option>').val(status).text(status)
+            );
+        });
+        
+        updateRecordsCount(window.relatedDocsTable);
+    }
+    
+    // Global search with debounce
+    let searchTimeout;
+    $('#globalSearch').on('keyup', function() {
+        clearTimeout(searchTimeout);
+        const searchValue = $(this).val();
+        
+        searchTimeout = setTimeout(function() {
+            window.relatedDocsTable.search(searchValue).draw();
+            updateRecordsCount(window.relatedDocsTable);
+        }, 500);
+    });
+
+    $('#clearAllFilters').on('click', function() {
+        $('#filterCompany').val('');
+        $('#filterDateFrom').val('');
+        $('#filterDateTo').val('');
+        $('#filterStatus').val('');
+        $('#globalSearch').val('');
+        window.relatedDocsTable.columns().search('').draw();
+        window.relatedDocsTable.search('').draw();
+        updateRecordsCount(window.relatedDocsTable);
+    });
+
+    $('#filterCompany, #filterStatus, #filterDateFrom, #filterDateTo').on('change', applyTableFilters);
+
+    // Apply table filters
+    function applyTableFilters() {
+        // Company filter
+        const companyFilter = $('#filterCompany').val();
+        window.relatedDocsTable.column(1).search(companyFilter);
+        
+        // Status filter
+        const statusFilter = $('#filterStatus').val();
+        window.relatedDocsTable.column(4).search(statusFilter);
+        
+        // Date range filter - using custom search
+        const dateFilterFunc = function(settings, data, dataIndex) {
+            const dateFrom = $('#filterDateFrom').val();
+            const dateTo = $('#filterDateTo').val();
+            const dateCol = data[3]; // Date column index
+            
+            if (!dateFrom && !dateTo) {
+                return true;
+            }
+            
+            // Parse date from formatted string (e.g., "01.01.2024")
+            try {
+                const dateParts = dateCol.split(/[.\-\/]/);
+                let rowDate;
+                
+                if (dateParts.length === 3) {
+                    // Assume format: DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY
+                    rowDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+                } else {
+                    // Try parsing as is
+                    rowDate = new Date(dateCol);
+                }
+                
+                const fromDate = dateFrom ? new Date(dateFrom) : null;
+                const toDate = dateTo ? new Date(dateTo) : null;
+                
+                if (fromDate && rowDate < fromDate) {
+                    return false;
+                }
+                if (toDate && rowDate > toDate) {
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                console.warn('Date parsing error:', e);
+                return true;
+            }
+        };
+        
+        $.fn.dataTable.ext.search.push(dateFilterFunc);
+        
+        window.relatedDocsTable.draw();
+        updateRecordsCount(window.relatedDocsTable);
+        
+        // Remove custom search after drawing
+        $.fn.dataTable.ext.search.pop();
+    }
+
+    // Allow Enter key for global search
+    $('#globalSearch').on('keypress', function(e) {
+        if (e.which === 13) {
+            clearTimeout(searchTimeout);
+            window.relatedDocsTable.search($(this).val()).draw();
+            updateRecordsCount(window.relatedDocsTable);
+        }
+    });
+
+    $(document).on('click', '.file-download-btn', async function(e) {
+       e.preventDefault();
+       const btn = $(this);
+       const docId = btn.data('doc-id');
+       const originalFilename = btn.data('filename');
+
+       try {
+           // Показуємо індикатор завантаження
+           $('.loading-overlay').removeClass('d-none');
+           btn.prop('disabled', true);
+
+           // Створюємо URL для завантаження
+           const downloadUrl = `{% url 'protected_file_download' '0' %}`.replace('0', docId);
+           const finalUrl = `${downloadUrl}?filename=${encodeURIComponent(originalFilename)}`;
+
+           // Створюємо та клікаємо посилання для завантаження
+           const link = document.createElement('a');
+           link.href = finalUrl;
+           link.download = originalFilename;
+           document.body.appendChild(link);
+           link.click();
+           document.body.removeChild(link);
+
+       } catch (error) {
+           console.error('Download error:', error);
+           window.showNotification('error', '{% trans "Error downloading file" %}');
+       } finally {
+           $('.loading-overlay').addClass('d-none');
+           btn.prop('disabled', false);
+       }
+   });
+
+    // Add Related Document Form Submit
+    $('#addRelDocForm').on('submit', function(e) {
+       e.preventDefault();
+
+       if (!this.checkValidity()) {
+           $(this).addClass('was-validated');
+           return;
+       }
+
+       // Check if at least one group is selected
+       if ($('input[name="groups[]"]:checked').length === 0) {
+           window.showNotification('error', '{% trans "Please select at least one group" %}');
+           return;
+       }
+
+       const formData = new FormData(this);
+
+       // Get checked groups
+       const selectedGroups = [];
+       $('input[name="groups[]"]:checked').each(function() {
+           selectedGroups.push($(this).val());
+       });
+       formData.delete('groups[]');
+       selectedGroups.forEach(groupId => {
+           formData.append('groups[]', groupId);
+       });
+
+       $.ajax({
+           url: '{% url "add_related_doc" %}',
+           type: 'POST',
+           data: formData,
+           processData: false,
+           contentType: false,
+           headers: {
+               'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+           },
+           success: function(response) {
+               if (response.success) {
+                   const addModal = bootstrap.Modal.getInstance(document.getElementById('addRelDocModal'));
+                   if (addModal) {
+                       addModal.hide();
+                   }
+                   cleanupModal();
+
+                   window.relatedDocsTable.ajax.reload();
+                   window.showNotification('success', response.message);
+               } else {
+                   window.showNotification('error', `{% trans "Error" %}: ${response.error}`);
+               }
+           },
+           error: function(xhr) {
+               console.error('Add document error:', xhr.responseText);
+               window.showNotification('error', '{% trans "Error adding document" %}');
+           }
+       });
+   });
+    // Edit Related Document
+    $(document).on('click', '.edit-rel-doc', function() {
+        const docId = $(this).data('id');
+        loadingDocData = true;
+        $('.loading-overlay').removeClass('d-none');
+
+        $.ajax({
+            url: `{% url 'get_related_doc' '0' %}`.replace('0', docId),
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    const editModal = new bootstrap.Modal(document.getElementById('editRelDocModal'));
+                    
+                    console.log('Loading related doc data:', response.data);
+                    console.log('Access classification ID:', response.data.access_classification);
+
+                    // Reset form first
+                    $('#editRelDocForm')[0].reset();
+
+                    // Populate all form fields
+                    $('#edit_rel_doc_id').val(response.data.id);
+                    $('#edit_name_rel_doc').val(response.data.name_rel_doc);
+                    $('#edit_company').val(response.data.company);
+                    $('#edit_vers_rel_doc').val(response.data.vers_rel_doc);
+                    $('#edit_status_rel_doc').val(response.data.status_rel_doc);
+                    
+                    // Set access classification with proper type checking
+                    if (response.data.access_classification) {
+                        if (typeof response.data.access_classification === 'object') {
+                            $('#edit_access_classification').val(response.data.access_classification.id);
+                        } else {
+                            $('#edit_access_classification').val(response.data.access_classification);
+                        }
+                    } else {
+                        $('#edit_access_classification').val('');
+                    }
+                    
+                    $('#edit_date_rel_doc').val(response.data.date_rel_doc);
+                    $('#edit_description_rel_doc').val(response.data.description_rel_doc);
+                    $('#edit_vers_rel_doc_html').val(response.data.vers_rel_doc_html);
+
+                    console.log('Access classification select value after setting:', $('#edit_access_classification').val());
+
+                    // Show modal and trigger change after modal is shown
+                    editModal.show();
+                    
+                    // Handle modal shown event to ensure proper value setting
+                    $('#editRelDocModal').off('shown.bs.modal').on('shown.bs.modal', function() {
+                        // Re-set the access classification value after modal is fully shown with proper type checking
+                        if (response.data.access_classification) {
+                            if (typeof response.data.access_classification === 'object') {
+                                $('#edit_access_classification').val(response.data.access_classification.id);
+                            } else {
+                                $('#edit_access_classification').val(response.data.access_classification);
+                            }
+                        } else {
+                            $('#edit_access_classification').val('');
+                        }
+                        
+                        console.log('Access classification select value after modal shown:', $('#edit_access_classification').val());
+                        
+                        // Update access classification description if available
+                        if (window.updateAccessClassificationDescription) {
+                            window.updateAccessClassificationDescription();
+                        }
+                        
+                        // Check if the value is properly set
+                        const currentValue = $('#edit_access_classification').val();
+                        const expectedValue = response.data.access_classification;
+                        console.log('Expected value:', expectedValue, 'Current value:', currentValue);
+                        
+                        if (currentValue != expectedValue) {
+                            console.warn('Access classification value mismatch!');
+                            // Force set the value again with proper type checking
+                            if (response.data.access_classification) {
+                                if (typeof response.data.access_classification === 'object') {
+                                    $('#edit_access_classification').val(response.data.access_classification.id).trigger('change');
+                                } else {
+                                    $('#edit_access_classification').val(response.data.access_classification).trigger('change');
+                                }
+                            } else {
+                                $('#edit_access_classification').val('').trigger('change');
+                            }
+                        }
+                    });
+
+                    // Update file info
+                    if (response.data.file_rel_doc) {
+                        $('#currentFileInfo').html(displayFileInfo(
+                            response.data.file_rel_doc,
+                            response.data.file_rel_doc
+                        ));
+                    } else {
+                        $('#currentFileInfo').html(`
+                            <div class="p-3 border rounded bg-light" style="border-style: dashed !important; border-width: 2px !important;">
+                                <div class="d-flex align-items-center justify-content-center text-muted py-3">
+                                    <i class="fas fa-file-upload fa-3x me-3 opacity-50"></i>
+                                    <div>
+                                        <div class="fw-bold">{% trans "No file currently uploaded" %}</div>
+                                        <small>{% trans "Upload a new file below" %}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        `);
+                    }
+
+                    // Load groups for the selected company and pre-select document's groups
+                    if (response.data.company) {
+                        window.loadCompanyGroups(
+                            response.data.company, 
+                            '#editGroupsContainer', 
+                            response.data.groups || [], 
+                            'edit'
+                        );
+                    }
+
+                    editModal.show();
+                } else {
+                    window.showNotification('error', `{% trans "Error" %}: ${response.error}`);
+                }
+            },
+            error: function(xhr) {
+                console.error('Error loading document:', xhr.responseText);
+                window.showNotification('error', '{% trans "Error loading document data" %}');
+            },
+            complete: function() {
+                $('.loading-overlay').addClass('d-none');
+                loadingDocData = false;
+            }
+        });
+    });
+
+    // Handle file input change
+    $('#edit_file_rel_doc').on('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Перевірка розміру файлу
+            if (file.size > 10 * 1024 * 1024) { // 10MB
+                window.showNotification('error', '{% trans "File size exceeds 10MB limit" %}');
+                this.value = '';
+                $(this).trigger('change');
+                return;
+            }
+
+            $('#currentFileInfo').html(displayFileInfo(
+                URL.createObjectURL(file),
+                file.name,
+                file.size
+            ));
+        } else {
+            $('#currentFileInfo').html(`
+                <div class="p-3 border rounded bg-light" style="border-style: dashed !important; border-width: 2px !important;">
+                    <div class="d-flex align-items-center justify-content-center text-muted py-3">
+                        <i class="fas fa-file-upload fa-3x me-3 opacity-50"></i>
+                        <div>
+                            <div class="fw-bold">{% trans "No file selected" %}</div>
+                            <small>{% trans "Choose a file to upload" %}</small>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+    });
+
+    // Handle remove current file button
+    $(document).on('click', '#removeCurrentFile', function(e) {
+        e.preventDefault();
+        if (confirm('{% trans "Are you sure you want to remove the current file?" %}')) {
+            $('#currentFileInfo').html(`
+                <div class="p-3 border rounded bg-warning bg-opacity-10" style="border: 2px dashed #ffc107 !important;">
+                    <div class="d-flex align-items-center justify-content-center text-warning py-3">
+                        <i class="fas fa-exclamation-triangle fa-3x me-3"></i>
+                        <div>
+                            <div class="fw-bold text-dark">{% trans "File will be removed upon saving" %}</div>
+                            <small class="text-muted">{% trans "You can upload a new file or save to remove" %}</small>
+                        </div>
+                    </div>
+                </div>
+            `);
+            // Add hidden input to mark file for deletion
+            $('#editRelDocForm').append(
+                '<input type="hidden" name="remove_file" value="true">'
+            );
+        }
+    });
+
+    // Edit Form Submit
+    $('#editRelDocForm').on('submit', function(e) {
+        e.preventDefault();
+
+        if (!this.checkValidity()) {
+            $(this).addClass('was-validated');
+            return;
+        }
+
+        // Check if at least one group is selected
+        if ($('.edit-group-checkbox:checked').length === 0) {
+            window.showNotification('error', '{% trans "Please select at least one group" %}');
+            return;
+        }
+
+        const formData = new FormData(this);
+        const docId = $('#edit_rel_doc_id').val();
+
+        // Get checked groups
+        const selectedGroups = [];
+        $('.edit-group-checkbox:checked').each(function() {
+            selectedGroups.push($(this).val());
+        });
+        formData.delete('groups[]');
+        selectedGroups.forEach(groupId => {
+            formData.append('groups[]', groupId);
+        });
+
+        $.ajax({
+            url: `{% url 'edit_related_doc' '0' %}`.replace('0', docId),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            success: function(response) {
+                if (response.success) {
+                    const editModal = bootstrap.Modal.getInstance(document.getElementById('editRelDocModal'));
+                    if (editModal) {
+                        editModal.hide();
+                    }
+                    cleanupModal();
+
+                    window.relatedDocsTable.ajax.reload();
+                    window.showNotification('success', window.getLocalizedText('Document updated successfully'));
+                } else {
+                    window.showNotification('error', `${window.getLocalizedText('Error')}: ${response.error}`);
+                }
+            },
+            error: function(xhr) {
+                console.error('Edit document error:', xhr.responseText);
+                window.showNotification('error', window.getLocalizedText('Error updating document'));
+            }
+        });
+    });
+
+    // Delete Related Document
+    let docToDelete = null;
+
+    $(document).on('click', '.delete-rel-doc', function() {
+        docToDelete = $(this).data('id');
+        const docName = $(this).data('name');
+        $('#deleteRelDocName').text(docName);
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteRelDocModal'));
+        deleteModal.show();
+    });
+    $('#confirmDeleteRelDoc').on('click', function() {
+        if (!docToDelete) return;
+
+        $('.loading-overlay').removeClass('d-none');
+
+        $.ajax({
+            url: `{% url 'delete_related_doc' '0' %}`.replace('0', docToDelete),
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            success: function(response) {
+                if (response.success) {
+                    const deleteModal = bootstrap.Modal.getInstance(document.getElementById('deleteRelDocModal'));
+                    if (deleteModal) {
+                        deleteModal.hide();
+                    }
+                    cleanupModal();
+
+                    window.relatedDocsTable.ajax.reload();
+                    window.showNotification('success', '{% trans "Document successfully deleted" %}');
+                } else {
+                    window.showNotification('error', `{% trans "Error" %}: ${response.error}`);
+                }
+            },
+            error: function(xhr) {
+                console.error('Delete error:', xhr.responseText);
+                window.showNotification('error', '{% trans "Error deleting document" %}');
+            },
+            complete: function() {
+                $('.loading-overlay').addClass('d-none');
+                docToDelete = null;
+            }
+        });
+    });
+
+    // View HTML Version
+    $(document).on('click', '.view-html', function() {
+        const docId = $(this).data('id');
+
+        $.ajax({
+            url: `{% url 'get_related_doc_html' '0' %}`.replace('0', docId),
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    $('#htmlContent').html(response.data.html);
+                    $('.source-code').text(response.data.html);
+                    const htmlModal = new bootstrap.Modal(document.getElementById('htmlVersionModal'));
+                    htmlModal.show();
+                } else {
+                    window.showNotification('error', `${window.getLocalizedText('Error')}: ${response.error}`);
+                }
+            },
+            error: function(xhr) {
+                console.error('Error loading HTML:', xhr.responseText);
+                window.showNotification('error', window.getLocalizedText('Error loading HTML content'));
+            }
+        });
+    });
+
+    // Initialize tooltips
+    function initTooltips() {
+        $('[data-bs-toggle="tooltip"]').tooltip('dispose').tooltip({
+            trigger: 'hover'
+        });
+    }
+
+    // Initial tooltips setup
+    initTooltips();
+
+    // Modal cleanup on hide
+    $('.modal').on('hidden.bs.modal', function() {
+        const form = $(this).find('form');
+        if (form.length) {
+            form.removeClass('was-validated')[0].reset();
+        }
+        $('#currentFileInfo').empty();
+        $('input[name="remove_file"]').remove();
+        
+        // Reset groups containers
+        $('#addGroupsContainer, #editGroupsContainer').html(`
+            <div class="col-12 text-center text-muted py-4">
+                <i class="fas fa-building fa-2x mb-2 opacity-50"></i>
+                <p class="mb-0">${window.getLocalizedText('Please select a company first')}</p>
+            </div>
+        `);
+
+        const visibleModalsCount = $('.modal:visible').length;
+        if (visibleModalsCount === 0) {
+            cleanupModal();
+        }
+    });
+
+    // Global modal cleanup
+    $(document).on('hide.bs.modal', '.modal', function() {
+        const visibleModalsCount = $('.modal:visible').length;
+        if (visibleModalsCount <= 1) {
+            setTimeout(() => {
+                cleanupModal();
+            }, 100);
+        }
+    });
+
+    // Handle window resize
+    let resizeTimeout;
+    $(window).on('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            if (window.relatedDocsTable) {
+                window.relatedDocsTable.columns.adjust().draw(false);
+                syncHeaderScroll();
+            }
+        }, 250);
+    });
+
+    window.addEventListener('pagehide', function() {
+        cleanupModal();
+    });
+
+    // File size validation
+    $('input[type="file"]').on('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+
+        // Перевірка розширення файлу
+        const fileName = file.name.toLowerCase();
+        const allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'rtf'];
+        const fileExtension = fileName.split('.').pop();
+
+        if (!allowedExtensions.includes(fileExtension)) {
+            window.showNotification('error', '{% trans "Invalid file type. Allowed types: PDF, DOC, DOCX, XLS, XLSX, TXT, RTF" %}');
+            this.value = '';
+            $(this).trigger('change');
+            return;
+        }
+
+        // Перевірка розміру
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+            window.showNotification('error', '{% trans "File size exceeds 10MB limit" %}');
+            this.value = '';
+            $(this).trigger('change');
+            return;
+        }
+    });
+
+    // Handle AJAX errors globally
+    $(document).ajaxError(function(event, jqXHR, settings, error) {
+        if (jqXHR.status === 403) {
+            window.showNotification('error', window.getLocalizedText('Access denied. Please check your permissions.'));
+        } else if (jqXHR.status === 404) {
+            window.showNotification('error', window.getLocalizedText('Resource not found.'));
+        } else if (jqXHR.status === 500) {
+            window.showNotification('error', window.getLocalizedText('Server error occurred. Please try again later.'));
+        }
+    });
+
+    // Handle session timeout
+    let sessionTimeout;
+    function resetSessionTimeout() {
+        clearTimeout(sessionTimeout);
+        sessionTimeout = setTimeout(function() {
+            window.showNotification('error', window.getLocalizedText('Your session has expired. Please refresh the page.'));
+        }, 3600000); // 1 hour
+    }
+    $(document).on('click keypress', resetSessionTimeout);
+    resetSessionTimeout();
+
+    // Handle unsaved changes
+    let formChanged = false;
+    $('form :input').on('change input', function() {
+        formChanged = true;
+    });
+
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+    // Reset formChanged on successful save
+    const originalAjaxSuccess = $.ajax;
+    $.ajax = function(settings) {
+        const originalSuccess = settings.success;
+        settings.success = function(response) {
+            if (response.success) {
+                formChanged = false;
+            }
+            if (originalSuccess) {
+                originalSuccess.apply(this, arguments);
+            }
+        };
+        return originalAjaxSuccess.apply(this, arguments);
+    };
+
+    // Handle Access Classification change
+    $('#edit_access_classification').on('change', function() {
+        if (window.updateAccessClassificationDescription) {
+            window.updateAccessClassificationDescription();
+        }
+    });
+
+    // Toggle filter panel icon
+});
+</script>
+{% endblock %}

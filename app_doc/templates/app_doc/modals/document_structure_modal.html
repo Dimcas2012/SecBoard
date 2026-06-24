@@ -1,0 +1,577 @@
+{% load i18n %}
+<!-- Modal for displaying document structure -->
+<div class="modal fade" id="documentStructureModal" tabindex="-1" aria-labelledby="documentStructureModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="documentStructureModalLabel">
+                    <i class="fas fa-sitemap me-2"></i>{% trans "Document Structure" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="document-info mb-4">
+                    <h4 id="structureDocName" class="mb-2"></h4>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <p class="mb-1">
+                                <strong>{% trans "Version" %}:</strong> 
+                                <span id="structureDocVersion"></span>
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <p class="mb-1">
+                                <strong>{% trans "Date" %}:</strong> 
+                                <span id="structureDocDate"></span>
+                            </p>
+                        </div>
+                    </div>
+                    <p class="text-muted" id="structureDocDescription"></p>
+                </div>
+
+                <div class="document-structure">
+                    <div class="d-flex justify-content-between mb-3">
+                        <h5>{% trans "Document Sections" %}</h5>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary" id="expandAllSections">
+                                <i class="fas fa-expand-alt me-1"></i>{% trans "Expand All" %}
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" id="collapseAllSections">
+                                <i class="fas fa-compress-alt me-1"></i>{% trans "Collapse All" %}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info d-none" id="noSectionsMessage">
+                        <i class="fas fa-info-circle me-2"></i>{% trans "No document structure available. Try parsing the document first." %}
+                    </div>
+
+                    <div id="documentSectionsContainer">
+                        <!-- Sections will be loaded dynamically -->
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">{% trans "Loading..." %}</span>
+                            </div>
+                            <p class="mt-2">{% trans "Loading document structure..." %}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Document structure modal functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Function to load document structure
+    window.loadDocumentStructure = function(docId) {
+        const container = $('#documentSectionsContainer');
+        
+        // Show loading indicator
+        container.html(`
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">${window.getLocalizedText('Loading...')}</span>
+                </div>
+                <p class="mt-2">${window.getLocalizedText('Loading document structure...')}</p>
+            </div>
+        `);
+        
+        // Hide no sections message
+        $('#noSectionsMessage').addClass('d-none');
+        
+        // Fetch document structure
+        fetch(`{% url 'document_structure' 0 %}`.replace('0', docId))
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update document info
+                    $('#structureDocName').text(data.document.name);
+                    $('#structureDocVersion').text(data.document.version);
+                    $('#structureDocDate').text(new Date(data.document.date).toLocaleDateString());
+                    $('#structureDocDescription').text(data.document.description);
+                    
+                    // Check if there are sections
+                    if (data.sections && data.sections.length > 0) {
+                        // Check if this is a page-by-page parsed document
+                        const isPageByPage = checkIfPageByPage(data.sections);
+                        
+                        // Add page navigation if it's a page-by-page document
+                        if (isPageByPage) {
+                            addPageNavigation(data.sections);
+                        }
+                        
+                        // Render sections
+                        renderDocumentSections(container, data.sections, isPageByPage);
+                    } else {
+                        // Show no sections message
+                        container.empty();
+                        $('#noSectionsMessage').removeClass('d-none');
+                    }
+                } else {
+                    // Show error message
+                    container.html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>${data.error || window.getLocalizedText('Error loading document structure')}
+                        </div>
+                    `);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading document structure:', error);
+                container.html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>${window.getLocalizedText('Error loading document structure')}
+                    </div>
+                `);
+            });
+    };
+    
+    // Function to check if document was parsed page by page
+    function checkIfPageByPage(sections) {
+        // Check if section titles start with "Page X:"
+        return sections.some(section => 
+            section.title && section.title.match(/^Page \d+:/));
+    }
+    
+    // Function to add page navigation
+    function addPageNavigation(sections) {
+        // Get unique page numbers from section titles
+        const pageRegex = /^Page (\d+):/;
+        const pageNumbers = new Set();
+        
+        sections.forEach(section => {
+            const match = section.title.match(pageRegex);
+            if (match) {
+                pageNumbers.add(parseInt(match[1]));
+            }
+        });
+        
+        // Sort page numbers
+        const sortedPageNumbers = Array.from(pageNumbers).sort((a, b) => a - b);
+        
+        // Create page navigation
+        if (sortedPageNumbers.length > 1) {
+            const navContainer = $('<div class="page-navigation mb-3"></div>');
+            const navLabel = $(`<div class="mb-2">${window.getLocalizedText('Jump to page:')}</div>`);
+            const navButtons = $('<div class="btn-group"></div>');
+            
+            sortedPageNumbers.forEach(pageNum => {
+                const button = $(`
+                    <button class="btn btn-sm btn-outline-primary page-nav-btn" data-page="${pageNum}">
+                        ${pageNum}
+                    </button>
+                `);
+                navButtons.append(button);
+            });
+            
+            navContainer.append(navLabel);
+            navContainer.append(navButtons);
+            
+            // Add to document structure container
+            $('#documentSectionsContainer').before(navContainer);
+            
+            // Add click handler for page navigation
+            $('.page-nav-btn').on('click', function() {
+                const pageNum = $(this).data('page');
+                // Highlight active button
+                $('.page-nav-btn').removeClass('active');
+                $(this).addClass('active');
+                
+                // Scroll to first section of the page
+                const pageSection = $(`.section-item[data-page="${pageNum}"]`).first();
+                if (pageSection.length) {
+                    // Expand the section
+                    const sectionId = pageSection.data('section-id');
+                    $(`#collapse-section-${sectionId}`).collapse('show');
+                    
+                    // Scroll to the section
+                    $('html, body').animate({
+                        scrollTop: pageSection.offset().top - 100
+                    }, 300);
+                }
+            });
+        }
+    }
+    
+    // Function to render document sections
+    function renderDocumentSections(container, sections, isPageByPage) {
+        // Create a map of sections by ID
+        const sectionsMap = new Map();
+        sections.forEach(section => {
+            sectionsMap.set(section.id, section);
+        });
+        
+        // Create a map of parent-child relationships
+        const childrenMap = new Map();
+        sections.forEach(section => {
+            if (section.parent_id) {
+                if (!childrenMap.has(section.parent_id)) {
+                    childrenMap.set(section.parent_id, []);
+                }
+                childrenMap.get(section.parent_id).push(section);
+            }
+        });
+        
+        // Get top-level sections (no parent)
+        const topLevelSections = sections.filter(section => !section.parent_id);
+        
+        // Sort sections by level and title
+        topLevelSections.sort((a, b) => {
+            if (isPageByPage) {
+                // For page-by-page documents, sort by page number first
+                const pageRegex = /^Page (\d+):/;
+                const aMatch = a.title.match(pageRegex);
+                const bMatch = b.title.match(pageRegex);
+                
+                if (aMatch && bMatch) {
+                    const aPage = parseInt(aMatch[1]);
+                    const bPage = parseInt(bMatch[1]);
+                    
+                    if (aPage !== bPage) {
+                        return aPage - bPage;
+                    }
+                }
+            }
+            
+            // Then sort by level
+            if (a.level !== b.level) {
+                return a.level - b.level;
+            }
+            
+            // Finally sort by title
+            return a.title.localeCompare(b.title);
+        });
+        
+        // Render sections
+        container.empty();
+        
+        if (topLevelSections.length === 0) {
+            container.html(`
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>${window.getLocalizedText('No document structure available')}
+                </div>
+            `);
+            return;
+        }
+        
+        // Create accordion for sections
+        const accordion = $('<div class="accordion" id="sectionsAccordion"></div>');
+        container.append(accordion);
+        
+        // Render top-level sections
+        topLevelSections.forEach(section => {
+            renderSection(accordion, section, sectionsMap, childrenMap, 1, isPageByPage);
+        });
+    }
+    
+    // Function to render a single section
+    function renderSection(container, section, sectionsMap, childrenMap, depth, isPageByPage) {
+        const sectionId = `section-${section.id}`;
+        const hasChildren = childrenMap.has(section.id);
+        const hasContents = section.contents && section.contents.length > 0;
+        
+        // Extract page number if this is a page-by-page document
+        let pageNum = null;
+        if (isPageByPage) {
+            const pageRegex = /^Page (\d+):/;
+            const match = section.title.match(pageRegex);
+            if (match) {
+                pageNum = parseInt(match[1]);
+            }
+        }
+        
+        // Create section card
+        const sectionCard = $(`
+            <div class="accordion-item section-item" 
+                 data-section-id="${section.id}" 
+                 data-section-level="${section.level}"
+                 ${pageNum ? `data-page="${pageNum}"` : ''}>
+                <h2 class="accordion-header" id="heading-${sectionId}">
+                    <button class="accordion-button ${hasChildren || hasContents ? '' : 'collapsed'}" 
+                            type="button" 
+                            data-bs-toggle="collapse" 
+                            data-bs-target="#collapse-${sectionId}" 
+                            aria-expanded="${hasChildren || hasContents ? 'true' : 'false'}" 
+                            aria-controls="collapse-${sectionId}">
+                        <span class="section-title" style="margin-left: ${(depth - 1) * 20}px">
+                            <i class="fas fa-${pageNum ? 'file-alt' : 'bookmark'} me-2 ${pageNum ? 'text-info' : 'text-primary'}"></i>
+                            ${section.title}
+                        </span>
+                    </button>
+                </h2>
+                <div id="collapse-${sectionId}" 
+                     class="accordion-collapse collapse ${hasChildren || hasContents ? 'show' : ''}" 
+                     aria-labelledby="heading-${sectionId}" 
+                     data-bs-parent="#sectionsAccordion">
+                    <div class="accordion-body">
+                        <div class="section-contents mb-3">
+                            ${renderSectionContents(section.contents)}
+                        </div>
+                        ${hasChildren ? '<div class="section-children"></div>' : ''}
+                    </div>
+                </div>
+            </div>
+        `);
+        
+        container.append(sectionCard);
+        
+        // Render child sections
+        if (hasChildren) {
+            const childrenContainer = sectionCard.find('.section-children');
+            const children = childrenMap.get(section.id);
+            
+            // Sort children by level and title
+            children.sort((a, b) => {
+                if (a.level !== b.level) {
+                    return a.level - b.level;
+                }
+                return a.title.localeCompare(b.title);
+            });
+            
+            children.forEach(child => {
+                renderSection(childrenContainer, child, sectionsMap, childrenMap, depth + 1, isPageByPage);
+            });
+        }
+    }
+    
+    // Function to render section contents
+    function renderSectionContents(contents) {
+        if (!contents || contents.length === 0) {
+            return '';
+        }
+        
+        let html = '';
+        
+        contents.forEach(content => {
+            const contentType = content.type;
+            const contentText = content.text;
+            const metadata = content.metadata;
+            
+            // Render content based on type
+            switch (contentType) {
+                case 'text':
+                    html += `
+                        <div class="content-item mb-3">
+                            <div class="content-text">
+                                ${formatTextContent(contentText)}
+                            </div>
+                            ${renderContentMetadata(metadata)}
+                        </div>
+                    `;
+                    break;
+                    
+                case 'table':
+                    html += `
+                        <div class="content-item mb-3">
+                            <div class="content-table">
+                                ${formatTableContent(contentText)}
+                            </div>
+                            ${renderContentMetadata(metadata)}
+                        </div>
+                    `;
+                    break;
+                    
+                case 'list':
+                    html += `
+                        <div class="content-item mb-3">
+                            <div class="content-list">
+                                ${formatListContent(contentText)}
+                            </div>
+                            ${renderContentMetadata(metadata)}
+                        </div>
+                    `;
+                    break;
+                    
+                default:
+                    html += `
+                        <div class="content-item mb-3">
+                            <div class="content-text">
+                                ${formatTextContent(contentText)}
+                            </div>
+                            ${renderContentMetadata(metadata)}
+                        </div>
+                    `;
+            }
+        });
+        
+        return html;
+    }
+    
+    // Function to format text content
+    function formatTextContent(text) {
+        if (!text) return '';
+        
+        // Replace newlines with <br>
+        return text.replace(/\n/g, '<br>');
+    }
+    
+    // Function to format table content
+    function formatTableContent(text) {
+        if (!text) return '';
+        
+        try {
+            // Try to parse as JSON
+            const tableData = typeof text === 'object' ? text : JSON.parse(text);
+            
+            if (Array.isArray(tableData)) {
+                // Render as table
+                let html = '<table class="table table-bordered table-sm">';
+                
+                tableData.forEach((row, rowIndex) => {
+                    html += '<tr>';
+                    
+                    if (Array.isArray(row)) {
+                        row.forEach(cell => {
+                            const tag = rowIndex === 0 ? 'th' : 'td';
+                            html += `<${tag}>${cell}</${tag}>`;
+                        });
+                    } else {
+                        html += `<td>${row}</td>`;
+                    }
+                    
+                    html += '</tr>';
+                });
+                
+                html += '</table>';
+                return html;
+            } else {
+                // Not an array, render as text
+                return formatTextContent(text);
+            }
+        } catch (e) {
+            // Not valid JSON, render as text
+            return formatTextContent(text);
+        }
+    }
+    
+    // Function to format list content
+    function formatListContent(text) {
+        if (!text) return '';
+        
+        try {
+            // Try to parse as JSON
+            const listData = typeof text === 'object' ? text : JSON.parse(text);
+            
+            if (Array.isArray(listData)) {
+                // Render as list
+                let html = '<ul class="list-group list-group-flush">';
+                
+                listData.forEach(item => {
+                    html += `<li class="list-group-item">${item}</li>`;
+                });
+                
+                html += '</ul>';
+                return html;
+            } else {
+                // Not an array, render as text
+                return formatTextContent(text);
+            }
+        } catch (e) {
+            // Not valid JSON, render as text
+            return formatTextContent(text);
+        }
+    }
+    
+    // Function to render content metadata
+    function renderContentMetadata(metadata) {
+        if (!metadata || metadata.length === 0) {
+            return '';
+        }
+        
+        let html = '<div class="content-metadata mt-2">';
+        
+        // Group metadata by key
+        const metadataGroups = {};
+        metadata.forEach(item => {
+            if (!metadataGroups[item.key]) {
+                metadataGroups[item.key] = [];
+            }
+            metadataGroups[item.key].push(item.value);
+        });
+        
+        // Render metadata groups
+        Object.keys(metadataGroups).forEach(key => {
+            const values = metadataGroups[key];
+            
+            html += `
+                <div class="metadata-group mb-2">
+                    <span class="badge bg-secondary metadata-key">${key}</span>
+                    <div class="metadata-values">
+                        ${values.map(value => `<span class="badge bg-light text-dark metadata-value">${value}</span>`).join(' ')}
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        return html;
+    }
+    
+    // Expand/collapse all sections
+    $('#expandAllSections').on('click', function() {
+        $('.accordion-collapse').collapse('show');
+    });
+    
+    $('#collapseAllSections').on('click', function() {
+        $('.accordion-collapse').collapse('hide');
+    });
+});
+</script>
+
+<style>
+.section-title {
+    font-weight: 500;
+}
+
+.content-item {
+    padding: 10px;
+    border-left: 3px solid #e9ecef;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.content-text {
+    white-space: pre-line;
+}
+
+.metadata-key {
+    font-size: 0.8rem;
+    margin-right: 5px;
+}
+
+.metadata-values {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.metadata-value {
+    font-size: 0.8rem;
+}
+
+.section-children {
+    margin-left: 20px;
+}
+
+/* Page navigation styles */
+.page-navigation {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+.page-nav-btn {
+    min-width: 40px;
+}
+
+.page-nav-btn.active {
+    background-color: #0d6efd;
+    color: white;
+}
+</style> 

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "External Survey Links" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_tprm/includes/tprm_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 tprm-page">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2 class="mb-0"><i class="bi bi-link-45deg me-2"></i>{% trans "External Survey Links" %}</h2>
+        </div>
+    </div>
+
+    <div class="card mb-2 filter-section access-request-filters" id="surveyLinkListFiltersCard">
+        {% url 'app_tprm:survey_link_list' as survey_link_list_clear_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="surveyLinkListFiltersCollapse" toggle_id="toggleSurveyLinkListFilters" icon_id="surveyLinkListFiltersToggleIcon" clear_btn_id="clearSurveyLinkListFilters" filter_clear_url=survey_link_list_clear_url filters_expanded=True %}
+        <div class="collapse show" id="surveyLinkListFiltersCollapse">
+            <div class="card-body py-2">
+                <form method="get" id="surveyLinkFilterForm">
+                    {% if request.GET.vendor %}<input type="hidden" name="vendor" value="{{ request.GET.vendor }}">{% endif %}
+                    {% if request.GET.status %}<input type="hidden" name="status" value="{{ request.GET.status }}">{% endif %}
+                    <label for="surveyLinkSearch" class="form-label">{% trans "Search links" %}</label>
+                    <input type="text" class="form-control form-control-sm" id="surveyLinkSearch" name="search"
+                           value="{{ search|default:'' }}" placeholder="{% trans 'Token, vendor, status...' %}">
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body p-0">
+                    <div class="export-controls px-3 pt-2 pb-0">
+                        <div class="row align-items-center g-1">
+                            <div class="col-md-6"></div>
+                            <div class="col-md-6 text-end">
+                                <div class="btn-group sb-toolbar" role="group">
+                                    <a href="{% url 'app_tprm:survey_link_create' %}" class="btn btn-outline-success btn-sm btn-icon-action"
+                                       title="{% trans 'Create Link' %}">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </a>
+                                    <a href="{% url 'app_tprm:dashboard' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                                       title="{% trans 'Back' %}">
+                                        <i class="bi bi-arrow-left"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if page_obj.paginator.count %}
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table mb-0 w-100">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Token" %}</th>
+                                    <th>{% trans "Vendor" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    <th>{% trans "Uses" %}</th>
+                                    <th>{% trans "Expires" %}</th>
+                                    <th>{% trans "Created" %}</th>
+                                    <th width="150">{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for link in links %}
+                                <tr>
+                                    <td>
+                                        <code class="small">{{ link.token|truncatechars:16 }}</code>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'app_tprm:vendor_detail' link.vendor.pk %}">
+                                            {{ link.vendor.name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if link.status == 'active' %}
+                                            <span class="badge bg-success">{% trans "Active" %}</span>
+                                        {% elif link.status == 'expired' %}
+                                            <span class="badge bg-danger">{% trans "Expired" %}</span>
+                                        {% elif link.status == 'used' %}
+                                            <span class="badge bg-secondary">{% trans "Used" %}</span>
+                                        {% elif link.status == 'revoked' %}
+                                            <span class="badge bg-dark">{% trans "Revoked" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ link.current_uses }} / {{ link.max_uses }}
+                                        {% if link.is_one_time_use %}
+                                            <span class="badge bg-info">{% trans "One-time" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if link.expires_at %}
+                                            {{ link.expires_at|date:"d.m.Y H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ link.created_at|date:"d.m.Y" }}</td>
+                                    <td class="table-actions">
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'app_tprm:survey_link_detail' link.pk %}"
+                                               class="btn btn-outline-primary btn-sm btn-icon-action" title="{% trans 'View' %}">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{% url 'app_tprm:survey_link_edit' link.pk %}"
+                                               class="btn btn-outline-primary btn-sm btn-icon-action" title="{% trans 'Edit' %}">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% include "app_tprm/includes/tprm_table_pagination.html" with pagination_item_label=_("links") pagination_aria_label=_("Survey link pagination") %}
+                    {% else %}
+                    <p class="text-muted text-center py-3">{% trans "No survey links found." %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

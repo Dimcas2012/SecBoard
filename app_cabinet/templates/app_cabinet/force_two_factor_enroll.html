@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card shadow border-0">
+                <div class="card-body p-4">
+                    <h3 class="mb-3 text-center">
+                        <i class="bi bi-shield-lock me-2 text-primary"></i>
+                        {% trans "Two-Factor Authentication Required" %}
+                    </h3>
+                    <p class="text-muted text-center mb-4">
+                        {% trans "Your administrator requires two-factor authentication. Scan the QR code below with Google Authenticator, Microsoft Authenticator, Authy, or any TOTP-compatible app, then enter the generated 6-digit code." %}
+                    </p>
+
+                    <div class="qr-wrapper border rounded-3 p-3 mb-3 text-center bg-light">
+                        <div id="forcedTwoFactorQr"></div>
+                    </div>
+                    <div class="text-center mb-4">
+                        <small class="text-muted d-block">{% trans "Manual key" %}</small>
+                        <strong class="fs-5">{{ secret }}</strong>
+                    </div>
+
+                    <form method="post" class="mb-3">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label" for="forcedTwoFactorCode">{% trans "Authentication Code" %}</label>
+                            <input type="text"
+                                   name="code"
+                                   id="forcedTwoFactorCode"
+                                   class="form-control text-center"
+                                   inputmode="numeric"
+                                   pattern="[0-9\s]*"
+                                   maxlength="12"
+                                   autocomplete="one-time-code"
+                                   required
+                                   autofocus>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-check2-circle me-1"></i>{% trans "Verify and Continue" %}
+                        </button>
+                    </form>
+
+                    <div class="alert alert-info mb-0">
+                        <h6 class="mb-1">{% trans "Need help?" %}</h6>
+                        <p class="mb-0 small">
+                            {% trans "Make sure the time on your phone is set automatically. If you cannot complete this step, contact the administrator for assistance." %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var qrContainer = document.getElementById('forcedTwoFactorQr');
+    if (qrContainer && window.QRCode) {
+        new QRCode(qrContainer, {
+            text: "{{ otpauth_uri }}",
+            width: 220,
+            height: 220,
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    } else if (qrContainer) {
+        qrContainer.innerHTML = '<div class="text-warning">{% trans "Unable to render QR code automatically. Use the manual key above." %}</div>';
+    }
+});
+</script>
+{% endblock %}
+

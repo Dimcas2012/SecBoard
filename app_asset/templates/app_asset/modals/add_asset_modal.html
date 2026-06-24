@@ -1,0 +1,1222 @@
+<!-- SecBoard\SecBoard\templates\app_asset\modals\add_asset_modal.html-->
+
+{% load i18n %}
+{% load asset_custom_filters %}
+<!-- Add Asset Modal -->
+<div class="modal fade" id="addAssetModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="addAssetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addAssetModalLabel">{% trans "Add New Asset" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAssetForm">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="addName" class="form-label">{% trans "Name" %}</label>
+                            <input type="text" class="form-control" id="addName" name="name" required
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Enter the name of the asset' %}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="addCompany" class="form-label">{% trans "Company" %}</label>
+                            <select class="form-select" id="addCompany" name="company" required
+                                    data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Select the company the asset belongs to' %}">
+                                <option value="">{% trans "Select company" %}</option>
+                                {% for company in allowed_companies %}
+                                    <option value="{{ company.id }}">{{ company.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                         <div class="col-md-4 mb-3">
+                            <label for="addLocation" class="form-label">{% trans "Location" %}</label>
+                            <input type="text" class="form-control" id="addLocation" name="location" required
+                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                   title="{% trans 'Specify the physical location of the asset' %}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                            <label for="addGroupAssetType" class="form-label">{% trans "Group / Type of Asset" %}</label>
+                            <div class="group-select-container">
+                                {% for group in groups %}
+                                <div class="group-section mb-3">
+                                    <div class="group-header" data-group-id="{{ group.id }}">
+                                        <div class="d-flex justify-content-between align-items-center p-2 bg-light cursor-pointer">
+                                            <span class="group-name">{{ group.display_name|default:group.get_name }}</span>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                        <div class="group-description p-2 border-bottom d-none">
+                                            {{ group.description|default:'' }}
+                                        </div>
+                                    </div>
+                                    <div class="group-types d-none">
+                                        {% for asset_type in group.asset_types.all %}
+                                        <div class="type-option p-2 border-bottom">
+                                            <label class="d-flex align-items-center">
+                                                <input type="radio" name="group_asset_type"
+                                                       value="{{ group.id }},{{ asset_type.id }}"
+                                                       class="me-2">
+                                                <span>{{ asset_type.display_name|default:asset_type.get_name }}</span>
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <input type="hidden" id="addGroupAssetType" name="group_asset_type" required>
+
+                    </div>
+                    <div class="mb-3">
+                        <label for="addDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="addDescription" name="description" rows="3"
+                                  data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Provide a detailed description of the asset' %}"></textarea>
+                    </div>
+
+
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Confidentiality" %}</label>
+                            <div class="criticality-grid" id="confidentialityGrid">
+                                <input type="hidden" name="confidentiality" value="">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Integrity" %}</label>
+                            <div class="criticality-grid" id="integrityGrid">
+                                <input type="hidden" name="integrity" value="">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Availability" %}</label>
+                            <div class="criticality-grid" id="availabilityGrid">
+                                <input type="hidden" name="availability" value="">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="addRegistrationDate" class="form-label">{% trans "Registration Date" %}</label>
+                            <input type="text" class="form-control datepicker-input" id="addRegistrationDate" name="registrationDate"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Enter the date when the asset was registered (optional)' %}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="addDeletionDate" class="form-label">{% trans "Deletion Date" %}</label>
+                            <input type="text" class="form-control datepicker-input" id="addDeletionDate" name="deletionDate"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Enter the date when the asset was deleted (optional)' %}">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="addNotes" class="form-label">{% trans "Notes" %}</label>
+                        <textarea class="form-control" id="addNotes" name="notes" rows="3"
+                                  data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Add any additional notes or comments about the asset' %}"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="addAccessManage" name="access_manage"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Check this box if this asset can be used in access management' %}">
+                            <label class="form-check-label" for="addAccessManage">
+                                {% trans "Access Manage" %}
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">{% trans "Indicates if this asset can be used in access management" %}</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="addIsActive" name="is_active" checked
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Uncheck to mark the asset as inactive' %}">
+                            <label class="form-check-label" for="addIsActive">
+                                {% trans "Active" %}
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <label class="form-label mb-0 fw-semibold" style="font-size:0.8rem;">
+                                <i class="fas fa-cubes me-1" style="color:#667eea;"></i>{% trans "Linked Software" %}
+                            </label>
+                            <span id="addSwCountBadge" class="sw-count-badge" style="display:none;"></span>
+                        </div>
+                        <!-- Filters -->
+                        <div class="sw-filter-row row g-1 mb-2">
+                            <div class="col">
+                                <input type="text" class="form-control form-control-sm" id="addSoftwareSearch" placeholder="{% trans 'Search software...' %}">
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="addSoftwareFilterGroup" style="min-width:110px;">
+                                    <option value="">{% trans "Group" %}</option>
+                                    {% for g in sw_groups %}
+                                        <option value="{{ g.id }}">{{ g.display_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="addSoftwareFilterType" style="min-width:110px;" disabled>
+                                    <option value="">{% trans "Type" %}</option>
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="addSoftwareFilterStatus" style="min-width:100px;">
+                                    <option value="">{% trans "Status" %}</option>
+                                    {% for st in software_statuses %}
+                                        <option value="{{ st.id }}">{{ st.get_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="addSoftwareFilterLicenseType" style="min-width:110px;">
+                                    <option value="">{% trans "License" %}</option>
+                                    {% for lt in software_license_types %}
+                                        <option value="{{ lt.code }}">{{ lt.get_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <!-- Custom list panel -->
+                        <div class="sw-available-panel" id="addSoftwareListPanel" data-empty="{% trans 'No software found' %}"></div>
+                        <!-- Hidden native select (data source) -->
+                        <select id="addSoftwareEntriesSelect" multiple style="display:none;">
+                            {% for sw in software_register_entries %}
+                                <option value="{{ sw.id }}"
+                                        data-name="{{ sw.name|escape }}"
+                                        data-status-name="{{ sw.status.get_name|escape }}"
+                                        data-status-color="{{ sw.status.color }}"
+                                        data-license-type-name="{{ sw.get_license_type_name|default:''|escape }}"
+                                        data-company-name="{% if sw.company %}{{ sw.company.name|escape }}{% else %}{% trans 'Org-wide' %}{% endif %}"
+                                        data-company-id="{% if sw.company %}{{ sw.company.id }}{% endif %}"
+                                        data-group-id="{% if sw.group %}{{ sw.group.id }}{% endif %}"
+                                        data-type-id="{% if sw.asset_type %}{{ sw.asset_type.id }}{% endif %}"
+                                        data-status-id="{% if sw.status %}{{ sw.status.id }}{% endif %}"
+                                        data-license-type="{{ sw.license_type|default:'' }}"
+                                        data-version="{{ sw.version_pattern|default:'' }}"
+                                        data-license-qty="{{ sw.license_quantity|default:'' }}"
+                                        data-license-free="{{ sw.free_license_quantity|default:'' }}"
+                                        data-license-valid-until="{% if sw.license_valid_until %}{{ sw.license_valid_until|date:'Y-m-d' }}{% endif %}">
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" id="addSoftwareEntries" name="software_entries" value="[]">
+                        <!-- Selection cards -->
+                        <div id="addSoftwareSelections" class="sw-selections-wrap mt-2"></div>
+                    </div>
+
+                    <!-- Owners & Administrators Side by Side -->
+                    <div class="row mb-3">
+                        <!-- Owners Section -->
+                        <div class="col-md-6">
+                            <h6>{% trans "Asset Owners" %}</h6>
+                            <label for="addOwners" class="form-label">{% trans "Select Owners" %}</label>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="ownerSearchInput"
+                                       placeholder="{% trans 'Search owners...' %}">
+                            </div>
+                            <div id="ownerSearchResults" class="border rounded mb-2" style="max-height: 180px; overflow-y: auto;"></div>
+                            <div id="selectedOwnersContainer">
+                                <h6 class="mt-2">{% trans "Selected Owners" %}</h6>
+                                <div id="selectedOwners" class="border rounded p-2">
+                                    <div class="text-muted text-center p-2">{% trans "No owners selected" %}</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="addOwners" name="owners" value="">
+                        </div>
+
+                        <!-- Administrators Section -->
+                        <div class="col-md-6">
+                            <h6>{% trans "Asset Administrators" %}</h6>
+                            <label for="addAdministrators" class="form-label">{% trans "Select Administrators" %}</label>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="adminSearchInput"
+                                       placeholder="{% trans 'Search administrators...' %}">
+                            </div>
+                            <div id="adminSearchResults" class="border rounded mb-2" style="max-height: 180px; overflow-y: auto;"></div>
+                            <div id="selectedAdminsContainer">
+                                <h6 class="mt-2">{% trans "Selected Administrators" %}</h6>
+                                <div id="selectedAdmins" class="border rounded p-2">
+                                    <div class="text-muted text-center p-2">{% trans "No administrators selected" %}</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="addAdministrators" name="administrators" value="">
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                        <button type="submit" class="btn btn-primary">{% trans "Add Asset" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block add_modal_scripts %}
+<script>
+$(document).ready(function() {
+    // Initialize Select2 for basic dropdowns
+    $('.select2-basic').select2({
+        dropdownParent: $('#addAssetModal'),
+        width: '100%'
+    });
+
+    // Initialize datepicker for date inputs
+    $('.datepicker-input').datepicker({
+        format: 'dd.mm.yyyy',
+        autoclose: true,
+        todayHighlight: true,
+        language: '{{ LANGUAGE_CODE }}'
+    });
+
+    // Set today's date as default for registration date
+    const today = new Date();
+    const formattedDate = today.getDate().toString().padStart(2, '0') + '.' +
+                         (today.getMonth() + 1).toString().padStart(2, '0') + '.' +
+                         today.getFullYear();
+    $('#addRegistrationDate').datepicker('setDate', today);
+
+    // Sets and variables for users
+    let selectedOwners = new Set();
+    let selectedAdmins = new Set();
+    // Group → Types lookup for software filter
+    const addSwGroupsData = [{% for g in sw_groups %}{"id":"{{ g.id }}","name":"{{ g.display_name|escapejs }}","types":[{% for t in g.asset_types.all %}{"id":"{{ t.id }}","name":"{{ t.display_name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+    let addSoftwareOptionsCache = [];
+    const addSoftwareSelectEl = document.getElementById('addSoftwareEntriesSelect');
+    if (addSoftwareSelectEl) {
+        addSoftwareOptionsCache = Array.from(addSoftwareSelectEl.options).map(function(opt) {
+            return {
+                value: opt.value,
+                name: (opt.getAttribute('data-name') || opt.textContent || '').trim(),
+                statusName: (opt.getAttribute('data-status-name') || '').trim(),
+                statusColor: (opt.getAttribute('data-status-color') || '#aaa').trim(),
+                licenseTypeName: (opt.getAttribute('data-license-type-name') || '').trim(),
+                companyName: (opt.getAttribute('data-company-name') || '').trim(),
+                companyId: (opt.getAttribute('data-company-id') || '').toString(),
+                groupId: (opt.getAttribute('data-group-id') || '').toString(),
+                typeId: (opt.getAttribute('data-type-id') || '').toString(),
+                statusId: (opt.getAttribute('data-status-id') || '').toString(),
+                licenseType: (opt.getAttribute('data-license-type') || '').toString(),
+                version: (opt.getAttribute('data-version') || '').toString(),
+                licenseQty: (opt.getAttribute('data-license-qty') || '').toString(),
+                licenseFree: (opt.getAttribute('data-license-free') || '').toString(),
+                licenseValidUntil: (opt.getAttribute('data-license-valid-until') || '').toString()
+            };
+        });
+    }
+
+    // Remove Group options that have no software entries
+    (function() {
+        const usedGroupIds = new Set(addSoftwareOptionsCache.map(function(i) { return i.groupId; }).filter(Boolean));
+        $('#addSoftwareFilterGroup option').each(function() {
+            if ($(this).val() && !usedGroupIds.has($(this).val())) $(this).remove();
+        });
+    })();
+
+    function _populateAddSwTypeFilter(groupId) {
+        const sel = document.getElementById('addSoftwareFilterType');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">{% trans "Type" %}</option>';
+        if (!groupId) { sel.disabled = true; return; }
+        const group = addSwGroupsData.find(function(g) { return String(g.id) === String(groupId); });
+        if (!group) { sel.disabled = true; return; }
+        const usedTypeIds = new Set(
+            addSoftwareOptionsCache.filter(function(i) { return String(i.groupId) === String(groupId); })
+                .map(function(i) { return i.typeId; }).filter(Boolean)
+        );
+        const visibleTypes = group.types.filter(function(t) { return usedTypeIds.has(String(t.id)); });
+        if (visibleTypes.length) {
+            visibleTypes.forEach(function(t) {
+                const opt = document.createElement('option');
+                opt.value = t.id; opt.textContent = t.name;
+                sel.appendChild(opt);
+            });
+            sel.disabled = false;
+        } else {
+            sel.disabled = true;
+        }
+    }
+
+    function _swEsc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+    function filterAddSoftwareEntriesByCompany() {
+        const companyId = ($('#addCompany').val() || '').toString();
+        const groupId = ($('#addSoftwareFilterGroup').val() || '').toString();
+        const typeId = ($('#addSoftwareFilterType').val() || '').toString();
+        const statusId = ($('#addSoftwareFilterStatus').val() || '').toString();
+        const licenseType = ($('#addSoftwareFilterLicenseType').val() || '').toString();
+        const search = ($('#addSoftwareSearch').val() || '').toLowerCase().trim();
+        const selectEl = document.getElementById('addSoftwareEntriesSelect');
+        if (!selectEl) return;
+        const selectedIds = new Set(Array.from(selectEl.selectedOptions).map(function(o) { return o.value; }));
+        // Rebuild hidden select options
+        selectEl.innerHTML = '';
+        const filtered = [];
+        addSoftwareOptionsCache.forEach(function(item) {
+            const byCompany = !item.companyId || !companyId || item.companyId === companyId;
+            const byGroup = !groupId || item.groupId === groupId;
+            const byType = !typeId || item.typeId === typeId;
+            const byStatus = !statusId || item.statusId === statusId;
+            const byLicenseType = !licenseType || item.licenseType === licenseType;
+            const bySearch = !search || item.name.toLowerCase().includes(search) || item.version.toLowerCase().includes(search);
+            if (!(byCompany && byGroup && byType && byStatus && byLicenseType && bySearch)) return;
+            filtered.push(item);
+            const option = document.createElement('option');
+            option.value = item.value;
+            ['data-name','data-status-name','data-status-color','data-license-type-name','data-company-name',
+             'data-company-id','data-group-id','data-type-id','data-status-id','data-license-type',
+             'data-version','data-license-qty','data-license-free','data-license-valid-until'].forEach(function(attr) {
+                const key = attr.replace('data-','').replace(/-([a-z])/g, function(_,c){return c.toUpperCase();});
+                const camelMap = {'name':'name','statusName':'statusName','statusColor':'statusColor','licenseTypeName':'licenseTypeName',
+                    'companyName':'companyName','companyId':'companyId','groupId':'groupId','typeId':'typeId','statusId':'statusId',
+                    'licenseType':'licenseType','version':'version','licenseQty':'licenseQty','licenseFree':'licenseFree','licenseValidUntil':'licenseValidUntil'};
+                const val = item[camelMap[key] || key];
+                if (val) option.setAttribute(attr, val);
+            });
+            if (selectedIds.has(item.value)) option.selected = true;
+            selectEl.appendChild(option);
+        });
+        renderAddSoftwareListPanel(filtered, selectedIds);
+        renderAddSoftwareSelections();
+    }
+
+    function renderAddSoftwareListPanel(filtered, selectedIds) {
+        const panel = document.getElementById('addSoftwareListPanel');
+        if (!panel) return;
+        if (!filtered || !filtered.length) { panel.innerHTML = ''; return; }
+        panel.innerHTML = filtered.map(function(item) {
+            const isSel = selectedIds && selectedIds.has(item.value);
+            const ver = item.version ? 'v' + _swEsc(item.version) : '';
+            const lic = item.licenseTypeName ? _swEsc(item.licenseTypeName) + (item.licenseQty ? ' (' + item.licenseQty + ')' : '') : '';
+            const meta = [ver, lic].filter(Boolean).join(' · ');
+            return '<div class="sw-list-item' + (isSel ? ' sw-selected' : '') + '" data-sw-id="' + _swEsc(item.value) + '">' +
+                '<div class="sw-list-check"><i class="fas fa-check"></i></div>' +
+                '<div class="sw-list-body">' +
+                '<div class="sw-list-name"><span class="sw-status-dot" style="background:' + _swEsc(item.statusColor) + '"></span>' + _swEsc(item.name) + '</div>' +
+                (meta ? '<div class="sw-list-meta">' + meta + '</div>' : '') +
+                '</div>' +
+                '<span class="sw-list-company">' + _swEsc(item.companyName) + '</span>' +
+                '</div>';
+        }).join('');
+        panel.querySelectorAll('.sw-list-item').forEach(function(row) {
+            row.addEventListener('click', function() {
+                const swId = row.getAttribute('data-sw-id');
+                const selectEl = document.getElementById('addSoftwareEntriesSelect');
+                if (!selectEl) return;
+                const opt = selectEl.querySelector('option[value="' + swId + '"]');
+                if (opt) opt.selected = !opt.selected;
+                row.classList.toggle('sw-selected', opt ? opt.selected : false);
+                renderAddSoftwareSelections();
+                syncAddSoftwareEntries();
+                updateAddSwCountBadge();
+            });
+        });
+    }
+
+    function updateAddSwCountBadge() {
+        const selectEl = document.getElementById('addSoftwareEntriesSelect');
+        const badge = document.getElementById('addSwCountBadge');
+        if (!badge) return;
+        const count = selectEl ? selectEl.selectedOptions.length : 0;
+        badge.style.display = count > 0 ? '' : 'none';
+        badge.textContent = count;
+    }
+
+    function syncAddSoftwareEntries() {
+        const selectEl = document.getElementById('addSoftwareEntriesSelect');
+        const hid = document.getElementById('addSoftwareEntries');
+        if (!selectEl || !hid) return;
+        const payload = Array.from(selectEl.selectedOptions).map(function(o) {
+            const id = parseInt(o.value, 10);
+            const versionInput = document.querySelector('#addSoftwareSelections [data-sw-id="' + id + '"] .sw-version-input');
+            const qtyInput = document.querySelector('#addSoftwareSelections [data-sw-id="' + id + '"] .sw-license-qty-input');
+            const version = versionInput ? (versionInput.value || '').trim() : '';
+            const qtyRaw = qtyInput ? (qtyInput.value || '').trim() : '';
+            let qty = qtyRaw ? parseInt(qtyRaw, 10) : null;
+            const qtyMaxRaw = o.getAttribute('data-license-free') || '';
+            const qtyMax = qtyMaxRaw ? parseInt(qtyMaxRaw, 10) : null;
+            const validUntil = o.getAttribute('data-license-valid-until') || '';
+            const expired = validUntil && (new Date(validUntil + 'T00:00:00') < new Date(new Date().toDateString()));
+            if (expired) qty = null;
+            if (!isNaN(qtyMax) && qty != null && qty > qtyMax) qty = qtyMax;
+            return { id: id, version: version, license_quantity: isNaN(qty) ? null : qty };
+        }).filter(function(x) { return !!x.id; });
+        hid.value = JSON.stringify(payload);
+    }
+
+    function parseVersionOptions(raw) {
+        const text = (raw || '').trim();
+        if (!text) return [];
+        const tokens = text.split(/[;,|]/).map(function(x) { return x.trim(); }).filter(Boolean);
+        return tokens.length ? Array.from(new Set(tokens)) : [text];
+    }
+
+    const _swTr = {
+        remove: "{% trans 'Remove' %}",
+        version: "{% trans 'Version' %}",
+        noVersions: "{% trans 'No versions defined' %}",
+        licenseQty: "{% trans 'License Qty' %}",
+        licenseExpired: "{% trans 'License expired' %}",
+        free: "{% trans 'free' %}"
+    };
+
+    function renderAddSoftwareSelections() {
+        const selectEl = document.getElementById('addSoftwareEntriesSelect');
+        const wrap = document.getElementById('addSoftwareSelections');
+        if (!selectEl || !wrap) return;
+        const existing = {};
+        wrap.querySelectorAll('.sw-selection-card[data-sw-id]').forEach(function(row) {
+            const id = row.getAttribute('data-sw-id');
+            existing[id] = {
+                version: (row.querySelector('.sw-version-input') || {}).value || '',
+                license_quantity: (row.querySelector('.sw-license-qty-input') || {}).value || ''
+            };
+        });
+        const selected = Array.from(selectEl.selectedOptions);
+        if (!selected.length) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = selected.map(function(opt) {
+            const id = String(opt.value);
+            const swName = _swEsc(opt.getAttribute('data-name') || opt.textContent || id);
+            const statusColor = opt.getAttribute('data-status-color') || '#aaa';
+            const version = (existing[id] && existing[id].version) || opt.getAttribute('data-version') || '';
+            const qty = (existing[id] && existing[id].license_quantity) || opt.getAttribute('data-license-qty') || '';
+            const qtyMaxRaw = opt.getAttribute('data-license-free') || '';
+            const validUntil = opt.getAttribute('data-license-valid-until') || '';
+            const expired = validUntil && (new Date(validUntil + 'T00:00:00') < new Date(new Date().toDateString()));
+            const versionOptions = parseVersionOptions(opt.getAttribute('data-version') || '');
+            const versionTagsHtml = versionOptions.map(function(v) {
+                const active = String(v) === String(version) ? ' active btn-primary' : ' btn-outline-secondary';
+                return '<button type="button" class="btn btn-sm sw-version-tag' + active + '" data-version="' + _swEsc(v) + '">' + _swEsc(v) + '</button>';
+            }).join('');
+            const qtyHint = expired
+                ? '<span class="sw-expired-badge ms-1">' + _swTr.licenseExpired + '</span>'
+                : (qtyMaxRaw ? '<span class="sw-qty-hint">' + _swTr.free + ': ' + qtyMaxRaw + '</span>' : '');
+            return '<div class="sw-selection-card" data-sw-id="' + id + '">' +
+                '<div class="sw-selection-header">' +
+                '<div class="sw-selection-header-left">' +
+                '<span class="sw-status-dot" style="background:' + _swEsc(statusColor) + ';flex-shrink:0;"></span>' +
+                '<span class="sw-selection-name">' + swName + '</span>' +
+                '</div>' +
+                '<button type="button" class="sw-remove-btn" title="' + _swTr.remove + '" data-sw-id="' + id + '">&#x2715;</button>' +
+                '</div>' +
+                '<div class="sw-selection-body">' +
+                '<div class="sw-qty-row" style="flex-wrap:wrap;">' +
+                (versionOptions.length
+                    ? '<div class="d-flex flex-wrap gap-1">' + versionTagsHtml + '</div>'
+                    : '<div class="sw-no-versions">' + _swTr.noVersions + '</div>') +
+                '<input type="hidden" class="sw-version-input" value="' + _swEsc(version) + '">' +
+                '<span class="sw-sel-label mb-0" style="margin-left:auto;">' + _swTr.licenseQty + '</span>' +
+                '<input type="number" min="0"' + (qtyMaxRaw ? ' max="' + qtyMaxRaw + '"' : '') + (expired ? ' disabled' : '') +
+                ' class="form-control form-control-sm sw-qty-input sw-license-qty-input" value="' + _swEsc(expired ? '' : qty) + '" style="width:70px;">' +
+                qtyHint +
+                '</div>' +
+                '</div></div>';
+        }).join('');
+        wrap.querySelectorAll('.sw-remove-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const swId = btn.getAttribute('data-sw-id');
+                const selectEl = document.getElementById('addSoftwareEntriesSelect');
+                if (selectEl) {
+                    const opt = selectEl.querySelector('option[value="' + swId + '"]');
+                    if (opt) opt.selected = false;
+                }
+                const panel = document.getElementById('addSoftwareListPanel');
+                if (panel) {
+                    const row = panel.querySelector('[data-sw-id="' + swId + '"]');
+                    if (row) row.classList.remove('sw-selected');
+                }
+                renderAddSoftwareSelections();
+                syncAddSoftwareEntries();
+                updateAddSwCountBadge();
+            });
+        });
+        wrap.querySelectorAll('.sw-version-tag').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const row = btn.closest('[data-sw-id]');
+                if (!row) return;
+                row.querySelectorAll('.sw-version-tag').forEach(function(x) {
+                    x.classList.remove('active', 'btn-primary');
+                    x.classList.add('btn-outline-secondary');
+                });
+                btn.classList.add('active', 'btn-primary');
+                btn.classList.remove('btn-outline-secondary');
+                const hid = row.querySelector('.sw-version-input');
+                if (hid) hid.value = btn.getAttribute('data-version') || '';
+                syncAddSoftwareEntries();
+            });
+        });
+        wrap.querySelectorAll('.sw-license-qty-input').forEach(function(inp) {
+            inp.addEventListener('input', function() {
+                const maxRaw = inp.getAttribute('max');
+                const max = maxRaw ? parseInt(maxRaw, 10) : null;
+                let val = inp.value ? parseInt(inp.value, 10) : null;
+                if (val != null && val < 0) val = 0;
+                if (!isNaN(max) && val != null && val > max) val = max;
+                if (val != null && !isNaN(val)) inp.value = String(val);
+                syncAddSoftwareEntries();
+            });
+        });
+        syncAddSoftwareEntries();
+    }
+
+    // Group/Type selection handling
+    $('.group-header').click(function() {
+        const groupSection = $(this).closest('.group-section');
+        const description = $(this).find('.group-description');
+        const types = groupSection.find('.group-types');
+        const chevron = $(this).find('.fa-chevron-down');
+
+        description.toggleClass('d-none');
+        types.toggleClass('d-none');
+        chevron.toggleClass('fa-rotate-180');
+    });
+
+    // Handle type selection
+    $('input[name="group_asset_type"]').change(function() {
+        $('#addGroupAssetType').val($(this).val());
+        $('.type-option').removeClass('selected-type');
+        $(this).closest('.type-option').addClass('selected-type');
+    });
+
+    // Click handler for criticality levels
+    $(document).on('click', '.criticality-grid .criticality-level', function() {
+        const grid = $(this).closest('.criticality-grid');
+        const levelId = $(this).data('level-id');
+        const gridId = grid.attr('id');
+
+        // Визначаємо тип критичності (confidentiality, integrity, availability)
+        let criticalityType;
+        if (gridId === 'confidentialityGrid') {
+            criticalityType = 'confidentiality';
+        } else if (gridId === 'integrityGrid') {
+            criticalityType = 'integrity';
+        } else if (gridId === 'availabilityGrid') {
+            criticalityType = 'availability';
+        }
+
+        // Remove selection from all levels in this grid
+        grid.find('.criticality-level').removeClass('selected');
+        // Add selection to clicked level
+        $(this).addClass('selected');
+
+        // Update hidden input
+        const inputElement = $(`input[name="${criticalityType}"]`);
+        inputElement.val(levelId);
+
+        // Remove error states
+        grid.removeClass('is-invalid');
+        inputElement.removeClass('is-invalid');
+
+        console.log(`Updated ${criticalityType} value to:`, levelId);
+    });
+
+    // Function to get localized description
+    function getDescription(level, type, currentLanguage) {
+        if (!level || !type) {
+            console.debug('Level or type is missing:', { level, type });
+            return '';
+        }
+
+        let description = '';
+        switch (type) {
+            case 'confidentialityGrid':
+                description = level.description_confid || '';
+                break;
+            case 'integrityGrid':
+                description = level.description_integ || '';
+                break;
+            case 'availabilityGrid':
+                description = level.description_avail || '';
+                break;
+            default:
+                description = '';
+        }
+
+        return description || '';
+    }
+
+    // Function to get localized name
+    function getLocalizedName(level, currentLanguage) {
+        if (!level) {
+            console.warn('Level object is null or undefined');
+            return null;
+        }
+
+        return level.name || level.name_local ||
+               `Level ${level.id}`;
+    }
+
+    // Function to add validation message
+    function addValidationMessage(field) {
+        return `<div class="invalid-feedback">
+            {% trans "This field is required" %}
+        </div>`;
+    }
+
+    // Function to render criticality levels
+    function renderCriticalityLevels(type) {
+        const grid = $(`#${type.toLowerCase()}Grid`);
+        const gridId = grid.attr('id'); // Get the actual grid ID
+
+        const lang = document.documentElement.lang || '{{ request.LANGUAGE_CODE|default:"en" }}';
+        const companyId = ($('#addCompany').val() || '').toString();
+        $.get("{% url 'get_criticality_levels' %}", { lang: lang, company_id: companyId })
+            .done(function(response) {
+                grid.empty();
+
+                if (!response.levels || !response.levels.length) {
+                    grid.append('<div class="alert alert-warning">No levels available</div>');
+                    return;
+                }
+
+                response.levels.forEach(level => {
+                    const description = getDescription(level, gridId);
+
+                    const levelElement = $(`
+                        <div class="criticality-level"
+                             data-level-id="${level.id}"
+                             data-bs-toggle="tooltip"
+                             data-bs-placement="right"
+                             title="${description}">
+                            <div class="d-flex align-items-center">
+                                <div class="criticality-color me-2"
+                                     style="background-color: ${level.color || '#ccc'}">
+                                </div>
+                                <div>
+                                    <div class="criticality-name fw-bold">${level.name}</div>
+                                    <div class="criticality-cost small text-muted">
+                                        ${level.cost ? `Cost: ${level.cost}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `);
+
+                    grid.append(levelElement);
+
+                    if (description) {
+                        levelElement.tooltip({
+                            container: 'body',
+                            html: true
+                        });
+                    }
+                });
+            })
+            .fail(function(error) {
+                console.error('Error loading criticality levels:', error);
+                grid.append('<div class="alert alert-danger">Error loading criticality levels</div>');
+            });
+    }
+
+    // Functions for managing selected users
+    function updateSelectedOwners() {
+        const container = $('#selectedOwners');
+        if (selectedOwners.size === 0) {
+            container.html('<div class="text-muted text-center p-2">{% trans "No owners selected" %}</div>');
+        } else {
+            container.empty();
+            selectedOwners.forEach(owner => {
+                container.append(`
+                    <div class="selected-item d-flex justify-content-between align-items-center p-2 border-bottom">
+                        <div>
+                            <strong>${owner.name}</strong>
+                            <div class="text-muted small">
+                                ${owner.department ? owner.department + ' | ' : ''}${owner.position || ''}
+                            </div>
+                            <div class="text-muted small">${owner.email || ''}</div>
+                            ${owner.phone ? `<div class="text-muted small">${owner.phone}</div>` : ''}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-danger remove-owner" data-id="${owner.id}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `);
+            });
+        }
+        $('#addOwners').val(JSON.stringify([...selectedOwners].map(owner => owner.id)));
+    }
+
+    function updateSelectedAdmins() {
+        const container = $('#selectedAdmins');
+        if (selectedAdmins.size === 0) {
+            container.html('<div class="text-muted text-center p-2">{% trans "No administrators selected" %}</div>');
+        } else {
+            container.empty();
+            selectedAdmins.forEach(admin => {
+                container.append(`
+                    <div class="selected-item d-flex justify-content-between align-items-center p-2 border-bottom">
+                        <div>
+                            <strong>${admin.name}</strong>
+                            <div class="text-muted small">
+                                ${admin.department ? admin.department + ' | ' : ''}${admin.position || ''}
+                            </div>
+                            <div class="text-muted small">${admin.email || ''}</div>
+                            ${admin.phone ? `<div class="text-muted small">${admin.phone}</div>` : ''}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-danger remove-admin" data-id="${admin.id}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `);
+            });
+        }
+        $('#addAdministrators').val(JSON.stringify([...selectedAdmins].map(admin => admin.id)));
+    }
+
+    // Search functions
+
+    function searchOwners(query = '') {
+        const companyId = $('#addCompany').val();
+
+        if (!companyId) {
+            $('#ownerSearchResults').html('<div class="text-muted text-center p-2">{% trans "Please select a company first" %}</div>');
+            return;
+        }
+
+        $.get("{% url 'get_all_asset_owners' %}", {
+            query: query,
+            company_id: companyId
+        })
+        .done(function(owners) {
+            const results = $('#ownerSearchResults');
+            results.empty();
+
+            if (!Array.isArray(owners) || owners.length === 0) {
+                results.html('<div class="text-muted text-center p-2">{% trans "No owners available" %}</div>');
+                return;
+            }
+
+            owners.forEach(owner => {
+                // Convert department and position to string safely
+                const departmentStr = owner.department ? String(owner.department) : '';
+                const positionStr = owner.position ? String(owner.position) : '';
+                const ownerData = {
+                    ...owner,
+                    department: departmentStr,
+                    position: positionStr
+                };
+
+                const isSelected = [...selectedOwners].some(selected => selected.id === owner.id);
+                results.append(`
+                    <div class="search-result-item p-2 border-bottom ${isSelected ? 'bg-light' : ''}"
+                         data-user='${JSON.stringify(ownerData)}'>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${ownerData.name}</strong>
+                                <div class="text-muted small">
+                                    ${departmentStr ? `${departmentStr} | ` : ''}${positionStr || ''}
+                                </div>
+                                <div class="text-muted small">${ownerData.email || ''}</div>
+                            </div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" ${isSelected ? 'checked' : ''}>
+                            </div>
+                        </div>
+                    </div>
+                `);
+            });
+        })
+        .fail(function(xhr) {
+            console.error('Error loading owners:', xhr.responseText);
+            $('#ownerSearchResults').html(`
+                <div class="text-center p-2 text-danger">
+                    {% trans "Error loading owners" %}
+                </div>
+            `);
+            toastr.error("{% trans 'Error loading owners' %}");
+        });
+    }
+
+    function searchAdministrators(query = '') {
+        const companyId = $('#addCompany').val();
+
+        if (!companyId) {
+            $('#adminSearchResults').html('<div class="text-muted text-center p-2">{% trans "Please select a company first" %}</div>');
+            return;
+        }
+
+        $.get("{% url 'get_all_asset_administrators' %}", {
+            query: query,
+            company_id: companyId
+        })
+        .done(function(administrators) {
+            const results = $('#adminSearchResults');
+            results.empty();
+
+            if (!Array.isArray(administrators) || administrators.length === 0) {
+                results.html('<div class="text-muted text-center p-2">{% trans "No administrators available" %}</div>');
+                return;
+            }
+
+            administrators.forEach(admin => {
+                // Convert department and position to string safely
+                const departmentStr = admin.department ? String(admin.department) : '';
+                const positionStr = admin.position ? String(admin.position) : '';
+                const adminData = {
+                    ...admin,
+                    department: departmentStr,
+                    position: positionStr
+                };
+
+                const isSelected = [...selectedAdmins].some(selected => selected.id === admin.id);
+                results.append(`
+                    <div class="search-result-item p-2 border-bottom ${isSelected ? 'bg-light' : ''}"
+                         data-user='${JSON.stringify(adminData)}'>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${adminData.name}</strong>
+                                <div class="text-muted small">
+                                    ${departmentStr ? `${departmentStr} | ` : ''}${positionStr || ''}
+                                </div>
+                                <div class="text-muted small">${adminData.email || ''}</div>
+                            </div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" ${isSelected ? 'checked' : ''}>
+                            </div>
+                        </div>
+                    </div>
+                `);
+            });
+        })
+        .fail(function(xhr) {
+            console.error('Error loading administrators:', xhr.responseText);
+            $('#adminSearchResults').html(`
+                <div class="text-center p-2 text-danger">
+                    {% trans "Error loading administrators" %}
+                </div>
+            `);
+            toastr.error("{% trans 'Error loading administrators' %}");
+        });
+    }
+
+
+
+    // User selection handlers
+    $(document).on('click', '#ownerSearchResults .search-result-item', function() {
+        const ownerData = $(this).data('user');
+        const checkbox = $(this).find('input[type="checkbox"]');
+
+        const existingOwner = [...selectedOwners].find(owner => owner.id === ownerData.id);
+        if (existingOwner) {
+            selectedOwners.delete(existingOwner);
+            checkbox.prop('checked', false);
+            $(this).removeClass('bg-light');
+        } else {
+            selectedOwners.add(ownerData);
+            checkbox.prop('checked', true);
+            $(this).addClass('bg-light');
+        }
+
+        updateSelectedOwners();
+    });
+
+    $(document).on('click', '#adminSearchResults .search-result-item', function() {
+        const adminData = $(this).data('user');
+        const checkbox = $(this).find('input[type="checkbox"]');
+
+        const existingAdmin = [...selectedAdmins].find(admin => admin.id === adminData.id);
+        if (existingAdmin) {
+            selectedAdmins.delete(existingAdmin);
+            checkbox.prop('checked', false);
+            $(this).removeClass('bg-light');
+        } else {
+            selectedAdmins.add(adminData);
+            checkbox.prop('checked', true);
+            $(this).addClass('bg-light');
+        }
+
+        updateSelectedAdmins();
+    });
+
+    // Remove user handlers
+    $(document).on('click', '.remove-owner', function(e) {
+        e.stopPropagation();
+        const id = $(this).data('id');
+        const ownerToRemove = [...selectedOwners].find(owner => owner.id === id);
+        if (ownerToRemove) {
+            selectedOwners.delete(ownerToRemove);
+            updateSelectedOwners();
+        }
+        // Update checkbox in search results
+        $(`#ownerSearchResults .search-result-item[data-user-id="${id}"]`)
+            .removeClass('bg-light')
+            .find('input[type="checkbox"]')
+            .prop('checked', false);
+    });
+
+    $(document).on('click', '.remove-admin', function(e) {
+        e.stopPropagation();
+        const id = $(this).data('id');
+        const adminToRemove = [...selectedAdmins].find(admin => admin.id === id);
+        if (adminToRemove) {
+            selectedAdmins.delete(adminToRemove);
+            updateSelectedAdmins();
+        }
+        // Update checkbox in search results
+        $(`#adminSearchResults .search-result-item[data-user-id="${id}"]`)
+            .removeClass('bg-light')
+            .find('input[type="checkbox"]')
+            .prop('checked', false);
+    });
+
+    // Search input handlers
+    $('#ownerSearchInput').on('input', function() {
+        const query = $(this).val().trim();
+        searchOwners(query);
+    });
+
+    $('#adminSearchInput').on('input', function() {
+        const query = $(this).val().trim();
+        searchAdministrators(query);
+    });
+
+    // Company change handler
+    $('#addCompany').change(function() {
+        selectedOwners.clear();
+        selectedAdmins.clear();
+        updateSelectedOwners();
+        updateSelectedAdmins();
+        ['Confidentiality', 'Integrity', 'Availability'].forEach(type => {
+            renderCriticalityLevels(type);
+        });
+        filterAddSoftwareEntriesByCompany();
+        syncAddSoftwareEntries();
+        searchOwners();
+        searchAdministrators();
+    });
+
+    // Form submission handler
+    $('#addAssetForm').on('submit', function(e) {
+        e.preventDefault();
+
+        const form = $(this);
+        const submitButton = form.find('[type="submit"]');
+
+        // Prevent double submission
+        if (form.data('submitting')) {
+            return false;
+        }
+
+        let isValid = true;
+        const errors = [];
+
+        // Validate basic required fields
+        const requiredFields = {
+            'addName': "{% trans 'Name is required' %}",
+            'addCompany': "{% trans 'Company is required' %}",
+            'addLocation': "{% trans 'Location is required' %}",
+            'addGroupAssetType': "{% trans 'Group / Type of Asset is required' %}"
+        };
+
+        Object.entries(requiredFields).forEach(([fieldId, errorMsg]) => {
+            const value = $(`#${fieldId}`).val();
+            if (!value) {
+                isValid = false;
+                errors.push(errorMsg);
+                $(`#${fieldId}`).addClass('is-invalid');
+            }
+        });
+
+        // Validate criticality levels
+        const criticalityFields = {
+            'confidentiality': "{% trans 'Confidentiality level is required' %}",
+            'integrity': "{% trans 'Integrity level is required' %}",
+            'availability': "{% trans 'Availability level is required' %}"
+        };
+
+        Object.entries(criticalityFields).forEach(([field, message]) => {
+            const value = $(`input[name="${field}"]`).val();
+            if (!value) {
+                isValid = false;
+                errors.push(message);
+                $(`#${field}Grid`).addClass('is-invalid');
+            }
+        });
+
+        if (!isValid) {
+            toastr.error(errors.join('<br>'));
+            return false;
+        }
+
+        // Create FormData
+        const formData = new FormData(form[0]);
+
+        // Handle group and asset type
+        const groupAssetTypeValue = $('#addGroupAssetType').val();
+        if (groupAssetTypeValue) {
+            const [groupId, assetTypeId] = groupAssetTypeValue.split(',');
+            formData.delete('group_asset_type');
+            formData.append('group', groupId);
+            formData.append('asset_type', assetTypeId);
+        }
+
+        // Get and set criticality values explicitly
+        const criticalityValues = {
+            confidentiality: $('input[name="confidentiality"]').val(),
+            integrity: $('input[name="integrity"]').val(),
+            availability: $('input[name="availability"]').val()
+        };
+
+        Object.entries(criticalityValues).forEach(([key, value]) => {
+            if (value) {
+                formData.set(key, value);
+            }
+        });
+
+        console.log('Criticality values:', criticalityValues);
+
+        // Format and add dates
+        const registrationDate = $('#addRegistrationDate').val();
+        const deletionDate = $('#addDeletionDate').val();
+
+        if (registrationDate) {
+            const formattedRegDate = formatDate(registrationDate);
+            formData.set('registrationDate', formattedRegDate);
+        }
+        if (deletionDate) {
+            const formattedDelDate = formatDate(deletionDate);
+            formData.set('deletionDate', formattedDelDate);
+        }
+
+        // Add owners and administrators
+        formData.set('owners', JSON.stringify([...selectedOwners].map(owner => owner.id)));
+        formData.set('administrators', JSON.stringify([...selectedAdmins].map(admin => admin.id)));
+        syncAddSoftwareEntries();
+        formData.set('software_entries', $('#addSoftwareEntries').val() || '[]');
+
+        // Log form data for debugging
+        console.log('Form data before submission:');
+        formData.forEach((value, key) => {
+            console.log(`${key}: ${value}`);
+        });
+
+        // Show loading states
+        form.data('submitting', true);
+        submitButton.prop('disabled', true)
+            .html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {% trans "Processing..." %}');
+        $('.loading-spinner').show();
+
+        // Submit the form
+        $.ajax({
+            url: "{% url 'add_asset' %}",
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.status === 'success') {
+                    // Clear tooltips before hiding modal
+                    $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+
+                    // Hide modal
+                    $('#addAssetModal').modal('hide');
+
+                    // Reload assets table
+                    if ($.fn.DataTable.isDataTable('#assetTable')) {
+                        $('#assetTable').DataTable().ajax.reload(null, false);
+                    }
+
+                    toastr.success(response.message);
+                } else {
+                    toastr.error(response.message);
+                }
+            },
+            error: function(xhr) {
+                console.error('Form submission error:', xhr.responseText);
+                const errorMessage = xhr.responseJSON?.message || "{% trans 'Error adding asset' %}";
+                toastr.error(errorMessage);
+
+                if (xhr.responseJSON?.errors) {
+                    Object.entries(xhr.responseJSON.errors).forEach(([field, errors]) => {
+                        const element = $(`[name="${field}"]`);
+                        element.addClass('is-invalid');
+                        element.next('.invalid-feedback').text(errors.join(', '));
+                    });
+                }
+            },
+            complete: function() {
+                // Reset form state
+                form.data('submitting', false);
+                submitButton.prop('disabled', false).html("{% trans 'Add Asset' %}");
+                $('.loading-spinner').hide();
+            }
+        });
+
+        return false;
+    });
+
+    // Date formatting function
+    function formatDate(dateStr) {
+        if (!dateStr) return null;
+        const parts = dateStr.split('.');
+        if (parts.length !== 3) return null;
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    // Initialize when modal is shown
+    $('#addAssetModal').on('shown.bs.modal', function() {
+        $('#addName').focus();
+        filterAddSoftwareEntriesByCompany();
+        syncAddSoftwareEntries();
+        ['Confidentiality', 'Integrity', 'Availability'].forEach(type => {
+            renderCriticalityLevels(type);
+        });
+    });
+
+    // Cleanup when modal is hidden
+    $('#addAssetModal').on('hidden.bs.modal', function() {
+        $(this).removeAttr('aria-hidden');
+
+        const form = $('#addAssetForm');
+        form[0].reset();
+        form.removeClass('was-validated');
+        $('.is-invalid').removeClass('is-invalid');
+        $('.select2-basic').val('').trigger('change');
+
+        selectedOwners.clear();
+        selectedAdmins.clear();
+        updateSelectedOwners();
+        updateSelectedAdmins();
+
+        $('#ownerSearchResults, #adminSearchResults').empty();
+        $('#addRegistrationDate').datepicker('setDate', new Date());
+        $('#addSoftwareSearch').val('');
+        $('#addSoftwareFilterGroup').val('');
+        $('#addSoftwareFilterType').val('').prop('disabled', true);
+        $('#addSoftwareFilterStatus').val('');
+        $('#addSoftwareFilterLicenseType').val('');
+        filterAddSoftwareEntriesByCompany();
+        $('#addSoftwareEntries').val('[]');
+        $('#addSoftwareSelections').html('');
+        updateAddSwCountBadge();
+
+        $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+
+        $('.criticality-grid').removeClass('is-invalid');
+        $('[id^=add][id$=Grid]').find('.criticality-level').removeClass('selected');
+        $('[id^=add][id$=ty]').val('');
+        $('.type-option').removeClass('selected-type');
+    });
+
+    $('#addAssetModal').on('hide.bs.modal', function() {
+        $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+    });
+    $('#addSoftwareFilterGroup').on('change', function() {
+        _populateAddSwTypeFilter($(this).val());
+        $('#addSoftwareFilterType').val('');
+        filterAddSoftwareEntriesByCompany();
+    });
+    $('#addSoftwareFilterType, #addSoftwareFilterStatus, #addSoftwareFilterLicenseType').on('change', function() {
+        filterAddSoftwareEntriesByCompany();
+    });
+    $('#addSoftwareSearch').on('input', function() {
+        filterAddSoftwareEntriesByCompany();
+    });
+});
+</script>
+{% endblock %}

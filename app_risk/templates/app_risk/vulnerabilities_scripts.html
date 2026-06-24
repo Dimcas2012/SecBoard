@@ -1,0 +1,3626 @@
+<!-- SecBoard\SecBoard\templates\app_risk\vulnerabilities_scripts.html-->
+{% load static %}
+{% load i18n %}
+
+<script>
+// Define global variables and functions that need to be accessible from HTML
+let vulnerabilityToDelete;
+let vulnerabilitiesTable;
+
+// Default language for vulnerability form (single set of fields)
+var DEFAULT_VULN_LANG = 'en';
+// Dynamic form languages (from settings.LANGUAGES, filtered by model support)
+function getVulnFormLanguages() {
+    if (window.VULNERABILITY_FORM_LANGUAGES && window.VULNERABILITY_FORM_LANGUAGES.length) {
+        return window.VULNERABILITY_FORM_LANGUAGES;
+    }
+    return [{code: 'en', name: 'English'}, {code: 'uk', name: 'Ukrainian'}, {code: 'ru', name: 'Russian'}];
+}
+// Source language for AI (prefer 'en', else first configured)
+function getVulnAiSourceLang() {
+    const langs = getVulnFormLanguages();
+    const en = langs.find(l => l.code === 'en');
+    return en ? en.code : (langs[0] ? langs[0].code : 'en');
+}
+
+// Global function to get cookie by name 
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Global function to show alerts
+function showAlert(type, message, timeout = 5000) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    const $alert = $(alertHtml);
+    $('#alertContainer').append($alert);
+
+    if (timeout) {
+        setTimeout(() => {
+            $alert.alert('close');
+        }, timeout);
+    }
+}
+
+// Global function for deleting vulnerability (called from HTML onclick)
+function deleteVulnerability() {
+    const id = vulnerabilityToDelete;
+    if (!id) {
+        showAlert('error', '{% trans "Invalid vulnerability ID" %}');
+        return;
+    }
+
+    // Get current language from URL or use a default
+    const urlPath = window.location.pathname;
+    const langPrefix = urlPath.startsWith('/en/') ? 'en' : 
+                      urlPath.startsWith('/ru/') ? 'ru' : 'uk';
+    
+    // Get CSRF token directly from the form
+    const csrftoken = $('#deleteVulnerabilityForm input[name="csrfmiddlewaretoken"]').val();
+    
+    console.log("Using CSRF token from form:", csrftoken);
+    console.log("Deleting vulnerability ID:", id);
+    console.log("Using language prefix:", langPrefix);
+    
+    if (!csrftoken) {
+        showAlert('error', '{% trans "CSRF token not found. Please refresh the page and try again." %}');
+        return;
+    }
+    
+    // Proceed with the AJAX request
+    $.ajax({
+        url: `/${langPrefix}/app_risk/delete_vulnerability/${id}/`,
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken
+        },
+        success: function(response) {
+            $('#deleteConfirmationModal').modal('hide');
+            vulnerabilitiesTable.ajax.reload();
+            showAlert('success', response.message || '{% trans "Vulnerability deleted successfully" %}');
+        },
+        error: function(xhr) {
+            console.error("Error deleting vulnerability:", xhr.responseText);
+            let errorMessage = '{% trans "Failed to delete vulnerability" %}';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+            showAlert('error', errorMessage);
+            $('#deleteConfirmationModal').modal('hide');
+        }
+    });
+}
+
+// Rest of code in document.ready
+$(document).ready(function() {
+    // Removing the redundant getCookie as it's now global
+    /*function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }*/
+
+    // Setup CSRF token for all AJAX requests
+    $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+                const csrftoken = $('meta[name=csrf-token]').attr('content') || getCookie('csrftoken') || $('[name=csrfmiddlewaretoken]').val();
+                xhr.setRequestHeader('X-CSRFToken', csrftoken);
+            }
+        }
+    });
+
+    function csrfSafeMethod(method) {
+        return (/^(GET|HEAD|OPTIONS|TRACE)$/i.test(method));
+    }
+
+    // Let's not redefine these as they're now global
+    //let vulnerabilitiesTable;
+    //let vulnerabilityToDelete;
+    let currentLanguage = '{{ LANGUAGE_CODE }}';
+    let defaultAIProvider = '{{ default_ai_provider }}' || 'claude'; // Default AI provider
+    let currentGeneratedVulnerabilities = []; // Store generated vulnerabilities (Claude)
+    let googleGeneratedVulnerabilities = []; // Store Google AI generated vulnerabilities
+    let groqGeneratedVulnerabilities = []; // Store Groq AI generated vulnerabilities
+    let deepseekGeneratedVulnerabilities = []; // Store DeepSeek AI generated vulnerabilities
+
+    initializeSelect2();
+    bindEventListeners();
+    loadAssetGroups();
+    loadThreats();
+    initializeDefaultAIProvider();
+
+    var vulnerabilitiesTabInitialized = false;
+
+    function initVulnerabilitiesTabOnce() {
+        if (vulnerabilitiesTabInitialized) {
+            if (vulnerabilitiesTable && vulnerabilitiesTable.columns) {
+                vulnerabilitiesTable.columns.adjust();
+            }
+            return;
+        }
+        vulnerabilitiesTabInitialized = true;
+        initializeTreeFilter();
+        initializeDataTable();
+    }
+
+    var vulnTabBtn = document.getElementById('vulnerabilities-tab');
+    if (vulnTabBtn) {
+        vulnTabBtn.addEventListener('shown.bs.tab', initVulnerabilitiesTabOnce);
+    }
+    if (document.getElementById('vulnerabilitiesConfig') &&
+        document.getElementById('vulnerabilitiesConfig').classList.contains('show')) {
+        initVulnerabilitiesTabOnce();
+    }
+
+    var clearVulnFiltersBtn = document.getElementById('clearVulnConfigFilters');
+    if (clearVulnFiltersBtn) {
+        clearVulnFiltersBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            $('#assetFilter').val('').trigger('change');
+            $('[id^="searchVulnerabilities"]').val('');
+            if (vulnerabilitiesTable) {
+                vulnerabilitiesTable.search('').draw();
+            }
+        });
+    }
+
+    function initializeDefaultAIProvider() {
+        // Check if there's a saved preference in localStorage
+        const savedProvider = localStorage.getItem('defaultAIProvider');
+        if (savedProvider) {
+            defaultAIProvider = savedProvider;
+            $('#defaultAIProvider').val(savedProvider);
+        }
+
+        // Save preference when changed
+        $('#defaultAIProvider').on('change', function() {
+            defaultAIProvider = $(this).val();
+            localStorage.setItem('defaultAIProvider', defaultAIProvider);
+            showAlert('info', '{% trans "Default AI provider set to" %} ' + $('#defaultAIProvider option:selected').text());
+        });
+    }
+
+    function initializeSelect2() {
+        if ($.fn.select2) {
+            $('#vulnerabilityModal #assetGroup, #vulnerabilityModal #assetType, #vulnerabilityModal #threats').select2({
+                theme: 'bootstrap-5',
+                width: '100%'
+            });
+        } else {
+            console.warn('Select2 is not available');
+        }
+    }
+
+    function initializeDataTable() {
+        const tableId = '#vulnerabilitiesTable{{ vulnerabilities_context|default:"Main" }}';
+        if (!$(tableId).length) {
+            console.error('Table ' + tableId + ' not found in DOM');
+            return;
+        }
+
+        if ($.fn.DataTable.isDataTable(tableId)) {
+            $(tableId).DataTable().destroy();
+        }
+
+        try {
+            vulnerabilitiesTable = $(tableId).DataTable({
+                dom: '<"row"<"col-sm-12"tr>>',
+                lengthChange: false,
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                ajax: {
+                    url: '{% url "get_vulnerabilities" %}',
+                    data: function(d) {
+                        d.language = currentLanguage;
+                        d.assetFilter = $('#assetFilter').val();
+                    },
+                    dataSrc: function(data) {
+                        updateDashboardStats(data);
+                        return data.vulnerabilities;
+                    }
+                },
+                columns: [
+                    {
+                        data: null,
+                        render: function (data, type, row) {
+                            return '<input type="checkbox" class="vulnerability-checkbox" data-id="' + (row.id || '') + '">';
+                        },
+                        orderable: false,
+                        width: "3%"
+                    },
+                    {
+                        data: 'id',
+                        render: function(data) {
+                            return data || '';
+                        },
+                        width: "3%"
+                    },
+                    {
+                        data: 'asset_group',
+                        render: function(data) {
+                            return data || '';
+                        },
+                        width: "8%"
+                    },
+                    {
+                        data: 'scope',
+                        render: function(data, type, row) {
+                            if (data == null) return '';
+                            if (type === 'display' && data.length > 30) {
+                                return '<span title="' + escapeHtml(data) + '">' + data.substr(0, 30) + '...</span>';
+                            }
+                            return data;
+                        },
+                        width: "10%"
+                    },
+                    {
+                        data: 'vulnerability',
+                        render: function(data, type, row) {
+                            if (data == null) return '';
+                            if (type === 'display' && data.length > 30) {
+                                return '<span title="' + escapeHtml(data) + '">' + data.substr(0, 30) + '...</span>';
+                            }
+                            return data;
+                        },
+                        width: "10%"
+                    },
+                    {
+                        data: 'description',
+                        render: function(data, type, row) {
+                            if (data == null) return '';
+                            if (type === 'display' && data.length > 30) {
+                                return '<span title="' + escapeHtml(data) + '">' + data.substr(0, 30) + '...</span>';
+                            }
+                            return data;
+                        },
+                        width: "10%"
+                    },
+                    {
+                        data: 'threats',
+                        render: function(data, type, row) {
+                            if (data == null) return '';
+                            if (type === 'display') {
+                                if (Array.isArray(data)) {
+                                    const displayText = data.join(', ');
+                                    if (displayText.length > 30) {
+                                        return '<span title="' + escapeHtml(displayText) + '">' + displayText.substr(0, 30) + '...</span>';
+                                    }
+                                    return displayText;
+                                }
+                                if (data.length > 30) {
+                                    return '<span title="' + escapeHtml(data) + '">' + data.substr(0, 30) + '...</span>';
+                                }
+                                return data;
+                            }
+                            return data;
+                        },
+                        width: "10%"
+                    },
+                    {
+                        data: 'risk_mitigation_controls',
+                        render: function(data, type, row) {
+                            if (data == null) return '';
+                            if (type === 'display' && data.length > 30) {
+                                return '<span title="' + escapeHtml(data) + '">' + data.substr(0, 30) + '...</span>';
+                            }
+                            return data;
+                        },
+                        width: "10%"
+                    },
+                    {
+                        data: 'pci_dss_requirement',
+                        render: function(data, type, row) {
+                            if (data == null) return '';
+                            if (type === 'display' && data.length > 30) {
+                                return '<span title="' + escapeHtml(data) + '">' + data.substr(0, 30) + '...</span>';
+                            }
+                            return data;
+                        },
+                        width: "10%"
+                    },
+                    {
+                        data: 'iso27001_requirement',
+                        render: function(data, type, row) {
+                            if (data == null) return '';
+                            if (type === 'display' && data.length > 30) {
+                                return '<span title="' + escapeHtml(data) + '">' + data.substr(0, 30) + '...</span>';
+                            }
+                            return data;
+                        },
+                        width: "10%"
+                    },
+                    {
+                        data: 'note',
+                        name: 'note',
+                        render: function(data, type, row) {
+                            if (data == null) return '';
+                            if (type === 'display' && data.length > 30) {
+                                return '<span title="' + escapeHtml(data) + '">' + data.substr(0, 30) + '...</span>';
+                            }
+                            return data;
+                        },
+                        width: "10%"
+                    },
+                    {
+                        data: 'translations',
+                        orderable: false,
+                        render: function(data, type, row) {
+                            if (type !== 'display' || !Array.isArray(data) || data.length === 0) {
+                                return Array.isArray(data) && data.length > 0 ? data.map(function(t) { return t.country_code; }).join(', ') : '—';
+                            }
+                            return data.map(function(t) {
+                                return '<span class="badge bg-secondary vuln-translation-badge me-1" style="cursor: pointer; font-size: 50%;" ' +
+                                    'data-vuln-id="' + (row.id || '') + '" data-country-id="' + (t.country_id || '') + '" ' +
+                                    'data-country-code="' + escapeHtml(t.country_code || '') + '" data-country-name="' + escapeHtml(t.country_name || '') + '" ' +
+                                    'title="' + escapeHtml(t.country_name || t.country_code || '') + '">' + escapeHtml(t.country_code || '') + '</span>';
+                            }).join('');
+                        },
+                        width: "8%"
+                    },
+                    {
+                        data: null,
+                        render: function(data, type, row) {
+                            let buttons = '';
+                            if (window.userPermissions && window.userPermissions.can_edit_config) {
+                                buttons += '<button class="btn btn-sm btn-outline-primary btn-icon-action edit-vulnerability" data-id="' + (row.id || '') + '" title="{% trans "Edit" %}"><i class="bi bi-pencil"></i></button> ';
+                            }
+                            if (window.userPermissions && window.userPermissions.can_delete_config) {
+                                buttons += '<button class="btn btn-sm btn-outline-danger btn-icon-action delete-vulnerability" data-id="' + (row.id || '') + '" title="{% trans "Delete" %}"><i class="bi bi-trash"></i></button>';
+                            }
+                            return buttons;
+                        },
+                        width: "6%"
+                    }
+                ],
+                language: getDataTablesLanguage(),
+                scrollX: true,
+                scrollCollapse: true,
+                autoWidth: false,
+                initComplete: function() {
+                    if (window.initRiskDataTablePagination) {
+                        window.initRiskDataTablePagination({
+                            api: this.api(),
+                            containerId: 'vulnerabilitiesTable{{ vulnerabilities_context|default:"Main" }}Pagination',
+                            paginationAriaLabel: '{% trans "Vulnerabilities pagination" %}',
+                            labels: {
+                                showing: '{% trans "Showing" %}',
+                                of: '{% trans "of" %}',
+                                items: '{% trans "records" %}',
+                                perPage: '{% trans "Per page" %}'
+                            }
+                        });
+                    }
+                },
+                drawCallback: function() {
+                    // Initialize tooltips after table is drawn using our safe function
+                    initializeTooltipsAndPopovers();
+                    afterDataTablesInit();
+                }
+            });
+            console.log('DataTable initialized successfully');
+        } catch (error) {
+            console.error('Error initializing DataTable:', error);
+            showAlert('error', '{% trans "Error initializing table. Please try refreshing the page." %}');
+        }
+    }
+
+    function getDataTablesLanguage() {
+        const languages = {
+            'en': { url: 'https://cdn.datatables.net/plug-ins/1.10.24/i18n/English.json' },
+            'uk': { url: 'https://cdn.datatables.net/plug-ins/1.10.24/i18n/Ukrainian.json' },
+            'ru': { url: 'https://cdn.datatables.net/plug-ins/1.10.24/i18n/Russian.json' },
+            'de': { url: 'https://cdn.datatables.net/plug-ins/1.10.24/i18n/German.json' },
+            'fr': { url: 'https://cdn.datatables.net/plug-ins/1.10.24/i18n/French.json' },
+            'es': { url: 'https://cdn.datatables.net/plug-ins/1.10.24/i18n/Spanish.json' },
+            'pl': { url: 'https://cdn.datatables.net/plug-ins/1.10.24/i18n/Polish.json' }
+        };
+
+        const fallbackLanguage = {
+            "emptyTable": "{% trans 'No data available in table' %}",
+            "info": "{% trans 'Showing _START_ to _END_ of _TOTAL_ entries' %}",
+            "infoEmpty": "{% trans 'Showing 0 to 0 of 0 entries' %}",
+            "infoFiltered": "{% trans '(filtered from _MAX_ total entries)' %}",
+            "lengthMenu": "{% trans 'Show _MENU_ entries' %}",
+            "loadingRecords": "{% trans 'Loading...' %}",
+            "processing": "{% trans 'Processing...' %}",
+            "search": "{% trans 'Search:' %}",
+            "zeroRecords": "{% trans 'No matching records found' %}",
+            "paginate": {
+                "first": "{% trans 'First' %}",
+                "last": "{% trans 'Last' %}",
+                "next": "{% trans 'Next' %}",
+                "previous": "{% trans 'Previous' %}"
+            }
+        };
+
+        if (languages.hasOwnProperty(currentLanguage)) {
+            return {
+                url: languages[currentLanguage].url,
+                error: function () {
+                    console.warn('Failed to load language file for DataTables. Using fallback language.');
+                    return fallbackLanguage;
+                }
+            };
+        } else {
+            if (window.DEBUG_MODE) {
+                console.log('DataTables: Language "' + currentLanguage + '" has no CDN file, using translated fallback.');
+            }
+            return fallbackLanguage;
+        }
+    }
+
+    function initializeTreeFilter() {
+        // Show loading indicator in the select
+        $('#assetFilter').html('<option value="">{% trans "Loading..." %}</option>');
+        
+        $.ajax({
+            url: '{% url "get_asset_groups_and_types" %}',
+            method: 'GET',
+            data: { language: currentLanguage },
+            success: function(response) {
+                const treeData = transformDataToTreeStructure(response);
+                
+                // Initialize select2 with the tree data
+                $('#assetFilter').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: '{% trans "Select Asset Group/Type" %}',
+                    allowClear: true,
+                    data: treeData,
+                    templateResult: formatAssetOption,
+                    escapeMarkup: function(markup) {
+                        return markup;
+                    }
+                }).on('change', function() {
+                    const selectedValue = $(this).val();
+                    const selectedText = $(this).find('option:selected').text();
+                    
+                    // Update the filter label
+                    if (selectedValue) {
+                        $('#currentFilterText').text(selectedText);
+                        $('#currentFilterLabel').show();
+                    } else {
+                        $('#currentFilterLabel').hide();
+                    }
+                    
+                    if (vulnerabilitiesTable) {
+                        vulnerabilitiesTable.ajax.reload();
+                    }
+                });
+                
+                // Handle clear filter button
+                $('#clearAssetFilter').on('click', function() {
+                    $('#assetFilter').val('').trigger('change');
+                });
+                
+                console.log('Asset filter initialized with', treeData.length - 1, 'groups');
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading asset groups and types:", error);
+                showAlert('error', '{% trans "Failed to load asset groups and types" %}');
+                
+                // Reset the select with just the "All" option
+                $('#assetFilter').html('<option value="">{% trans "All" %}</option>');
+            }
+        });
+    }
+
+    function transformDataToTreeStructure(data) {
+        const treeData = [{
+            id: '',
+            text: '{% trans "All" %}',
+            selected: true
+        }];
+
+        if (data.groups && Array.isArray(data.groups)) {
+            if (data.groups.length === 0) {
+                console.log('No groups with vulnerabilities found');
+                showAlert('info', '{% trans "No asset groups with vulnerabilities found" %}');
+            }
+            
+            data.groups.forEach(group => {
+                if (group.name && (group.types?.length > 0 || group.id)) {
+                    const groupNode = {
+                        id: `group_${group.id}`,  // Changed format to match backend
+                        text: group.name,
+                        children: []
+                    };
+
+                    if (group.types && Array.isArray(group.types)) {
+                        group.types.forEach(type => {
+                            // Use the name property directly as it's already localized by the backend
+                            const typeName = type.name || '';
+                            if (typeName && typeName !== 'Undefined') {
+                                groupNode.children.push({
+                                    id: `type_${type.id}`,  // Changed format to match backend
+                                    text: typeName
+                                });
+                            }
+                        });
+                    }
+
+                    if (groupNode.children.length > 0 || group.id) {
+                        treeData.push(groupNode);
+                    }
+                }
+            });
+        } else {
+            console.error('Invalid data structure received from server:', data);
+            showAlert('error', '{% trans "Failed to load asset groups and types" %}');
+        }
+
+        return treeData;
+    }
+
+
+    function formatAssetOption(asset) {
+        if (!asset.id) {
+            return asset.text;
+        }
+
+        // Format for groups (bold text)
+        if (asset.children) {
+            return $('<span class="fw-bold"><i class="fas fa-folder me-1"></i>' + asset.text + '</span>');
+        }
+        
+        // Format for types (with indent and icon)
+        return $('<span class="ps-3"><i class="fas fa-file me-1"></i>' + asset.text + '</span>');
+    }
+
+
+
+    function bindEventListeners() {
+        // Main buttons with permission checks
+        if (window.userPermissions && window.userPermissions.can_add_config) {
+            $('#addVulnerabilityBtn').on('click', showAddVulnerabilityModal);
+            $('#emptyStateAddBtn').on('click', showAddVulnerabilityModal);
+        }
+        
+        if (window.userPermissions && window.userPermissions.can_edit_config) {
+            $(document).on('click', '[id^="vulnerabilitiesTable"] .edit-vulnerability', showEditVulnerabilityModal);
+            $('#saveVulnerabilityBtn').on('click', saveVulnerability);
+        }
+        
+        if (window.userPermissions && window.userPermissions.can_delete_config) {
+            $(document).on('click', '[id^="vulnerabilitiesTable"] .delete-vulnerability', showDeleteConfirmationModal);
+        }
+        $(document).on('click', '.vuln-translation-badge', function() {
+            const vulnId = $(this).data('vuln-id');
+            const countryId = $(this).data('country-id');
+            const countryCode = $(this).data('country-code') || '';
+            const countryName = $(this).data('country-name') || '';
+            if (!vulnId || !countryId) return;
+            $('#viewTranslationModal').data('viewTranslationVulnId', vulnId).data('viewTranslationCountryId', countryId);
+            $('#viewTranslationCountryName').text(countryName || countryCode);
+            $('#viewTranslationCountryCode').text(countryCode);
+            $('#viewTranslationError').hide();
+            $('#viewTranslationContent').show();
+            $('#viewTranslationNameLocal, #viewTranslationDescription, #viewTranslationScope, #viewTranslationRiskMitigation, #viewTranslationPciDss, #viewTranslationIso27001, #viewTranslationNote').val('');
+            $.ajax({
+                url: '{% url "get_vulnerability_translation_detail" %}',
+                method: 'GET',
+                data: { vulnerability_id: vulnId, country_id: countryId },
+                success: function(d) {
+                    $('#viewTranslationNameLocal').val(d.name_local || '');
+                    $('#viewTranslationDescription').val(d.description || '');
+                    $('#viewTranslationScope').val(d.scope || '');
+                    $('#viewTranslationRiskMitigation').val(d.risk_mitigation_controls || '');
+                    $('#viewTranslationPciDss').val(d.pci_dss_requirement || '');
+                    $('#viewTranslationIso27001').val(d.iso27001_requirement || '');
+                    $('#viewTranslationNote').val(d.note || '');
+                },
+                error: function(xhr) {
+                    const msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{% trans "Failed to load translation" %}';
+                    $('#viewTranslationError').text(msg).show();
+                    $('#viewTranslationContent').hide();
+                }
+            });
+            const modalEl = document.getElementById('viewTranslationModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        });
+        $('#viewTranslationSaveBtn').on('click', function() {
+            if (!window.userPermissions || !window.userPermissions.can_edit_config) return;
+            const vulnId = $('#viewTranslationModal').data('viewTranslationVulnId');
+            const countryId = $('#viewTranslationModal').data('viewTranslationCountryId');
+            if (!vulnId || !countryId) return;
+            const payload = {
+                vulnerability_id: parseInt(vulnId, 10),
+                country_id: parseInt(countryId, 10),
+                name_local: $('#viewTranslationNameLocal').val() || '',
+                description: $('#viewTranslationDescription').val() || '',
+                scope: $('#viewTranslationScope').val() || '',
+                risk_mitigation_controls: $('#viewTranslationRiskMitigation').val() || '',
+                pci_dss_requirement: $('#viewTranslationPciDss').val() || '',
+                iso27001_requirement: $('#viewTranslationIso27001').val() || '',
+                note: $('#viewTranslationNote').val() || ''
+            };
+            const $btn = $(this);
+            $btn.prop('disabled', true);
+            $('#viewTranslationError').hide();
+            $.ajax({
+                url: '{% url "save_vulnerability_translation" %}',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: function(response) {
+                    $btn.prop('disabled', false);
+                    if (response.success) {
+                        showAlert('success', '{% trans "Translation saved" %}');
+                        if (typeof vulnerabilitiesTable !== 'undefined' && vulnerabilitiesTable) vulnerabilitiesTable.ajax.reload();
+                    } else {
+                        $('#viewTranslationError').text(response.message || '{% trans "Failed to save" %}').show();
+                    }
+                },
+                error: function(xhr) {
+                    $btn.prop('disabled', false);
+                    const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{% trans "Error saving translation" %}';
+                    $('#viewTranslationError').text(msg).show();
+                }
+            });
+        });
+        $('#confirmDeleteBtn').on('click', deleteVulnerability);
+        $('[id^="refreshVulnerabilitiesTable"]').on('click', function() {
+            vulnerabilitiesTable.ajax.reload();
+        });
+        
+        // AI related buttons
+        $('#analyzeThreatsBtn').on('click', analyzeThreatsWithAI);
+        $('#analyzeSelectedVulnerabilities').on('click', analyzeSelectedVulnerabilities);
+        $('#descriptionSelectedAiBtn').on('click', function() {
+            performAIOperation('description');
+        });
+        $('#riskMitigationSelectedAiBtn').on('click', function() {
+            performAIOperation('risk_mitigation');
+        });
+        $('#pciDssSelectedAiBtn').on('click', function() {
+            performAIOperation('pci_dss');
+        });
+        $('#iso27002SelectedAiBtn').on('click', function() {
+            performAIOperation('iso27002');
+        });
+        $('#noteSelectedAiBtn').on('click', function() {
+            performAIOperation('note');
+        });
+        
+        // Selection and filters
+        $('[id^="selectAllVulnerabilities"]').on('change', function() {
+            const isChecked = $(this).is(':checked');
+            $('.vulnerability-checkbox').prop('checked', isChecked);
+            updateSelectedCount();
+        });
+        $('#vulnerabilityModal #assetGroup').on('change', function() {
+            loadAssetTypes($(this).val());
+        });
+        $('[id^="searchVulnerabilities"]').on('keyup', function() {
+            if (vulnerabilitiesTable) {
+                vulnerabilitiesTable.search($(this).val()).draw();
+            }
+        });
+        $('#clearAssetFilter').on('click', function() {
+            $('#assetFilter').val('').trigger('change');
+        });
+        
+        // Translation and AI tools
+        $('#addVulnerabilityAIBtn').on('click', showAddVulnerabilityAIModal);
+        $('#addVulnerabilityGoogleAIBtn').on('click', showAddVulnerabilityGoogleAIModal);
+        $('#generateVulnerabilities').on('click', generateVulnerabilities);
+        $('#generateGoogleVulnerabilities').on('click', generateGoogleVulnerabilities);
+        
+        // Generated vulnerabilities
+        $('#saveGeneratedVulnerabilities').on('click', saveGeneratedVulnerabilities);
+        $('#saveGoogleGeneratedVulnerabilities').on('click', saveGoogleGeneratedVulnerabilities);
+        $('#selectAllGeneratedVulnerabilities').on('change', function() {
+            $('.generated-vulnerability-checkbox').prop('checked', this.checked);
+        });
+        $('#selectAllGoogleGeneratedVulnerabilities').on('change', function() {
+            $('.google-generated-vulnerability-checkbox').prop('checked', this.checked);
+        });
+        $('#clearGoogleGeneratedVulnerabilities').on('click', clearGoogleGeneratedVulnerabilities);
+        
+        // Export and import functions
+        $('#saveAsCsvBtn').on('click', saveAsCsv);
+        $('#saveGoogleAsCsvBtn').on('click', saveGoogleAsCsv);
+        $('#translateSelectedVulnerabilities').on('click', translateSelectedVulnerabilities);
+        $('#exportVulnerabilitiesXlsx').on('click', function() { exportVulnerabilitiesXlsx(false); });
+        $('#exportXlsxSingle').on('click', function(e) { e.preventDefault(); exportVulnerabilitiesXlsx(false); });
+        $('#exportXlsxMultilingual').on('click', function(e) { e.preventDefault(); exportVulnerabilitiesXlsx(true); });
+        $('#importVulnerabilitiesBtn').on('click', showImportModal);
+        $('#importVulnerabilities').on('click', importVulnerabilities);
+        $('#importAssetGroup').on('change', loadImportAssetTypes);
+        $('#deleteSelectedVulnerabilities').on('click', deleteSelectedVulnerabilities);
+        
+        // Initialize tooltips and popovers
+        // First, dispose any existing tooltips and popovers to prevent duplicates
+        initializeTooltipsAndPopovers();
+    }
+
+    // Function to safely initialize tooltips and popovers
+    function initializeTooltipsAndPopovers() {
+        // First, dispose any existing tooltips
+        $('[data-bs-toggle="tooltip"]').each(function() {
+            try {
+                const tooltip = bootstrap.Tooltip.getInstance(this);
+                if (tooltip) {
+                    tooltip.dispose();
+                }
+            } catch (error) {
+                console.warn('Error disposing tooltip:', error);
+            }
+        });
+        
+        // Initialize tooltips
+        $('[data-bs-toggle="tooltip"]').tooltip();
+        
+        // Dispose any existing popovers
+        $('[data-bs-toggle="popover"]').each(function() {
+            try {
+                const popover = bootstrap.Popover.getInstance(this);
+                if (popover) {
+                    popover.dispose();
+                }
+            } catch (error) {
+                console.warn('Error disposing popover:', error);
+            }
+        });
+        
+        // Initialize popovers
+        $('[data-bs-toggle="popover"]').popover();
+    }
+
+    function loadAssetGroups(selectedGroupId) {
+        return new Promise((resolve, reject) => {
+            $.ajax({
+                url: '{% url "get_asset_groups" %}',
+                method: 'GET',
+                success: function(response) {
+                    const select = $('#vulnerabilityModal #assetGroup');
+                    select.empty();
+                    response.groups.forEach(function(group) {
+                        select.append(new Option(group.localized_name, group.id));
+                    });
+                    if (selectedGroupId) {
+                        select.val(selectedGroupId).trigger('change');
+                    }
+                    resolve();
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error loading asset groups:", error);
+                    showAlert('error', '{% trans "Failed to load asset groups" %}');
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function loadAssetTypes(groupId, selectedTypeId) {
+        return new Promise((resolve, reject) => {
+            if (!groupId) {
+                resolve();
+                return;
+            }
+
+            $.ajax({
+                url: '{% url "get_asset_types" %}',
+                method: 'GET',
+                data: { group_id: groupId },
+                success: function(response) {
+                    const select = $('#vulnerabilityModal #assetType');
+                    select.empty();
+                    response.types.forEach(function(type) {
+                        select.append(new Option(type.localized_name, type.id));
+                    });
+                    if (selectedTypeId) {
+                        select.val(selectedTypeId).trigger('change');
+                    }
+                    resolve();
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error loading asset types:", error);
+                    showAlert('error', '{% trans "Failed to load asset types" %}');
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function showAddVulnerabilityAIModal() {
+        // Clear any previous errors
+        $('#aiErrorContainer').hide();
+        $('#aiErrorMessage').text('');
+        $('#aiGeneratedVulnerabilities tbody').empty();
+        
+        // Show the modal
+        $('#addVulnerabilityAIModal').modal('show');
+        
+        // Check if the default AI provider is configured
+        $.ajax({
+            url: '{% url "check_ai_provider" %}',
+            method: 'GET',
+            data: { provider: defaultAIProvider },
+            success: function(response) {
+                if (response.configured) {
+                    // Load asset groups if the provider is configured
+                    loadAssetGroupsForAI();
+                } else {
+                    // Show error if the provider is not configured
+                    $('#aiErrorMessage').text('{% trans "The selected AI provider is not configured. Please configure it in the admin panel or select a different provider." %}');
+                    $('#aiErrorContainer').show();
+                }
+            },
+            error: function() {
+                $('#aiErrorMessage').text('{% trans "Failed to check AI provider configuration. Please try again later." %}');
+                $('#aiErrorContainer').show();
+            }
+        });
+    }
+
+    function showAddVulnerabilityGoogleAIModal() {
+        // Clear any previous errors
+        $('#googleAiErrorContainer').hide();
+        $('#googleAiErrorMessage').text('');
+        $('#googleAiGeneratedVulnerabilities tbody').empty();
+        
+        // Show the modal
+        $('#addVulnerabilityGoogleAIModal').modal('show');
+        
+        // Check if Google AI is configured
+        $.ajax({
+            url: '{% url "check_ai_provider" %}',
+            method: 'GET',
+            data: { provider: 'google' },
+            success: function(response) {
+                if (response.configured) {
+                    // Load asset groups if Google AI is configured
+                    loadAssetGroupsForGoogleAI();
+                } else {
+                    // Show error if Google AI is not configured
+                    $('#googleAiErrorMessage').text('{% trans "Google AI is not configured. Please configure it in the admin panel." %}');
+                    $('#googleAiErrorContainer').show();
+                }
+            },
+            error: function() {
+                $('#googleAiErrorMessage').text('{% trans "Failed to check Google AI configuration. Please try again later." %}');
+                $('#googleAiErrorContainer').show();
+            }
+        });
+    }
+
+    function loadAssetGroupsForAI() {
+        $.ajax({
+            url: '{% url "get_asset_groups" %}',
+            method: 'GET',
+            data: {
+                language: currentLanguage
+            },
+            success: function(response) {
+                const select = $('#aiAssetGroup');
+                select.empty();
+                select.append(new Option('{% trans "Select Asset Group" %}', ''));
+                response.groups.forEach(function(group) {
+                    select.append(new Option(group.localized_name, group.id));
+                });
+
+                select.on('change', function() {
+                    loadAssetTypesForAI($(this).val());
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading asset groups for AI:", error);
+                showAlert('error', '{% trans "Failed to load asset groups" %}');
+            }
+        });
+    }
+
+    function loadAssetGroupsForGoogleAI() {
+        $.ajax({
+            url: '{% url "get_asset_groups" %}',
+            method: 'GET',
+            data: {
+                language: currentLanguage
+            },
+            success: function(response) {
+                const select = $('#googleAiAssetGroup');
+                select.empty();
+                select.append(new Option('{% trans "Select Asset Group" %}', ''));
+                response.groups.forEach(function(group) {
+                    select.append(new Option(group.localized_name, group.id));
+                });
+
+                select.on('change', function() {
+                    loadAssetTypesForGoogleAI($(this).val());
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading asset groups for Google AI:", error);
+                showAlert('error', '{% trans "Failed to load asset groups" %}');
+            }
+        });
+    }
+
+    function loadAssetTypesForAI(groupId) {
+        if (!groupId) {
+            $('#aiAssetType').empty().append(new Option('{% trans "Select Asset Type" %}', ''));
+            return;
+        }
+
+        $.ajax({
+            url: '{% url "get_asset_types" %}',
+            method: 'GET',
+            data: {
+                group_id: groupId,
+                language: currentLanguage
+            },
+            success: function(response) {
+                const select = $('#aiAssetType');
+                select.empty();
+                select.append(new Option('{% trans "Select Asset Type" %}', ''));
+                response.types.forEach(function(type) {
+                    select.append(new Option(type.localized_name, type.id));
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading asset types for AI:", error);
+                showAlert('error', '{% trans "Failed to load asset types" %}');
+            }
+        });
+    }
+
+    function loadAssetTypesForGoogleAI(groupId) {
+        if (!groupId) {
+            $('#googleAiAssetType').empty().append(new Option('{% trans "Select Asset Type" %}', ''));
+            return;
+        }
+
+        $.ajax({
+            url: '{% url "get_asset_types" %}',
+            method: 'GET',
+            data: {
+                group_id: groupId,
+                language: currentLanguage
+            },
+            success: function(response) {
+                const select = $('#googleAiAssetType');
+                select.empty();
+                select.append(new Option('{% trans "Select Asset Type" %}', ''));
+                response.types.forEach(function(type) {
+                    select.append(new Option(type.localized_name, type.id));
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading asset types for Google AI:", error);
+                showAlert('error', '{% trans "Failed to load asset types" %}');
+            }
+        });
+    }
+
+    function generateVulnerabilities() {
+        const assetGroup = $('#aiAssetGroup').val();
+        const assetType = $('#aiAssetType').val();
+        const hint = $('#aiPromptHint').val().trim();
+
+        // Hide any previous error messages
+        $('#aiErrorContainer').hide();
+        $('#aiErrorMessage').text('');
+
+        if (!assetGroup || !assetType) {
+            showAlert('error', '{% trans "Please select both Asset Group and Asset Type" %}');
+            // Show error in the modal
+            $('#aiErrorMessage').text('{% trans "Please select both Asset Group and Asset Type" %}');
+            $('#aiErrorContainer').show();
+            return;
+        }
+
+        $('#generateVulnerabilities').prop('disabled', true).html(
+            '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {% trans "Generating..." %}'
+        );
+        
+        const provider = defaultAIProvider;
+        const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+        showAlert('info', `{% trans "Generating vulnerabilities with" %} ${providerName}. {% trans "This may take a few moments..." %}`);
+
+        // Use the selected AI provider from the dropdown
+        const endpoint = '{% url "generate_vulnerabilities_ai" %}' + 
+            (provider !== 'claude' ? '?provider=' + provider : '');
+
+        $.ajax({
+            url: endpoint,
+            method: 'POST',
+            data: JSON.stringify({ 
+                asset_group: assetGroup, 
+                asset_type: assetType,
+                hint: hint
+            }),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                if (response.vulnerabilities && response.vulnerabilities.length > 0) {
+                    // Store vulnerabilities in the appropriate global variable based on the provider
+                    if (provider === 'google') {
+                        googleGeneratedVulnerabilities = response.vulnerabilities;
+                    } else if (provider === 'groq') {
+                        groqGeneratedVulnerabilities = response.vulnerabilities;
+                    } else if (provider === 'deepseek') {
+                        deepseekGeneratedVulnerabilities = response.vulnerabilities;
+                    } else {
+                        // Default to Claude
+                        currentGeneratedVulnerabilities = response.vulnerabilities;
+                    }
+                    
+                    // Display the vulnerabilities - ensures the UI is updated
+                    displayGeneratedVulnerabilities(response.vulnerabilities);
+                    showAlert('success', response.message || `{% trans "Vulnerabilities generated successfully with" %} ${providerName}`);
+                    // Hide error container if it was previously shown
+                    $('#aiErrorContainer').hide();
+                } else {
+                    // Show error when no vulnerabilities are returned
+                    const errorMsg = response.error || response.message || '{% trans "No vulnerabilities were generated. The AI response was empty or invalid." %}';
+                    showAlert('error', errorMsg);
+                    
+                    // Show error in the modal
+                    $('#aiErrorMessage').text(errorMsg);
+                    $('#aiErrorContainer').show();
+                    
+                    $('#aiGeneratedVulnerabilities tbody').html(
+                        '<tr><td colspan="3" class="text-center text-danger">{% trans "No vulnerabilities were generated. Please try again or use a different AI provider." %}</td></tr>'
+                    );
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error(`Error generating vulnerabilities with ${providerName}:`, error);
+                let errorMessage = `{% trans "Failed to generate vulnerabilities with" %} ${providerName}`;
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage += ': ' + xhr.responseJSON.error;
+                }
+                
+                // Show error in the modal
+                $('#aiErrorMessage').text(errorMessage);
+                $('#aiErrorContainer').show();
+                
+                showAlert('error', errorMessage);
+                $('#aiGeneratedVulnerabilities tbody').html(
+                    '<tr><td colspan="3" class="text-center text-danger">' + errorMessage + '</td></tr>'
+                );
+            },
+            complete: function() {
+                $('#generateVulnerabilities').prop('disabled', false).html('{% trans "Generate" %}');
+            }
+        });
+    }
+
+    function generateGoogleVulnerabilities() {
+        const assetGroup = $('#googleAiAssetGroup').val();
+        const assetType = $('#googleAiAssetType').val();
+        const hint = $('#googleAiPromptHint').val().trim();
+
+        // Hide any previous error messages
+        $('#googleAiErrorContainer').hide();
+        $('#googleAiErrorMessage').text('');
+
+        if (!assetGroup || !assetType) {
+            showAlert('error', '{% trans "Please select both Asset Group and Asset Type" %}');
+            // Show error in the modal
+            $('#googleAiErrorMessage').text('{% trans "Please select both Asset Group and Asset Type" %}');
+            $('#googleAiErrorContainer').show();
+            return;
+        }
+
+        $('#generateGoogleVulnerabilities').prop('disabled', true).html(
+            '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {% trans "Generating..." %}'
+        );
+        showAlert('info', '{% trans "Generating vulnerabilities with Google AI. This may take a few moments..." %}');
+
+        $.ajax({
+            url: '{% url "generate_vulnerabilities_ai" %}?provider=google',
+            method: 'POST',
+            data: JSON.stringify({ 
+                asset_group: assetGroup, 
+                asset_type: assetType,
+                hint: hint
+            }),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                if (response.vulnerabilities && response.vulnerabilities.length > 0) {
+                    displayGoogleGeneratedVulnerabilities(response.vulnerabilities);
+                    showAlert('success', response.message || '{% trans "Vulnerabilities generated successfully with Google AI" %}');
+                    // Hide error container if it was previously shown
+                    $('#googleAiErrorContainer').hide();
+                } else {
+                    // Show error when no vulnerabilities are returned
+                    const errorMsg = response.error || response.message || '{% trans "No vulnerabilities were generated. The Google AI response was empty or invalid." %}';
+                    showAlert('error', errorMsg);
+                    
+                    // Show error in the modal
+                    $('#googleAiErrorMessage').text(errorMsg);
+                    $('#googleAiErrorContainer').show();
+                    
+                    $('#googleAiGeneratedVulnerabilities tbody').html(
+                        '<tr><td colspan="3" class="text-center text-danger">{% trans "No vulnerabilities were generated. Please try again with different parameters." %}</td></tr>'
+                    );
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error generating vulnerabilities with Google AI:", error);
+                let errorMessage = '{% trans "Failed to generate vulnerabilities with Google AI" %}';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage += ': ' + xhr.responseJSON.error;
+                }
+                
+                // Show error in the modal
+                $('#googleAiErrorMessage').text(errorMessage);
+                $('#googleAiErrorContainer').show();
+                
+                showAlert('error', errorMessage);
+                $('#googleAiGeneratedVulnerabilities tbody').html(
+                    '<tr><td colspan="3" class="text-center text-danger">' + errorMessage + '</td></tr>'
+                );
+            },
+            complete: function() {
+                $('#generateGoogleVulnerabilities').prop('disabled', false).html('{% trans "Generate" %}');
+            }
+        });
+    }
+
+    function displayGeneratedVulnerabilities(vulnerabilities) {
+        const tbody = $('#aiGeneratedVulnerabilities tbody');
+        tbody.empty();
+        
+        // Update UI to show which AI provider is being used
+        const providerName = defaultAIProvider.charAt(0).toUpperCase() + defaultAIProvider.slice(1);
+        $('#aiResultsTitle').text(`{% trans "Generated Vulnerabilities" %} (${providerName})`);
+        
+        // Store vulnerabilities in the appropriate global variable based on the provider
+        // This is a fallback in case the calling function didn't already set it
+        if (defaultAIProvider === 'google') {
+            googleGeneratedVulnerabilities = vulnerabilities;
+        } else if (defaultAIProvider === 'groq') {
+            groqGeneratedVulnerabilities = vulnerabilities;
+        } else if (defaultAIProvider === 'deepseek') {
+            deepseekGeneratedVulnerabilities = vulnerabilities;
+        } else {
+            // Default to Claude
+            currentGeneratedVulnerabilities = vulnerabilities;
+        }
+        
+        const langConfig = getVulnFormLanguages();
+        let withTranslations = 0;
+        vulnerabilities.forEach(vuln => {
+            const hasTranslation = langConfig.some(lang =>
+                (vuln['vulnerability_' + lang.code] && vuln['vulnerability_' + lang.code].length > 0) ||
+                (vuln['scope_' + lang.code] && vuln['scope_' + lang.code].length > 0)
+            );
+            if (hasTranslation && langConfig.length > 1) withTranslations++;
+        });
+        const countEl = $('#aiResultsCount');
+        if (countEl.length) countEl.text(`${vulnerabilities.length}${langConfig.length > 1 ? ' (' + withTranslations + ' {% trans "with translations" %})' : ''}`);
+        vulnerabilities.forEach(function(vuln, index) {
+            const parts = [], scopeParts = [];
+            langConfig.forEach(function(lang, i) {
+                const v = vuln['vulnerability_' + lang.code] || (lang.code === 'en' ? vuln.vulnerability : null);
+                const s = vuln['scope_' + lang.code] || (lang.code === 'en' ? vuln.scope : null);
+                if (v) parts.push(i ? '<span class="text-muted small">' + lang.name + ': ' + v + '</span>' : v);
+                if (s) scopeParts.push(i ? '<span class="text-muted small">' + lang.name + ': ' + s + '</span>' : s);
+            });
+            const row = `
+                <tr>
+                    <td><input type="checkbox" class="generated-vulnerability-checkbox" data-index="${index}"></td>
+                    <td>${parts.join('<br>') || '-'}</td>
+                    <td>${scopeParts.join('<br>') || '-'}</td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+    }
+
+    function displayGoogleGeneratedVulnerabilities(vulnerabilities) {
+        const tbody = $('#googleAiGeneratedVulnerabilities tbody');
+        tbody.empty();
+        
+        // Store the vulnerabilities in the global variable
+        googleGeneratedVulnerabilities = vulnerabilities;
+
+        const langConfig = getVulnFormLanguages();
+        let withTranslations = 0;
+        vulnerabilities.forEach(vuln => {
+            const hasTranslation = langConfig.some(lang =>
+                (vuln['vulnerability_' + lang.code] && vuln['vulnerability_' + lang.code].length > 0) ||
+                (vuln['scope_' + lang.code] && vuln['scope_' + lang.code].length > 0)
+            );
+            if (hasTranslation && langConfig.length > 1) withTranslations++;
+        });
+        const countEl = $('#googleAiResultsCount');
+        if (countEl.length) countEl.text(`${vulnerabilities.length}${langConfig.length > 1 ? ' (' + withTranslations + ' {% trans "with translations" %})' : ''}`);
+        vulnerabilities.forEach(function(vuln, index) {
+            const parts = [], scopeParts = [];
+            langConfig.forEach(function(lang, i) {
+                const v = vuln['vulnerability_' + lang.code] || (lang.code === 'en' ? vuln.vulnerability : null);
+                const s = vuln['scope_' + lang.code] || (lang.code === 'en' ? vuln.scope : null);
+                if (v) parts.push(i ? '<span class="text-muted small">' + lang.name + ': ' + v + '</span>' : v);
+                if (s) scopeParts.push(i ? '<span class="text-muted small">' + lang.name + ': ' + s + '</span>' : s);
+            });
+            const row = `
+                <tr>
+                    <td><input type="checkbox" class="google-generated-vulnerability-checkbox" data-index="${index}"></td>
+                    <td>${parts.join('<br>') || '-'}</td>
+                    <td>${scopeParts.join('<br>') || '-'}</td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+    }
+
+    function saveGeneratedVulnerabilities() {
+        const selectedIndices = [];
+        $('.generated-vulnerability-checkbox:checked').each(function() {
+            selectedIndices.push($(this).data('index'));
+        });
+
+        if (selectedIndices.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one vulnerability to save" %}');
+            return;
+        }
+
+        // Get the selected vulnerabilities from the appropriate global variable based on the current AI provider
+        const selectedVulnerabilities = selectedIndices.map(index => {
+            // Determine which global variable to use based on the current AI provider
+            let vuln;
+            if (defaultAIProvider === 'google') {
+                vuln = googleGeneratedVulnerabilities[index];
+            } else if (defaultAIProvider === 'groq') {
+                vuln = groqGeneratedVulnerabilities[index];
+            } else if (defaultAIProvider === 'deepseek') {
+                vuln = deepseekGeneratedVulnerabilities[index]; 
+            } else {
+                // Default to Claude
+                vuln = currentGeneratedVulnerabilities[index];
+            }
+            
+            // Pass through all language fields (backend handles dynamic languages)
+            const langCodes = getVulnFormLanguages().map(l => l.code);
+            const result = {};
+            langCodes.forEach(lang => {
+                result['vulnerability_' + lang] = vuln['vulnerability_' + lang] || (lang === 'en' ? vuln.vulnerability : '') || '';
+                result['scope_' + lang] = vuln['scope_' + lang] || (lang === 'en' ? vuln.scope : '') || '';
+            });
+            return result;
+        });
+
+        console.log(`Saving selected vulnerabilities with ${defaultAIProvider}:`, selectedVulnerabilities);
+        
+        const data = {
+            asset_group: $('#aiAssetGroup').val(),
+            asset_type: $('#aiAssetType').val(),
+            vulnerabilities: selectedVulnerabilities
+        };
+
+        $.ajax({
+            url: "{% url 'save_generated_vulnerabilities' %}",
+            method: 'POST',
+            data: JSON.stringify(data),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                if (response.success) {
+                    showAlert('success', '{% trans "Vulnerabilities saved successfully" %}');
+                    $('#addVulnerabilityAIModal').modal('hide');
+                    vulnerabilitiesTable.ajax.reload();
+                } else {
+                    showAlert('error', response.error || '{% trans "Failed to save vulnerabilities" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error saving vulnerabilities:", error);
+                showAlert('error', '{% trans "Failed to save vulnerabilities" %}');
+            }
+        });
+    }
+
+    function saveGoogleGeneratedVulnerabilities() {
+        const selectedIndices = [];
+        $('.google-generated-vulnerability-checkbox:checked').each(function() {
+            selectedIndices.push($(this).data('index'));
+        });
+
+        if (selectedIndices.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one vulnerability to save" %}');
+            return;
+        }
+
+        const selectedVulnerabilities = selectedIndices.map(index => {
+            const vuln = googleGeneratedVulnerabilities[index] || {};
+            const langCodes = getVulnFormLanguages().map(l => l.code);
+            const result = {};
+            langCodes.forEach(lang => {
+                result['vulnerability_' + lang] = vuln['vulnerability_' + lang] || (lang === 'en' ? vuln.vulnerability : '') || '';
+                result['scope_' + lang] = vuln['scope_' + lang] || (lang === 'en' ? vuln.scope : '') || '';
+            });
+            return result;
+        });
+
+        console.log("Saving selected Google AI vulnerabilities:", selectedVulnerabilities);
+        
+        const data = {
+            asset_group: $('#googleAiAssetGroup').val(),
+            asset_type: $('#googleAiAssetType').val(),
+            vulnerabilities: selectedVulnerabilities
+        };
+
+        $.ajax({
+            url: "{% url 'save_generated_vulnerabilities' %}",
+            method: 'POST',
+            data: JSON.stringify(data),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                if (response.success) {
+                    showAlert('success', '{% trans "Vulnerabilities saved successfully" %}');
+                    $('#addVulnerabilityGoogleAIModal').modal('hide');
+                    vulnerabilitiesTable.ajax.reload();
+                } else {
+                    showAlert('error', response.error || '{% trans "Failed to save vulnerabilities" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error saving vulnerabilities:", error);
+                showAlert('error', '{% trans "Failed to save vulnerabilities" %}');
+            }
+        });
+    }
+
+    function clearGeneratedVulnerabilities() {
+        $('#aiGeneratedVulnerabilities tbody').empty();
+        // Also clear any error messages
+        $('#aiErrorContainer').hide();
+        $('#aiErrorMessage').text('');
+        showAlert('info', '{% trans "Generated vulnerabilities have been cleared" %}');
+    }
+
+    function clearGoogleGeneratedVulnerabilities() {
+        $('#googleAiGeneratedVulnerabilities tbody').empty();
+        // Also clear any error messages
+        $('#googleAiErrorContainer').hide();
+        $('#googleAiErrorMessage').text('');
+        showAlert('info', '{% trans "Generated vulnerabilities have been cleared" %}');
+    }
+
+    function saveAsCsv() {
+        const rows = [];
+        $('#aiGeneratedVulnerabilities tbody tr').each(function() {
+            const vulnerability = $(this).find('td:eq(1)').text();
+            const scope = $(this).find('td:eq(2)').text();
+            if (vulnerability && scope) {
+                rows.push([vulnerability, scope]);
+            }
+        });
+
+        if (rows.length === 0) {
+            showAlert('warning', '{% trans "No vulnerabilities to export" %}');
+            return;
+        }
+
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + "Vulnerability,Scope\n" 
+            + rows.map(e => e.join(",")).join("\n");
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "vulnerabilities.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function saveGoogleAsCsv() {
+        const rows = [];
+        $('#googleAiGeneratedVulnerabilities tbody tr').each(function() {
+            const vulnerability = $(this).find('td:eq(1)').text();
+            const scope = $(this).find('td:eq(2)').text();
+            if (vulnerability && scope) {
+                rows.push([vulnerability, scope]);
+            }
+        });
+
+        if (rows.length === 0) {
+            showAlert('warning', '{% trans "No vulnerabilities to export" %}');
+            return;
+        }
+
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + "Vulnerability,Scope\n" 
+            + rows.map(e => e.join(",")).join("\n");
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "google_vulnerabilities.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function analyzeThreatsWithAI() {
+        const langCodes = getVulnFormLanguages().map(l => l.code);
+        const formData = {
+            asset_group: $('#vulnerabilityModal #assetGroup').val(),
+            asset_type: $('#vulnerabilityModal #assetType').val()
+        };
+        const d = DEFAULT_VULN_LANG;
+        formData['scope_' + d] = $('#vulnerabilityModal #scope').val() || '';
+        formData['vulnerability_' + d] = $('#vulnerabilityModal #vulnerability').val() || '';
+        formData['description_' + d] = $('#vulnerabilityModal #description').val() || '';
+        formData['risk_mitigation_controls_' + d] = $('#vulnerabilityModal #riskMitigation').val() || '';
+        formData['pci_dss_requirement_' + d] = $('#vulnerabilityModal #pciDss').val() || '';
+        formData['iso27001_requirement_' + d] = $('#vulnerabilityModal #iso27001').val() || '';
+        formData['note_' + d] = $('#vulnerabilityModal #note').val() || '';
+        langCodes.forEach(lang => {
+            if (lang !== d) {
+                formData['scope_' + lang] = '';
+                formData['vulnerability_' + lang] = '';
+                formData['description_' + lang] = '';
+                formData['risk_mitigation_controls_' + lang] = '';
+                formData['pci_dss_requirement_' + lang] = '';
+                formData['iso27001_requirement_' + lang] = '';
+                formData['note_' + lang] = '';
+            }
+        });
+
+        // Use the selected AI provider (ensure string: avoid [object HTMLSelectElement] from id ref)
+        const provider = (typeof defaultAIProvider === 'string' ? defaultAIProvider : null) || ($('#defaultAIProvider').length ? $('#defaultAIProvider').val() : null) || (typeof localStorage !== 'undefined' && localStorage.getItem('defaultAIProvider')) || 'claude';
+        const endpoint = '{% url "analyze_threats_ai" %}' + 
+            (provider !== 'claude' ? '?provider=' + encodeURIComponent(provider) : '');
+
+        $.ajax({
+            url: endpoint,
+            method: 'POST',
+            data: JSON.stringify(formData),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                if (response.success && response.threats && response.threats.length > 0) {
+                    $('#vulnerabilityModal #threats').val(response.threats).trigger('change');
+                    showAlert('success', '{% trans "Threats analyzed and selected successfully" %}');
+                } else if (response.success && (response.message || !response.threats || response.threats.length === 0)) {
+                    $('#vulnerabilityModal #threats').val(null).trigger('change');
+                    showAlert('info', response.message || '{% trans "No threats were identified by AI" %}');
+                } else {
+                    showAlert('error', response.error || '{% trans "No threats were identified by AI" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error analyzing threats:", error);
+                let errorMessage = '{% trans "Failed to analyze threats with AI" %}';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage += ': ' + xhr.responseJSON.error;
+                }
+                showAlert('error', errorMessage);
+            }
+        });
+    }
+
+    function analyzeSelectedVulnerabilities() {
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one vulnerability to analyze" %}');
+            return;
+        }
+
+        const $progressBar = $('#aiAnalysisProgress');
+        const $progressBarInner = $progressBar.find('.progress-bar');
+        $progressBar.show();
+        $progressBarInner.css('width', '0%').attr('aria-valuenow', 0).text('0%');
+
+        $('#analyzeSelectedVulnerabilities').prop('disabled', true);
+
+        let processed = 0;
+        let successful = 0;
+        const total = selectedIds.length;
+
+        function updateProgress() {
+            const percentage = Math.round((processed / total) * 100);
+            $progressBarInner.css('width', percentage + '%').attr('aria-valuenow', percentage).text(percentage + '%');
+        }
+
+        function analyzeNext(index) {
+            if (index >= selectedIds.length) {
+                if (successful === total) {
+                    showAlert('success', '{% trans "All vulnerabilities analyzed successfully" %}');
+                } else if (successful > 0) {
+                    showAlert('warning', `{% trans "Analyzed" %} ${successful} {% trans "of" %} ${total} {% trans "vulnerabilities successfully" %}`);
+                } else {
+                    showAlert('error', '{% trans "Failed to analyze any vulnerabilities" %}');
+                }
+                vulnerabilitiesTable.ajax.reload();
+                $progressBar.hide();
+                $('#analyzeSelectedVulnerabilities').prop('disabled', false);
+                return;
+            }
+
+            const id = selectedIds[index];
+            // Use the selected AI provider
+            const endpoint = '{% url "analyze_multiply_threats_ai" vulnerability_id=0 %}'.replace('0', id) + 
+                (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : '');
+                
+            $.ajax({
+                url: endpoint,
+                method: 'POST',
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: function(response) {
+                    if (response.success) {
+                        successful++;
+                    } else {
+                        console.error(`Error analyzing vulnerability ${id}:`, response.message);
+                    }
+                    processed++;
+                    updateProgress();
+                    analyzeNext(index + 1);
+                },
+                error: function(xhr, status, error) {
+                    console.error(`Error analyzing vulnerability ${id}:`, error);
+                    let errorMessage = '{% trans "Failed to analyze vulnerability" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage += ': ' + xhr.responseJSON.message;
+                    }
+                    showAlert('error', errorMessage);
+                    processed++;
+                    updateProgress();
+                    analyzeNext(index + 1);
+                }
+            });
+        }
+
+        analyzeNext(0);
+    }
+
+    function showAddVulnerabilityModal() {
+        $('#vulnerabilityModal #vulnerabilityId').val('');
+        $('#vulnerabilityModal form')[0].reset();
+        $('#vulnerabilityModal .modal-title').text('{% trans "Add Vulnerability" %}');
+        loadAssetGroups();
+        loadThreats();
+
+        $('#vulnerabilityModal').modal('show');
+    }
+
+    function showEditVulnerabilityModal() {
+        const id = $(this).data('id');
+        $('#vulnerabilityModal #vulnerabilityId').val(id);
+        $('#vulnerabilityModal .modal-title').text('{% trans "Edit Vulnerability" %}');
+
+        $.ajax({
+            url: '{% url "edit_vulnerability" vulnerability_id=0 %}'.replace('0', id),
+            method: 'GET',
+            success: function(response) {
+                console.log("Edit vulnerability response:", response);
+
+                loadAssetGroups(response.asset_group)
+                    .then(() => loadAssetTypes(response.asset_group, response.asset_type))
+                    .then(() => loadThreats())
+                    .then(() => {
+                        populateForm(response);
+
+                        $('#vulnerabilityModal').modal('show');
+                    })
+                    .catch(error => {
+                        console.error("Error loading data:", error);
+                        showAlert('error', '{% trans "Failed to load vulnerability data" %}');
+                    });
+            },
+            error: function(xhr, status, error) {
+                console.error("Error fetching vulnerability data:", error);
+                showAlert('error', '{% trans "Failed to load vulnerability data" %}');
+            }
+        });
+    }
+
+    function translateSelectedVulnerabilities() {
+        /* Same flow as Translate AI: open modal, choose Country, generate preview, save */
+        translateSelectedVulnerabilityAi();
+    }
+
+    function saveAsCsv() {
+        const table = document.getElementById('aiGeneratedVulnerabilities');
+        let csv = [];
+
+        let header = [
+            '{% trans "Vulnerability" %}',
+            '{% trans "Scope" %}',
+            '{% trans "Description" %}',
+            '{% trans "Risk Mitigation Controls" %}',
+            '{% trans "PCI DSS Requirement" %}',
+            '{% trans "ISO 27001 Requirement" %}',
+            '{% trans "Additional Notes" %}'
+        ];
+        for (let i = 1; i < table.rows[0].cells.length; i++) {
+            header.push(table.rows[0].cells[i].innerText);
+        }
+        csv.push(header.join(','));
+
+        for (let i = 1; i < table.rows.length; i++) {
+            let row = [];
+            for (let j = 1; j < table.rows[i].cells.length; j++) {
+                let cell = table.rows[i].cells[j].innerText;
+                cell = cell.replace(/"/g, '""');
+                if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                    cell = `"${cell}"`;
+                }
+                row.push(cell);
+            }
+            csv.push(row.join(','));
+        }
+
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'generated_vulnerabilities.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    }
+
+    function loadThreats() {
+        return new Promise((resolve, reject) => {
+            $.ajax({
+                url: '{% url "get_threats" %}',
+                method: 'GET',
+                data: { language: currentLanguage },
+                success: function(response) {
+                    console.log("Loaded threats:", response.threats);
+                    const select = $('#vulnerabilityModal #threats');
+                    select.empty();
+                    response.threats.forEach(function(threat) {
+                        select.append(new Option(threat.name, threat.id));
+                    });
+                    resolve();
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error loading threats:", error);
+                    showAlert('error', '{% trans "Failed to load threats" %}');
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    /**
+     * Decode HTML entities and convert markdown to plain text for display in form fields.
+     * e.g. "&amp;" -> "&", "**Additional Recommendations:**" -> "Additional Recommendations:"
+     * List items "* **Item:**" -> "• Item:"
+     */
+    function decodeValueForDisplay(str) {
+        if (str == null || str === '') return '';
+        str = String(str);
+        var textarea = document.createElement('textarea');
+        textarea.innerHTML = str;
+        str = textarea.value;
+        str = str.replace(/\*\*([^*]*)\*\*/g, '$1');
+        str = str.replace(/\*([^*]*)\*/g, '$1');
+        str = str.replace(/^\s*\*\s+/gm, '• ');
+        str = str.replace(/^#+\s*/gm, '');
+        return str;
+    }
+
+    function populateForm(data) {
+        console.log("Populating form with data:", data);
+
+        $('#vulnerabilityModal #assetGroup').val(data.asset_group);
+        console.log("Asset group set to:", data.asset_group);
+
+        $('#vulnerabilityModal #assetType').val(data.asset_type);
+        console.log("Asset type set to:", data.asset_type);
+
+        const d = DEFAULT_VULN_LANG;
+        $('#vulnerabilityModal #scope').val(decodeValueForDisplay(data['scope_' + d]));
+        $('#vulnerabilityModal #vulnerability').val(decodeValueForDisplay(data['vulnerability_' + d]));
+        $('#vulnerabilityModal #description').val(decodeValueForDisplay(data['description_' + d]));
+        $('#vulnerabilityModal #riskMitigation').val(decodeValueForDisplay(data['risk_mitigation_controls_' + d]));
+        $('#vulnerabilityModal #pciDss').val(decodeValueForDisplay(data['pci_dss_requirement_' + d]));
+        $('#vulnerabilityModal #iso27001').val(decodeValueForDisplay(data['iso27001_requirement_' + d]));
+        $('#vulnerabilityModal #note').val(decodeValueForDisplay(data['note_' + d]));
+
+        console.log("Populating threats:", data.threats);
+        $('#vulnerabilityModal #threats').val(data.threats);
+
+        if ($.fn.select2) {
+            $('#vulnerabilityModal #assetGroup, #vulnerabilityModal #assetType, #vulnerabilityModal #threats').trigger('change.select2');
+        }
+
+        console.log("Form population complete");
+    }
+
+    function showDeleteConfirmationModal() {
+        const vulnerabilityId = $(this).data('id');
+        const row = $(this).closest('tr');
+        const vulnerabilityName = row.find('td:eq(4)').text(); // Vulnerability column
+        const assetGroup = row.find('td:eq(2)').text(); // Asset Group column
+        
+        enhanceDeleteModal(vulnerabilityId, vulnerabilityName, assetGroup);
+        
+        // Set the form action with the correct vulnerability ID and language prefix
+        const urlPath = window.location.pathname;
+        const langPrefix = urlPath.startsWith('/en/') ? 'en' : 
+                          urlPath.startsWith('/ru/') ? 'ru' : 'uk';
+        
+        const deleteForm = $('#deleteVulnerabilityForm');
+        deleteForm.attr('action', `/${langPrefix}/app_risk/delete_vulnerability/${vulnerabilityId}/`);
+        
+        // Hide the associations warning when opening modal
+        $('#associationsWarning').hide();
+        $('#forceDeleteCheckbox').prop('checked', false);
+        
+        // Show the modal
+        $('#deleteConfirmationModal').modal('show');
+    }
+
+
+
+
+
+    function saveVulnerability() {
+        if (!validateForm()) return;
+
+        const id = $('#vulnerabilityModal #vulnerabilityId').val();
+        const url = id ? '{% url "edit_vulnerability" vulnerability_id=0 %}'.replace('0', id) : '{% url "add_vulnerability" %}';
+        const method = id ? 'PUT' : 'POST';
+
+        const d = DEFAULT_VULN_LANG;
+        const langCodes = getVulnFormLanguages().map(l => l.code);
+        const data = {
+            asset_group: $('#vulnerabilityModal #assetGroup').val(),
+            asset_type: $('#vulnerabilityModal #assetType').val(),
+            threats: $('#vulnerabilityModal #threats').val()
+        };
+        data['scope_' + d] = $('#vulnerabilityModal #scope').val() || '';
+        data['vulnerability_' + d] = $('#vulnerabilityModal #vulnerability').val() || '';
+        data['description_' + d] = $('#vulnerabilityModal #description').val() || '';
+        data['risk_mitigation_controls_' + d] = $('#vulnerabilityModal #riskMitigation').val() || '';
+        data['pci_dss_requirement_' + d] = $('#vulnerabilityModal #pciDss').val() || '';
+        data['iso27001_requirement_' + d] = $('#vulnerabilityModal #iso27001').val() || '';
+        data['note_' + d] = $('#vulnerabilityModal #note').val() || '';
+        langCodes.forEach(lang => {
+            if (lang !== d) {
+                data['scope_' + lang] = '';
+                data['vulnerability_' + lang] = '';
+                data['description_' + lang] = '';
+                data['risk_mitigation_controls_' + lang] = '';
+                data['pci_dss_requirement_' + lang] = '';
+                data['iso27001_requirement_' + lang] = '';
+                data['note_' + lang] = '';
+            }
+        });
+
+        // Get CSRF token from meta tag or cookie
+        const csrftoken = $('meta[name=csrf-token]').attr('content') || getCookie('csrftoken');
+        
+        $.ajax({
+            url: url,
+            method: method,
+            data: JSON.stringify(data),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': csrftoken},
+            success: function(response) {
+                $('#vulnerabilityModal').modal('hide');
+                vulnerabilitiesTable.ajax.reload();
+                showAlert('success', id ? '{% trans "Vulnerability updated successfully" %}' : '{% trans "Vulnerability added successfully" %}');
+            },
+            error: function(xhr, status, error) {
+                console.error("Error saving vulnerability:", xhr.responseText);
+                showAlert('error', '{% trans "Failed to save vulnerability" %}');
+            }
+        });
+    }
+
+    function deleteSelectedVulnerabilities() {
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one vulnerability to delete" %}');
+            return;
+        }
+
+        if (confirm('{% trans "Are you sure you want to delete the selected vulnerabilities? This action cannot be undone." %}')) {
+            const csrftoken = $('[name=csrfmiddlewaretoken]').val();
+
+            $.ajax({
+                url: '{% url "delete_selected_vulnerabilities" %}',
+                method: 'POST',
+                data: JSON.stringify({ vulnerability_ids: selectedIds }),
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                },
+                success: function(response) {
+                    showAlert('success', response.message || '{% trans "Selected vulnerabilities deleted successfully" %}');
+                    vulnerabilitiesTable.ajax.reload();
+                    $('[id^="selectAllVulnerabilities"]').prop('checked', false);
+                },
+                error: function(xhr) {
+                    console.error("Error deleting vulnerabilities:", xhr.responseText);
+                    let errorMessage = '{% trans "Failed to delete selected vulnerabilities" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+                    showAlert('error', errorMessage);
+                }
+            });
+        }
+    }
+
+    function translateFields() {
+        console.log('Translate button clicked');
+        const fieldConfigs = [
+            { name: 'scope', idPrefix: 'scope_' },
+            { name: 'vulnerability', idPrefix: 'vulnerability_' },
+            { name: 'description', idPrefix: 'description_' },
+            { name: 'risk_mitigation_controls', idPrefix: 'riskMitigation_' },
+            { name: 'pci_dss_requirement', idPrefix: 'pciDss_' },
+            { name: 'iso27001_requirement', idPrefix: 'iso27001_' },
+            { name: 'note', idPrefix: 'note_' }
+        ];
+        const langCodes = getVulnFormLanguages().map(l => l.code);
+        const translationData = {};
+
+        fieldConfigs.forEach(function(field) {
+            langCodes.forEach(function(lang) {
+                const $el = $('#vulnerabilityModal #' + field.idPrefix + lang);
+                const value = $el.val();
+                if (value) {
+                    translationData[`${field.name}_${lang}`] = value;
+                }
+            });
+        });
+
+        // Get CSRF token from meta tag or cookie
+        const csrftoken = $('meta[name=csrf-token]').attr('content') || getCookie('csrftoken');
+        
+        $.ajax({
+            url: '{% url "translate_vulnerability_fields" %}',
+            method: 'POST',
+            data: JSON.stringify(translationData),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': csrftoken},
+            success: function(response) {
+                if (response.success) {
+                    fieldConfigs.forEach(function(field) {
+                        langCodes.forEach(function(lang) {
+                            const key = `${field.name}_${lang}`;
+                            const $el = $('#vulnerabilityModal #' + field.idPrefix + lang);
+                            if (response[key] && $el.length) {
+                                $el.val(response[key]);
+                            }
+                        });
+                    });
+                    showAlert('success', '{% trans "Fields translated successfully" %}');
+                } else {
+                    showAlert('error', response.error || '{% trans "Failed to translate fields" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Translation error:", error);
+                console.error("Server response:", xhr.responseText);
+                showAlert('error', '{% trans "Translation failed. Please try again." %}');
+            }
+        });
+    }
+
+    function validateForm() {
+        let isValid = true;
+        $('#vulnerabilityModal input[required], #vulnerabilityModal textarea[required], #vulnerabilityModal select[required]').each(function() {
+            if (!$(this).val()) {
+                isValid = false;
+                $(this).addClass('is-invalid');
+            } else {
+                $(this).removeClass('is-invalid');
+            }
+        });
+
+        if (!isValid) {
+            showAlert('error', '{% trans "Please fill in all required fields" %}');
+        }
+
+        return isValid;
+    }
+
+    function exportVulnerabilitiesXlsx(multilingual) {
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+        const currentLanguage = $('html').attr('lang') || 'uk';
+        const csrftoken = $('meta[name=csrf-token]').attr('content') || getCookie('csrftoken');
+        $.ajax({
+            url: '{% url "export_vulnerabilities_xlsx" %}',
+            method: 'POST',
+            data: JSON.stringify({
+                vulnerability_ids: selectedIds,
+                language: currentLanguage,
+                multilingual: !!multilingual
+            }),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': csrftoken},
+            xhrFields: { responseType: 'blob' },
+            success: function(blob) {
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                const langCodes = {'uk': 'ukr', 'en': 'eng', 'ru': 'rus', 'de': 'deu'};
+                const suffix = multilingual ? 'all_langs' : (langCodes[currentLanguage] || 'ukr');
+                link.download = `vulnerabilities_export_${suffix}.xlsx`;
+                link.click();
+            },
+            error: function(xhr, status, error) {
+                console.error("Error exporting vulnerabilities:", error);
+                showAlert('error', '{% trans "Failed to export vulnerabilities" %}');
+            }
+        });
+    }
+
+    function showImportModal() {
+        loadImportAssetGroups();
+        $('#importModal').modal('show');
+    }
+
+    function loadImportAssetGroups() {
+        $.ajax({
+            url: '{% url "get_asset_groups" %}',
+            method: 'GET',
+            success: function(response) {
+                const select = $('#importAssetGroup');
+                select.empty();
+                select.append(new Option('{% trans "Select Asset Group" %}', ''));
+                response.groups.forEach(function(group) {
+                    select.append(new Option(group.localized_name, group.id));
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading asset groups:", error);
+                showAlert('error', '{% trans "Failed to load asset groups" %}');
+            }
+        });
+    }
+
+    function loadImportAssetTypes() {
+        const groupId = $('#importAssetGroup').val();
+        if (!groupId) {
+            $('#importAssetType').empty().append(new Option('{% trans "Select Asset Type" %}', ''));
+            return;
+        }
+
+        $.ajax({
+            url: '{% url "get_asset_types" %}',
+            method: 'GET',
+            data: { group_id: groupId },
+            success: function(response) {
+                const select = $('#importAssetType');
+                select.empty();
+                select.append(new Option('{% trans "Select Asset Type" %}', ''));
+                response.types.forEach(function(type) {
+                    select.append(new Option(type.localized_name, type.id));
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading asset types:", error);
+                showAlert('error', '{% trans "Failed to load asset types" %}');
+            }
+        });
+    }
+
+    function importVulnerabilities() {
+        const assetGroup = $('#importAssetGroup').val();
+        const assetType = $('#importAssetType').val();
+        const csvFile = $('#csvFile')[0].files[0];
+
+        if (!assetGroup || !assetType || !csvFile) {
+            showAlert('error', '{% trans "Please select Asset Group, Asset Type, and CSV file" %}');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('asset_group', assetGroup);
+        formData.append('asset_type', assetType);
+        formData.append('csv_file', csvFile);
+
+        $.ajax({
+            url: '{% url "import_vulnerabilities_csv" %}',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                $('#importModal').modal('hide');
+                showAlert('success', '{% trans "Vulnerabilities imported successfully" %}');
+                vulnerabilitiesTable.ajax.reload();
+            },
+            error: function(xhr, status, error) {
+                console.error("Error importing vulnerabilities:", error);
+                showAlert('error', '{% trans "Failed to import vulnerabilities" %}');
+            }
+        });
+    }
+    $('#pciDssAiBtn').on('click', function() {
+        generateWithAI('pciDss', searchPciDssRequirement);
+    });
+
+
+    function searchPciDssRequirement() {
+        return new Promise((resolve, reject) => {
+            const d = DEFAULT_VULN_LANG;
+            const vulnerabilityData = {};
+            vulnerabilityData['vulnerability_' + d] = $('#vulnerabilityModal #vulnerability').val() || '';
+            vulnerabilityData['description_' + d] = $('#vulnerabilityModal #description').val() || '';
+
+            // Use the selected AI provider
+            const endpoint = '{% url "search_pcidss_requirement" %}' + 
+                (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : '');
+
+            $.ajax({
+                url: endpoint,
+                method: 'POST',
+                data: JSON.stringify(vulnerabilityData),
+                contentType: 'application/json',
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: function(response) {
+                    if (response.success) {
+                        if (response.message) {
+                            showAlert('info', response.message);
+                            resolve();
+                        } else {
+                            $('#vulnerabilityModal #pciDss').val(decodeValueForDisplay(response['requirements_' + d]));
+                            showAlert('success', '{% trans "PCI DSS requirements found and added successfully" %}');
+                            resolve();
+                        }
+                    } else {
+                        showAlert('error', response.message || '{% trans "Failed to search for PCI DSS requirements" %}');
+                        reject(new Error(response.message));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error searching PCI DSS requirements:", error);
+                    let errorMessage = '{% trans "Failed to search for PCI DSS requirements" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage += ': ' + xhr.responseJSON.message;
+                    }
+                    showAlert('error', errorMessage);
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    $('#iso27001AiBtn').on('click', function() {
+        const progressBar = $('#iso27001AiProgress');
+        const button = $(this);
+
+        progressBar.removeClass('d-none');
+        button.prop('disabled', true);
+
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 10;
+            if (progress > 90) clearInterval(interval);
+            progressBar.find('.progress-bar')
+                .css('width', progress + '%')
+                .attr('aria-valuenow', progress)
+                .text(progress + '%');
+        }, 300);
+
+        searchIso27001Requirement()
+            .then(() => {
+                clearInterval(interval);
+                updateProgressBar(progressBar, 100);
+                setTimeout(() => {
+                    progressBar.addClass('d-none');
+                    button.prop('disabled', false);
+                }, 500);
+            })
+            .catch((error) => {
+                clearInterval(interval);
+                progressBar.addClass('d-none');
+                button.prop('disabled', false);
+                console.error('Error in ISO 27001 AI generation:', error);
+                showAlert('error', '{% trans "Failed to generate ISO 27001 requirements" %}');
+            });
+    });
+    function searchIso27001Requirement() {
+        return new Promise((resolve, reject) => {
+            const d = DEFAULT_VULN_LANG;
+            const vulnerabilityData = {};
+            vulnerabilityData['vulnerability_' + d] = $('#vulnerabilityModal #vulnerability').val() || '';
+            vulnerabilityData['description_' + d] = $('#vulnerabilityModal #description').val() || '';
+
+            if (!vulnerabilityData['vulnerability_' + d] && !vulnerabilityData['description_' + d]) {
+                showAlert('warning', '{% trans "Please provide vulnerability or description text for ISO 27001 search" %}');
+                reject(new Error('No vulnerability or description provided'));
+                return;
+            }
+
+            $.ajax({
+                url: '{% url "search_iso27001_requirement" %}' + 
+                    (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : ''),
+                method: 'POST',
+                data: JSON.stringify(vulnerabilityData),
+                contentType: 'application/json',
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: function(response) {
+                    if (response.success) {
+                        $('#vulnerabilityModal #iso27001').val(decodeValueForDisplay(response['requirements_' + d]));
+                        showAlert('success', '{% trans "ISO 27001 controls found and added" %}');
+                        resolve();
+                    } else {
+                        showAlert('error', response.message || '{% trans "Failed to find ISO 27001 controls" %}');
+                        reject(new Error(response.message));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error searching ISO 27001 controls:", error);
+                    showAlert('error', '{% trans "Failed to search for ISO 27001 controls" %}');
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    $('#pciDssSelectedAiBtn').on('click', searchPciDssRequirementForSelected);
+
+    function searchPciDssRequirementForSelected() {
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one vulnerability for PCI DSS AI analysis" %}');
+            return;
+        }
+
+        const $progressBar = $('#aiAnalysisProgress');
+        const $progressBarInner = $progressBar.find('.progress-bar');
+        $progressBar.show();
+        $progressBarInner.css('width', '0%').attr('aria-valuenow', 0).text('0%');
+
+        $('#pciDssSelectedAiBtn').prop('disabled', true);
+
+        let processed = 0;
+        const total = selectedIds.length;
+
+        function updateProgress() {
+            const percentage = Math.round((processed / total) * 100);
+            $progressBarInner.css('width', percentage + '%').attr('aria-valuenow', percentage).text(percentage + '%');
+        }
+
+        function processNext(index) {
+            if (index >= selectedIds.length) {
+                showAlert('success', '{% trans "PCI DSS requirements added for selected vulnerabilities" %}');
+                vulnerabilitiesTable.ajax.reload();
+                $progressBar.hide();
+                $('#pciDssSelectedAiBtn').prop('disabled', false);
+                return;
+            }
+
+            const id = selectedIds[index];
+            $.ajax({
+                url: '{% url "get_vulnerability" %}',
+                method: 'GET',
+                data: { id: id },
+                success: function(vulnData) {
+                    $.ajax({
+                        url: '{% url "search_pcidss_requirement" %}' + 
+                            (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : ''),
+                        method: 'POST',
+                        data: JSON.stringify({
+                            vulnerability_en: vulnData.vulnerability_en,
+                            description_en: vulnData.description_en
+                        }),
+                        contentType: 'application/json',
+                        headers: {'X-CSRFToken': getCookie('csrftoken')},
+                        success: function(response) {
+                            if (response.success) {
+                                // Update the vulnerability with new PCI DSS requirements
+                                $.ajax({
+                                    url: '{% url "update_vulnerability" %}',
+                                    method: 'POST',
+                                    data: JSON.stringify({
+                                        id: id,
+                                        pci_dss_requirement_uk: response.requirements_uk,
+                                        pci_dss_requirement_en: response.requirements_en,
+                                        pci_dss_requirement_ru: response.requirements_ru
+                                    }),
+                                    contentType: 'application/json',
+                                    headers: {'X-CSRFToken': getCookie('csrftoken')},
+                                    success: function() {
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    },
+                                    error: function() {
+                                        showAlert('error', '{% trans "Failed to update vulnerability with PCI DSS requirements" %}');
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    }
+                                });
+                            } else {
+                                showAlert('warning', response.message || '{% trans "Error occurred while searching for PCI DSS requirements" %}');
+                                processed++;
+                                updateProgress();
+                                processNext(index + 1);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("Error searching PCI DSS requirement:", error);
+                            showAlert('error', '{% trans "Failed to search for PCI DSS requirement" %}');
+                            processed++;
+                            updateProgress();
+                            processNext(index + 1);
+                        }
+                    });
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error fetching vulnerability data:", error);
+                    showAlert('error', '{% trans "Failed to fetch vulnerability data" %}');
+                    processed++;
+                    updateProgress();
+                    processNext(index + 1);
+                }
+            });
+        }
+
+        processNext(0);
+    }
+
+    $('#iso27002SelectedAiBtn').on('click', searchIso27002RequirementForSelected);
+
+    function searchIso27002RequirementForSelected() {
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one vulnerability for ISO 27002 AI analysis" %}');
+            return;
+        }
+
+        const $progressBar = $('#aiAnalysisProgress');
+        const $progressBarInner = $progressBar.find('.progress-bar');
+        $progressBar.show();
+        $progressBarInner.css('width', '0%').text('0%');
+
+        $('#iso27002SelectedAiBtn').prop('disabled', true);
+
+        let processed = 0;
+        const total = selectedIds.length;
+
+        function updateProgress() {
+            const percentage = Math.round((processed / total) * 100);
+            $progressBarInner.css('width', percentage + '%').text(percentage + '%');
+        }
+
+        function processNext(index) {
+            if (index >= selectedIds.length) {
+                showAlert('success', '{% trans "ISO 27002 controls added for selected vulnerabilities" %}');
+                vulnerabilitiesTable.ajax.reload();
+                $progressBar.hide();
+                $('#iso27002SelectedAiBtn').prop('disabled', false);
+                return;
+            }
+
+            const id = selectedIds[index];
+            $.ajax({
+                url: '{% url "get_vulnerability" %}',
+                method: 'GET',
+                data: { id: id },
+                success: function(vulnData) {
+                    $.ajax({
+                        url: '{% url "search_iso27001_requirement" %}' + 
+                            (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : ''),
+                        method: 'POST',
+                        data: JSON.stringify({
+                            vulnerability_en: vulnData.vulnerability_en,
+                            description_en: vulnData.description_en
+                        }),
+                        contentType: 'application/json',
+                        headers: {'X-CSRFToken': getCookie('csrftoken')},
+                        success: function(response) {
+                            if (response.success) {
+                                const updateData = {
+                                    id: id,
+                                    iso27001_requirement_uk: response.requirements_uk || '',
+                                    iso27001_requirement_en: response.requirements_en || '',
+                                    iso27001_requirement_ru: response.requirements_ru || ''
+                                };
+
+                                $.ajax({
+                                    url: '{% url "update_vulnerability" %}',
+                                    method: 'POST',
+                                    data: JSON.stringify(updateData),
+                                    contentType: 'application/json',
+                                    headers: {'X-CSRFToken': getCookie('csrftoken')},
+                                    success: function(updateResponse) {
+                                        if (updateResponse.success) {
+                                            console.log(`Successfully saved ISO 27002 controls for vulnerability ${id}`);
+                                        } else {
+                                            console.error(`Failed to save ISO 27002 controls for vulnerability ${id}:`,
+                                                updateResponse.message);
+                                            showAlert('error', updateResponse.message);
+                                        }
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    },
+                                    error: function(xhr, status, error) {
+                                        console.error(`Error saving ISO 27002 controls for vulnerability ${id}:`, error);
+                                        showAlert('error', '{% trans "Failed to save ISO 27002 controls" %}');
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    }
+                                });
+                            } else {
+                                console.warn(`No ISO 27002 controls found for vulnerability ${id}`);
+                                processed++;
+                                updateProgress();
+                                processNext(index + 1);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error(`Error analyzing vulnerability ${id}:`, error);
+                            showAlert('error', '{% trans "Failed to analyze vulnerability" %}');
+                            processed++;
+                            updateProgress();
+                            processNext(index + 1);
+                        }
+                    });
+                },
+                error: function(xhr, status, error) {
+                    console.error(`Error fetching vulnerability ${id}:`, error);
+                    showAlert('error', '{% trans "Failed to fetch vulnerability data" %}');
+                    processed++;
+                    updateProgress();
+                    processNext(index + 1);
+                }
+            });
+        }
+
+        processNext(0);
+    }
+
+    $('#descriptionAiBtn').on('click', function() {
+        generateWithAI('description', generateDescriptionWithAI);
+    });
+
+    function generateDescriptionWithAI() {
+        return new Promise((resolve, reject) => {
+            const d = DEFAULT_VULN_LANG;
+            const vulnerabilityData = {};
+            vulnerabilityData['scope_' + d] = $('#vulnerabilityModal #scope').val() || '';
+            vulnerabilityData['vulnerability_' + d] = $('#vulnerabilityModal #vulnerability').val() || '';
+
+            // Use the selected AI provider
+            const endpoint = '{% url "generate_description_ai" %}' + 
+                (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : '');
+
+            $.ajax({
+                url: endpoint,
+                method: 'POST',
+                data: JSON.stringify(vulnerabilityData),
+                contentType: 'application/json',
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: function(response) {
+                    if (response.success) {
+                        const val = response['description_' + d] || '';
+                        $('#vulnerabilityModal #description').val(decodeValueForDisplay(val));
+                        showAlert('success', '{% trans "Description generated successfully in all languages" %}');
+                        resolve();
+                    } else {
+                        showAlert('error', response.message || '{% trans "Failed to generate description" %}');
+                        reject(new Error(response.message));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error generating description:", error);
+                    let errorMessage = '{% trans "Failed to generate description" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage += ': ' + xhr.responseJSON.message;
+                    }
+                    showAlert('error', errorMessage);
+                    reject(error);
+                }
+            });
+        });
+    }
+    $('#descriptionSelectedAiBtn').on('click', generateDescriptionForSelected);
+
+    function generateDescriptionForSelected() {
+        console.log('Starting generateDescriptionForSelected function');
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+        console.log('Selected IDs:', selectedIds);
+
+        if (selectedIds.length === 0) {
+            console.log('No vulnerabilities selected');
+            showAlert('warning', '{% trans "Please select at least one vulnerability for Description AI analysis" %}');
+            return;
+        }
+
+        const $progressBar = $('#aiAnalysisProgress');
+        const $progressBarInner = $progressBar.find('.progress-bar');
+        $progressBar.show();
+        $progressBarInner.css('width', '0%').attr('aria-valuenow', 0).text('0%');
+
+        $('#descriptionSelectedAiBtn').prop('disabled', true);
+        console.log('Progress bar initialized and button disabled');
+
+        let processed = 0;
+        const total = selectedIds.length;
+
+        function updateProgress() {
+            const percentage = Math.round((processed / total) * 100);
+            $progressBarInner.css('width', percentage + '%').attr('aria-valuenow', percentage).text(percentage + '%');
+            console.log(`Progress updated: ${percentage}%`);
+        }
+
+        function processNext(index) {
+            console.log(`Processing vulnerability ${index + 1} of ${total}`);
+            if (index >= total) {
+                console.log('All vulnerabilities processed');
+                showAlert('success', '{% trans "Descriptions generated for selected vulnerabilities" %}');
+                console.log('Reloading DataTable');
+                vulnerabilitiesTable.ajax.reload(function() {
+                    console.log('DataTable reload completed');
+                    $progressBar.hide();
+                    $('#descriptionSelectedAiBtn').prop('disabled', false);
+                }, false);  // false here means we don't want to reset the paging
+                return;
+            }
+
+            const id = selectedIds[index];
+            console.log(`Fetching vulnerability data for ID: ${id}`);
+            $.ajax({
+                url: '{% url "get_vulnerability" %}',
+                method: 'GET',
+                data: { id: id },
+                success: function(vulnData) {
+                    console.log(`Vulnerability data received for ID ${id}:`, vulnData);
+                    console.log(`Generating description for vulnerability ID ${id}`);
+                    
+                    // Clean vulnerability data to ensure we're only using English text
+                    // By removing any Ukrainian or Russian text that might be mixed in
+                    let cleanVulnerabilityEn = vulnData.vulnerability_en || '';
+                    let cleanScopeEn = vulnData.scope_en || '';
+                    
+                    // Remove any text after "UK:" or "RU:" markers
+                    if (cleanVulnerabilityEn.includes('UK:')) {
+                        cleanVulnerabilityEn = cleanVulnerabilityEn.split('UK:')[0].trim();
+                    }
+                    if (cleanVulnerabilityEn.includes('RU:')) {
+                        cleanVulnerabilityEn = cleanVulnerabilityEn.split('RU:')[0].trim();
+                    }
+                    
+                    if (cleanScopeEn.includes('UK:')) {
+                        cleanScopeEn = cleanScopeEn.split('UK:')[0].trim();
+                    }
+                    if (cleanScopeEn.includes('RU:')) {
+                        cleanScopeEn = cleanScopeEn.split('RU:')[0].trim();
+                    }
+                    
+                    console.log(`Cleaned vulnerability_en: "${cleanVulnerabilityEn}"`);
+                    console.log(`Cleaned scope_en: "${cleanScopeEn}"`);
+                    
+                    // Use the selected AI provider
+                    const endpoint = '{% url "generate_description_ai" %}' + 
+                        (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : '');
+                    
+                    $.ajax({
+                        url: endpoint,
+                        method: 'POST',
+                        data: JSON.stringify({
+                            vulnerability_en: cleanVulnerabilityEn,
+                            scope_en: cleanScopeEn
+                        }),
+                        contentType: 'application/json',
+                        headers: {'X-CSRFToken': getCookie('csrftoken')},
+                        success: function(response) {
+                            console.log(`Description generation response for ID ${id}:`, response);
+                            if (response.success) {
+                                console.log(`Updating vulnerability ${id} with new description`);
+                                const updateData = {
+                                    id: id,
+                                    description_uk: response.description_uk,
+                                    description_en: response.description_en,
+                                    description_ru: response.description_ru
+                                };
+                                console.log(`Update data for vulnerability ${id}:`, updateData);
+                                $.ajax({
+                                    url: '{% url "update_vulnerability" %}',
+                                    method: 'POST',
+                                    data: JSON.stringify(updateData),
+                                    contentType: 'application/json',
+                                    headers: {'X-CSRFToken': getCookie('csrftoken')},
+                                    success: function(updateResponse) {
+                                        console.log(`Vulnerability ${id} update response:`, updateResponse);
+                                        if (updateResponse.success) {
+                                            console.log(`Vulnerability ${id} updated successfully`);
+                                        } else {
+                                            console.error(`Failed to update vulnerability ${id}:`, updateResponse.message);
+                                            showAlert('error', `{% trans "Failed to update vulnerability" %} ${id}: ${updateResponse.message}`);
+                                        }
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    },
+                                    error: function(xhr, status, error) {
+                                        console.error(`Error updating vulnerability ${id}:`, error);
+                                        console.log('XHR Status:', xhr.status);
+                                        console.log('XHR Response:', xhr.responseText);
+                                        showAlert('error', '{% trans "Failed to update vulnerability with generated description" %}');
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    }
+                                });
+                            } else {
+                                console.warn(`Error generating description for vulnerability ${id}:`, response.message);
+                                showAlert('warning', response.message || '{% trans "Error occurred while generating description" %}');
+                                processed++;
+                                updateProgress();
+                                processNext(index + 1);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error(`Error generating description for vulnerability ${id}:`, error);
+                            console.log('XHR Status:', xhr.status);
+                            console.log('XHR Response:', xhr.responseText);
+                            let errorMessage = '{% trans "Failed to generate description" %}';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMessage += ': ' + xhr.responseJSON.message;
+                            }
+                            showAlert('error', errorMessage);
+                            processed++;
+                            updateProgress();
+                            processNext(index + 1);
+                        }
+                    });
+                },
+                error: function(xhr, status, error) {
+                    console.error(`Error fetching vulnerability data for ID ${id}:`, error);
+                    console.log('XHR Status:', xhr.status);
+                    console.log('XHR Response:', xhr.responseText);
+                    showAlert('error', '{% trans "Failed to fetch vulnerability data" %}');
+                    processed++;
+                    updateProgress();
+                    processNext(index + 1);
+                }
+            });
+        }
+
+        processNext(0);
+    }
+    $('#riskMitigationAiBtn').on('click', function() {
+    generateWithAI('riskMitigation', generateRiskMitigationWithAI);
+    });
+
+    function generateRiskMitigationWithAI() {
+        return new Promise((resolve, reject) => {
+            const d = DEFAULT_VULN_LANG;
+            const vulnerabilityData = {
+                threats: $('#vulnerabilityModal #threats').val()
+            };
+            vulnerabilityData['scope_' + d] = $('#vulnerabilityModal #scope').val() || '';
+            vulnerabilityData['vulnerability_' + d] = $('#vulnerabilityModal #vulnerability').val() || '';
+            vulnerabilityData['description_' + d] = $('#vulnerabilityModal #description').val() || '';
+
+            // Use the selected AI provider
+            const endpoint = '{% url "generate_risk_mitigation_ai" %}' + 
+                (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : '');
+
+            $.ajax({
+                url: endpoint,
+                method: 'POST',
+                data: JSON.stringify(vulnerabilityData),
+                contentType: 'application/json',
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: function(response) {
+                    if (response.success) {
+                        $('#vulnerabilityModal #riskMitigation').val(decodeValueForDisplay(response['risk_mitigation_' + d]));
+                        showAlert('success', '{% trans "Risk Mitigation Controls generated successfully in all languages" %}');
+                        resolve();
+                    } else {
+                        showAlert('error', response.message || '{% trans "Failed to generate risk mitigation controls" %}');
+                        reject(new Error(response.message));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error generating risk mitigation controls:", error);
+                    let errorMessage = '{% trans "Failed to generate risk mitigation controls" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage += ': ' + xhr.responseJSON.message;
+                    }
+                    showAlert('error', errorMessage);
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    $('#riskMitigationSelectedAiBtn').on('click', generateRiskMitigationForSelected);
+
+    function generateRiskMitigationForSelected() {
+        console.log('Starting generateRiskMitigationForSelected function');
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+        console.log('Selected IDs:', selectedIds);
+
+        if (selectedIds.length === 0) {
+            console.log('No vulnerabilities selected');
+            showAlert('warning', '{% trans "Please select at least one vulnerability for Risk Mitigation AI analysis" %}');
+            return;
+        }
+
+        const $progressBar = $('#aiAnalysisProgress');
+        const $progressBarInner = $progressBar.find('.progress-bar');
+        $progressBar.show();
+        $progressBarInner.css('width', '0%').attr('aria-valuenow', 0).text('0%');
+
+        $('#riskMitigationSelectedAiBtn').prop('disabled', true);
+        console.log('Progress bar initialized and button disabled');
+
+        let processed = 0;
+        const total = selectedIds.length;
+
+        function updateProgress() {
+            const percentage = Math.round((processed / total) * 100);
+            $progressBarInner.css('width', percentage + '%').attr('aria-valuenow', percentage).text(percentage + '%');
+            console.log(`Progress updated: ${percentage}%`);
+        }
+
+        function processNext(index) {
+            console.log(`Processing vulnerability ${index + 1} of ${total}`);
+            if (index >= total) {
+                console.log('All vulnerabilities processed');
+                showAlert('success', '{% trans "Risk Mitigation Controls generated for selected vulnerabilities" %}');
+                console.log('Reloading DataTable');
+                vulnerabilitiesTable.ajax.reload(function() {
+                    console.log('DataTable reload completed');
+                    $progressBar.hide();
+                    $('#riskMitigationSelectedAiBtn').prop('disabled', false);
+                }, false);
+                return;
+            }
+
+            const id = selectedIds[index];
+            console.log(`Fetching vulnerability data for ID: ${id}`);
+            $.ajax({
+                url: '{% url "get_vulnerability" %}',
+                method: 'GET',
+                data: { id: id },
+                success: function(vulnData) {
+                    console.log(`Vulnerability data received for ID ${id}:`, vulnData);
+                    console.log(`Generating risk mitigation for vulnerability ID ${id}`);
+                    
+                    // Clean vulnerability data to ensure we're only using English text
+                    let cleanVulnerabilityEn = vulnData.vulnerability_en || '';
+                    let cleanScopeEn = vulnData.scope_en || '';
+                    let cleanDescriptionEn = vulnData.description_en || '';
+                    
+                    // Remove any text after "UK:" or "RU:" markers
+                    if (cleanVulnerabilityEn.includes('UK:')) {
+                        cleanVulnerabilityEn = cleanVulnerabilityEn.split('UK:')[0].trim();
+                    }
+                    if (cleanVulnerabilityEn.includes('RU:')) {
+                        cleanVulnerabilityEn = cleanVulnerabilityEn.split('RU:')[0].trim();
+                    }
+                    
+                    if (cleanScopeEn.includes('UK:')) {
+                        cleanScopeEn = cleanScopeEn.split('UK:')[0].trim();
+                    }
+                    if (cleanScopeEn.includes('RU:')) {
+                        cleanScopeEn = cleanScopeEn.split('RU:')[0].trim();
+                    }
+                    
+                    if (cleanDescriptionEn.includes('UK:')) {
+                        cleanDescriptionEn = cleanDescriptionEn.split('UK:')[0].trim();
+                    }
+                    if (cleanDescriptionEn.includes('RU:')) {
+                        cleanDescriptionEn = cleanDescriptionEn.split('RU:')[0].trim();
+                    }
+                    
+                    console.log(`Cleaned data for ID ${id} before risk mitigation generation`);
+                    
+                    $.ajax({
+                        url: '{% url "generate_risk_mitigation_ai" %}' + 
+                            (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : ''),
+                        method: 'POST',
+                        data: JSON.stringify({
+                            vulnerability_en: cleanVulnerabilityEn,
+                            description_en: cleanDescriptionEn,
+                            scope_en: cleanScopeEn,
+                            threats: vulnData.threats
+                        }),
+                        contentType: 'application/json',
+                        headers: {'X-CSRFToken': getCookie('csrftoken')},
+                        success: function(response) {
+                            console.log(`Risk mitigation generation response for ID ${id}:`, response);
+                            if (response.success) {
+                                console.log(`Updating vulnerability ${id} with new risk mitigation controls`);
+                                // Create a properly formatted update data object
+                                const updateData = {
+                                    id: id,
+                                    risk_mitigation_controls_uk: response.risk_mitigation_uk,
+                                    risk_mitigation_controls_en: response.risk_mitigation_en,
+                                    risk_mitigation_controls_ru: response.risk_mitigation_ru
+                                };
+                                console.log('Update data:', updateData); // Add this for debugging
+
+                                $.ajax({
+                                    url: '{% url "update_vulnerability" %}',
+                                    method: 'POST',
+                                    data: JSON.stringify(updateData),
+                                    contentType: 'application/json',
+                                    headers: {'X-CSRFToken': getCookie('csrftoken')},
+                                    success: function(updateResponse) {
+                                        console.log(`Vulnerability ${id} update response:`, updateResponse);
+                                        if (updateResponse.success) {
+                                            console.log(`Vulnerability ${id} updated successfully`);
+                                        } else {
+                                            console.error(`Failed to update vulnerability ${id}:`, updateResponse.message);
+                                            showAlert('error', `{% trans "Failed to update vulnerability" %} ${id}: ${updateResponse.message}`);
+                                        }
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    },
+                                    error: function(xhr, status, error) {
+                                        console.error(`Error updating vulnerability ${id}:`, error);
+                                        console.log('XHR Status:', xhr.status);
+                                        console.log('XHR Response:', xhr.responseText);
+                                        showAlert('error', '{% trans "Failed to update vulnerability with generated risk mitigation controls" %}');
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    }
+                                });
+                            } else {
+                                console.warn(`Error generating risk mitigation for vulnerability ${id}:`, response.message);
+                                showAlert('warning', response.message || '{% trans "Error occurred while generating risk mitigation controls" %}');
+                                processed++;
+                                updateProgress();
+                                processNext(index + 1);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error(`Error generating risk mitigation for vulnerability ${id}:`, error);
+                            console.log('XHR Status:', xhr.status);
+                            console.log('XHR Response:', xhr.responseText);
+                            showAlert('error', '{% trans "Failed to generate risk mitigation controls" %}');
+                            processed++;
+                            updateProgress();
+                            processNext(index + 1);
+                        }
+                    });
+                },
+                error: function(xhr, status, error) {
+                    console.error(`Error fetching vulnerability data for ID ${id}:`, error);
+                    console.log('XHR Status:', xhr.status);
+                    console.log('XHR Response:', xhr.responseText);
+                    showAlert('error', '{% trans "Failed to fetch vulnerability data" %}');
+                    processed++;
+                    updateProgress();
+                    processNext(index + 1);
+                }
+            });
+        }
+
+        processNext(0);
+    }
+
+
+    $('#noteAiBtn').on('click', function() {
+        generateWithAI('note', generateNoteWithAI);
+    });
+
+    function generateWithAI(type, generationFunction) {
+        const progressBar = $(`#${type}AiProgress`);
+        const button = $(`#${type}AiBtn`);
+
+        progressBar.removeClass('d-none');
+        button.prop('disabled', true);
+
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 10;
+            if (progress > 90) clearInterval(interval);
+            updateProgressBar(progressBar, progress);
+        }, 300);
+
+        generationFunction()
+            .then(() => {
+                clearInterval(interval);
+                updateProgressBar(progressBar, 100);
+                setTimeout(() => {
+                    progressBar.addClass('d-none');
+                    button.prop('disabled', false);
+                }, 500);
+            })
+            .catch((error) => {
+                clearInterval(interval);
+                updateProgressBar(progressBar, 0);
+                progressBar.addClass('d-none');
+                button.prop('disabled', false);
+                console.error(`Error in ${type} AI generation:`, error);
+                showAlert('error', `{% trans "Failed to generate" %} ${type}`);
+            });
+    }
+
+    function updateProgressBar(progressBar, value) {
+        progressBar.find('.progress-bar').css('width', `${value}%`).attr('aria-valuenow', value).text(`${value}%`);
+    }
+    function generateNoteWithAI() {
+        return new Promise((resolve, reject) => {
+            const d = DEFAULT_VULN_LANG;
+            const vulnerabilityData = {
+                threats: $('#vulnerabilityModal #threats').val()
+            };
+            vulnerabilityData['scope_' + d] = $('#vulnerabilityModal #scope').val() || '';
+            vulnerabilityData['vulnerability_' + d] = $('#vulnerabilityModal #vulnerability').val() || '';
+            vulnerabilityData['description_' + d] = $('#vulnerabilityModal #description').val() || '';
+            vulnerabilityData['risk_mitigation_controls_' + d] = $('#vulnerabilityModal #riskMitigation').val() || '';
+            vulnerabilityData['pci_dss_requirement_' + d] = $('#vulnerabilityModal #pciDss').val() || '';
+            vulnerabilityData['iso27001_requirement_' + d] = $('#vulnerabilityModal #iso27001').val() || '';
+
+            $.ajax({
+                url: '{% url "generate_note_ai" %}' + (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : ''),
+                method: 'POST',
+                data: JSON.stringify(vulnerabilityData),
+                contentType: 'application/json',
+                headers: {'X-CSRFToken': getCookie('csrftoken')},
+                success: function(response) {
+                    if (response.success) {
+                        $('#vulnerabilityModal #note').val(decodeValueForDisplay(response['note_' + d]));
+                        showAlert('success', '{% trans "Notes generated successfully in all languages" %}');
+                        resolve();
+                    } else {
+                        showAlert('error', response.message || '{% trans "Failed to generate notes" %}');
+                        reject(new Error(response.message));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error generating notes:", error);
+                    var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : '{% trans "Failed to generate notes" %}';
+                    showAlert('error', msg);
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    $('#noteSelectedAiBtn').on('click', generateNotesForSelected);
+
+    function generateNotesForSelected() {
+        console.log('Starting generateNotesForSelected function');
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+        console.log('Selected IDs:', selectedIds);
+
+        if (selectedIds.length === 0) {
+            console.log('No vulnerabilities selected');
+            showAlert('warning', '{% trans "Please select at least one vulnerability for Note AI analysis" %}');
+            return;
+        }
+
+        const $progressBar = $('#aiAnalysisProgress');
+        const $progressBarInner = $progressBar.find('.progress-bar');
+        $progressBar.show();
+        $progressBarInner.css('width', '0%').attr('aria-valuenow', 0).text('0%');
+
+        $('#noteSelectedAiBtn').prop('disabled', true);
+        console.log('Progress bar initialized and button disabled');
+
+        let processed = 0;
+        const total = selectedIds.length;
+
+        function updateProgress() {
+            const percentage = Math.round((processed / total) * 100);
+            $progressBarInner.css('width', percentage + '%').attr('aria-valuenow', percentage).text(percentage + '%');
+            console.log(`Progress updated: ${percentage}%`);
+        }
+
+        function processNext(index) {
+            console.log(`Processing vulnerability ${index + 1} of ${total}`);
+            if (index >= total) {
+                console.log('All vulnerabilities processed');
+                showAlert('success', '{% trans "Notes generated for selected vulnerabilities" %}');
+                console.log('Reloading DataTable');
+                vulnerabilitiesTable.ajax.reload(function() {
+                    console.log('DataTable reload completed');
+                    $progressBar.hide();
+                    $('#noteSelectedAiBtn').prop('disabled', false);
+                }, false);  // false here means we don't want to reset the paging
+                return;
+            }
+
+            const id = selectedIds[index];
+            console.log(`Fetching vulnerability data for ID: ${id}`);
+            $.ajax({
+                url: '{% url "get_vulnerability" %}',
+                method: 'GET',
+                data: { id: id },
+                success: function(vulnData) {
+                    console.log(`Vulnerability data received for ID ${id}:`, vulnData);
+                    console.log(`Generating note for vulnerability ID ${id}`);
+                    $.ajax({
+                        url: '{% url "generate_note_ai" %}' + 
+                            (defaultAIProvider !== 'claude' ? '?provider=' + defaultAIProvider : ''),
+                        method: 'POST',
+                        data: JSON.stringify(vulnData),
+                        contentType: 'application/json',
+                        headers: {'X-CSRFToken': getCookie('csrftoken')},
+                        success: function(response) {
+                            console.log(`Note generation response for ID ${id}:`, response);
+                            if (response.success) {
+                                console.log(`Updating vulnerability ${id} with new notes`);
+                                $.ajax({
+                                    url: '{% url "update_vulnerability" %}',
+                                    method: 'POST',
+                                    data: JSON.stringify({
+                                        id: id,
+                                        note_uk: response.note_uk,
+                                        note_en: response.note_en,
+                                        note_ru: response.note_ru
+                                    }),
+                                    contentType: 'application/json',
+                                    headers: {'X-CSRFToken': getCookie('csrftoken')},
+                                    success: function() {
+                                        console.log(`Vulnerability ${id} updated successfully`);
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    },
+                                    error: function(xhr, status, error) {
+                                        console.error(`Error updating vulnerability ${id}:`, error);
+                                        console.log('XHR Status:', xhr.status);
+                                        console.log('XHR Response:', xhr.responseText);
+                                        showAlert('error', '{% trans "Failed to update vulnerability with generated notes" %}');
+                                        processed++;
+                                        updateProgress();
+                                        processNext(index + 1);
+                                    }
+                                });
+                            } else {
+                                console.warn(`Error generating note for vulnerability ${id}:`, response.message);
+                                showAlert('warning', response.message || '{% trans "Error occurred while generating notes" %}');
+                                processed++;
+                                updateProgress();
+                                processNext(index + 1);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error(`Error generating note for vulnerability ${id}:`, error);
+                            console.log('XHR Status:', xhr.status);
+                            console.log('XHR Response:', xhr.responseText);
+                            showAlert('error', '{% trans "Failed to generate notes" %}');
+                            processed++;
+                            updateProgress();
+                            processNext(index + 1);
+                        }
+                    });
+                },
+                error: function(xhr, status, error) {
+                    console.error(`Error fetching vulnerability data for ID ${id}:`, error);
+                    console.log('XHR Status:', xhr.status);
+                    console.log('XHR Response:', xhr.responseText);
+                    showAlert('error', '{% trans "Failed to fetch vulnerability data" %}');
+                    processed++;
+                    updateProgress();
+                    processNext(index + 1);
+                }
+            });
+        }
+
+        processNext(0);
+    }
+
+
+    // showAlert function removed (already defined globally)
+
+
+
+
+
+    // MutationObserver for debugging
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'childList') {
+                console.log('A child node has been added or removed.');
+            } else if (mutation.type === 'attributes') {
+                console.log(`The ${mutation.attributeName} attribute was modified.`);
+            }
+        });
+    });
+
+    const config = { attributes: true, childList: true, subtree: true };
+    observer.observe(document.body, config);
+
+    $(window).on('resize', function() {
+        if ($('.select2-container--open').length) {
+            const dropdown = $('.select2-results__options');
+            const windowHeight = $(window).height();
+            const dropdownTop = dropdown.offset().top;
+            const maxHeight = windowHeight - dropdownTop - 50;
+            dropdown.css('max-height', maxHeight + 'px');
+        }
+    });
+
+    // Error logging
+    window.onerror = function(message, source, lineno, colno, error) {
+        console.error("Global error:", { message, source, lineno, colno, error });
+        showAlert('error', '{% trans "An unexpected error occurred. Please try again." %}');
+    };
+
+    // Helper function to escape HTML for tooltips
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Update dashboard statistics
+    function updateDashboardStats(data) {
+        if (!data || !data.vulnerabilities) return;
+        
+        // Update total vulnerabilities
+        const totalVulnerabilities = data.vulnerabilities.length;
+        $('#totalVulnerabilities').text(totalVulnerabilities);
+        $('#totalVulnerabilitiesFooter').text(totalVulnerabilities);
+        $('#shownVulnerabilities').text(totalVulnerabilities);
+        
+        // Count unique asset groups
+        const assetGroups = new Set();
+        data.vulnerabilities.forEach(vuln => {
+            const assetGroupName = vuln.asset_group.split('/')[0];
+            assetGroups.add(assetGroupName);
+        });
+        $('#totalAssetGroups').text(assetGroups.size);
+        
+        // Count threats and mitigated vulnerabilities
+        let totalThreats = 0;
+        let mitigatedCount = 0;
+        
+        data.vulnerabilities.forEach(vuln => {
+            // Count threats
+            if (vuln.threats && Array.isArray(vuln.threats)) {
+                totalThreats += vuln.threats.length;
+            }
+            
+            // Count mitigations (assuming a vulnerability with risk mitigation controls is mitigated)
+            if (vuln.risk_mitigation_controls && vuln.risk_mitigation_controls.trim()) {
+                mitigatedCount++;
+            }
+        });
+        
+        $('#totalThreats').text(totalThreats);
+        $('#mitigatedVulnerabilities').text(mitigatedCount);
+    }
+
+    // Update selected count
+    function updateSelectedCount() {
+        const selectedCount = $('.vulnerability-checkbox:checked').length;
+        $('#selectedCount').text(selectedCount + ' {% trans "selected" %}');
+        
+        // Show/hide delete button based on selection
+        if (selectedCount > 0) {
+            $('#deleteSelectedVulnerabilities').removeClass('d-none');
+        } else {
+            $('#deleteSelectedVulnerabilities').addClass('d-none');
+        }
+    }
+
+    // Add empty state message when no data is available
+    function checkEmptyState() {
+        if ($('[id^="vulnerabilitiesTable"] tbody tr').length === 0) {
+            $('[id^="vulnerabilitiesTable"] tbody').html(`
+                <tr>
+                    <td colspan="12">
+                        <div class="empty-state">
+                            <i class="fas fa-folder-open text-muted"></i>
+                            <h5>{% trans "No vulnerabilities found" %}</h5>
+                            <p>{% trans "No vulnerabilities match your criteria. Try adjusting your filters or create a new vulnerability." %}</p>
+                            <button id="emptyStateAddBtn" class="btn btn-primary">
+                                <i class="fas fa-plus-circle me-1"></i>{% trans "Add Vulnerability" %}
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `);
+            
+            $('#emptyStateAddBtn').on('click', showAddVulnerabilityModal);
+        }
+    }
+
+    // Custom search/filter function
+    function setupSearch() {
+        $('[id^="searchVulnerabilities"]').on('keyup', function() {
+            vulnerabilitiesTable.search($(this).val()).draw();
+        });
+    }
+
+    // Setup refresh button
+    function setupRefreshButton() {
+        $('[id^="refreshVulnerabilitiesTable"]').on('click', function() {
+            vulnerabilitiesTable.ajax.reload();
+        });
+    }
+
+    // Enhance delete confirmation modal with vulnerability details
+    function enhanceDeleteModal(vulnerabilityId, vulnerabilityName, assetGroup) {
+        $('#deleteVulnerabilityId').text(vulnerabilityId);
+        $('#deleteVulnerabilityName').text(vulnerabilityName);
+        $('#deleteVulnerabilityAssetGroup').text(assetGroup);
+    }
+
+    // Initialize all custom components
+    function initCustomComponents() {
+        setupSearch();
+        setupRefreshButton();
+    }
+
+    // Call after DataTables initialization
+    function afterDataTablesInit() {
+        // Handle "select all" checkbox
+        $('[id^="selectAllVulnerabilities"]').on('change', function() {
+            const isChecked = $(this).is(':checked');
+            $('.vulnerability-checkbox').prop('checked', isChecked);
+        });
+        
+        // Update row counts
+        updateSelectedCount();
+        
+        // Attach event listener to checkboxes for counting selected rows
+        $(document).on('change', '[id^="vulnerabilitiesTable"] .vulnerability-checkbox', function() {
+            updateSelectedCount();
+        });
+        
+        // Remove any duplicate tooltip/popover instances
+        $('[data-bs-toggle="tooltip"], [data-bs-toggle="popover"]').each(function() {
+            const $this = $(this);
+            try {
+                // Store the title attribute
+                const title = $this.attr('title');
+                // Remove the element from DOM temporarily
+                const parent = $this.parent();
+                const next = $this.next();
+                $this.detach();
+                // Reattach the element
+                if (next.length) {
+                    next.before($this);
+                } else {
+                    parent.append($this);
+                }
+                // Restore the title attribute
+                if (title) {
+                    $this.attr('title', title);
+                }
+            } catch (error) {
+                console.warn('Error refreshing tooltip element:', error);
+            }
+        });
+        
+        // Re-initialize tooltips and popovers properly
+        initializeTooltipsAndPopovers();
+    }
+
+    // Call this last line inside document ready before the closing parenthesis
+    initCustomComponents();
+
+    // AI operations handler
+    function performAIOperation(operationType) {
+        const selectedIds = $('.vulnerability-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+        
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one vulnerability" %}');
+            return;
+        }
+        
+        // Show confirmation dialog based on operation type
+        let confirmMessage = '';
+        let endpoint = '';
+        
+        switch(operationType) {
+            case 'description':
+                confirmMessage = '{% trans "Generate descriptions for selected vulnerabilities?" %}';
+                endpoint = '{% url "generate_description_ai" %}';
+                break;
+            case 'risk_mitigation':
+                confirmMessage = '{% trans "Generate risk mitigation controls for selected vulnerabilities?" %}';
+                endpoint = '{% url "generate_risk_mitigation_ai" %}';
+                break;
+            case 'pci_dss':
+                confirmMessage = '{% trans "Generate PCI DSS requirements for selected vulnerabilities?" %}';
+                endpoint = '{% url "search_pcidss_requirement" %}';
+                break;
+            case 'iso27002':
+                confirmMessage = '{% trans "Generate ISO 27002 controls for selected vulnerabilities?" %}';
+                endpoint = '{% url "search_iso27001_requirement" %}';
+                break;
+            case 'note':
+                confirmMessage = '{% trans "Generate notes for selected vulnerabilities?" %}';
+                endpoint = '{% url "generate_note_ai" %}';
+                break;
+            default:
+                showAlert('error', '{% trans "Unknown operation type" %}');
+                return;
+        }
+        
+        if (confirm(confirmMessage)) {
+            // Show progress bar
+            $('#aiAnalysisProgress').show();
+            const progressBar = $('#aiAnalysisProgress .progress-bar');
+            progressBar.width('10%').attr('aria-valuenow', 10).text('10%');
+            
+            const aiProvider = $('#defaultAIProvider').val();
+            const totalItems = selectedIds.length;
+            let processedItems = 0;
+            
+            // Process each vulnerability sequentially to avoid overloading the server
+            function processNextItem(index) {
+                if (index >= selectedIds.length) {
+                    // All items processed
+                    progressBar.width('100%').attr('aria-valuenow', 100).text('100%');
+                    setTimeout(function() {
+                        $('#aiAnalysisProgress').hide();
+                        vulnerabilitiesTable.ajax.reload();
+                        showAlert('success', '{% trans "AI operation completed successfully" %}');
+                    }, 1000);
+                    return;
+                }
+                
+                const vulnerabilityId = selectedIds[index];
+                
+                $.ajax({
+                    url: endpoint,
+                    method: 'POST',
+                    data: JSON.stringify({
+                        vulnerability_id: vulnerabilityId,
+                        ai_provider: aiProvider
+                    }),
+                    contentType: 'application/json',
+                    headers: {'X-CSRFToken': getCookie('csrftoken')},
+                    success: function(response) {
+                        processedItems++;
+                        const progress = Math.round((processedItems / totalItems) * 100);
+                        progressBar.width(progress + '%').attr('aria-valuenow', progress).text(progress + '%');
+                        
+                        // Process next item
+                        processNextItem(index + 1);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error(`Error processing vulnerability ${vulnerabilityId}:`, error);
+                        processedItems++;
+                        const progress = Math.round((processedItems / totalItems) * 100);
+                        progressBar.width(progress + '%').attr('aria-valuenow', progress).text(progress + '%');
+                        
+                        // Continue with next item despite error
+                        processNextItem(index + 1);
+                    }
+                });
+            }
+            
+            // Start processing
+            processNextItem(0);
+        }
+    }
+
+    // AI related buttons
+    $('#analyzeThreatsBtn').on('click', analyzeThreatsWithAI);
+    $('#analyzeSelectedVulnerabilities').on('click', analyzeSelectedVulnerabilities);
+    $('#descriptionSelectedAiBtn').on('click', function() {
+        performAIOperation('description');
+    });
+    $('#riskMitigationSelectedAiBtn').on('click', function() {
+        performAIOperation('risk_mitigation');
+    });
+    $('#pciDssSelectedAiBtn').on('click', function() {
+        performAIOperation('pci_dss');
+    });
+    $('#iso27002SelectedAiBtn').on('click', function() {
+        performAIOperation('iso27002');
+    });
+    $('#noteSelectedAiBtn').on('click', function() {
+        performAIOperation('note');
+    });
+
+    function translateSelectedVulnerabilityAi() {
+        const selectedRows = $('.vulnerability-checkbox:checked');
+        if (selectedRows.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one vulnerability to translate" %}');
+            return;
+        }
+        const tableId = '#vulnerabilitiesTable{{ vulnerabilities_context|default:"Main" }}';
+        const $select = $('#translateAiVulnerability');
+        $select.empty().append($('<option value="">{% trans "Select vulnerability" %}</option>'));
+        selectedRows.each(function() {
+            const id = $(this).data('id');
+            const $tr = $(this).closest('tr');
+            const rowData = vulnerabilitiesTable && $tr.length ? vulnerabilitiesTable.row($tr).data() : null;
+            const name = (rowData && rowData.vulnerability) ? (rowData.vulnerability.length > 50 ? rowData.vulnerability.substr(0, 50) + '...' : rowData.vulnerability) : ('ID ' + id);
+            $select.append($('<option></option>').val(id).text(name));
+        });
+        $('#translateAiPreviewSection').hide();
+        $('#translateAiSaveBtn').hide();
+        $('#translateAiErrorContainer').hide();
+        $('#translateAiCountry').val('');
+        $('#translateAiVulnerability').val(selectedRows.length === 1 ? $(selectedRows[0]).data('id') : '');
+        const modalEl = document.getElementById('translateAiModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+
+    $('#translateAiModal').on('hidden.bs.modal', function() {
+        $('body').removeClass('modal-open').css({ overflow: '', paddingRight: '' });
+        $('.modal-backdrop').remove();
+    });
+
+    $('#viewTranslationModal').on('hidden.bs.modal', function() {
+        $('body').removeClass('modal-open').css({ overflow: '', paddingRight: '' });
+        $('.modal-backdrop').remove();
+    });
+
+    function loadTranslateAiCountries() {
+        $.ajax({
+            url: '{% url "get_vulnerability_translation_countries" %}',
+            method: 'GET',
+            success: function(response) {
+                const $sel = $('#translateAiCountry');
+                $sel.find('option:not(:first)').remove();
+                (response.countries || []).forEach(function(c) {
+                    $sel.append($('<option></option>').val(c.id).text((c.name || '') + ' (' + (c.code || '') + ')'));
+                });
+            }
+        });
+    }
+
+    $('#translateAiModal').on('show.bs.modal', function() {
+        loadTranslateAiCountries();
+    });
+
+    $('#translateAiGenerateBtn').on('click', function() {
+        const vulnerabilityId = $('#translateAiVulnerability').val();
+        const countryId = $('#translateAiCountry').val();
+        const translationMethod = $('input[name="translateMethod"]:checked').val() || 'google';
+        if (!vulnerabilityId || !countryId) {
+            $('#translateAiErrorMessage').text('{% trans "Please select a vulnerability and a country" %}');
+            $('#translateAiErrorContainer').show();
+            return;
+        }
+        $('#translateAiErrorContainer').hide();
+        const $btn = $(this);
+        $btn.prop('disabled', true);
+        let url = '{% url "translate_vulnerability_ai_preview" %}';
+        if (translationMethod === 'ai' && typeof defaultAIProvider !== 'undefined') {
+            url += (url.indexOf('?') !== -1 ? '&' : '?') + 'provider=' + encodeURIComponent(defaultAIProvider);
+        }
+        $.ajax({
+            url: url,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                vulnerability_id: parseInt(vulnerabilityId, 10),
+                country_id: parseInt(countryId, 10),
+                translation_method: translationMethod
+            }),
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                $btn.prop('disabled', false);
+                if (response.success && response.preview) {
+                    const p = response.preview;
+                    $('#translateAiPreviewNameLocal').val(p.name_local || '');
+                    $('#translateAiPreviewDescription').val(p.description || '');
+                    $('#translateAiPreviewScope').val(p.scope || '');
+                    $('#translateAiPreviewRiskMitigation').val(p.risk_mitigation_controls || '');
+                    $('#translateAiPreviewPciDss').val(p.pci_dss_requirement || '');
+                    $('#translateAiPreviewIso27001').val(p.iso27001_requirement || '');
+                    $('#translateAiPreviewNote').val(p.note || '');
+                    $('#translateAiPreviewSection').show();
+                    $('#translateAiSaveBtn').show();
+                } else {
+                    $('#translateAiErrorMessage').text(response.message || '{% trans "Failed to generate preview" %}');
+                    $('#translateAiErrorContainer').show();
+                }
+            },
+            error: function(xhr) {
+                $btn.prop('disabled', false);
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : '{% trans "Error generating translation preview" %}';
+                $('#translateAiErrorMessage').text(msg);
+                $('#translateAiErrorContainer').show();
+            }
+        });
+    });
+
+    $('#translateAiSaveBtn').on('click', function() {
+        const vulnerabilityId = $('#translateAiVulnerability').val();
+        const countryId = $('#translateAiCountry').val();
+        if (!vulnerabilityId || !countryId) return;
+        const payload = {
+            vulnerability_id: parseInt(vulnerabilityId, 10),
+            country_id: parseInt(countryId, 10),
+            name_local: $('#translateAiPreviewNameLocal').val() || '',
+            description: $('#translateAiPreviewDescription').val() || '',
+            scope: $('#translateAiPreviewScope').val() || '',
+            risk_mitigation_controls: $('#translateAiPreviewRiskMitigation').val() || '',
+            pci_dss_requirement: $('#translateAiPreviewPciDss').val() || '',
+            iso27001_requirement: $('#translateAiPreviewIso27001').val() || '',
+            note: $('#translateAiPreviewNote').val() || ''
+        };
+        const $btn = $(this);
+        $btn.prop('disabled', true);
+        $.ajax({
+            url: '{% url "save_vulnerability_translation" %}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                $btn.prop('disabled', false);
+                if (response.success) {
+                    showAlert('success', '{% trans "Translation saved" %}');
+                    $('#translateAiPreviewSection').hide();
+                    $('#translateAiSaveBtn').hide();
+                    if (vulnerabilitiesTable) vulnerabilitiesTable.ajax.reload();
+                } else {
+                    $('#translateAiErrorMessage').text(response.message || '{% trans "Failed to save" %}');
+                    $('#translateAiErrorContainer').show();
+                }
+            },
+            error: function(xhr) {
+                $btn.prop('disabled', false);
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : '{% trans "Error saving translation" %}';
+                $('#translateAiErrorMessage').text(msg);
+                $('#translateAiErrorContainer').show();
+            }
+        });
+    });
+
+    function saveSelectedVulnerabilities() {
+        const selectedIndices = [];
+        $('.generated-vulnerability-checkbox:checked').each(function() {
+            selectedIndices.push($(this).data('index'));
+        });
+
+        if (selectedIndices.length === 0) {
+            showAlert('warning', '{% trans "Please select vulnerabilities to save" %}');
+            return;
+        }
+
+        // Get the selected vulnerabilities from the global variable (dynamic langs)
+        const langCodes = getVulnFormLanguages().map(l => l.code);
+        const selectedVulnerabilities = selectedIndices.map(index => {
+            const vuln = currentGeneratedVulnerabilities[index];
+            const out = {};
+            langCodes.forEach(lang => {
+                out['vulnerability_' + lang] = vuln['vulnerability_' + lang] || (lang === 'en' ? (vuln.vulnerability || vuln.vulnerability_en || '') : '');
+                out['scope_' + lang] = vuln['scope_' + lang] || (lang === 'en' ? (vuln.scope || vuln.scope_en || '') : '');
+                out['description_' + lang] = vuln['description_' + lang] || (lang === 'en' ? (vuln.description || vuln.description_en || '') : '');
+                out['risk_mitigation_controls_' + lang] = vuln['risk_mitigation_controls_' + lang] || (lang === 'en' ? (vuln.risk_mitigation_controls || vuln.risk_mitigation_en || '') : '');
+                out['pci_dss_requirement_' + lang] = vuln['pci_dss_requirement_' + lang] || (lang === 'en' ? (vuln.pci_dss_requirement || vuln.pci_dss_requirement_en || '') : '');
+                out['iso27001_requirement_' + lang] = vuln['iso27001_requirement_' + lang] || (lang === 'en' ? (vuln.iso27001_requirement || vuln.iso27001_requirement_en || '') : '');
+                out['note_' + lang] = vuln['note_' + lang] || (lang === 'en' ? (vuln.note || vuln.note_en || '') : '');
+            });
+            return out;
+        });
+
+        console.log("Saving selected vulnerabilities:", selectedVulnerabilities);
+        
+        // Send selected vulnerabilities to the server
+        $.ajax({
+            url: '{% url "save_generated_vulnerabilities" %}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                asset_group: $('#aiAssetGroup').val(),
+                asset_type: $('#aiAssetType').val(),
+                vulnerabilities: selectedVulnerabilities
+            }),
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                if (response.success) {
+                    showAlert('success', '{% trans "Vulnerabilities saved successfully" %}');
+                    $('#addVulnerabilityAIModal').modal('hide');
+                    vulnerabilitiesTable.ajax.reload();
+                } else {
+                    showAlert('error', response.error || '{% trans "Failed to save vulnerabilities" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error saving vulnerabilities:", error);
+                console.error("Server response:", xhr.responseText);
+                showAlert('error', '{% trans "Failed to save vulnerabilities" %}');
+            }
+        });
+    }
+
+    // Add success handler for the delete form submission
+    $('#deleteVulnerabilityForm').on('submit', function(e) {
+        e.preventDefault(); // Prevent standard form submission
+        
+        const form = $(this);
+        const url = form.attr('action');
+        
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: form.serialize(), // This includes the csrf token automatically
+            success: function(response) {
+                $('#deleteConfirmationModal').modal('hide');
+                vulnerabilitiesTable.ajax.reload();
+                showAlert('success', response.message || '{% trans "Vulnerability deleted successfully" %}');
+            },
+            error: function(xhr) {
+                console.error("Error deleting vulnerability:", xhr.responseText);
+                let errorMessage = '{% trans "Failed to delete vulnerability" %}';
+                
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    errorMessage = response.message || errorMessage;
+                    
+                    // Handle case where vulnerability has associations
+                    if (xhr.status === 409 && response.has_associations) {
+                        // Show the force delete option
+                        $('#associationsWarning').show();
+                        $('#assetCount').text(response.asset_count);
+                        $('#forceDeleteCheckbox').prop('checked', false);
+                        return; // Don't close modal, let user choose force delete option
+                    }
+                } catch (e) {
+                    console.error("Error parsing response:", e);
+                }
+                
+                showAlert('error', errorMessage);
+                $('#deleteConfirmationModal').modal('hide');
+            }
+        });
+    });
+});
+</script>

@@ -1,0 +1,162 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Email Templates" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fas fa-envelope me-2"></i>{% trans "Email Templates" %}</h2>
+    </div>
+</div>
+
+{% url 'app_gophish:email_template_list' as email_template_list_clear_url %}
+{% filters_expanded 'search' 'server' 'server_id' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="emailTemplateFiltersCollapse" toggle_id="toggleEmailTemplateFilters" icon_id="emailTemplateFiltersToggleIcon" filter_clear_url=email_template_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="emailTemplateFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" class="row g-1 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" class="form-control form-control-sm" id="filterSearch" name="search"
+                       value="{{ search }}" placeholder="{% trans 'Name, subject...' %}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="filterServer">{% trans "Server" %}</label>
+                <select class="form-select form-select-sm" id="filterServer" name="server">
+                    <option value="">{% trans "All Servers" %}</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}" {% if server_id == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+<!-- Email Templates Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font sb-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Server" %}</th>
+                                <th>{% trans "Subject" %}</th>
+                                <th>{% trans "Last Sync" %}</th>
+                                <th>{% trans "Created" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for template in page_obj %}
+                            <tr>
+                                <td>
+                                    <strong>{{ template.name }}</strong>
+                                    {% if template.gophish_id %}
+                                    <br><small class="text-muted">ID: {{ template.gophish_id }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ template.server.name }}</td>
+                                <td>{{ template.subject|truncatewords:10 }}</td>
+                                <td>{{ template.last_sync|date:"M d, H:i" }}</td>
+                                <td>{{ template.created_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <a href="{% url 'app_gophish:email_template_detail' template.id %}" 
+                                       class="btn btn-outline-info btn-sm me-1" 
+                                       title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <button class="btn btn-outline-success btn-sm" 
+                                            onclick="copyTemplateHtml('{{ template.html_content|escapejs }}')"
+                                            title="{% trans 'Copy HTML' %}">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if page_obj|length == 0 %}
+                <div class="text-center text-muted py-4">
+                    {% trans "No email templates found" %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'app_gophish/includes/gophish_table_pagination.html' with pagination_item_label=_("templates") pagination_aria_label=_("Email templates pagination") %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyTemplateHtml(htmlContent) {
+    const btn = event.target;
+    const originalHtml = btn.innerHTML;
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(htmlContent).then(function() {
+            // Show success message
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalHtml;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+            }, 2000);
+        }).catch(function(err) {
+            console.error('Clipboard API failed: ', err);
+            fallbackCopyTemplateHtml(htmlContent, btn, originalHtml);
+        });
+    } else {
+        fallbackCopyTemplateHtml(htmlContent, btn, originalHtml);
+    }
+}
+
+function fallbackCopyTemplateHtml(text, btn, originalHtml) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    
+    try {
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (successful) {
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalHtml;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+            }, 2000);
+        } else {
+            throw new Error('execCommand failed');
+        }
+    } catch (err) {
+        console.error('Fallback copy failed: ', err);
+        document.body.removeChild(textarea);
+        alert('{% trans "Failed to copy HTML content" %}');
+    }
+}
+</script>
+{% endblock %}
+

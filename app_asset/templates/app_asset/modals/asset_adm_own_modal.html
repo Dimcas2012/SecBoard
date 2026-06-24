@@ -1,0 +1,560 @@
+<!-- SecBoard\SecBoard\templates\app_asset\modals\asset_adm_own_modal.html-->
+{% load i18n %}
+
+<!-- Asset Administrators and Owners Modal -->
+<div class="modal fade" id="assetAdmOwnModal" tabindex="-1" aria-labelledby="assetAdmOwnModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assetAdmOwnModalLabel">{% trans "Manage Asset Administrators and Owners" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" id="admOwnTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="owners-tab" data-bs-toggle="tab" data-bs-target="#owners-content" type="button" role="tab">
+                            {% trans "Owners" %}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="administrators-tab" data-bs-toggle="tab" data-bs-target="#administrators-content" type="button" role="tab">
+                            {% trans "Administrators" %}
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="admOwnTabContent">
+                    <!-- Owners Tab -->
+                    <div class="tab-pane fade show active" id="owners-content" role="tabpanel">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h6>{% trans "Asset Owners" %}</h6>
+                            <button type="button" class="btn btn-primary btn-sm" id="addOwnerBtn">
+                                <i class="fas fa-plus"></i> {% trans "Add Owner" %}
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm table-sm-font sb-data-table" id="ownersTable">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Name" %}</th>
+                                        <th>{% trans "Department" %}</th>
+                                        <th>{% trans "Position" %}</th>
+                                        <th>{% trans "Company" %}</th>
+                                        <th>{% trans "Email" %}</th>
+                                        <th>{% trans "Phone" %}</th>
+                                        <th>{% trans "Actions" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Administrators Tab -->
+                    <div class="tab-pane fade" id="administrators-content" role="tabpanel">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h6>{% trans "Asset Administrators" %}</h6>
+                            <button type="button" class="btn btn-primary btn-sm" id="addAdminBtn">
+                                <i class="fas fa-plus"></i> {% trans "Add Administrator" %}
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm table-sm-font sb-data-table" id="administratorsTable">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Name" %}</th>
+                                        <th>{% trans "Department" %}</th>
+                                        <th>{% trans "Position" %}</th>
+                                        <th>{% trans "Company" %}</th>
+                                        <th>{% trans "Email" %}</th>
+                                        <th>{% trans "Phone" %}</th>
+                                        <th>{% trans "Actions" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Person Modal -->
+<div class="modal fade" id="personModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="personModalTitle">{% trans "Select Users" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4">
+                    <!-- Selected Users Container -->
+                    <div class="selected-users-container mb-3" id="selectedUsersContainer"></div>
+
+                    <!-- Search Section -->
+                    <div class="search-container mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" class="form-control" id="userSearchInput"
+                                   placeholder="{% trans 'Search by name, email, department...' %}">
+                        </div>
+                    </div>
+
+                    <!-- Results Container -->
+                    <div class="users-list-container">
+                        <div class="d-flex justify-content-between mb-2">
+                            <h6>{% trans "Available Users" %}</h6>
+                            <span class="text-muted small" id="usersCount"></span>
+                        </div>
+                        <div id="userSearchResults" class="border rounded mb-3" style="max-height: 400px; overflow-y: auto;">
+                            <div class="text-center p-3 text-muted">
+                                {% trans "Start typing to search users" %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Selection Info -->
+                    <div class="selection-info text-muted">
+                        <span id="selectedCount">0</span> {% trans "users selected" %}
+                    </div>
+
+                    <form id="personForm" class="d-none">
+                        {% csrf_token %}
+                        <input type="hidden" id="personType" name="type">
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                <button type="button" class="btn btn-primary" id="savePerson" disabled>{% trans "Save" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    const admOwnModal = $('#assetAdmOwnModal');
+    const personModal = $('#personModal');
+    const userSearchInput = $('#userSearchInput');
+    const userSearchResults = $('#userSearchResults');
+    const selectedUsersContainer = $('#selectedUsersContainer');
+    const savePerson = $('#savePerson');
+    const usersCount = $('#usersCount');
+    const selectedCount = $('#selectedCount');
+
+    let selectedUsers = new Set();
+    let currentCompanyId = null;
+
+    // Initialize company selector
+    const companySelector = $(`
+        <div class="mb-3">
+            <label for="companySelect" class="form-label">{% trans "Select Company" %}</label>
+            <select class="form-select" id="companySelect">
+                <option value="">{% trans "Select company..." %}</option>
+                {% for company in allowed_companies %}
+                    <option value="{{ company.id }}">{{ company.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    `);
+
+
+    admOwnModal.find('.modal-body').prepend(companySelector);
+
+    $('#companySelect').change(function() {
+        currentCompanyId = $(this).val();
+        if (currentCompanyId) {
+            loadOwners(currentCompanyId);
+            loadAdministrators(currentCompanyId);
+            $('#addOwnerBtn, #addAdminBtn').prop('disabled', false);
+        } else {
+            $('#ownersTable tbody, #administratorsTable tbody').empty();
+            $('#addOwnerBtn, #addAdminBtn').prop('disabled', true);
+        }
+    });
+
+
+
+
+     function loadOwners(companyId) {
+        if (!companyId) {
+            console.error('Company ID is required');
+            return;
+        }
+
+        $.get("{% url 'get_all_asset_owners' %}", { company_id: companyId })
+            .done(function(data) {
+                const tbody = $('#ownersTable tbody');
+                tbody.empty();
+                data.forEach(owner => {
+                    const row = `
+                        <tr data-owner-id="${owner.id}">
+                            <td>${owner.name || ''}</td>
+                            <td>${owner.department || ''}</td>
+                            <td>${owner.position || ''}</td>
+                            <td>${owner.company?.name || ''}</td>
+                            <td>${owner.email || ''}</td>
+                            <td>${owner.phone || ''}</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger delete-owner">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.append(row);
+                });
+            })
+            .fail(function(xhr) {
+                console.error('Error loading owners:', xhr.responseText);
+                toastr.error("{% trans 'Error loading owners' %}");
+            });
+    }
+
+    function loadAdministrators(companyId) {
+        if (!companyId) {
+            console.error('Company ID is required');
+            return;
+        }
+
+        $.get("{% url 'get_all_asset_administrators' %}", { company_id: companyId })
+            .done(function(data) {
+                const tbody = $('#administratorsTable tbody');
+                tbody.empty();
+                data.forEach(admin => {
+                    const row = `
+                        <tr data-admin-id="${admin.id}">
+                            <td>${admin.name || ''}</td>
+                            <td>${admin.department || ''}</td>
+                            <td>${admin.position || ''}</td>
+                            <td>${admin.company?.name || ''}</td>
+                            <td>${admin.email || ''}</td>
+                            <td>${admin.phone || ''}</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger delete-admin">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.append(row);
+                });
+            })
+            .fail(function(xhr) {
+                console.error('Error loading administrators:', xhr.responseText);
+                toastr.error("{% trans 'Error loading administrators' %}");
+            });
+    }
+
+
+    $('#manageAdmOwnBtn').click(function() {
+        console.log('Opening Manage Admins/Owners modal');
+        const admOwnModal = $('#assetAdmOwnModal');
+
+        // Reset company selector and tables
+        $('#companySelect').val('');
+        $('#ownersTable tbody, #administratorsTable tbody').empty();
+        $('#addOwnerBtn, #addAdminBtn').prop('disabled', true);
+
+        admOwnModal.modal('show');
+        console.log('Modal shown');
+    });
+
+    // Add modal shown event handler
+    $('#assetAdmOwnModal').on('shown.bs.modal', function() {
+       console.log('Modal shown event triggered');
+    });
+    const defaultCompanyId = {{ allowed_companies.first.id }};
+
+
+    $('#addOwnerBtn, #addAdminBtn').click(function() {
+        if (!currentCompanyId) {
+            toastr.warning("{% trans 'Please select a company first' %}");
+            return;
+        }
+
+        const isOwner = $(this).attr('id') === 'addOwnerBtn';
+        const personType = isOwner ? 'owner' : 'admin';
+
+        $('#personType').val(personType);
+        $('#personModalTitle').text(isOwner ?
+            "{% trans 'Add Owners' %}" : "{% trans 'Add Administrators' %}");
+        resetPersonSelection();
+
+        searchUsers('', personType, currentCompanyId);
+        personModal.modal('show');
+    });
+    function searchUsers(query, type, companyId) {
+        if (!companyId) return;
+
+        $.get("{% url 'search_cabinet_users' %}", {
+            query: query,
+            type: type,
+            company_id: companyId
+        })
+        .done(function(data) {
+            userSearchResults.empty();
+            usersCount.text(`${data.users.length} {% trans "users found" %}`);
+
+            if (data.users.length === 0) {
+                userSearchResults.html(`
+                    <div class="text-center p-3 text-muted">
+                        {% trans "No users found" %}
+                    </div>
+                `);
+                return;
+            }
+
+            data.users.forEach(user => {
+                // Safely convert department and position to string
+                const department = user.department ? String(user.department) : '';
+                const position = user.position ? String(user.position) : '';
+
+                // Create a safe copy of user data with stringified values
+                const safeUserData = {
+                    ...user,
+                    department: department,
+                    position: position
+                };
+
+                const isSelected = selectedUsers.has(user.id);
+                const userElement = `
+                    <div class="user-item p-2 border-bottom ${isSelected ? 'bg-light' : ''}"
+                         data-user-id="${user.id}" data-user-data='${JSON.stringify(safeUserData)}'>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${user.user.first_name} ${user.user.last_name}</strong>
+                                <div class="text-muted small">
+                                    ${department ? `${department} | ` : ''}${position}
+                                </div>
+                                <div class="text-muted small">${user.user.email}</div>
+                            </div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input"
+                                       ${isSelected ? 'checked' : ''}>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                userSearchResults.append(userElement);
+            });
+        })
+        .fail(function(xhr) {
+            console.error('Error searching users:', xhr.responseText);
+            toastr.error("{% trans 'Error searching users' %}");
+        });
+    }
+
+    let searchTimeout;
+    userSearchInput.on('input', function() {
+        clearTimeout(searchTimeout);
+        const query = $(this).val().trim();
+        const personType = $('#personType').val();
+
+        if (query.length < 2) {
+            searchUsers('', personType, defaultCompanyId);  // Показати всіх користувачів
+            return;
+        }
+
+        searchTimeout = setTimeout(() => {
+            searchUsers(query, personType, defaultCompanyId);
+        }, 300);
+    });
+
+    $(document).on('click', '.user-item', function() {
+        const userId = $(this).data('user-id');
+        const checkbox = $(this).find('input[type="checkbox"]');
+
+        if (selectedUsers.has(userId)) {
+            selectedUsers.delete(userId);
+            $(this).removeClass('bg-light');
+            checkbox.prop('checked', false);
+        } else {
+            selectedUsers.add(userId);
+            $(this).addClass('bg-light');
+            checkbox.prop('checked', true);
+        }
+
+        updateSelectedUsers();
+    });
+
+    function updateSelectedUsers() {
+        selectedCount.text(selectedUsers.size);
+        savePerson.prop('disabled', selectedUsers.size === 0);
+
+        selectedUsersContainer.empty();
+        selectedUsers.forEach(userId => {
+            const userItem = $(`.user-item[data-user-id="${userId}"]`);
+            const userData = userItem.data('user-data');
+            if (userData) {
+                const badge = `
+                    <span class="badge bg-primary me-2 mb-2">
+                        ${userData.user.first_name} ${userData.user.last_name}
+                        <button type="button" class="btn-close btn-close-white ms-2"
+                                data-user-id="${userId}"></button>
+                    </span>
+                `;
+                selectedUsersContainer.append(badge);
+            }
+        });
+    }
+
+    $(document).on('click', '.btn-close-white', function(e) {
+        e.stopPropagation();
+        const userId = $(this).data('user-id');
+        selectedUsers.delete(userId);
+        $(`.user-item[data-user-id="${userId}"]`)
+            .removeClass('bg-light')
+            .find('input[type="checkbox"]')
+            .prop('checked', false);
+        updateSelectedUsers();
+    });
+
+    $('#savePerson').click(function() {
+        const type = $('#personType').val();
+        const isOwner = type === 'owner';
+
+        const url = isOwner ?
+            "{% url 'add_asset_owner' %}" :
+            "{% url 'add_asset_administrator' %}";
+
+        console.log('Saving users with data:', {
+            selectedUsers: Array.from(selectedUsers),
+            type: type,
+            companyId: currentCompanyId, // Use currentCompanyId instead of defaultCompanyId
+            url: url
+        });
+
+        const promises = Array.from(selectedUsers).map(userId => {
+            const formData = new FormData();
+            formData.append('cabinet_user_id', userId);
+            formData.append('company_id', currentCompanyId);
+            formData.append('csrfmiddlewaretoken', $('[name=csrfmiddlewaretoken]').val());
+
+            return $.ajax({
+                url: url,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    console.log('Save success response:', response);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Save error details:', {
+                        status: status,
+                        error: error,
+                        response: xhr.responseText,
+                        url: url,
+                        data: {
+                            cabinet_user_id: userId,
+                            company_id: currentCompanyId
+                        }
+                    });
+                }
+            });
+        });
+
+        Promise.all(promises)
+            .then((responses) => {
+                console.log('All saves completed:', responses);
+                personModal.modal('hide');
+                if (isOwner) {
+                    loadOwners(currentCompanyId);
+                } else {
+                    loadAdministrators(currentCompanyId);
+                }
+                toastr.success(isOwner ?
+                    "{% trans 'Owners added successfully' %}" :
+                    "{% trans 'Administrators added successfully' %}");
+            })
+            .catch((error) => {
+                console.error('Save all error:', error);
+                toastr.error("{% trans 'Error adding users' %}");
+            });
+    });
+
+    $(document).on('click', '.delete-owner', function() {
+        const ownerId = $(this).closest('tr').data('owner-id');
+
+        if (confirm("{% trans 'Are you sure you want to delete this owner?' %}")) {
+            $.ajax({
+                url: "{% url 'delete_asset_owners' %}",
+                type: 'POST',
+                data: {
+                    owner_id: ownerId,
+                    csrfmiddlewaretoken: $('[name=csrfmiddlewaretoken]').val()
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        loadOwners(currentCompanyId); // Pass currentCompanyId
+                        toastr.success("{% trans 'Owner deleted successfully' %}");
+                    } else {
+                        toastr.error(response.message || "{% trans 'Error deleting owner' %}");
+                    }
+                },
+                error: function(xhr) {
+                    toastr.error(xhr.responseJSON?.message || "{% trans 'Error deleting owner' %}");
+                }
+            });
+        }
+    });
+
+    $(document).on('click', '.delete-admin', function() {
+        const adminId = $(this).closest('tr').data('admin-id');
+
+        if (confirm("{% trans 'Are you sure you want to delete this administrator?' %}")) {
+            $.ajax({
+                url: "{% url 'delete_asset_administrators' %}",
+                type: 'POST',
+                data: {
+                    admin_id: adminId,
+                    csrfmiddlewaretoken: $('[name=csrfmiddlewaretoken]').val()
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        loadAdministrators(currentCompanyId); // Pass currentCompanyId
+                        toastr.success("{% trans 'Administrator deleted successfully' %}");
+                    } else {
+                        toastr.error(response.message || "{% trans 'Error deleting administrator' %}");
+                    }
+                },
+                error: function(xhr) {
+                    toastr.error(xhr.responseJSON?.message || "{% trans 'Error deleting administrator' %}");
+                }
+            });
+        }
+    });
+
+    function resetPersonSelection() {
+        selectedUsers.clear();
+        userSearchInput.val('');
+        userSearchResults.html(`
+            <div class="text-center p-3 text-muted">
+                {% trans "Start typing to search users" %}
+            </div>
+        `);
+        selectedUsersContainer.empty();
+        usersCount.text('');
+        selectedCount.text('0');
+        savePerson.prop('disabled', true);
+    }
+
+    personModal.on('hidden.bs.modal', resetPersonSelection);
+
+    admOwnModal.on('hidden.bs.modal', function() {
+        $(this).find('[data-bs-toggle="tooltip"]').tooltip('dispose');
+        $(this).find('form').trigger('reset');
+        $(this).find('.is-invalid').removeClass('is-invalid');
+        $(this).find('.invalid-feedback').remove();
+    });
+});
+</script>

@@ -1,0 +1,1353 @@
+<!--  SecBoard\SecBoard\templates\app_keycert\keys_сert.html -->
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_keycert/includes/keycert_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_keycert/css/keys_cert-page.css' %}">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/css/bootstrap-datetimepicker.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+{% endblock %}
+
+{% block content %}
+    <div class="container-fluid mt-4 keycert-page">
+        {% csrf_token %}
+        <div class="row mb-3">
+            <div class="col-12">
+                <h2 class="mb-0"><i class="bi bi-key me-2"></i>{% trans "Key/Certificate Inventory" %}</h2>
+            </div>
+        </div>
+
+        <div class="card mb-2 filter-section access-request-filters" id="keycertFiltersCard">
+            {% include "includes/sb_access_request_filters_header.html" with collapse_id="keycertFiltersCollapse" toggle_id="toggleKeycertFilters" icon_id="keycertFiltersToggleIcon" clear_btn_id="clearKeycertFilters" filters_expanded=False %}
+            <div class="collapse" id="keycertFiltersCollapse">
+            <div class="card-body py-2">
+                <div class="row g-1 align-items-end filters-container">
+                    <div class="col-md-3">
+                        <label class="form-label" for="searchInput">{% trans "Search" %}</label>
+                        <input type="text" id="searchInput" class="form-control form-control-sm"
+                               placeholder="{% trans 'Search by ID, hash, or other fields...' %}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="dateRangeFilter">{% trans "Expiry Date Range" %}</label>
+                        <input type="text" id="dateRangeFilter" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="companyFilter">{% trans "Company" %}</label>
+                        <select id="companyFilter" class="form-select form-select-sm">
+                            <option value="">{% trans "All Companies" %}</option>
+                            {% for company in companies %}
+                            <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="typeFilter">{% trans "Type" %}</label>
+                        <select id="typeFilter" class="form-select form-select-sm">
+                            <option value="">{% trans "All Types" %}</option>
+                            {% for type in key_cert_types %}
+                            <option value="{{ type.id }}"
+                                    data-name-uk="{{ type.name_uk }}"
+                                    data-name-en="{{ type.name_en }}"
+                                    data-name-ru="{{ type.name_ru }}">
+                                {{ type.get_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="revocationStatusFilter">{% trans "Status" %}</label>
+                        <select id="revocationStatusFilter" class="form-select form-select-sm">
+                            <option value="">{% trans "All Statuses" %}</option>
+                            {% for status in revocation_statuses %}
+                            <option value="{{ status.id }}"
+                                    data-name-uk="{{ status.name_uk }}"
+                                    data-name-en="{{ status.name_en }}"
+                                    data-name-ru="{{ status.name_ru }}">
+                                {{ status.get_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body p-0">
+                <div class="export-controls px-3 pt-2 pb-0">
+                    <div class="row align-items-center g-1">
+                        <div class="col-md-6"></div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group sb-toolbar" role="group">
+                                {% if can_edit %}
+                                <button class="btn btn-outline-success btn-sm btn-icon-action" id="addKeyCertBtn" type="button"
+                                        title="{% trans 'Add Key/Certificate' %}">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                                {% endif %}
+                                <button class="btn btn-success btn-sm btn-icon-action" id="exportExcelBtn" type="button"
+                                        title="{% trans 'Export to Excel' %}">
+                                    <i class="bi bi-file-earmark-excel"></i>
+                                </button>
+                                <button class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="guideBtn" type="button" data-bs-toggle="modal" data-bs-target="#keycertGuideModal"
+                                        title="{% trans 'Guide' %}">
+                                    <i class="bi bi-book"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive full-width-table">
+            <table id="keyCertTable" class="table table-hover table-sm table-sm-font sb-data-table table-striped w-100">
+                <thead>
+                    <tr>
+                        <th>{% trans "Key/Certificate ID" %}</th>
+                        <th>{% trans "Company" %}</th>
+                        <th>{% trans "General Information" %}</th>
+                        <th>{% trans "Type" %}</th>
+                        <th>{% trans "Purpose" %}</th>
+                        <th>{% trans "Location" %}</th>
+                        <th>{% trans "Access Control" %}</th>
+                        <th>{% trans "Expiry Date" %}</th>
+                        <th>{% trans "Reminder" %}</th>
+                        <th>{% trans "Revocation Status" %}</th>
+                        <th>{% trans "Actual" %}</th>
+                        <th>{% trans "Owner" %}</th>
+                        <th>{% trans "Notes" %}</th>
+                        <th>{% trans "Created At" %}</th>
+                        <th>{% trans "Updated At" %}</th>
+                        <th>{% trans "History" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- DataTables will populate this -->
+                </tbody>
+            </table>
+                </div>
+                {% include "app_keycert/includes/keycert_table_pagination_client.html" with pagination_id="keyCertTablePagination" %}
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal fade" id="historyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Certificate History" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="history-timeline"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% include 'app_keycert/modals/add_key_cert_modal.html' %}
+    {% include 'app_keycert/modals/edit_key_cert_modal.html' %}
+
+    <!-- Select Owner Modal (Quick search + Department/Position like mandatory-processes) -->
+    <div class="modal fade" id="keycertSelectOwnerModal" tabindex="-1" aria-labelledby="keycertSelectOwnerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="keycertSelectOwnerModalLabel">{% trans "Select Owner" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">{% trans "Use search and filters to find the owner (Cabinet users only)." %}</p>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small">{% trans "Quick search" %}</label>
+                            <input type="text" class="form-control form-control-sm" id="keycertOwnerSearch" placeholder="{% trans 'Name, email...' %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">{% trans "Department" %}</label>
+                            <select class="form-select form-select-sm" id="keycertOwnerDepartment">
+                                <option value="">{% trans "All departments" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">{% trans "Position" %}</label>
+                            <select class="form-select form-select-sm" id="keycertOwnerPosition">
+                                <option value="">{% trans "All positions" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">{% trans "Owners" %}</label>
+                        <div id="keycertOwnerList" class="border rounded p-2" style="max-height: 320px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="button" class="btn btn-primary" id="keycertOwnerSelectBtn">
+                        <i class="fas fa-check me-1"></i>{% trans "Select" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key/Cert Guide Modal -->
+    <div class="modal fade" id="keycertGuideModal" tabindex="-1" aria-labelledby="keycertGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'keycert_guide' %}">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="keycertGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Keys/Certificates Guide" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="keycertGuideModalBody">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                        <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ block.super }}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/js/bootstrap-datetimepicker.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof jQuery === 'undefined') {
+            console.error('jQuery is not loaded');
+            return;
+        }
+
+        const TITLE_TARGETS = '#keyCertTable [title], .modal [title]';
+        const STANDARD_TOOLTIP_SELECTOR = `[data-bs-toggle="tooltip"], [data-toggle="tooltip"], .notes-tooltip, .owner-info, ${TITLE_TARGETS}`;
+        const MODAL_TOOLTIP_SELECTOR = '[data-bs-toggle="tooltip"], [data-toggle="tooltip"], .notes-tooltip, .owner-info, [title]';
+        const HASH_TOOLTIP_SELECTOR = '.cert-hash-container';
+        const ALL_TOOLTIP_SELECTORS = `${STANDARD_TOOLTIP_SELECTOR}, ${HASH_TOOLTIP_SELECTOR}`;
+
+        function disposeTooltips(selector) {
+            if (typeof bootstrap === 'undefined') {
+                return;
+            }
+            try {
+                $(selector).each(function() {
+                    if (!this || !document.body.contains(this)) return;
+                    const instance = bootstrap.Tooltip.getInstance(this);
+                    if (instance) {
+                        instance.dispose();
+                    }
+                });
+            } catch (error) {
+                console.error('Error disposing tooltips:', error);
+            }
+        }
+
+        function applyTooltips(selector, overrides = {}) {
+            if (typeof bootstrap === 'undefined') {
+                return;
+            }
+            const baseConfig = {
+                container: 'body',
+                trigger: 'hover focus',
+                html: true,
+                animation: false,
+                placement: 'auto',
+                template: `
+                    <div class="tooltip custom-tooltip" role="tooltip">
+                        <div class="tooltip-arrow"></div>
+                        <div class="tooltip-inner"></div>
+                    </div>
+                `
+            };
+
+            try {
+                $(selector).each(function() {
+                    if (!this || !document.body.contains(this)) return;
+                    try {
+                        const instance = bootstrap.Tooltip.getInstance(this);
+                        if (instance) {
+                            instance.dispose();
+                        }
+                        new bootstrap.Tooltip(this, { ...baseConfig, ...overrides });
+                    } catch (err) {
+                        console.warn('Tooltip init skipped for element:', err);
+                    }
+                });
+            } catch (error) {
+                console.error('Error applying tooltips:', error);
+            }
+        }
+
+        function initTooltips() {
+            disposeTooltips(ALL_TOOLTIP_SELECTORS);
+            applyTooltips(STANDARD_TOOLTIP_SELECTOR);
+            applyTooltips(HASH_TOOLTIP_SELECTOR, {
+                placement: 'top',
+                template: `
+                    <div class="tooltip cert-hash-tooltip" role="tooltip">
+                        <div class="tooltip-arrow"></div>
+                        <div class="tooltip-inner monospace"></div>
+                    </div>
+                `
+            });
+        }
+        function updateDynamicContent() {
+            // Update status badges
+            $('.status-badge').each(function() {
+                const expiryDate = $(this).data('expiry');
+                if (expiryDate) {
+                    const isExpired = moment(expiryDate).isBefore(moment());
+                    $(this)
+                        .removeClass('bg-success bg-danger')
+                        .addClass(isExpired ? 'bg-danger' : 'bg-success')
+                        .text(isExpired ? '{% trans "Expired" %}' : '{% trans "Active" %}');
+                }
+            });
+        }
+        $(window).on('unload', function() {
+            disposeTooltips(ALL_TOOLTIP_SELECTORS);
+        });
+
+        // History View Function
+        function showHistory(id) {
+            $.ajax({
+                url: `/app_keycert/get-key-cert-history/${id}/`,
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const timeline = $('.history-timeline');
+                        timeline.empty();
+
+                        response.history.forEach(function(entry) {
+                            const item = $('<div class="history-item">')
+                                .append(`<div class="fw-bold">${moment(entry.timestamp).format('DD-MM-YYYY HH:mm')}</div>`)
+                                .append(`<div>${entry.action} by ${entry.action_by}</div>`)
+                                .append(`<div class="text-muted mt-2">${entry.details.replace(/\n/g, '<br>')}</div>`);
+                            timeline.append(item);
+                        });
+
+                        $('#historyModal').modal('show');
+                    } else {
+                        alert('{% trans "Error loading history" %}: ' + response.error);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error loading history:", error);
+                    alert('{% trans "Error loading history. Please try again." %}');
+                }
+            });
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        $.ajaxSetup({
+            beforeSend: function(xhr, settings) {
+                if (!(/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type)) && !this.crossDomain) {
+                    xhr.setRequestHeader('X-CSRFToken', getCookie('csrftoken'));
+                }
+            }
+        });
+
+        $(document).ready(function() {
+            var currentLang = '{{ LANGUAGE_CODE }}';
+
+            function updateFilterOptions() {
+                $('#typeFilter option').each(function() {
+                    var option = $(this);
+                    if (option.val()) {
+                        var text = option.data('name-' + currentLang) || option.data('name-en') || option.text();
+                        option.text(text);
+                    }
+                });
+
+                $('#revocationStatusFilter option').each(function() {
+                    var option = $(this);
+                    if (option.val()) {
+                        var text = option.data('name-' + currentLang) || option.data('name-en') || option.text();
+                        option.text(text);
+                    }
+                });
+            }
+
+            $('#searchInput').attr('placeholder', '{% trans "Search..." %}');
+            $('#dateRangeFilter').attr('placeholder', '{% trans "Expiry Date Range" %}');
+
+            $('#dateRangeFilter').daterangepicker({
+                autoUpdateInput: false,
+                locale: {
+                    format: 'DD/MM/YYYY',
+                    applyLabel: '{% trans "Apply" %}',
+                    cancelLabel: '{% trans "Clear" %}',
+                    fromLabel: '{% trans "From" %}',
+                    toLabel: '{% trans "To" %}',
+                    weekLabel: 'W',
+                    customRangeLabel: '{% trans "Custom Range" %}',
+                    daysOfWeek: ['{% trans "Su" %}', '{% trans "Mo" %}', '{% trans "Tu" %}', '{% trans "We" %}',
+                                '{% trans "Th" %}', '{% trans "Fr" %}', '{% trans "Sa" %}'],
+                    monthNames: ['{% trans "January" %}', '{% trans "February" %}', '{% trans "March" %}',
+                                '{% trans "April" %}', '{% trans "May" %}', '{% trans "June" %}', '{% trans "July" %}',
+                                '{% trans "August" %}', '{% trans "September" %}', '{% trans "October" %}',
+                                '{% trans "November" %}', '{% trans "December" %}'],
+                    firstDay: 1
+                }
+            });
+
+            function convertToLocalTime(utcDateString) {
+                return moment.utc(utcDateString).local().format('DD-MM-YYYY HH:mm');
+            }
+
+            function getActualizeButtonClass(actualDate) {
+                if (!actualDate) return 'btn-outline-secondary';
+                const dt = moment(actualDate, 'YYYY-MM-DD HH:mm:ss');
+                if (!dt.isValid()) return 'btn-success';
+                const days = moment().diff(dt, 'days');
+                if (days <= 30) return 'btn-success';
+                if (days <= 90) return 'btn-warning';
+                return 'btn-danger';
+            }
+
+            function getTimeAgo(actualDate) {
+                if (!actualDate) return null;
+                const dt = moment(actualDate, 'YYYY-MM-DD HH:mm:ss');
+                if (!dt.isValid()) return null;
+                const diffMinutes = moment().diff(dt, 'minutes');
+                if (diffMinutes < 60) return `${diffMinutes}m ago`;
+                const diffHours = moment().diff(dt, 'hours');
+                if (diffHours < 24) return `${diffHours}h ago`;
+                const diffDays = moment().diff(dt, 'days');
+                return `${diffDays}d ago`;
+            }
+
+            var table = $('#keyCertTable').DataTable({
+                serverSide: true,
+                processing: true,
+                searching: false,
+                dom: '<"row"<"col-sm-12"tr>>',
+                lengthChange: false,
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                language: {
+                    processing: '{% trans "Processing..." %}',
+                    search: '{% trans "Search:" %}',
+                    lengthMenu: '{% trans "Show _MENU_ entries" %}',
+                    info: '{% trans "Showing _START_ to _END_ of _TOTAL_ entries" %}',
+                    infoEmpty: '{% trans "Showing 0 to 0 of 0 entries" %}',
+                    infoFiltered: '{% trans "(filtered from _MAX_ total entries)" %}',
+                    loadingRecords: '{% trans "Loading..." %}',
+                    zeroRecords: '{% trans "No matching records found" %}',
+                    emptyTable: '{% trans "No data available in table" %}',
+                    paginate: {
+                        first: '{% trans "First" %}',
+                        previous: '{% trans "Previous" %}',
+                        next: '{% trans "Next" %}',
+                        last: '{% trans "Last" %}'
+                    }
+                },
+                ajax: {
+                    url: '{% url "get_key_certs" %}',
+                    type: 'GET',
+                    data: function (d) {
+                        // Ensure start and length are valid numbers
+                        d.start = d.start || 0;
+                        d.length = d.length || 25;
+
+                        // Add custom filters
+                        d.search_value = $('#searchInput').val();
+                        d.date_range = $('#dateRangeFilter').val();
+                        d.company = $('#companyFilter').val();
+                        d.type = $('#typeFilter').val();
+                        d.revocation_status = $('#revocationStatusFilter').val();
+
+                        // Handle errors
+                        return d;
+                    },
+                    error: function (xhr, error, thrown) {
+                        console.error('DataTables AJAX error:', error, thrown);
+                        if (xhr.status === 500) {
+                            alert('{% trans "Server error occurred. Please try again." %}');
+                        }
+                    }
+                },
+                columns: [
+                    { data: 'key_cert_num', name: 'key_cert_num' },
+                    { data: 'company', name: 'company' },
+                    {
+                        data: 'general_info',
+                        name: 'general_info',
+                        orderable: false,
+                        render: function(data, type, row) {
+                            if (type === 'display' && data) {
+                                return `
+                                    <div class="info-card compact">
+                                        <div class="info-details">
+                                            <div class="small-info">
+                                                <span class="label">Organization:</span>
+                                                <span class="value">${data.organization_name || 'N/A'}</span>
+                                            </div>
+                                            <div class="small-info">
+                                                <span class="label">Version:</span>
+                                                <span class="value">${data.version || 'N/A'}</span>
+                                            </div>
+                                            <div class="small-info">
+                                                <span class="label">Status:</span>
+                                                <span class="badge ${moment(row.expiry_date).isAfter(moment()) ? 'bg-success' : 'bg-danger'}">
+                                                    ${moment(row.expiry_date).isAfter(moment()) ? '{% trans "Active" %}' : '{% trans "Expired" %}'}
+                                                </span>
+                                            </div>
+                                            <div class="small-info">
+                                                <span class="label">Maintainer:</span>
+                                                <span class="value">${data.maintainer_name || 'N/A'}</span>
+                                            </div>
+                                            <div class="small-info">
+                                                <span class="label">Contact:</span>
+                                                <span class="value">${data.maintainer_contact || 'N/A'}</span>
+                                            </div>
+                                            <div class="small-info cert-hash-container" data-bs-toggle="tooltip"
+                                                 data-bs-html="true" title="<div class='cert-hash-tooltip'>${data.cert_hash || 'N/A'}</div>">
+                                                <span class="label">Hash:</span>
+                                                <span class="hash-preview">${data.cert_hash ? (data.cert_hash.substring(0, 8) + '...') : 'N/A'}</span>
+                                            </div>
+                                        </div>
+                                    </div>`;
+                            }
+                            return data ? data.organization_name : 'N/A';
+                        }
+                    },
+                    {
+                        data: 'type_key_sert',
+                        name: 'type_key_sert',
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                var text = data[currentLang] || data['en'] || '';
+                                return '<span class="color-cell" style="background-color:' + row.type_key_sert_color + ';">' + text + '</span>';
+                            }
+                            return data[currentLang] || data['en'] || '';
+                        }
+                    },
+                    { data: 'purpose', name: 'purpose' },
+                    { data: 'location', name: 'location' },
+                    { data: 'access_control', name: 'access_control' },
+                    {
+                        data: 'expiry_date',
+                        name: 'expiry_date',
+                        render: function(data, type, row) {
+                            return moment(data).format('DD-MM-YYYY');
+                        }
+                    },
+                    {
+                        data: 'enable_reminder',
+                        name: 'reminder',
+                        orderable: false,
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                if (!data) {
+                                    return '<span class="badge bg-secondary">{% trans "Not set" %}</span>';
+                                }
+
+                                let reminderHtml = '<div class="reminder-info p-2">';
+
+                                // Reminder Configuration
+                                reminderHtml += '<div class="reminder-config mb-2">';
+                                if (row.reminder_type === 'days') {
+                                    reminderHtml += `<div class="reminder-timing">
+                                        <i class="fas fa-clock me-1"></i>
+                                        <span class="text-primary">${row.reminder_days} {% trans "days before expiry" %}</span>
+                                    </div>`;
+                                } else if (row.reminder_date) {
+                                    reminderHtml += `<div class="reminder-timing">
+                                        <i class="fas fa-calendar-alt me-1"></i>
+                                        <span class="text-primary">${moment(row.reminder_date).format('DD-MM-YYYY HH:mm')}</span>
+                                    </div>`;
+                                }
+
+                                // Status Badge
+                                let statusClass, statusText;
+                                if (row.reminder_sent) {
+                                    statusClass = 'bg-success';
+                                    statusText = '{% trans "Sent" %}';
+                                    if (row.sent_at) {
+                                        statusText += ` (${moment(row.sent_at).format('DD-MM-YYYY HH:mm')})`;
+                                    }
+                                } else if (row.reminder_cancelled) {
+                                    statusClass = 'bg-danger';
+                                    statusText = '{% trans "Cancelled" %}';
+                                    if (row.cancelled_at) {
+                                        statusText += ` (${moment(row.cancelled_at).format('DD-MM-YYYY HH:mm')})`;
+                                    }
+                                } else {
+                                    const reminderDate = row.reminder_type === 'days'
+                                        ? moment(row.expiry_date).subtract(row.reminder_days, 'days')
+                                        : moment(row.reminder_date);
+
+                                    if (reminderDate.isBefore(moment())) {
+                                        statusClass = 'bg-warning';
+                                        statusText = '{% trans "Overdue" %}';
+                                    } else {
+                                        statusClass = 'bg-info';
+                                        statusText = '{% trans "Pending" %}';
+                                    }
+                                }
+
+                                reminderHtml += `<div class="reminder-status mt-1">
+                                    <span class="badge ${statusClass}">${statusText}</span>
+                                </div>`;
+
+                                // Next Reminder Info
+                                if (!row.reminder_sent && row.next_reminder_date) {
+                                    reminderHtml += `<div class="next-reminder mt-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-bell me-1"></i>
+                                            {% trans "Next reminder" %}: ${moment(row.next_reminder_date).format('DD-MM-YYYY HH:mm')}
+                                        </small>
+                                    </div>`;
+                                }
+
+                                // Send Now Button (for admins)
+                                if (!row.reminder_sent && '{{ can_edit }}' === 'True') {
+                                    reminderHtml += `
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-primary send-now-reminder"
+                                                    data-id="${row.id}"
+                                                    title="{% trans 'Send reminder now' %}">
+                                                <i class="fas fa-paper-plane me-1"></i>
+                                                {% trans "Send now" %}
+                                            </button>
+                                        </div>`;
+                                }
+
+                                // Previous Reminders (if any)
+                                if (row.previous_reminders && row.previous_reminders.length > 0) {
+                                    reminderHtml += `<div class="previous-reminders mt-2">
+                                        <small class="text-muted cursor-pointer"
+                                               data-bs-toggle="collapse"
+                                               data-bs-target="#previousReminders${row.id}">
+                                            <i class="fas fa-history me-1"></i>
+                                            {% trans "Previous reminders" %}
+                                        </small>
+                                        <div class="collapse" id="previousReminders${row.id}">
+                                            <div class="previous-list mt-1">`;
+
+                                    row.previous_reminders.forEach(prev => {
+                                        reminderHtml += `<div class="previous-reminder-item small">
+                                            <i class="fas fa-check-circle text-success me-1"></i>
+                                            ${moment(prev.sent_at).format('DD-MM-YYYY HH:mm')}
+                                        </div>`;
+                                    });
+
+                                    reminderHtml += `</div></div>`;
+                                }
+
+                                reminderHtml += '</div>';
+
+                                return reminderHtml;
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: 'revocation_status',
+                        name: 'revocation_status',
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                var text = data[currentLang] || data['en'] || '';
+                                return '<span class="color-cell" style="background-color:' + row.revocation_status_color + ';">' + text + '</span>';
+                            }
+                            return data[currentLang] || data['en'] || '';
+                        }
+                    },
+                    {
+                        data: 'actual',
+                        name: 'actual',
+                        orderable: false,
+                        searchable: false,
+                        render: function(data, type, row) {
+                            if (type !== 'display') return '';
+                            const actualData = typeof data === 'string' ? JSON.parse(data) : (data || {});
+                            const hasActualization = !!actualData.has_actualization;
+                            const actualDate = actualData.date;
+                            const actualUser = actualData.user;
+                            const isOwner = !!actualData.is_owner;
+                            const byText = '{% trans "By" %}';
+                            let html = '<div class="d-flex flex-column align-items-start gap-1">';
+
+                            if (isOwner) {
+                                const buttonClass = getActualizeButtonClass(actualDate);
+                                let titleText = '{% trans "Actualize" %}';
+                                if (hasActualization && actualDate) {
+                                    titleText = '{% trans "Actualized" %}: ' + actualDate +
+                                        (actualUser ? '<br>' + byText + ': ' + actualUser : '') +
+                                        '<br>{% trans "Click to actualize again" %}';
+                                }
+                                html += `
+                                    <button type="button" class="btn btn-sm ${buttonClass} actualize-action"
+                                            data-id="${row.id}"
+                                            data-actual-date="${actualDate || ''}"
+                                            data-actual-user="${actualUser || ''}"
+                                            data-bs-toggle="tooltip"
+                                            data-bs-html="true"
+                                            title="${titleText}">
+                                        <i class="far fa-clock"></i>
+                                    </button>`;
+                            }
+
+                            if (hasActualization && actualDate) {
+                                const timeAgo = getTimeAgo(actualDate);
+                                const tooltipContent = '{% trans "Actualized" %}: ' + actualDate +
+                                    (actualUser ? '<br>' + byText + ': ' + actualUser : '');
+                                html += `<span class="small text-muted" data-bs-toggle="tooltip" data-bs-html="true" title="${tooltipContent}">
+                                    ${timeAgo || actualDate}
+                                </span>`;
+                            } else if (!isOwner) {
+                                html += '<span class="small text-muted">—</span>';
+                            }
+
+                            html += '</div>';
+                            return html;
+                        }
+                    },
+                    {
+                        data: 'owner',
+                        name: 'owner',
+                        render: function(data, type, row) {
+                            if (type === 'display' && data) {
+                                return `<span class="owner-info" data-toggle="tooltip" title="
+                                    {% trans "Email" %}: ${data.email}<br>
+                                    {% trans "Phone" %}: ${data.phone}<br>
+                                    {% trans "Notes" %}: ${data.notes}">
+                                    ${data.name}, ${data.department}</span>`;
+                            }
+                            return data ? data.name + ', ' + data.department : '';
+                        }
+                    },
+                    { data: 'notes', name: 'notes' },
+                    {
+                        data: 'created_at',
+                        name: 'created_at',
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                return '<span title="' + row.created_by + '">' + moment(data).format('DD-MM-YYYY HH:mm') + '</span>';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: 'updated_at',
+                        name: 'updated_at',
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                return '<span title="' + row.updated_by + '">' + moment(data).format('DD-MM-YYYY HH:mm') + '</span>';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: 'history',
+                        name: 'history',
+                        orderable: false,
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                let historyHtml = '<div class="d-flex flex-column">';
+                                if (data.last_action) {
+                                    historyHtml += `
+                                        <div class="last-action mb-2">
+                                            <small>${moment(data.last_action_time).format('DD-MM-YYYY HH:mm')}</small><br>
+                                            ${data.last_action} by ${data.last_action_by}
+                                        </div>`;
+                                }
+                                historyHtml += `
+                                    <button class="btn btn-sm btn-info view-history" data-id="${row.id}">
+                                        <i class="fas fa-history"></i> {% trans "View Full History" %}
+                                    </button>
+                                </div>`;
+                                return historyHtml;
+                            }
+                            return data.last_action || '';
+                        }
+                    },
+                    {
+                        data: null,
+                        name: 'actions',
+                        orderable: false,
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                let buttons = '<div class="table-actions">';
+                                {% if can_edit %}
+                                    buttons += `
+                                        <button class="btn btn-sm btn-outline-primary btn-icon-action btn-action edit-key-cert" data-id="${row.id}"
+                                                title="{% trans 'Edit' %}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger btn-icon-action btn-action delete-key-cert" data-id="${row.id}"
+                                                title="{% trans 'Delete' %}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>`;
+                                {% endif %}
+                                buttons += '</div>';
+                                return buttons;
+                            }
+                            return '';
+                        }
+                    }
+                ],
+                order: [[7, 'asc']],
+                initComplete: function() {
+                    updateFilterOptions();
+                    initTooltips();
+                    if (window.initKeycertDataTablePagination) {
+                        window.initKeycertDataTablePagination({
+                            api: this.api(),
+                            containerId: 'keyCertTablePagination',
+                            paginationAriaLabel: '{% trans "Key certificate pagination" %}',
+                            labels: {
+                                showing: '{% trans "Showing" %}',
+                                of: '{% trans "of" %}',
+                                items: '{% trans "records" %}',
+                                perPage: '{% trans "Per page" %}'
+                            }
+                        });
+                    }
+                }
+
+            });
+            window.keyCertDataTable = table;
+
+            function clearKeycertFilters() {
+                $('#searchInput').val('');
+                $('#dateRangeFilter').val('');
+                var drp = $('#dateRangeFilter').data('daterangepicker');
+                if (drp) {
+                    drp.setStartDate(moment());
+                    drp.setEndDate(moment());
+                }
+                $('#companyFilter, #typeFilter, #revocationStatusFilter').val('');
+                table.ajax.reload();
+            }
+
+            function syncKeycertFiltersExpanded() {
+                var hasFilters = !!($('#searchInput').val() || $('#dateRangeFilter').val() ||
+                    $('#companyFilter').val() || $('#typeFilter').val() || $('#revocationStatusFilter').val());
+                var collapseEl = document.getElementById('keycertFiltersCollapse');
+                var toggleBtn = document.getElementById('toggleKeycertFilters');
+                var icon = document.getElementById('keycertFiltersToggleIcon');
+                if (hasFilters && collapseEl && window.bootstrap) {
+                    bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+                    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+                    if (icon) {
+                        icon.classList.remove('bi-chevron-down');
+                        icon.classList.add('bi-chevron-up');
+                    }
+                }
+            }
+
+            $('#clearKeycertFilters').on('click', function(e) {
+                e.preventDefault();
+                clearKeycertFilters();
+            });
+            syncKeycertFiltersExpanded();
+
+            $('#dateRangeFilter').on('apply.daterangepicker', function(ev, picker) {
+                $(this).val(picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
+                table.ajax.reload();
+            });
+
+            $('#dateRangeFilter').on('cancel.daterangepicker', function(ev, picker) {
+                $(this).val('');
+                table.ajax.reload();
+            });
+
+            // Table Draw Event Handler
+            table.on('draw', function() {
+                try {
+                    updateFilterOptions();
+                    initTooltips();
+
+                    $('.info-card').each(function() {
+                        $(this).find('.small-info').last().addClass('mb-0');
+                    });
+
+                    $('.local-time').each(function() {
+                        const utcTime = $(this).data('utc');
+                        if (utcTime) {
+                            $(this).text(moment.utc(utcTime).local().format('DD-MM-YYYY HH:mm'));
+                        }
+                    });
+
+                    updateDynamicContent();
+                } catch (error) {
+                    console.error('Error in table draw handler:', error);
+                    updateFilterOptions();
+                }
+            });
+            updateFilterOptions();
+            initTooltips();
+
+            $(document).ajaxError(function(event, jqXHR, settings, thrownError) {
+                console.error('AJAX error:', thrownError);
+                if (jqXHR.status === 500) {
+                    alert('{% trans "Server error occurred. Please try again." %}');
+                }
+            });
+            function safeJSONParse(data) {
+                try {
+                    return JSON.parse(data);
+                } catch (e) {
+                    console.error('Error parsing JSON:', e);
+                    return null;
+                }
+            }
+            // Guide modal: load content when shown
+            var $guideModal = document.getElementById('keycertGuideModal');
+            if ($guideModal) {
+                $guideModal.addEventListener('show.bs.modal', function() {
+                    var url = this.getAttribute('data-guide-url');
+                    var body = document.getElementById('keycertGuideModalBody');
+                    if (!body || !url) return;
+                    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+                    fetch(url)
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.content) {
+                                body.innerHTML = data.content;
+                            } else {
+                                body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                            }
+                        })
+                        .catch(function() {
+                            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                        });
+                });
+            }
+            // Excel Export Functionality
+            document.getElementById('exportExcelBtn').addEventListener('click', function() {
+                // Get DataTable instance and reload to get all data
+                table.ajax.reload(function() {
+                    const data = table.data().toArray();
+
+                    // Prepare headers with translations
+                    const headers = [
+                        "{% trans 'Key/Certificate ID' %}",
+                        "{% trans 'Company' %}",
+                        "{% trans 'Organization' %}",
+                        "{% trans 'Type' %}",
+                        "{% trans 'Purpose' %}",
+                        "{% trans 'Location' %}",
+                        "{% trans 'Owner' %}",
+                        "{% trans 'Access Control' %}",
+                        "{% trans 'Expiry Date' %}",
+                        "{% trans 'Revocation Status' %}",
+                        "{% trans 'Notes' %}",
+                        "{% trans 'Created At' %}",
+                        "{% trans 'Updated At' %}"
+                    ];
+
+                    // Prepare rows with data
+                    const rows = data.map(row => [
+                        row.key_cert_num,
+                        row.company,
+                        row.general_info.organization_name,
+                        row.type_key_sert[currentLang] || row.type_key_sert.en,
+                        row.purpose,
+                        row.location,
+                        row.owner ? row.owner.name : '',
+                        row.access_control,
+                        moment(row.expiry_date).format('DD-MM-YYYY'),
+                        row.revocation_status[currentLang] || row.revocation_status.en,
+                        row.notes,
+                        moment(row.created_at).format('DD-MM-YYYY HH:mm'),
+                        moment(row.updated_at).format('DD-MM-YYYY HH:mm')
+                    ]);
+
+                    // Create workbook
+                    const wb = XLSX.utils.book_new();
+                    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+                    // Set column widths
+                    const colWidths = [15, 15, 20, 15, 20, 15, 20, 20, 15, 15, 25, 20, 20];
+                    ws['!cols'] = colWidths.map(w => ({ wch: w }));
+
+                    // Add worksheet to workbook
+                    XLSX.utils.book_append_sheet(wb, ws, "{% trans 'Keys and Certificates' %}");
+
+                    // Generate Excel file with proper encoding for Cyrillic
+                    const excelBuffer = XLSX.write(wb, {
+                        bookType: 'xlsx',
+                        type: 'array',
+                        bookSST: true, // Enable Shared String Table for better Unicode handling
+                    });
+
+                    // Convert to Blob and create download link
+                    const blob = new Blob([excelBuffer], {
+                        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `keys_certificates_${moment().format('YYYY-MM-DD_HH-mm')}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                });
+            });
+
+            $('.modal').on('hidden.bs.modal', function () {
+                try {
+                    $(this).find(MODAL_TOOLTIP_SELECTOR).each(function() {
+                        if (!this || !document.body.contains(this)) return;
+                        const instance = bootstrap.Tooltip.getInstance(this);
+                        if (instance) {
+                            instance.dispose();
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error cleaning up modal tooltips:', error);
+                }
+            });
+
+            $('#searchInput, #dateRangeFilter, #companyFilter, #typeFilter, #revocationStatusFilter').on('keyup change', function() {
+                try {
+                    disposeTooltips(ALL_TOOLTIP_SELECTORS);
+                    table.ajax.reload();
+                } catch (e) {
+                    console.error('Error reloading table:', e);
+                    alert('{% trans "Error updating table. Please refresh the page." %}');
+                }
+            });
+
+            $(document).on('languageChanged', function(e, newLang) {
+                currentLang = newLang;
+                updateFilterOptions();
+                table.ajax.reload();
+            });
+
+            $('#keyCertTable').on('click', '.send-now-reminder', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const id = $(this).data('id');
+                const button = $(this);
+
+                if (confirm('{% trans "Are you sure you want to send this reminder now?" %}')) {
+                    button.prop('disabled', true)
+                          .html('<i class="fas fa-spinner fa-spin"></i> {% trans "Sending..." %}');
+
+                    const formData = new FormData();
+                    formData.append('id', id);
+                    formData.append('csrfmiddlewaretoken', $('[name=csrfmiddlewaretoken]').val());
+
+                    $.ajax({
+                        url: '{% url "send_reminder_now" %}',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function(response) {
+                            if (response.success) {
+                                alert("{% trans 'Reminder sent successfully' %}");
+                                table.ajax.reload();
+                            } else {
+                                alert("{% trans 'Error' %}: " + response.error);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("Error sending reminder:", error);
+                            alert("{% trans 'An error occurred while sending the reminder. Please try again.' %}");
+                        },
+                        complete: function() {
+                            button.prop('disabled', false)
+                                  .html('<i class="fas fa-paper-plane"></i> {% trans "Send now" %}');
+                        }
+                    });
+                }
+            });
+            $('#keyCertTable').on('click', '.view-history', function(e) {
+                e.preventDefault();
+                const id = $(this).data('id');
+                $.ajax({
+                    url: `/app_keycert/get-key-cert-history/${id}/`,
+                    type: 'GET',
+                    beforeSend: function() {
+                        $('.history-timeline').html(`
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">{% trans "Loading..." %}</span>
+                                </div>
+                            </div>
+                        `);
+                        $('#historyModal').modal('show');
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            const timeline = $('.history-timeline');
+                            timeline.empty();
+
+                            if (response.history.length === 0) {
+                                timeline.html(`
+                                    <div class="text-center text-muted">
+                                        {% trans "No history records found" %}
+                                    </div>
+                                `);
+                                return;
+                            }
+
+                            response.history.forEach(function(entry) {
+                                const item = $('<div class="history-item">')
+                                    .append(`<div class="fw-bold">${moment(entry.timestamp).format('DD-MM-YYYY HH:mm')}</div>`)
+                                    .append(`<div>${entry.action} by ${entry.action_by}</div>`)
+                                    .append(`<div class="text-muted mt-2">${entry.details.replace(/\n/g, '<br>')}</div>`);
+                                timeline.append(item);
+                            });
+                        } else {
+                            $('.history-timeline').html(`
+                                <div class="alert alert-danger">
+                                    {% trans "Error loading history" %}: ${response.error}
+                                </div>
+                            `);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error loading history:", error);
+                        $('.history-timeline').html(`
+                            <div class="alert alert-danger">
+                                {% trans "Error loading history. Please try again." %}
+                            </div>
+                        `);
+                    }
+                });
+
+            });
+
+            $('#keyCertTable').on('click', '.actualize-action', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const button = $(this);
+                const id = button.data('id');
+                if (!id) return;
+
+                if (!confirm('{% trans "Are you sure you want to actualize this record?" %}')) {
+                    return;
+                }
+
+                button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+                $.ajax({
+                    url: `{% url 'actualize_key_cert' 0 %}`.replace('0', id),
+                    type: 'POST',
+                    data: {
+                        csrfmiddlewaretoken: $('[name=csrfmiddlewaretoken]').val()
+                    },
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            alert(response.message || '{% trans "Record actualized successfully" %}');
+                            table.ajax.reload(null, false);
+                        } else {
+                            alert(response.message || '{% trans "Error actualizing record" %}');
+                        }
+                    },
+                    error: function(xhr) {
+                        let errorMsg = '{% trans "Error actualizing record" %}';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMsg = xhr.responseJSON.message;
+                        }
+                        alert(errorMsg);
+                    },
+                    complete: function() {
+                        button.prop('disabled', false).html('<i class="far fa-clock"></i>');
+                    }
+                });
+            });
+
+            // Initialize history modal
+            const historyModal = new bootstrap.Modal(document.getElementById('historyModal'), {
+                backdrop: 'static',
+                keyboard: false
+            });
+
+            $('#keyCertTable').on('click', '.delete-key-cert', function() {
+                const id = $(this).data('id');
+                const csrftoken = getCookie('csrftoken');
+
+                if (confirm('{% trans "Are you sure you want to delete this key/certificate?" %}')) {
+                    $.ajax({
+                        url: `/app_keycert/delete-key-cert/${id}/`,
+                        type: 'DELETE',
+                        beforeSend: function(xhr) {
+                            xhr.setRequestHeader('X-CSRFToken', csrftoken);
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                table.ajax.reload();
+                                alert("{% trans 'Key/Certificate deleted successfully' %}");
+                            } else {
+                                alert("{% trans 'Error' %}: " + response.error);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("Error deleting key/certificate:", error);
+                            let errorMessage = "{% trans 'An error occurred while deleting the key/certificate. Please try again.' %}";
+                            if (xhr.status === 403) {
+                                errorMessage = "{% trans 'Permission denied. Please refresh the page and try again.' %}";
+                            }
+                            alert(errorMessage);
+                        }
+                    });
+                }
+            });
+
+            initTooltips();
+
+            function clearForm(formId) {
+                $(formId)[0].reset();
+                $(formId + ' select').val('').trigger('change');
+            }
+
+            $('#addKeyCertBtn').click(function() {
+                clearForm('#addKeyCertForm');
+                $('#addKeyCertOwner').val('');
+                $('#addKeyCertOwnerBadge').html('<span class="text-muted small">{% trans "Not selected" %}</span>');
+                $('#addKeyCertModal').modal('show');
+            });
+
+            // --- Select Owner Modal (Cabinet users only, Quick search + Department/Position) ---
+            window.keycertOwnerOptions = { cabinet_users: [] };
+            window.keycertOwnerTarget = null; // { context: 'add'|'edit', inputId, badgeId }
+
+            function escapeHtmlKeycert(text) {
+                if (text == null) return '';
+                var div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            function getKeycertOwnerDisplayLabel(user) {
+                var name = user.full_name || user.username || '';
+                var extra = [];
+                if (user.department_name) extra.push(user.department_name);
+                if (user.position_name) extra.push(user.position_name);
+                if (extra.length) name += ' (' + extra.join(', ') + ')';
+                if (user.email) name += ' - ' + user.email;
+                return name;
+            }
+
+            function buildKeycertOwnerFilters() {
+                var deptMap = {}, posMap = {};
+                (window.keycertOwnerOptions.cabinet_users || []).forEach(function(u) {
+                    if (u.department_id != null && u.department_name) deptMap[u.department_id] = u.department_name;
+                    if (u.position_id != null && u.position_name) posMap[u.position_id] = u.position_name;
+                });
+                var $dept = $('#keycertOwnerDepartment');
+                $dept.find('option:not(:first)').remove();
+                Object.keys(deptMap).sort().forEach(function(id) {
+                    $dept.append('<option value="' + id + '">' + escapeHtmlKeycert(deptMap[id]) + '</option>');
+                });
+                var $pos = $('#keycertOwnerPosition');
+                $pos.find('option:not(:first)').remove();
+                Object.keys(posMap).sort().forEach(function(id) {
+                    $pos.append('<option value="' + id + '">' + escapeHtmlKeycert(posMap[id]) + '</option>');
+                });
+            }
+
+            function filterKeycertOwnerList() {
+                var q = ($('#keycertOwnerSearch').val() || '').toLowerCase().trim();
+                var deptId = $('#keycertOwnerDepartment').val();
+                var posId = $('#keycertOwnerPosition').val();
+                var cabinet = (window.keycertOwnerOptions.cabinet_users || []).filter(function(u) {
+                    if (deptId && u.department_id != deptId) return false;
+                    if (posId && u.position_id != posId) return false;
+                    if (q) {
+                        var name = (u.full_name || '').toLowerCase();
+                        var uname = (u.username || '').toLowerCase();
+                        var email = (u.email || '').toLowerCase();
+                        if (name.indexOf(q) === -1 && uname.indexOf(q) === -1 && email.indexOf(q) === -1) return false;
+                    }
+                    return true;
+                });
+                var $list = $('#keycertOwnerList');
+                $list.empty();
+                if (!cabinet.length) {
+                    $list.html('<div class="text-muted small">{% trans "No persons match the filters." %}</div>');
+                    return;
+                }
+                cabinet.forEach(function(u) {
+                    var val = 'c-' + u.id;
+                    var label = getKeycertOwnerDisplayLabel(u);
+                    $list.append(
+                        '<div class="form-check border-bottom py-2">' +
+                        '<input class="form-check-input keycert-owner-radio" type="radio" name="keycert_owner_choice" value="' + escapeHtmlKeycert(val) + '" id="kor_c' + u.id + '">' +
+                        '<label class="form-check-label w-100 ms-2" for="kor_c' + u.id + '">' + escapeHtmlKeycert(label) + '</label></div>'
+                    );
+                });
+            }
+
+            function openKeycertSelectOwnerModal(context) {
+                window.keycertOwnerTarget = context === 'edit'
+                    ? { context: 'edit', inputId: 'editKeyCertOwner', badgeId: 'editKeyCertOwnerBadge' }
+                    : { context: 'add', inputId: 'addKeyCertOwner', badgeId: 'addKeyCertOwnerBadge' };
+                var companyId = context === 'edit' ? $('#editKeyCertModal #company').val() : $('#addKeyCertModal #company').val();
+                $.get("{% url 'get_keycert_owner_options' %}", { company_id: companyId || '' }, function(response) {
+                    if (!response.success) {
+                        alert(response.error || '{% trans "Error loading owners." %}');
+                        return;
+                    }
+                    window.keycertOwnerOptions = { cabinet_users: response.cabinet_users || [] };
+                    buildKeycertOwnerFilters();
+                    $('#keycertOwnerSearch').val('');
+                    $('#keycertOwnerDepartment').val('');
+                    $('#keycertOwnerPosition').val('');
+                    filterKeycertOwnerList();
+                    $('#keycertSelectOwnerModal').modal('show');
+                }).fail(function() { alert('{% trans "Error loading owners." %}'); });
+            }
+
+            function applyKeycertOwnerSelection() {
+                var t = window.keycertOwnerTarget;
+                if (!t) return;
+                var val = $('input[name="keycert_owner_choice"]:checked').val();
+                if (!val) {
+                    alert('{% trans "Please select an owner." %}');
+                    return;
+                }
+                var id = val.substring(2); // value is always c-<id>
+                var u = (window.keycertOwnerOptions.cabinet_users || []).find(function(x) { return String(x.id) === id; });
+                var label = u ? getKeycertOwnerDisplayLabel(u) : val;
+                $('#' + t.inputId).val(val);
+                $('#' + t.badgeId).html('<span class="badge bg-secondary">' + escapeHtmlKeycert(label) + '</span>');
+                $('#keycertSelectOwnerModal').modal('hide');
+            }
+
+            $(document).on('click', '#addKeyCertSelectOwnerBtn', function() { openKeycertSelectOwnerModal('add'); });
+            $(document).on('click', '#editKeyCertSelectOwnerBtn', function() { openKeycertSelectOwnerModal('edit'); });
+            $('#keycertOwnerSearch').on('input', function() { filterKeycertOwnerList(); });
+            $('#keycertOwnerDepartment, #keycertOwnerPosition').on('change', function() { filterKeycertOwnerList(); });
+            $('#keycertOwnerSelectBtn').on('click', function() { applyKeycertOwnerSelection(); });
+        });
+    });
+    </script>
+{% endblock %}

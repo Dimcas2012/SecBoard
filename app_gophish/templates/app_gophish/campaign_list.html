@@ -1,0 +1,139 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Gophish Campaigns" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="bi bi-megaphone me-2"></i>{% trans "Gophish Campaigns" %}</h2>
+    </div>
+</div>
+
+{% url 'app_gophish:campaign_list' as campaign_list_clear_url %}
+{% filters_expanded 'search' 'server' 'status' 'server_id' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="campaignFiltersCollapse" toggle_id="toggleCampaignFilters" icon_id="campaignFiltersToggleIcon" filter_clear_url=campaign_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="campaignFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" class="row g-1 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" class="form-control form-control-sm" id="filterSearch" name="search"
+                       value="{{ search }}" placeholder="{% trans 'Campaign name, template, etc.' %}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="filterServer">{% trans "Server" %}</label>
+                <select class="form-select form-select-sm" id="filterServer" name="server">
+                    <option value="">{% trans "All Servers" %}</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}" {% if server_id == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                <select class="form-select form-select-sm" id="filterStatus" name="status">
+                    <option value="">{% trans "All Statuses" %}</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+<!-- Campaigns Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="export-controls px-3 pt-2 pb-0">
+                    <div class="row align-items-center g-1">
+                        <div class="col-md-6"></div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group sb-toolbar" role="group">
+                                <a href="{% url 'app_gophish:campaign_export_excel' %}{% if search %}?search={{ search }}{% endif %}{% if server_id %}{% if search %}&{% else %}?{% endif %}server={{ server_id }}{% endif %}{% if status %}{% if search or server_id %}&{% else %}?{% endif %}status={{ status }}{% endif %}"
+                                   class="btn btn-success btn-sm btn-icon-action" title="{% trans 'Export to Excel' %}">
+                                    <i class="bi bi-file-earmark-excel"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table sb-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Server" %}</th>
+                                <th>{% trans "Template" %}</th>
+                                <th>{% trans "Landing Page" %}</th>
+                                <th>{% trans "Status" %}</th>
+                                <th class="text-center">{% trans "Targets" %}</th>
+                                <th class="text-center">{% trans "Emails Sent" %}</th>
+                                <th class="text-center">{% trans "Emails Opened" %}</th>
+                                <th class="text-center">{% trans "Creds Submitted" %}</th>
+                                <th>{% trans "Created" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for campaign in page_obj %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'app_gophish:campaign_detail' campaign.id %}">
+                                        {{ campaign.name }}
+                                    </a>
+                                </td>
+                                <td>{{ campaign.server.name }}</td>
+                                <td>{{ campaign.template.name|truncatechars:20 }}</td>
+                                <td>{{ campaign.landing_page.name|truncatechars:20 }}</td>
+                                <td class="status-{{ campaign.status }}">
+                                    {{ campaign.get_status_display }}
+                                </td>
+                                <td class="numeric {% if campaign.total_targets == 0 %}zero{% else %}positive{% endif %}">
+                                    {{ campaign.total_targets }}
+                                </td>
+                                <td class="numeric {% if campaign.emails_sent == 0 %}zero{% else %}positive{% endif %}">
+                                    {{ campaign.emails_sent }}
+                                </td>
+                                <td class="numeric {% if campaign.emails_opened == 0 %}zero{% else %}positive{% endif %}">
+                                    {{ campaign.emails_opened }}
+                                </td>
+                                <td class="numeric {% if campaign.credentials_submitted == 0 %}zero{% else %}positive{% endif %}">
+                                    {{ campaign.credentials_submitted }}
+                                </td>
+                                <td>{{ campaign.created_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <a href="{% url 'app_gophish:campaign_detail' campaign.id %}" 
+                                       class="btn btn-outline-primary btn-sm" title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if page_obj|length == 0 %}
+                <div class="text-center text-muted py-4">
+                    {% trans "No campaigns found" %}
+                    {% if search or server_id or status %}
+                    <br>
+                    <a href="{% url 'app_gophish:campaign_list' %}" class="btn btn-sm btn-outline-primary mt-2">
+                        {% trans "Clear filters" %}
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'app_gophish/includes/gophish_table_pagination.html' with pagination_item_label=_("campaigns") pagination_aria_label=_("Campaign pagination") %}
+{% endblock %}

@@ -1,0 +1,2659 @@
+{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "GDPR Implementation Guide" %}{% endblock %}
+
+{% block gdpr_content %}
+<style>
+    .roadmap a { text-decoration: none; }
+    .roadmap a.active { font-weight: 700; color: #0d6efd; }
+    .roadmap { position: sticky; top: 1rem; }
+    .roadmap ul { margin-bottom: .5rem; }
+    .scroll-target { scroll-margin-top: 80px; }
+    .accordion-button { cursor: pointer; }
+    
+    /* Flowchart styles */
+    .flowchart { display: flex; flex-direction: column; align-items: center; gap: 1rem; margin: 1rem 0; }
+    .flow-step { background: #f8f9fa; border: 2px solid #dee2e6; border-radius: 8px; padding: 1rem; width: 100%; max-width: 400px; text-align: center; position: relative; }
+    .flow-step.start { background: #d1ecf1; border-color: #bee5eb; }
+    .flow-step.end { background: #d4edda; border-color: #c3e6cb; }
+    .flow-step.decision { background: #fff3cd; border-color: #ffeaa7; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); padding: 1.5rem; }
+    .flow-arrow { color: #6c757d; font-size: 1.5rem; }
+    
+    /* Timeline styles */
+    .timeline { position: relative; padding: 1rem 0; }
+    .timeline-bar { background: linear-gradient(to right, #28a745 0%, #ffc107 50%, #dc3545 100%); height: 8px; border-radius: 4px; position: relative; }
+    .timeline-marker { position: absolute; width: 40px; height: 40px; background: white; border: 3px solid #6c757d; border-radius: 50%; top: -16px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem; }
+    .timeline-marker.start { left: 0%; border-color: #28a745; }
+    .timeline-marker.mid { left: 50%; transform: translateX(-50%); border-color: #ffc107; }
+    .timeline-marker.end { right: 0%; border-color: #dc3545; }
+    .timeline-labels { display: flex; justify-content: space-between; margin-top: 3rem; }
+    
+    /* Data types infographic */
+    .data-types-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .data-type-card { border: 2px solid; border-radius: 8px; padding: 1rem; text-align: center; }
+    .data-type-card.regular { border-color: #0d6efd; background: #e7f1ff; }
+    .data-type-card.special { border-color: #dc3545; background: #f8d7da; }
+    .data-type-card i { font-size: 2rem; margin-bottom: 0.5rem; }
+    
+    /* Progress checklist */
+    .progress-checklist { list-style: none; padding: 0; }
+    .progress-checklist li { padding: 1rem; margin-bottom: 0.75rem; border-radius: 8px; background: #f8f9fa; display: flex; align-items: flex-start; gap: 0.75rem; border: 2px solid #dee2e6; }
+    .progress-checklist li.completed { background: #d4edda; border-color: #28a745; }
+    .progress-checklist li.in-progress { background: #fff3cd; border-color: #ffc107; }
+    .progress-checklist .check-icon { width: 24px; height: 24px; min-width: 24px; border: 2px solid #6c757d; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+    .progress-checklist li.completed .check-icon { background: #28a745; border-color: #28a745; color: white; }
+    .progress-checklist li.in-progress .check-icon { background: #ffc107; border-color: #ffc107; }
+    .progress-checklist .flex-fill { flex: 1; min-width: 0; }
+    
+    /* Collapse button */
+    .card-header button[data-bs-toggle="collapse"] { color: #212529; }
+    .card-header button[data-bs-toggle="collapse"]:hover { color: #0d6efd; }
+    .card-header button[data-bs-toggle="collapse"] .fa-chevron-down { transition: transform 0.3s ease; }
+    .card-header button[data-bs-toggle="collapse"]:not(.collapsed) .fa-chevron-down { transform: rotate(180deg); }
+    
+    /* Interactive tools */
+    .hover-shadow { transition: box-shadow 0.3s ease, transform 0.2s ease; }
+    .hover-shadow:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform: translateY(-2px); cursor: pointer; }
+    
+    /* Quiz/Assessment styles */
+    .quiz-option { border: 2px solid #dee2e6; border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s; }
+    .quiz-option:hover { border-color: #0d6efd; background: #f8f9fa; }
+    .quiz-option.selected { border-color: #0d6efd; background: #e7f1ff; }
+    .quiz-option input[type="radio"] { margin-right: 0.5rem; }
+    
+    /* Maturity level gauge */
+    .maturity-gauge { position: relative; height: 200px; margin: 2rem auto; }
+    .maturity-level { font-size: 2.5rem; font-weight: bold; text-align: center; margin-top: 1rem; }
+    
+    /* Wizard steps */
+    .wizard-step { display: none; }
+    .wizard-step.active { display: block; }
+    .wizard-progress { display: flex; justify-content: space-between; margin-bottom: 2rem; }
+    .wizard-progress-item { flex: 1; text-align: center; position: relative; }
+    .wizard-progress-item::before { content: ''; position: absolute; top: 15px; left: 0; right: 0; height: 2px; background: #dee2e6; z-index: -1; }
+    .wizard-progress-item:first-child::before { left: 50%; }
+    .wizard-progress-item:last-child::before { right: 50%; }
+    .wizard-progress-item.completed .wizard-circle { background: #28a745; color: white; }
+    .wizard-progress-item.active .wizard-circle { background: #0d6efd; color: white; }
+    .wizard-circle { width: 30px; height: 30px; border-radius: 50%; background: #dee2e6; display: inline-flex; align-items: center; justify-content: center; margin: 0 auto 0.5rem; }
+</style>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0">{% trans "GDPR Implementation Guide" %}</h1>
+        <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> {% trans "Back to Dashboard" %}
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        {% trans "This step-by-step guide explains how to roll out GDPR in your company using the built-in modules of this system." %}
+    </div>
+
+    <!-- Interactive Tools Section -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-magic"></i> {% trans "Interactive Tools" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100 text-center hover-shadow">
+                        <div class="card-body">
+                            <i class="fas fa-clipboard-check fa-3x text-info mb-3"></i>
+                            <h6 class="card-title">{% trans "Self-Assessment Quiz" %}</h6>
+                            <p class="card-text small text-muted">{% trans "Answer questions to discover which modules you need" %}</p>
+                            <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#assessmentModal">
+                                {% trans "Start Quiz" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100 text-center hover-shadow">
+                        <div class="card-body">
+                            <i class="fas fa-chart-line fa-3x text-success mb-3"></i>
+                            <h6 class="card-title">{% trans "GDPR Maturity Level" %}</h6>
+                            <p class="card-text small text-muted">{% trans "Assess your compliance maturity level" %}</p>
+                            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#maturityModal">
+                                {% trans "Check Level" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100 text-center hover-shadow">
+                        <div class="card-body">
+                            <i class="fas fa-magic fa-3x text-warning mb-3"></i>
+                            <h6 class="card-title">{% trans "Quick Start Wizard" %}</h6>
+                            <p class="card-text small text-muted">{% trans "Step-by-step setup for first records" %}</p>
+                            <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#wizardModal">
+                                {% trans "Launch Wizard" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100 text-center hover-shadow">
+                        <div class="card-body">
+                            <i class="fas fa-calculator fa-3x text-secondary mb-3"></i>
+                            <h6 class="card-title">{% trans "Retention Calculator" %}</h6>
+                            <p class="card-text small text-muted">{% trans "Calculate retention periods by data category" %}</p>
+                            <button class="btn btn-sm btn-secondary" data-bs-toggle="modal" data-bs-target="#calculatorModal">
+                                {% trans "Calculate" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Practical Examples Section -->
+    <div class="card mb-4 border-success">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-lightbulb"></i> {% trans "Practical Examples & Use Cases" %}</h5>
+        </div>
+        <div class="card-body">
+            <ul class="nav nav-tabs mb-3" id="examplesTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="usecases-tab" data-bs-toggle="tab" data-bs-target="#usecases" type="button" role="tab">
+                        <i class="fas fa-industry"></i> {% trans "Industry Use Cases" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="beforeafter-tab" data-bs-toggle="tab" data-bs-target="#beforeafter" type="button" role="tab">
+                        <i class="fas fa-exchange-alt"></i> {% trans "Before/After" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="mistakes-tab" data-bs-toggle="tab" data-bs-target="#mistakes" type="button" role="tab">
+                        <i class="fas fa-exclamation-triangle"></i> {% trans "Common Mistakes" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates" type="button" role="tab">
+                        <i class="fas fa-file-alt"></i> {% trans "Document Templates" %}
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="examplesTabContent">
+                <!-- Use Cases Tab -->
+                <div class="tab-pane fade show active" id="usecases" role="tabpanel">
+                    <div class="accordion" id="useCasesAccordion">
+                        <!-- E-commerce Use Case -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#ecommerce">
+                                    <i class="fas fa-shopping-cart text-primary me-2"></i> {% trans "E-commerce: Customer Data & Marketing" %}
+                                </button>
+                            </h2>
+                            <div id="ecommerce" class="accordion-collapse collapse show" data-bs-parent="#useCasesAccordion">
+                                <div class="accordion-body">
+                                    <h6 class="text-primary">{% trans "Scenario:" %}</h6>
+                                    <p>{% trans "Online store processing customer orders, email marketing campaigns, and analytics." %}</p>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card bg-light mb-3">
+                                                <div class="card-header"><strong>{% trans "Data Collected:" %}</strong></div>
+                                                <div class="card-body">
+                                                    <ul class="small mb-0">
+                                                        <li>{% trans "Name, email, shipping address" %}</li>
+                                                        <li>{% trans "Payment details (tokenized)" %}</li>
+                                                        <li>{% trans "Order history" %}</li>
+                                                        <li>{% trans "Marketing consent" %}</li>
+                                                        <li>{% trans "Browsing behavior (cookies)" %}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card bg-light mb-3">
+                                                <div class="card-header"><strong>{% trans "GDPR Implementation:" %}</strong></div>
+                                                <div class="card-body">
+                                                    <ul class="small mb-0">
+                                                        <li><strong>{% trans "Data Subjects:" %}</strong> {% trans "Each customer as record" %}</li>
+                                                        <li><strong>{% trans "Consents:" %}</strong> {% trans "Marketing emails, analytics cookies" %}</li>
+                                                        <li><strong>{% trans "DSR:" %}</strong> {% trans "Access requests (download data), erasure ('right to be forgotten')" %}</li>
+                                                        <li><strong>{% trans "Retention:" %}</strong> {% trans "Orders: 7 years (tax), Marketing: until withdrawn" %}</li>
+                                                        <li><strong>{% trans "Legal Basis:" %}</strong> {% trans "Contract (orders), Consent (marketing)" %}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="alert alert-success">
+                                        <strong><i class="fas fa-check-circle"></i> {% trans "Best Practices:" %}</strong>
+                                        <ul class="mb-0 small">
+                                            <li>{% trans "Separate consent checkboxes (no pre-ticked)" %}</li>
+                                            <li>{% trans "Easy unsubscribe link in every marketing email" %}</li>
+                                            <li>{% trans "Anonymize analytics data after 14 months" %}</li>
+                                            <li>{% trans "Delete inactive accounts after 3 years + 30 days notice" %}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- HR Use Case -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#hr">
+                                    <i class="fas fa-users text-info me-2"></i> {% trans "HR: Employee Data & Recruitment" %}
+                                </button>
+                            </h2>
+                            <div id="hr" class="accordion-collapse collapse" data-bs-parent="#useCasesAccordion">
+                                <div class="accordion-body">
+                                    <h6 class="text-info">{% trans "Scenario:" %}</h6>
+                                    <p>{% trans "HR department managing employee records, recruitment, payroll, and performance reviews." %}</p>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card bg-light mb-3">
+                                                <div class="card-header"><strong>{% trans "Data Collected:" %}</strong></div>
+                                                <div class="card-body">
+                                                    <ul class="small mb-0">
+                                                        <li>{% trans "Personal details (name, DOB, ID)" %}</li>
+                                                        <li>{% trans "Bank account (payroll)" %}</li>
+                                                        <li>{% trans "Emergency contacts" %}</li>
+                                                        <li>{% trans "Health certificates (if required)" %}</li>
+                                                        <li>{% trans "Performance evaluations" %}</li>
+                                                        <li>{% trans "Candidate CVs/applications" %}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card bg-light mb-3">
+                                                <div class="card-header"><strong>{% trans "GDPR Implementation:" %}</strong></div>
+                                                <div class="card-body">
+                                                    <ul class="small mb-0">
+                                                        <li><strong>{% trans "Data Subjects:" %}</strong> {% trans "Employees + candidates" %}</li>
+                                                        <li><strong>{% trans "Processing Activities:" %}</strong> {% trans "Payroll, performance mgmt, recruitment" %}</li>
+                                                        <li><strong>{% trans "DPIA:" %}</strong> {% trans "If health data or background checks" %}</li>
+                                                        <li><strong>{% trans "Retention:" %}</strong> {% trans "Employees: 5-10 years post-employment, Candidates: 6-12 months" %}</li>
+                                                        <li><strong>{% trans "Legal Basis:" %}</strong> {% trans "Contract, Legal obligation" %}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="alert alert-warning">
+                                        <strong><i class="fas fa-exclamation-circle"></i> {% trans "Special Considerations:" %}</strong>
+                                        <ul class="mb-0 small">
+                                            <li>{% trans "Health data = special category, needs explicit consent or legal basis" %}</li>
+                                            <li>{% trans "Rejected candidates: inform & delete CVs after recruitment cycle" %}</li>
+                                            <li>{% trans "Employee references: keep for legal defense period" %}</li>
+                                            <li>{% trans "Access control: only HR + direct managers" %}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Healthcare Use Case -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#healthcare">
+                                    <i class="fas fa-heartbeat text-danger me-2"></i> {% trans "Healthcare: Medical Data & Special Categories" %}
+                                </button>
+                            </h2>
+                            <div id="healthcare" class="accordion-collapse collapse" data-bs-parent="#useCasesAccordion">
+                                <div class="accordion-body">
+                                    <h6 class="text-danger">{% trans "Scenario:" %}</h6>
+                                    <p>{% trans "Clinic or hospital managing patient records, appointments, prescriptions, and lab results." %}</p>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card bg-light mb-3">
+                                                <div class="card-header"><strong>{% trans "Data Collected:" %}</strong></div>
+                                                <div class="card-body">
+                                                    <ul class="small mb-0">
+                                                        <li>{% trans "Patient identity (name, DOB, insurance)" %}</li>
+                                                        <li>{% trans "Medical history" %}</li>
+                                                        <li>{% trans "Diagnoses & prescriptions" %}</li>
+                                                        <li>{% trans "Lab results, X-rays" %}</li>
+                                                        <li>{% trans "Genetic data (if applicable)" %}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card bg-light mb-3">
+                                                <div class="card-header"><strong>{% trans "GDPR Implementation:" %}</strong></div>
+                                                <div class="card-body">
+                                                    <ul class="small mb-0">
+                                                        <li><strong>{% trans "Special Category:" %}</strong> {% trans "ALL data = health (Art. 9)" %}</li>
+                                                        <li><strong>{% trans "DPIA:" %}</strong> {% trans "Mandatory for most processing" %}</li>
+                                                        <li><strong>{% trans "Consent:" %}</strong> {% trans "Explicit for research/sharing" %}</li>
+                                                        <li><strong>{% trans "Retention:" %}</strong> {% trans "10-30 years (medical records law)" %}</li>
+                                                        <li><strong>{% trans "Security:" %}</strong> {% trans "Encryption, access logs, pseudonymization" %}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="alert alert-danger">
+                                        <strong><i class="fas fa-shield-alt"></i> {% trans "Critical Requirements:" %}</strong>
+                                        <ul class="mb-0 small">
+                                            <li>{% trans "Data Protection Officer (DPO) often mandatory" %}</li>
+                                            <li>{% trans "Explicit consent for non-essential processing" %}</li>
+                                            <li>{% trans "Enhanced security measures (encryption at rest/transit)" %}</li>
+                                            <li>{% trans "Breach notification: 72h to authority + immediate to patients if high risk" %}</li>
+                                            <li>{% trans "Right to erasure limited by medical record retention laws" %}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Before/After Tab -->
+                <div class="tab-pane fade" id="beforeafter" role="tabpanel">
+                    <h5 class="mb-3">{% trans "Process Transformation: Before & After GDPR" %}</h5>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header bg-warning">
+                            <strong>{% trans "Scenario: Marketing Email Campaign" %}</strong>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card border-danger mb-3">
+                                        <div class="card-header bg-danger text-white">
+                                            <i class="fas fa-times-circle"></i> {% trans "BEFORE GDPR" %}
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="small">
+                                                <li>✗ {% trans "Pre-ticked consent checkbox" %}</li>
+                                                <li>✗ {% trans "Bundled consent (newsletter + terms)" %}</li>
+                                                <li>✗ {% trans "Purchased email lists" %}</li>
+                                                <li>✗ {% trans "No record of when consent was given" %}</li>
+                                                <li>✗ {% trans "Difficult unsubscribe (hidden link)" %}</li>
+                                                <li>✗ {% trans "No data retention policy" %}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-success mb-3">
+                                        <div class="card-header bg-success text-white">
+                                            <i class="fas fa-check-circle"></i> {% trans "AFTER GDPR" %}
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="small">
+                                                <li>✓ {% trans "Unchecked consent checkbox" %}</li>
+                                                <li>✓ {% trans "Separate consent for each purpose" %}</li>
+                                                <li>✓ {% trans "Verified opt-in (double opt-in)" %}</li>
+                                                <li>✓ {% trans "Timestamp, IP, consent text version logged" %}</li>
+                                                <li>✓ {% trans "One-click unsubscribe in header" %}</li>
+                                                <li>✓ {% trans "Auto-delete after 2 years of inactivity" %}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header bg-info text-white">
+                            <strong>{% trans "Scenario: Data Breach Discovery" %}</strong>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card border-danger mb-3">
+                                        <div class="card-header bg-danger text-white">
+                                            <i class="fas fa-times-circle"></i> {% trans "BEFORE GDPR" %}
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="small">
+                                                <li>✗ {% trans "No incident response plan" %}</li>
+                                                <li>✗ {% trans "Delayed internal reporting" %}</li>
+                                                <li>✗ {% trans "No documentation" %}</li>
+                                                <li>✗ {% trans "No authority notification" %}</li>
+                                                <li>✗ {% trans "Affected users not informed" %}</li>
+                                                <li>✗ {% trans "No post-incident review" %}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-success mb-3">
+                                        <div class="card-header bg-success text-white">
+                                            <i class="fas fa-check-circle"></i> {% trans "AFTER GDPR" %}
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="small">
+                                                <li>✓ {% trans "Immediate containment (breach protocol)" %}</li>
+                                                <li>✓ {% trans "Log incident in GDPR module within hours" %}</li>
+                                                <li>✓ {% trans "Assess severity & affected individuals" %}</li>
+                                                <li>✓ {% trans "Notify DPA within 72 hours if high risk" %}</li>
+                                                <li>✓ {% trans "Inform affected users (Art. 34)" %}</li>
+                                                <li>✓ {% trans "Document mitigation & lessons learned" %}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <strong>{% trans "Scenario: Customer Data Request" %}</strong>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card border-danger mb-3">
+                                        <div class="card-header bg-danger text-white">
+                                            <i class="fas fa-times-circle"></i> {% trans "BEFORE GDPR" %}
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="small">
+                                                <li>✗ {% trans "Manual search across systems" %}</li>
+                                                <li>✗ {% trans "Weeks or months to respond" %}</li>
+                                                <li>✗ {% trans "Incomplete data export" %}</li>
+                                                <li>✗ {% trans "No tracking of requests" %}</li>
+                                                <li>✗ {% trans "Weak identity verification" %}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-success mb-3">
+                                        <div class="card-header bg-success text-white">
+                                            <i class="fas fa-check-circle"></i> {% trans "AFTER GDPR" %}
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="small">
+                                                <li>✓ {% trans "Centralized DSR workflow in system" %}</li>
+                                                <li>✓ {% trans "30-day deadline tracked automatically" %}</li>
+                                                <li>✓ {% trans "Comprehensive data export (all systems)" %}</li>
+                                                <li>✓ {% trans "Audit trail for every request" %}</li>
+                                                <li>✓ {% trans "Strong identity verification (2FA, docs)" %}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Common Mistakes Tab -->
+                <div class="tab-pane fade" id="mistakes" role="tabpanel">
+                    <h5 class="mb-3"><i class="fas fa-exclamation-triangle text-warning"></i> {% trans "Common GDPR Mistakes & How to Avoid Them" %}</h5>
+                    
+                    <div class="accordion" id="mistakesAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#mistake1">
+                                    {% trans "Mistake #1: Invalid Consent Collection" %}
+                                </button>
+                            </h2>
+                            <div id="mistake1" class="accordion-collapse collapse show" data-bs-parent="#mistakesAccordion">
+                                <div class="accordion-body">
+                                    <div class="alert alert-danger">
+                                        <strong>❌ {% trans "What NOT to do:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Pre-ticked consent checkboxes" %}</li>
+                                            <li>{% trans "Bundling consent with terms of service" %}</li>
+                                            <li>{% trans "Vague consent language ('we may use your data')" %}</li>
+                                            <li>{% trans "Forcing consent as condition for service (unless truly necessary)" %}</li>
+                                        </ul>
+                                    </div>
+                                    <div class="alert alert-success">
+                                        <strong>✅ {% trans "How to fix:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Unchecked boxes by default" %}</li>
+                                            <li>{% trans "Separate consent for each processing purpose" %}</li>
+                                            <li>{% trans "Clear, specific language: 'I agree to receive marketing emails about products'" %}</li>
+                                            <li>{% trans "Record: timestamp, IP, consent text version, user agent" %}</li>
+                                            <li>{% trans "Easy withdrawal mechanism (one-click unsubscribe)" %}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mistake2">
+                                    {% trans "Mistake #2: Missing or Incomplete Records (Art. 30)" %}
+                                </button>
+                            </h2>
+                            <div id="mistake2" class="accordion-collapse collapse" data-bs-parent="#mistakesAccordion">
+                                <div class="accordion-body">
+                                    <div class="alert alert-danger">
+                                        <strong>❌ {% trans "What NOT to do:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "No documentation of processing activities" %}</li>
+                                            <li>{% trans "Incomplete records (missing legal basis, retention periods)" %}</li>
+                                            <li>{% trans "Outdated documentation" %}</li>
+                                        </ul>
+                                    </div>
+                                    <div class="alert alert-success">
+                                        <strong>✅ {% trans "How to fix:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Use 'Processing Activities' module to document ALL processing" %}</li>
+                                            <li>{% trans "Include: purpose, data categories, subjects, legal basis, recipients, retention, security" %}</li>
+                                            <li>{% trans "Review and update records quarterly" %}</li>
+                                            <li>{% trans "Ready to produce on demand for DPA audit" %}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mistake3">
+                                    {% trans "Mistake #3: Ignoring Data Subject Rights (DSR)" %}
+                                </button>
+                            </h2>
+                            <div id="mistake3" class="accordion-collapse collapse" data-bs-parent="#mistakesAccordion">
+                                <div class="accordion-body">
+                                    <div class="alert alert-danger">
+                                        <strong>❌ {% trans "What NOT to do:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Ignoring or delaying DSR responses beyond 30 days" %}</li>
+                                            <li>{% trans "Charging fees for basic access requests" %}</li>
+                                            <li>{% trans "Providing incomplete data exports" %}</li>
+                                            <li>{% trans "Refusing erasure without valid legal grounds" %}</li>
+                                        </ul>
+                                    </div>
+                                    <div class="alert alert-success">
+                                        <strong>✅ {% trans "How to fix:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Respond within 30 days (extend by 60 with justification)" %}</li>
+                                            <li>{% trans "Free of charge for first request" %}</li>
+                                            <li>{% trans "Export ALL data in machine-readable format (JSON, CSV)" %}</li>
+                                            <li>{% trans "Only refuse erasure if: legal obligation, public interest, legal defense" %}</li>
+                                            <li>{% trans "Use DSR module to track deadlines and audit trail" %}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mistake4">
+                                    {% trans "Mistake #4: Inadequate Breach Response" %}
+                                </button>
+                            </h2>
+                            <div id="mistake4" class="accordion-collapse collapse" data-bs-parent="#mistakesAccordion">
+                                <div class="accordion-body">
+                                    <div class="alert alert-danger">
+                                        <strong>❌ {% trans "What NOT to do:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Not reporting breach to DPA within 72 hours" %}</li>
+                                            <li>{% trans "Hiding breach from affected individuals" %}</li>
+                                            <li>{% trans "No incident documentation" %}</li>
+                                            <li>{% trans "No lessons learned or mitigation" %}</li>
+                                        </ul>
+                                    </div>
+                                    <div class="alert alert-success">
+                                        <strong>✅ {% trans "How to fix:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Immediate containment and assessment" %}</li>
+                                            <li>{% trans "Log in Breach Management module within hours" %}</li>
+                                            <li>{% trans "Notify DPA within 72h if breach 'likely to result in risk'" %}</li>
+                                            <li>{% trans "Notify individuals 'without undue delay' if high risk to rights" %}</li>
+                                            <li>{% trans "Document: nature, categories, approx. number, consequences, measures taken" %}</li>
+                                            <li>{% trans "Conduct post-incident review and update security measures" %}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mistake5">
+                                    {% trans "Mistake #5: Excessive Data Retention" %}
+                                </button>
+                            </h2>
+                            <div id="mistake5" class="accordion-collapse collapse" data-bs-parent="#mistakesAccordion">
+                                <div class="accordion-body">
+                                    <div class="alert alert-danger">
+                                        <strong>❌ {% trans "What NOT to do:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Keeping data 'just in case' indefinitely" %}</li>
+                                            <li>{% trans "No defined retention periods" %}</li>
+                                            <li>{% trans "Not deleting data when purpose is fulfilled" %}</li>
+                                        </ul>
+                                    </div>
+                                    <div class="alert alert-success">
+                                        <strong>✅ {% trans "How to fix:" %}</strong>
+                                        <ul class="mb-0">
+                                            <li>{% trans "Define retention policies for each data category" %}</li>
+                                            <li>{% trans "Base retention on: legal requirements, business need, data minimization" %}</li>
+                                            <li>{% trans "Automate deletion where possible (scheduled jobs)" %}</li>
+                                            <li>{% trans "Document deletion method and responsibility" %}</li>
+                                            <li>{% trans "Review retention policies annually" %}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Templates Tab -->
+                <div class="tab-pane fade" id="templates" role="tabpanel">
+                    <h5 class="mb-3"><i class="fas fa-file-alt text-primary"></i> {% trans "Document Templates & Examples" %}</h5>
+                    <p class="text-muted">{% trans "Download or copy these templates to accelerate your GDPR compliance:" %}</p>
+
+                    <div class="list-group">
+                        <a href="#" class="list-group-item list-group-item-action" onclick="showTemplate('privacy-policy'); return false;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-shield-alt text-primary"></i> {% trans "Privacy Policy Template" %}</h6>
+                                    <small class="text-muted">{% trans "Comprehensive privacy notice for website/app (Art. 13-14)" %}</small>
+                                </div>
+                                <span class="badge bg-primary">{% trans "View" %}</span>
+                            </div>
+                        </a>
+
+                        <a href="#" class="list-group-item list-group-item-action" onclick="showTemplate('dpia-template'); return false;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-clipboard-check text-info"></i> {% trans "DPIA Template" %}</h6>
+                                    <small class="text-muted">{% trans "Data Protection Impact Assessment questionnaire (Art. 35)" %}</small>
+                                </div>
+                                <span class="badge bg-info">{% trans "View" %}</span>
+                            </div>
+                        </a>
+
+                        <a href="#" class="list-group-item list-group-item-action" onclick="showTemplate('dsr-response'); return false;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-reply text-success"></i> {% trans "DSR Response Templates" %}</h6>
+                                    <small class="text-muted">{% trans "Email templates for access, erasure, rectification responses" %}</small>
+                                </div>
+                                <span class="badge bg-success">{% trans "View" %}</span>
+                            </div>
+                        </a>
+
+                        <a href="#" class="list-group-item list-group-item-action" onclick="showTemplate('consent-form'); return false;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-check-square text-warning"></i> {% trans "Consent Form Examples" %}</h6>
+                                    <small class="text-muted">{% trans "GDPR-compliant consent language for various purposes" %}</small>
+                                </div>
+                                <span class="badge bg-warning">{% trans "View" %}</span>
+                            </div>
+                        </a>
+
+                        <a href="#" class="list-group-item list-group-item-action" onclick="showTemplate('breach-notification'); return false;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-exclamation-triangle text-danger"></i> {% trans "Breach Notification Template" %}</h6>
+                                    <small class="text-muted">{% trans "Template for notifying DPA and affected individuals (Art. 33-34)" %}</small>
+                                </div>
+                                <span class="badge bg-danger">{% trans "View" %}</span>
+                            </div>
+                        </a>
+
+                        <a href="#" class="list-group-item list-group-item-action" onclick="showTemplate('ropa'); return false;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-book text-secondary"></i> {% trans "ROPA (Art. 30) Template" %}</h6>
+                                    <small class="text-muted">{% trans "Record of Processing Activities spreadsheet template" %}</small>
+                                </div>
+                                <span class="badge bg-secondary">{% trans "View" %}</span>
+                            </div>
+                        </a>
+                    </div>
+
+                    <div id="templateViewer" class="mt-4" style="display: none;">
+                        <div class="card">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                <strong id="templateTitle"></strong>
+                                <button class="btn btn-sm btn-primary" onclick="copyTemplate()">
+                                    <i class="fas fa-copy"></i> {% trans "Copy to Clipboard" %}
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <pre id="templateContent" class="bg-light p-3" style="white-space: pre-wrap; font-size: 0.9rem;"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Learning Materials Section -->
+    <div class="card mb-4 border-info">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-graduation-cap"></i> {% trans "Learning Materials & Resources" %}</h5>
+        </div>
+        <div class="card-body">
+            <ul class="nav nav-tabs mb-3" id="learningTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="glossary-tab" data-bs-toggle="tab" data-bs-target="#glossary" type="button" role="tab">
+                        <i class="fas fa-book"></i> {% trans "Glossary" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="faq-tab" data-bs-toggle="tab" data-bs-target="#faq" type="button" role="tab">
+                        <i class="fas fa-question-circle"></i> {% trans "FAQ" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="downloads-tab" data-bs-toggle="tab" data-bs-target="#downloads" type="button" role="tab">
+                        <i class="fas fa-download"></i> {% trans "Downloads" %}
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="learningTabContent">
+                <!-- Glossary Tab -->
+                <div class="tab-pane fade show active" id="glossary" role="tabpanel">
+                    <div class="mb-3">
+                        <input type="text" id="glossarySearch" class="form-control" placeholder="{% trans 'Search terms...' %}">
+                    </div>
+                    
+                    <div id="glossaryList">
+                        <!-- A-C -->
+                        <div class="card mb-2 glossary-item" data-term="anonymization">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "Anonymization" %}</strong>
+                                <span class="badge bg-secondary float-end">{% trans "Technical" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Process of removing or modifying personal data so that it can no longer be attributed to a specific individual, even with additional information." %}</p>
+                                <small class="text-muted"><strong>{% trans "Example:" %}</strong> {% trans "Replacing names with random IDs, removing IP addresses" %}</small>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2 glossary-item" data-term="consent">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "Consent" %}</strong>
+                                <span class="badge bg-primary float-end">{% trans "Legal Basis" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Freely given, specific, informed, and unambiguous indication of the data subject's agreement to processing of their personal data (Art. 4(11))." %}</p>
+                                <small class="text-muted"><strong>{% trans "Requirements:" %}</strong> {% trans "Clear affirmative action, separate from other terms, easy to withdraw" %}</small>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2 glossary-item" data-term="controller">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "Data Controller" %}</strong>
+                                <span class="badge bg-primary float-end">{% trans "Role" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Entity that determines the purposes and means of processing personal data (Art. 4(7))." %}</p>
+                                <small class="text-muted"><strong>{% trans "Example:" %}</strong> {% trans "Your company deciding to collect customer emails for marketing" %}</small>
+                            </div>
+                        </div>
+
+                        <!-- D-F -->
+                        <div class="card mb-2 glossary-item" data-term="dpia data protection impact assessment">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "DPIA (Data Protection Impact Assessment)" %}</strong>
+                                <span class="badge bg-info float-end">{% trans "Process" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Systematic assessment of risks arising from data processing operations that are likely to result in high risk to individuals (Art. 35)." %}</p>
+                                <small class="text-muted"><strong>{% trans "When required:" %}</strong> {% trans "Large-scale special categories, systematic monitoring, automated decisions" %}</small>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2 glossary-item" data-term="dpo data protection officer">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "DPO (Data Protection Officer)" %}</strong>
+                                <span class="badge bg-primary float-end">{% trans "Role" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Independent expert responsible for monitoring GDPR compliance within an organization (Art. 37-39)." %}</p>
+                                <small class="text-muted"><strong>{% trans "Mandatory for:" %}</strong> {% trans "Public authorities, large-scale monitoring, large-scale special categories" %}</small>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2 glossary-item" data-term="dsr data subject request">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "DSR (Data Subject Request)" %}</strong>
+                                <span class="badge bg-warning float-end">{% trans "Rights" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Request by an individual to exercise their rights under GDPR (access, rectification, erasure, restriction, portability, objection)." %}</p>
+                                <small class="text-muted"><strong>{% trans "Deadline:" %}</strong> {% trans "30 days (+ 60 days extension with justification)" %}</small>
+                            </div>
+                        </div>
+
+                        <!-- L-P -->
+                        <div class="card mb-2 glossary-item" data-term="lawful basis legal basis">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "Lawful Basis" %}</strong>
+                                <span class="badge bg-primary float-end">{% trans "Legal" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "One of six legal grounds required to process personal data lawfully (Art. 6): consent, contract, legal obligation, vital interests, public task, legitimate interests." %}</p>
+                                <small class="text-muted"><strong>{% trans "Most common:" %}</strong> {% trans "Consent (marketing), Contract (service delivery), Legal obligation (accounting)" %}</small>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2 glossary-item" data-term="personal data">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "Personal Data" %}</strong>
+                                <span class="badge bg-success float-end">{% trans "Definition" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Any information relating to an identified or identifiable natural person (Art. 4(1))." %}</p>
+                                <small class="text-muted"><strong>{% trans "Examples:" %}</strong> {% trans "Name, email, IP address, cookie ID, location data, online identifier" %}</small>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2 glossary-item" data-term="processor">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "Data Processor" %}</strong>
+                                <span class="badge bg-primary float-end">{% trans "Role" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Entity that processes personal data on behalf of the controller (Art. 4(8))." %}</p>
+                                <small class="text-muted"><strong>{% trans "Example:" %}</strong> {% trans "Cloud hosting provider, email service provider, payroll company" %}</small>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2 glossary-item" data-term="pseudonymization">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "Pseudonymization" %}</strong>
+                                <span class="badge bg-secondary float-end">{% trans "Technical" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Processing personal data in such a way that it can no longer be attributed to a specific individual without additional information kept separately (Art. 4(5))." %}</p>
+                                <small class="text-muted"><strong>{% trans "Example:" %}</strong> {% trans "Replacing user IDs with hashed tokens, separating identifying info" %}</small>
+                            </div>
+                        </div>
+
+                        <!-- R-S -->
+                        <div class="card mb-2 glossary-item" data-term="ropa record processing activities">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "ROPA (Record of Processing Activities)" %}</strong>
+                                <span class="badge bg-info float-end">{% trans "Compliance" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Written record of all processing activities carried out by a controller or processor (Art. 30)." %}</p>
+                                <small class="text-muted"><strong>{% trans "Must include:" %}</strong> {% trans "Purpose, data categories, recipients, retention, security measures" %}</small>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2 glossary-item" data-term="special categories sensitive data">
+                            <div class="card-header bg-light">
+                                <strong>{% trans "Special Categories of Data" %}</strong>
+                                <span class="badge bg-danger float-end">{% trans "Sensitive" %}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-1">{% trans "Personal data revealing racial/ethnic origin, political opinions, religious beliefs, trade union membership, genetic data, biometric data, health data, sex life, or sexual orientation (Art. 9)." %}</p>
+                                <small class="text-muted"><strong>{% trans "Processing:" %}</strong> {% trans "Generally prohibited unless explicit consent or specific exception applies" %}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FAQ Tab -->
+                <div class="tab-pane fade" id="faq" role="tabpanel">
+                    <div class="accordion" id="faqAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                    <i class="fas fa-question-circle text-primary me-2"></i> {% trans "Who does GDPR apply to?" %}
+                                </button>
+                            </h2>
+                            <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p><strong>{% trans "GDPR applies to:" %}</strong></p>
+                                    <ul>
+                                        <li>{% trans "Any organization established in the EU, regardless of where data processing occurs" %}</li>
+                                        <li>{% trans "Organizations outside the EU that offer goods/services to EU residents" %}</li>
+                                        <li>{% trans "Organizations outside the EU that monitor behavior of EU residents" %}</li>
+                                    </ul>
+                                    <div class="alert alert-info mb-0">
+                                        <strong>{% trans "Key point:" %}</strong> {% trans "Location of the organization doesn't matter - if you process EU residents' data, GDPR applies." %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                    <i class="fas fa-question-circle text-primary me-2"></i> {% trans "What are the penalties for non-compliance?" %}
+                                </button>
+                            </h2>
+                            <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p><strong>{% trans "GDPR fines are tiered:" %}</strong></p>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card border-warning mb-3">
+                                                <div class="card-header bg-warning">{% trans "Tier 1 Violations" %}</div>
+                                                <div class="card-body">
+                                                    <h5>{% trans "Up to €10M or 2% of annual revenue" %}</h5>
+                                                    <ul class="small mb-0">
+                                                        <li>{% trans "Improper record keeping (Art. 30)" %}</li>
+                                                        <li>{% trans "Failing to notify breach" %}</li>
+                                                        <li>{% trans "Not conducting DPIA when required" %}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card border-danger mb-3">
+                                                <div class="card-header bg-danger text-white">{% trans "Tier 2 Violations" %}</div>
+                                                <div class="card-body">
+                                                    <h5>{% trans "Up to €20M or 4% of annual revenue" %}</h5>
+                                                    <ul class="small mb-0">
+                                                        <li>{% trans "No lawful basis for processing" %}</li>
+                                                        <li>{% trans "Invalid consent" %}</li>
+                                                        <li>{% trans "Violating data subject rights" %}</li>
+                                                        <li>{% trans "Unlawful data transfers" %}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p class="mb-0 small text-muted">{% trans "Whichever is higher. Fines are determined case-by-case based on severity, intent, cooperation, and previous violations." %}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                    <i class="fas fa-question-circle text-primary me-2"></i> {% trans "How long should I keep personal data?" %}
+                                </button>
+                            </h2>
+                            <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p>{% trans "There's no single answer - retention periods depend on:" %}</p>
+                                    <ul>
+                                        <li><strong>{% trans "Legal requirements:" %}</strong> {% trans "Tax records (5-10 years), employee records (varies by country)" %}</li>
+                                        <li><strong>{% trans "Contractual needs:" %}</strong> {% trans "Keep data as long as contract is active + reasonable period" %}</li>
+                                        <li><strong>{% trans "Legitimate interests:" %}</strong> {% trans "Defend legal claims (statute of limitations period)" %}</li>
+                                        <li><strong>{% trans "Consent-based:" %}</strong> {% trans "Until consent is withdrawn + processing time" %}</li>
+                                    </ul>
+                                    <div class="alert alert-success">
+                                        <strong><i class="fas fa-lightbulb"></i> {% trans "Best practice:" %}</strong> {% trans "Use the Retention Calculator tool above, or define policies for each data category in your Retention Policies module." %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">
+                                    <i class="fas fa-question-circle text-primary me-2"></i> {% trans "Do I need a Data Protection Officer (DPO)?" %}
+                                </button>
+                            </h2>
+                            <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p><strong>{% trans "DPO is mandatory if:" %}</strong></p>
+                                    <ol>
+                                        <li>{% trans "You are a public authority or body (with some exceptions)" %}</li>
+                                        <li>{% trans "Core activities require regular and systematic monitoring of data subjects on a large scale" %}</li>
+                                        <li>{% trans "Core activities consist of large-scale processing of special categories or criminal data" %}</li>
+                                    </ol>
+                                    <p><strong>{% trans "What is 'large scale'?" %}</strong></p>
+                                    <ul>
+                                        <li>{% trans "Processing by a hospital (patient data)" %}</li>
+                                        <li>{% trans "Behavioral advertising network" %}</li>
+                                        <li>{% trans "Insurance company processing customer claims" %}</li>
+                                        <li>{% trans "Generally: thousands or more individuals" %}</li>
+                                    </ul>
+                                    <div class="alert alert-info mb-0">
+                                        <strong>{% trans "Not required?" %}</strong> {% trans "You may still appoint a DPO voluntarily. They must have expert knowledge of data protection law and practices." %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq5">
+                                    <i class="fas fa-question-circle text-primary me-2"></i> {% trans "Can I refuse a data subject request?" %}
+                                </button>
+                            </h2>
+                            <div id="faq5" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p><strong>{% trans "You may refuse DSR if:" %}</strong></p>
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-light"><strong>{% trans "Erasure requests" %}</strong></div>
+                                        <div class="card-body">
+                                            <ul class="mb-0">
+                                                <li>{% trans "Data needed to comply with legal obligation" %}</li>
+                                                <li>{% trans "Data needed for establishing, exercising, or defending legal claims" %}</li>
+                                                <li>{% trans "Processing for archiving purposes in the public interest" %}</li>
+                                                <li>{% trans "For public health purposes" %}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-light"><strong>{% trans "Access requests" %}</strong></div>
+                                        <div class="card-body">
+                                            <ul class="mb-0">
+                                                <li>{% trans "Request is manifestly unfounded or excessive (can charge fee)" %}</li>
+                                                <li>{% trans "Would adversely affect rights of others" %}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-warning mb-0">
+                                        <strong><i class="fas fa-exclamation-triangle"></i> {% trans "Important:" %}</strong> {% trans "You must justify refusal and inform the individual of their right to complain to the supervisory authority." %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq6">
+                                    <i class="fas fa-question-circle text-primary me-2"></i> {% trans "What's the difference between controller and processor?" %}
+                                </button>
+                            </h2>
+                            <div id="faq6" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card border-primary mb-3">
+                                                <div class="card-header bg-primary text-white">
+                                                    <strong>{% trans "Data Controller" %}</strong>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p class="small"><strong>{% trans "Determines WHY and HOW data is processed" %}</strong></p>
+                                                    <p class="mb-2"><strong>{% trans "Responsibilities:" %}</strong></p>
+                                                    <ul class="small">
+                                                        <li>{% trans "Ensure lawful basis" %}</li>
+                                                        <li>{% trans "Respond to DSRs" %}</li>
+                                                        <li>{% trans "Maintain ROPA (Art. 30)" %}</li>
+                                                        <li>{% trans "Notify breaches to DPA" %}</li>
+                                                    </ul>
+                                                    <p class="mb-0 small"><strong>{% trans "Example:" %}</strong> {% trans "Your company collecting customer emails" %}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card border-info mb-3">
+                                                <div class="card-header bg-info text-white">
+                                                    <strong>{% trans "Data Processor" %}</strong>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p class="small"><strong>{% trans "Processes data on behalf of controller" %}</strong></p>
+                                                    <p class="mb-2"><strong>{% trans "Responsibilities:" %}</strong></p>
+                                                    <ul class="small">
+                                                        <li>{% trans "Follow controller instructions" %}</li>
+                                                        <li>{% trans "Implement security measures" %}</li>
+                                                        <li>{% trans "Assist with DSRs" %}</li>
+                                                        <li>{% trans "Notify controller of breaches" %}</li>
+                                                    </ul>
+                                                    <p class="mb-0 small"><strong>{% trans "Example:" %}</strong> {% trans "Email service provider sending your newsletters" %}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-info mb-0">
+                                        {% trans "A processor agreement (Art. 28) is required when engaging a processor." %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Downloads Tab -->
+                <div class="tab-pane fade" id="downloads" role="tabpanel">
+                    <h5 class="mb-3"><i class="fas fa-download text-primary"></i> {% trans "Downloadable Resources" %}</h5>
+                    <p class="text-muted">{% trans "Ready-to-use checklists, templates, and forms to accelerate your GDPR implementation:" %}</p>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 border-primary">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0"><i class="fas fa-clipboard-list"></i> {% trans "Checklists" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled">
+                                        {% for resource in resources_by_category.checklist %}
+                                        <li class="mb-2">
+                                            <a href="{% url 'app_gdpr:download_resource' resource.id %}" class="text-decoration-none" download>
+                                                <i class="{{ resource.get_file_icon }}"></i> {{ resource.title }}
+                                                <span class="badge {{ resource.get_badge_class }} float-end">{{ resource.get_file_type_display }}</span>
+                                            </a>
+                                        </li>
+                                        {% empty %}
+                                        <li class="text-muted">{% trans "No checklists available yet" %}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="fas fa-file-alt"></i> {% trans "Templates" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled">
+                                        {% for resource in resources_by_category.template %}
+                                        <li class="mb-2">
+                                            <a href="{% url 'app_gdpr:download_resource' resource.id %}" class="text-decoration-none" download>
+                                                <i class="{{ resource.get_file_icon }}"></i> {{ resource.title }}
+                                                <span class="badge {{ resource.get_badge_class }} float-end">{{ resource.get_file_type_display }}</span>
+                                            </a>
+                                        </li>
+                                        {% empty %}
+                                        <li class="text-muted">{% trans "No templates available yet" %}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="fas fa-inbox"></i> {% trans "Email Templates" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled">
+                                        {% for resource in resources_by_category.email %}
+                                        <li class="mb-2">
+                                            <a href="{% url 'app_gdpr:download_resource' resource.id %}" class="text-decoration-none" download>
+                                                <i class="{{ resource.get_file_icon }}"></i> {{ resource.title }}
+                                                <span class="badge {{ resource.get_badge_class }} float-end">{{ resource.get_file_type_display }}</span>
+                                            </a>
+                                        </li>
+                                        {% empty %}
+                                        <li class="text-muted">{% trans "No email templates available yet" %}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 border-warning">
+                                <div class="card-header bg-warning">
+                                    <h6 class="mb-0"><i class="fas fa-clipboard-check"></i> {% trans "Forms" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled">
+                                        {% for resource in resources_by_category.form %}
+                                        <li class="mb-2">
+                                            <a href="{% url 'app_gdpr:download_resource' resource.id %}" class="text-decoration-none" download>
+                                                <i class="{{ resource.get_file_icon }}"></i> {{ resource.title }}
+                                                <span class="badge {{ resource.get_badge_class }} float-end">{{ resource.get_file_type_display }}</span>
+                                            </a>
+                                        </li>
+                                        {% empty %}
+                                        <li class="text-muted">{% trans "No forms available yet" %}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "Note:" %}</h6>
+                        <p class="mb-0">{% trans "These templates are for guidance only. Please customize them according to your specific business needs and consult with legal counsel to ensure they meet your jurisdiction's requirements." %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <button class="btn btn-link w-100 text-start text-decoration-none d-flex justify-content-between align-items-center p-0" 
+                    type="button" 
+                    data-bs-toggle="collapse" 
+                    data-bs-target="#progressChecklist" 
+                    aria-expanded="false" 
+                    aria-controls="progressChecklist">
+                <h5 class="mb-0">
+                    <i class="fas fa-tasks text-primary"></i> {% trans "Implementation Progress Checklist" %}
+                    <span class="badge bg-primary ms-2">{{ completed_count }}/{{ total_steps }}</span>
+                    <span class="badge {% if progress_percentage == 100 %}bg-success{% elif progress_percentage >= 50 %}bg-primary{% else %}bg-info{% endif %} ms-1">
+                        {{ progress_percentage }}%
+                    </span>
+                </h5>
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <small class="text-muted">{% trans "Overall Progress" %}</small>
+                    <small class="text-muted"><strong>{{ progress_percentage }}%</strong></small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar {% if progress_percentage == 100 %}bg-success{% elif progress_percentage >= 50 %}bg-primary{% else %}bg-info{% endif %}" 
+                         role="progressbar" 
+                         style="width: {{ progress_percentage }}%" 
+                         aria-valuenow="{{ progress_percentage }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100">
+                        {{ completed_count }}/{{ total_steps }}
+                    </div>
+                </div>
+            </div>
+            <div class="collapse" id="progressChecklist">
+            <ul class="progress-checklist">
+                {% for step in progress_steps %}
+                <li class="{% if step.completed %}completed{% elif step.in_progress %}in-progress{% endif %}">
+                    <span class="check-icon">
+                        {% if step.completed %}
+                            <i class="fas fa-check"></i>
+                        {% elif step.in_progress %}
+                            <i class="fas fa-circle"></i>
+                        {% endif %}
+                    </span>
+                    <div class="flex-fill">
+                        <strong>{{ step.title }}</strong>
+                        <div class="small text-muted">
+                            {% if step.completed %}✓{% endif %} {{ step.description }}
+                        </div>
+                        
+                        {% if not step.completed and not step.requires_previous %}
+                            {% if step.id == 'step_data_subjects' and can_edit_data_subjects %}
+                                <a href="{% url step.action_url %}" class="btn btn-sm btn-primary mt-1">
+                                    <i class="fas fa-plus"></i> {% trans "Add Data Subject" %}
+                                </a>
+                                <a href="{{ step.learn_more }}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="fas fa-info-circle"></i> {% trans "Learn More" %}
+                                </a>
+                            {% elif step.id == 'step_consents' and can_manage_consents %}
+                                <a href="{% url step.action_url %}" class="btn btn-sm btn-success mt-1">
+                                    <i class="fas fa-plus"></i> {% trans "Add Consent" %}
+                                </a>
+                                <a href="{{ step.learn_more }}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="fas fa-info-circle"></i> {% trans "Learn More" %}
+                                </a>
+                            {% elif step.id == 'step_dsr' and can_process_dsr %}
+                                <a href="{% url step.action_url %}" class="btn btn-sm btn-warning mt-1">
+                                    <i class="fas fa-plus"></i> {% trans "New DSR" %}
+                                </a>
+                                <a href="{{ step.learn_more }}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="fas fa-info-circle"></i> {% trans "Learn More" %}
+                                </a>
+                            {% elif step.id == 'step_breaches' and can_edit_breaches %}
+                                <a href="{% url step.action_url %}" class="btn btn-sm btn-danger mt-1">
+                                    <i class="fas fa-exclamation-triangle"></i> {% trans "Report Breach" %}
+                                </a>
+                                <a href="{{ step.learn_more }}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="fas fa-info-circle"></i> {% trans "Learn More" %}
+                                </a>
+                            {% elif step.id == 'step_dpia' and can_conduct_dpia %}
+                                <a href="{% url step.action_url %}" class="btn btn-sm btn-info mt-1">
+                                    <i class="fas fa-plus"></i> {% trans "New DPIA" %}
+                                </a>
+                                <a href="{{ step.learn_more }}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="fas fa-info-circle"></i> {% trans "Learn More" %}
+                                </a>
+                            {% elif step.id == 'step_activities' and can_edit_activities %}
+                                <a href="{% url step.action_url %}" class="btn btn-sm btn-secondary mt-1">
+                                    <i class="fas fa-plus"></i> {% trans "New Activity" %}
+                                </a>
+                                <a href="{{ step.learn_more }}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="fas fa-info-circle"></i> {% trans "Learn More" %}
+                                </a>
+                            {% elif step.id == 'step_policies' and can_edit_policies %}
+                                <a href="{% url step.action_url %}" class="btn btn-sm btn-dark mt-1">
+                                    <i class="fas fa-plus"></i> {% trans "New Policy" %}
+                                </a>
+                                <a href="{{ step.learn_more }}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="fas fa-info-circle"></i> {% trans "Learn More" %}
+                                </a>
+                            {% elif step.id == 'step_reports' and can_generate_reports %}
+                                <a href="{% url step.action_url %}" class="btn btn-sm btn-success mt-1">
+                                    <i class="fas fa-file-alt"></i> {% trans "View Reports" %}
+                                </a>
+                                <a href="{{ step.learn_more }}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="fas fa-info-circle"></i> {% trans "Learn More" %}
+                                </a>
+                            {% elif step.id == 'step_data_subjects' %}
+                                <small class="text-warning"><i class="fas fa-lock"></i> {% trans "Ask admin for 'can_edit_data_subjects' permission" %}</small>
+                            {% endif %}
+                        {% elif step.requires_previous %}
+                            <small class="text-muted">{% trans "Complete previous steps first" %}</small>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-4">
+            <div class="card roadmap">
+                <div class="card-header">
+                    <strong>{% trans "Roadmap (Tree)" %}</strong>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled ms-1">
+                        <li>
+                            <span class="fw-bold"><i class="fas fa-sitemap text-primary"></i> {% trans "GDPR Program" %}</span>
+                            <ul>
+                                <li><a href="#section-inventory" class="roadmap-link">{% trans "1. Data Inventory (Data Subjects & Consents)" %}</a></li>
+                                <li><a href="#section-dsr" class="roadmap-link">{% trans "2. Data Subject Requests (DSR) Workflow" %}</a></li>
+                                <li><a href="#section-breaches" class="roadmap-link">{% trans "3. Data Breach Management" %}</a></li>
+                                <li><a href="#section-dpia" class="roadmap-link">{% trans "4. DPIA Assessments" %}</a></li>
+                                <li><a href="#section-activities" class="roadmap-link">{% trans "5. Processing Activities Register (Art. 30)" %}</a></li>
+                                <li><a href="#section-policies" class="roadmap-link">{% trans "6. Data Retention Policies" %}</a></li>
+                                <li><a href="#section-reporting" class="roadmap-link">{% trans "7. Reporting & Continuous Improvement" %}</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card mb-3">
+                <div id="section-inventory" class="card-header bg-secondary text-white scroll-target">
+                    <strong>1) {% trans "Data Inventory: Data Subjects & Consents" %}</strong>
+                </div>
+                <div class="card-body">
+                    <p>{% trans "Build the initial registry of data subjects and capture consents (Art. 6, 7)." %}</p>
+                    <div class="accordion" id="invAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="dsHeading">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#dsCollapse" aria-expanded="true" aria-controls="dsCollapse">
+                                    {% trans "What are Data Subjects?" %}
+                                </button>
+                            </h2>
+                            <div id="dsCollapse" class="accordion-collapse collapse show" aria-labelledby="dsHeading" data-bs-parent="#invAccordion">
+                                <div class="accordion-body">
+                                    <p class="mb-2">{% trans "Data Subjects are natural persons whose personal data you process (customers, employees, partners). Each record should uniquely identify an individual and link to a company where applicable." %}</p>
+                                    <ul>
+                                        <li>{% trans "Examples" %}: {% trans "Customer with email and consent status; Employee with HR-related retention." %}</li>
+                                        <li>{% trans "Good practice" %}: {% trans "Avoid duplicates; use official email as identifier; keep retention dates updated." %}</li>
+                                    </ul>
+                                    {% if can_edit_data_subjects %}
+                                    <a href="{% url 'app_gdpr:data_subject_create' %}" class="btn btn-sm btn-outline-primary">{% trans "Add Subject" %}</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="consHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#consCollapse" aria-expanded="false" aria-controls="consCollapse">
+                                    {% trans "What are Consents?" %}
+                                </button>
+                            </h2>
+                            <div id="consCollapse" class="accordion-collapse collapse" aria-labelledby="consHeading" data-bs-parent="#invAccordion">
+                                <div class="accordion-body">
+                                    <p class="mb-2">{% trans "Consent is a lawful basis (Art. 6) when freely given, specific, informed and unambiguous (Art. 7). The system stores type, version, date, and status (active/withdrawn/expired)." %}</p>
+                                    <ul>
+                                        <li>{% trans "Examples" %}: {% trans "Marketing emails consent v1.3; Cookie consent; Data sharing with partner X." %}</li>
+                                        <li>{% trans "Tips" %}: {% trans "Version your consent text; capture user agent/IP when applicable; set expiration where needed." %}</li>
+                                    </ul>
+                                    {% if can_manage_consents %}
+                                    <a href="{% url 'app_gdpr:consent_create' %}" class="btn btn-sm btn-outline-success">{% trans "Add Consent" %}</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <ol class="mt-3">
+                        <li>{% trans "Import or create Data Subjects; link to companies." %}</li>
+                        <li>{% trans "Record consent types and versions per subject." %}</li>
+                        <li>{% trans "Track consent status and expiration; support withdrawal." %}</li>
+                    </ol>
+                    <div class="small text-muted">{% trans "GDPR: Art. 5 (principles), Art. 6 (lawfulness), Art. 7 (conditions for consent)." %}</div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div id="section-dsr" class="card-header bg-warning text-dark scroll-target">
+                    <strong>2) {% trans "Data Subject Requests (DSR)" %}</strong>
+                </div>
+                <div class="card-body">
+                    <p>{% trans "Manage rights of individuals (Art. 12–23) with a guided workflow and deadlines (30 + 60 days for complex cases)." %}</p>
+                    <div class="accordion" id="dsrAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="dsrTypesHeading">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#dsrTypes" aria-expanded="true" aria-controls="dsrTypes">
+                                    {% trans "Common DSR Types with Examples" %}
+                                </button>
+                            </h2>
+                            <div id="dsrTypes" class="accordion-collapse collapse show" aria-labelledby="dsrTypesHeading" data-bs-parent="#dsrAccordion">
+                                <div class="accordion-body">
+                                    <div class="mb-3">
+                                        <strong>{% trans "DSR Processing Flowchart" %}:</strong>
+                                        <div class="flowchart mt-3">
+                                            <div class="flow-step start">
+                                                <i class="fas fa-envelope"></i><br>
+                                                <strong>{% trans "1. Receive Request" %}</strong><br>
+                                                <small>{% trans "Email, portal, phone" %}</small>
+                                            </div>
+                                            <div class="flow-arrow">↓</div>
+                                            <div class="flow-step">
+                                                <i class="fas fa-user-check"></i><br>
+                                                <strong>{% trans "2. Verify Identity" %}</strong><br>
+                                                <small>{% trans "Prevent unauthorized access" %}</small>
+                                            </div>
+                                            <div class="flow-arrow">↓</div>
+                                            <div class="flow-step">
+                                                <i class="fas fa-clipboard-list"></i><br>
+                                                <strong>{% trans "3. Log & Assign" %}</strong><br>
+                                                <small>{% trans "Create DSR record, set deadline" %}</small>
+                                            </div>
+                                            <div class="flow-arrow">↓</div>
+                                            <div class="flow-step">
+                                                <i class="fas fa-search"></i><br>
+                                                <strong>{% trans "4. Gather Data" %}</strong><br>
+                                                <small>{% trans "Collect all relevant information" %}</small>
+                                            </div>
+                                            <div class="flow-arrow">↓</div>
+                                            <div class="flow-step decision">
+                                                <strong>{% trans "5. Review" %}</strong><br>
+                                                <small>{% trans "Approve or Reject?" %}</small>
+                                            </div>
+                                            <div class="flow-arrow">↓</div>
+                                            <div class="flow-step end">
+                                                <i class="fas fa-check-circle"></i><br>
+                                                <strong>{% trans "6. Complete & Notify" %}</strong><br>
+                                                <small>{% trans "Send response to data subject" %}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <ul>
+                                        <li><strong>{% trans "Access" %}</strong> — {% trans "Customer requests a copy of all personal data in machine-readable form." %}</li>
+                                        <li><strong>{% trans "Rectification" %}</strong> — {% trans "Employee asks to correct wrong phone number in HR system." %}</li>
+                                        <li><strong>{% trans "Erasure" %}</strong> — {% trans "Former client asks to delete account (subject to retention/legal obligations)." %}</li>
+                                        <li><strong>{% trans "Restriction" %}</strong> — {% trans "Limit processing while accuracy is contested." %}</li>
+                                        <li><strong>{% trans "Portability" %}</strong> — {% trans "Provide data in a structured, commonly used format." %}</li>
+                                        <li><strong>{% trans "Object" %}</strong> — {% trans "Individual objects to processing based on legitimate interests." %}</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="dsrSLAHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dsrSLA" aria-expanded="false" aria-controls="dsrSLA">
+                                    {% trans "Deadlines and Best Practices" %}
+                                </button>
+                            </h2>
+                            <div id="dsrSLA" class="accordion-collapse collapse" aria-labelledby="dsrSLAHeading" data-bs-parent="#dsrAccordion">
+                                <div class="accordion-body">
+                                    <div class="mb-3">
+                                        <strong>{% trans "DSR Timeline (30 days)" %}:</strong>
+                                        <div class="timeline mt-3">
+                                            <div class="timeline-bar">
+                                                <div class="timeline-marker start">0</div>
+                                                <div class="timeline-marker mid">15</div>
+                                                <div class="timeline-marker end">30</div>
+                                            </div>
+                                            <div class="timeline-labels">
+                                                <div class="text-center" style="flex: 1;">
+                                                    <strong class="text-success">{% trans "Receipt" %}</strong><br>
+                                                    <small>{% trans "Day 0: Request received" %}</small>
+                                                </div>
+                                                <div class="text-center" style="flex: 1;">
+                                                    <strong class="text-warning">{% trans "Mid-point" %}</strong><br>
+                                                    <small>{% trans "Day 15: Check progress" %}</small>
+                                                </div>
+                                                <div class="text-center" style="flex: 1;">
+                                                    <strong class="text-danger">{% trans "Deadline" %}</strong><br>
+                                                    <small>{% trans "Day 30: Must complete" %}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="alert alert-info mt-3 mb-0">
+                                            <i class="fas fa-info-circle"></i> {% trans "Complex cases can be extended by 60 days with justification (total 90 days)." %}
+                                        </div>
+                                    </div>
+                                    <ul>
+                                        <li>{% trans "Respond within 30 days (extend by 60 days for complexity with justification)." %}</li>
+                                        <li>{% trans "Verify identity before processing (record method)." %}</li>
+                                        <li>{% trans "Keep audit trail: timestamps, assignee, communication." %}</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <ol class="mt-3">
+                        <li>{% trans "Register a new request (access, rectification, erasure, etc.)." %} {% if can_process_dsr %}<a href="{% url 'app_gdpr:dsr_create' %}" class="btn btn-sm btn-outline-warning">{% trans "New DSR" %}</a>{% endif %}</li>
+                        <li>{% trans "Assign responsible staff and track due dates." %}</li>
+                        <li>{% trans "Send completion or rejection with reasoning." %}</li>
+                    </ol>
+                    <div class="small text-muted">{% trans "GDPR: Art. 12-23 (rights of the data subject)." %}</div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div id="section-breaches" class="card-header bg-danger text-white scroll-target">
+                    <strong>3) {% trans "Data Breach Management" %}</strong>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li>{% trans "Report incidents and start investigation immediately." %} {% if can_edit_breaches %}<a href="{% url 'app_gdpr:breach_create' %}" class="btn btn-sm btn-outline-light">{% trans "Report Breach" %}</a>{% endif %}
+                            <div class="mt-3">
+                                <strong>{% trans "Breach Response Timeline (72 hours to Authority)" %}:</strong>
+                                <div class="timeline mt-3">
+                                    <div class="timeline-bar">
+                                        <div class="timeline-marker start">0h</div>
+                                        <div class="timeline-marker mid">36h</div>
+                                        <div class="timeline-marker end">72h</div>
+                                    </div>
+                                    <div class="timeline-labels">
+                                        <div class="text-center" style="flex: 1;">
+                                            <strong class="text-success">{% trans "Discovery" %}</strong><br>
+                                            <small>{% trans "Contain & assess" %}</small>
+                                        </div>
+                                        <div class="text-center" style="flex: 1;">
+                                            <strong class="text-warning">{% trans "Investigation" %}</strong><br>
+                                            <small>{% trans "Gather details" %}</small>
+                                        </div>
+                                        <div class="text-center" style="flex: 1;">
+                                            <strong class="text-danger">{% trans "Notify Authority" %}</strong><br>
+                                            <small>{% trans "If high risk (Art. 33)" %}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="alert alert-warning mt-3 mb-0">
+                                    <i class="fas fa-exclamation-triangle"></i> {% trans "Also notify affected individuals without undue delay if breach poses high risk to their rights (Art. 34)." %}
+                                </div>
+                            </div>
+                        </li>
+                        <li>{% trans "Assess severity and status; notify authority within 72 hours if required (Art. 33)." %}</li>
+                        <li>{% trans "Notify affected subjects without undue delay if high risk (Art. 34)." %}</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="card mb-3 border-info">
+                <div class="card-header bg-info text-white">
+                    <strong><i class="fas fa-database"></i> {% trans "Personal Data Types & Categories" %}</strong>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">{% trans "Understanding data types is crucial for proper classification and protection." %}</p>
+                    <div class="data-types-grid">
+                        <div class="data-type-card regular">
+                            <i class="fas fa-user text-primary"></i>
+                            <h6>{% trans "Regular Data" %}</h6>
+                            <small>{% trans "Name, email, phone, address, IP, user ID" %}</small>
+                        </div>
+                        <div class="data-type-card special">
+                            <i class="fas fa-heartbeat text-danger"></i>
+                            <h6>{% trans "Health Data" %}</h6>
+                            <small>{% trans "Medical records, diagnoses, prescriptions" %}</small>
+                        </div>
+                        <div class="data-type-card special">
+                            <i class="fas fa-fingerprint text-danger"></i>
+                            <h6>{% trans "Biometric Data" %}</h6>
+                            <small>{% trans "Fingerprints, facial recognition, DNA" %}</small>
+                        </div>
+                        <div class="data-type-card regular">
+                            <i class="fas fa-briefcase text-primary"></i>
+                            <h6>{% trans "Professional Data" %}</h6>
+                            <small>{% trans "Job title, employer, salary, performance" %}</small>
+                        </div>
+                        <div class="data-type-card special">
+                            <i class="fas fa-balance-scale text-danger"></i>
+                            <h6>{% trans "Legal Data" %}</h6>
+                            <small>{% trans "Criminal records, court proceedings" %}</small>
+                        </div>
+                        <div class="data-type-card regular">
+                            <i class="fas fa-credit-card text-primary"></i>
+                            <h6>{% trans "Financial Data" %}</h6>
+                            <small>{% trans "Bank account, payment info, income" %}</small>
+                        </div>
+                        <div class="data-type-card special">
+                            <i class="fas fa-praying-hands text-danger"></i>
+                            <h6>{% trans "Belief & Ideology" %}</h6>
+                            <small>{% trans "Religion, political views, philosophy" %}</small>
+                        </div>
+                        <div class="data-type-card special">
+                            <i class="fas fa-venus-mars text-danger"></i>
+                            <h6>{% trans "Sexual Data" %}</h6>
+                            <small>{% trans "Orientation, intimate life details" %}</small>
+                        </div>
+                    </div>
+                    <div class="alert alert-danger mt-3 mb-0">
+                        <strong><i class="fas fa-shield-alt"></i> {% trans "Special Categories (Art. 9)" %}:</strong>
+                        {% trans "Require explicit consent or specific legal basis; subject to enhanced protections and stricter processing rules." %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div id="section-dpia" class="card-header bg-info text-white scroll-target">
+                    <strong>4) {% trans "DPIA Assessments" %}</strong>
+                </div>
+                <div class="card-body">
+                    <p>{% trans "Run DPIAs for high-risk processing (Art. 35)." %}</p>
+                    <details class="mb-3">
+                        <summary class="fw-bold">{% trans "When do you need a DPIA?" %}</summary>
+                        <ul class="mt-2">
+                            <li>{% trans "Large-scale processing of special categories of data (health, biometrics)." %}</li>
+                            <li>{% trans "Systematic monitoring of publicly accessible areas." %}</li>
+                            <li>{% trans "Automated decision-making with legal effects." %}</li>
+                        </ul>
+                    </details>
+                    <ol>
+                        <li>{% trans "Create DPIA record with processing description, risks and mitigations." %} {% if can_conduct_dpia %}<a href="{% url 'app_gdpr:dpia_create' %}" class="btn btn-sm btn-outline-info">{% trans "New DPIA" %}</a>{% endif %}</li>
+                        <li>{% trans "Conduct consultations and capture approvals." %}</li>
+                        <li>{% trans "Track residual risk and review dates." %}</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div id="section-activities" class="card-header bg-secondary text-white scroll-target">
+                    <strong>5) {% trans "Processing Activities Register (Art. 30)" %}</strong>
+                </div>
+                <div class="card-body">
+                    <details class="mb-3">
+                        <summary class="fw-bold">{% trans "What to record for each activity?" %}</summary>
+                        <ul class="mt-2">
+                            <li>{% trans "Purpose and legal basis" %}</li>
+                            <li>{% trans "Categories of data subjects and personal data" %}</li>
+                            <li>{% trans "Recipients/Processors and transfers" %}</li>
+                            <li>{% trans "Retention policy and security measures" %}</li>
+                        </ul>
+                    </details>
+                    <ol>
+                        <li>{% trans "Document each activity: purpose, data categories, subjects, legal basis, recipients, retention, and security." %} {% if can_edit_activities %}<a href="{% url 'app_gdpr:activity_create' %}" class="btn btn-sm btn-outline-light">{% trans "New Activity" %}</a>{% endif %}</li>
+                        <li>{% trans "Keep records up to date; export when required." %}</li>
+                    </ol>
+                    <div class="small text-muted">{% trans "GDPR: Art. 30 (records of processing activities)." %}</div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div id="section-policies" class="card-header bg-dark text-white scroll-target">
+                    <strong>6) {% trans "Data Retention Policies" %}</strong>
+                </div>
+                <div class="card-body">
+                    <details class="mb-3">
+                        <summary class="fw-bold">{% trans "How to choose retention periods?" %}</summary>
+                        <ul class="mt-2">
+                            <li>{% trans "Map legal requirements (tax, HR, financial)." %}</li>
+                            <li>{% trans "Align with purpose limitation and minimization." %}</li>
+                            <li>{% trans "Define deletion/anonymization methods and responsibilities." %}</li>
+                        </ul>
+                    </details>
+                    <ol>
+                        <li>{% trans "Define retention for each data category and company." %} {% if can_edit_policies %}<a href="{% url 'app_gdpr:policy_create' %}" class="btn btn-sm btn-outline-light">{% trans "New Policy" %}</a>{% endif %}</li>
+                        <li>{% trans "Choose deletion/anonymization method and responsibilities." %}</li>
+                        <li>{% trans "Schedule reviews and automate application where possible." %}</li>
+                    </ol>
+                    <div class="small text-muted">{% trans "GDPR: Art. 5(1)(e) (storage limitation)." %}</div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div id="section-reporting" class="card-header bg-success text-white scroll-target">
+                    <strong>7) {% trans "Reporting & Continuous Improvement" %}</strong>
+                </div>
+                <div class="card-body">
+                    <ul>
+                        <li>{% trans "Generate compliance reports for management and audits." %}</li>
+                        <li>{% trans "Review KPIs: DSR SLAs, breach response times, DPIA status, policy coverage." %}</li>
+                        <li>{% trans "Run periodic training and refresh consents where applicable." %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Self-Assessment Quiz -->
+    <div class="modal fade" id="assessmentModal" tabindex="-1" aria-labelledby="assessmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="assessmentModalLabel">
+                        <i class="fas fa-clipboard-check"></i> {% trans "GDPR Self-Assessment Quiz" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="quizContainer">
+                        <p class="lead mb-4">{% trans "Answer these questions to determine which GDPR modules are relevant for your organization:" %}</p>
+                        
+                        <div class="mb-4">
+                            <h6 class="fw-bold">1. {% trans "Do you process personal data of individuals (customers, employees, partners)?" %}</h6>
+                            <div class="quiz-option" data-question="q1" data-value="yes">
+                                <input type="radio" name="q1" value="yes"> {% trans "Yes, we process personal data" %}
+                            </div>
+                            <div class="quiz-option" data-question="q1" data-value="no">
+                                <input type="radio" name="q1" value="no"> {% trans "No, we don't process personal data" %}
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6 class="fw-bold">2. {% trans "Do you collect consent from data subjects?" %}</h6>
+                            <div class="quiz-option" data-question="q2" data-value="yes">
+                                <input type="radio" name="q2" value="yes"> {% trans "Yes, we collect consent (marketing, cookies, etc.)" %}
+                            </div>
+                            <div class="quiz-option" data-question="q2" data-value="no">
+                                <input type="radio" name="q2" value="no"> {% trans "No, we use other legal bases" %}
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6 class="fw-bold">3. {% trans "Do individuals ever request access to or deletion of their data?" %}</h6>
+                            <div class="quiz-option" data-question="q3" data-value="yes">
+                                <input type="radio" name="q3" value="yes"> {% trans "Yes, we receive such requests" %}
+                            </div>
+                            <div class="quiz-option" data-question="q3" data-value="no">
+                                <input type="radio" name="q3" value="no"> {% trans "No, we haven't received any yet" %}
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6 class="fw-bold">4. {% trans "Do you process special categories of data (health, biometrics, etc.)?" %}</h6>
+                            <div class="quiz-option" data-question="q4" data-value="yes">
+                                <input type="radio" name="q4" value="yes"> {% trans "Yes, we process sensitive data" %}
+                            </div>
+                            <div class="quiz-option" data-question="q4" data-value="no">
+                                <input type="radio" name="q4" value="no"> {% trans "No, only regular personal data" %}
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6 class="fw-bold">5. {% trans "Have you experienced any data security incidents?" %}</h6>
+                            <div class="quiz-option" data-question="q5" data-value="yes">
+                                <input type="radio" name="q5" value="yes"> {% trans "Yes, we've had incidents" %}
+                            </div>
+                            <div class="quiz-option" data-question="q5" data-value="no">
+                                <input type="radio" name="q5" value="no"> {% trans "No incidents so far" %}
+                            </div>
+                        </div>
+
+                        <button class="btn btn-info w-100" onclick="calculateQuizResults()">
+                            <i class="fas fa-check"></i> {% trans "Get Recommendations" %}
+                        </button>
+
+                        <div id="quizResults" class="mt-4" style="display: none;">
+                            <div class="alert alert-success">
+                                <h6 class="alert-heading"><i class="fas fa-lightbulb"></i> {% trans "Recommended Modules:" %}</h6>
+                                <ul id="recommendedModules" class="mb-0"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: GDPR Maturity Level -->
+    <div class="modal fade" id="maturityModal" tabindex="-1" aria-labelledby="maturityModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="maturityModalLabel">
+                        <i class="fas fa-chart-line"></i> {% trans "GDPR Maturity Level Assessment" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="lead text-center mb-4">{% trans "Your current GDPR maturity level based on implementation progress:" %}</p>
+                    
+                    <div class="text-center">
+                        <div class="maturity-level" id="maturityLevel">
+                            {% if progress_percentage < 30 %}
+                                <span class="text-danger">{% trans "Initial" %}</span>
+                            {% elif progress_percentage < 70 %}
+                                <span class="text-warning">{% trans "Managed" %}</span>
+                            {% else %}
+                                <span class="text-success">{% trans "Optimized" %}</span>
+                            {% endif %}
+                        </div>
+                        <div class="progress mb-4" style="height: 30px;">
+                            <div class="progress-bar {% if progress_percentage < 30 %}bg-danger{% elif progress_percentage < 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                                 style="width: {{ progress_percentage }}%">
+                                {{ progress_percentage }}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="card {% if progress_percentage < 30 %}border-danger{% else %}border-success{% endif %}">
+                                <div class="card-body">
+                                    <i class="fas fa-seedling fa-2x {% if progress_percentage < 30 %}text-danger{% else %}text-success{% endif %} mb-2"></i>
+                                    <h6>{% trans "Initial" %}</h6>
+                                    <small class="text-muted">0-29%</small>
+                                    <p class="small mt-2">{% trans "Basic awareness, ad-hoc processes" %}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="card {% if progress_percentage >= 30 and progress_percentage < 70 %}border-warning{% elif progress_percentage >= 70 %}border-success{% endif %}">
+                                <div class="card-body">
+                                    <i class="fas fa-chart-line fa-2x {% if progress_percentage >= 30 and progress_percentage < 70 %}text-warning{% elif progress_percentage >= 70 %}text-success{% else %}text-muted{% endif %} mb-2"></i>
+                                    <h6>{% trans "Managed" %}</h6>
+                                    <small class="text-muted">30-69%</small>
+                                    <p class="small mt-2">{% trans "Documented processes, defined roles" %}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="card {% if progress_percentage >= 70 %}border-success{% endif %}">
+                                <div class="card-body">
+                                    <i class="fas fa-trophy fa-2x {% if progress_percentage >= 70 %}text-success{% else %}text-muted{% endif %} mb-2"></i>
+                                    <h6>{% trans "Optimized" %}</h6>
+                                    <small class="text-muted">70-100%</small>
+                                    <p class="small mt-2">{% trans "Continuous improvement, automation" %}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "Next Steps to Improve:" %}</h6>
+                        <ul class="mb-0">
+                            {% if progress_percentage < 30 %}
+                                <li>{% trans "Start with Data Subjects registry" %}</li>
+                                <li>{% trans "Document consent collection processes" %}</li>
+                                <li>{% trans "Establish DSR workflow" %}</li>
+                            {% elif progress_percentage < 70 %}
+                                <li>{% trans "Complete all processing activities documentation" %}</li>
+                                <li>{% trans "Conduct DPIAs for high-risk activities" %}</li>
+                                <li>{% trans "Define retention policies for all data categories" %}</li>
+                            {% else %}
+                                <li>{% trans "Automate compliance reporting" %}</li>
+                                <li>{% trans "Conduct regular staff training" %}</li>
+                                <li>{% trans "Review and update policies quarterly" %}</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Quick Start Wizard -->
+    <div class="modal fade" id="wizardModal" tabindex="-1" aria-labelledby="wizardModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="wizardModalLabel">
+                        <i class="fas fa-magic"></i> {% trans "Quick Start Wizard" %}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="wizard-progress">
+                        <div class="wizard-progress-item active">
+                            <div class="wizard-circle">1</div>
+                            <small>{% trans "Data Subject" %}</small>
+                        </div>
+                        <div class="wizard-progress-item">
+                            <div class="wizard-circle">2</div>
+                            <small>{% trans "Consent" %}</small>
+                        </div>
+                        <div class="wizard-progress-item">
+                            <div class="wizard-circle">3</div>
+                            <small>{% trans "DSR" %}</small>
+                        </div>
+                        <div class="wizard-progress-item">
+                            <div class="wizard-circle">4</div>
+                            <small>{% trans "Complete" %}</small>
+                        </div>
+                    </div>
+
+                    <div class="wizard-step active" data-step="1">
+                        <h5>{% trans "Step 1: Create Your First Data Subject" %}</h5>
+                        <p>{% trans "A Data Subject is an individual whose personal data you process (customer, employee, partner)." %}</p>
+                        <div class="alert alert-info">
+                            <strong>{% trans "Example:" %}</strong> {% trans "John Doe, john.doe@example.com, Customer" %}
+                        </div>
+                        {% if can_edit_data_subjects %}
+                        <a href="{% url 'app_gdpr:data_subject_create' %}" class="btn btn-primary" target="_blank">
+                            <i class="fas fa-plus"></i> {% trans "Create Data Subject" %}
+                        </a>
+                        <p class="small text-muted mt-2">{% trans "Opens in new tab. Return here after creating." %}</p>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-lock"></i> {% trans "You need 'can_edit_data_subjects' permission to create Data Subjects." %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="wizard-step" data-step="2">
+                        <h5>{% trans "Step 2: Record a Consent" %}</h5>
+                        <p>{% trans "Document consent for processing personal data (marketing, cookies, data sharing, etc.)." %}</p>
+                        <div class="alert alert-info">
+                            <strong>{% trans "Example:" %}</strong> {% trans "Marketing emails consent v1.0, Active, Expires in 2 years" %}
+                        </div>
+                        {% if can_manage_consents %}
+                        <a href="{% url 'app_gdpr:consent_create' %}" class="btn btn-success" target="_blank">
+                            <i class="fas fa-plus"></i> {% trans "Create Consent" %}
+                        </a>
+                        <p class="small text-muted mt-2">{% trans "Opens in new tab. Return here after creating." %}</p>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-lock"></i> {% trans "You need 'can_manage_consents' permission to record Consents." %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="wizard-step" data-step="3">
+                        <h5>{% trans "Step 3: Create a Data Subject Request (DSR)" %}</h5>
+                        <p>{% trans "Practice the DSR workflow by creating a test request (Access, Rectification, Erasure, etc.)." %}</p>
+                        <div class="alert alert-info">
+                            <strong>{% trans "Example:" %}</strong> {% trans "Access request from John Doe to receive all personal data" %}
+                        </div>
+                        {% if can_process_dsr %}
+                        <a href="{% url 'app_gdpr:dsr_create' %}" class="btn btn-warning" target="_blank">
+                            <i class="fas fa-plus"></i> {% trans "Create DSR" %}
+                        </a>
+                        <p class="small text-muted mt-2">{% trans "Opens in new tab. Return here after creating." %}</p>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-lock"></i> {% trans "You need 'can_process_dsr' permission to create DSRs." %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="wizard-step" data-step="4">
+                        <h5 class="text-success"><i class="fas fa-check-circle"></i> {% trans "Wizard Complete!" %}</h5>
+                        <p>{% trans "Congratulations! You've created your first GDPR records." %}</p>
+                        <div class="alert alert-success">
+                            <h6>{% trans "Next steps:" %}</h6>
+                            <ul class="mb-0">
+                                <li>{% trans "Review the Implementation Progress Checklist" %}</li>
+                                <li>{% trans "Explore other modules (DPIA, Processing Activities, Retention Policies)" %}</li>
+                                <li>{% trans "Generate your first compliance report" %}</li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-success" data-bs-dismiss="modal">
+                            <i class="fas fa-check"></i> {% trans "Close Wizard" %}
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="wizardPrev" onclick="wizardPrevStep()">
+                        <i class="fas fa-arrow-left"></i> {% trans "Previous" %}
+                    </button>
+                    <button class="btn btn-primary" id="wizardNext" onclick="wizardNextStep()">
+                        {% trans "Next" %} <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Retention Calculator -->
+    <div class="modal fade" id="calculatorModal" tabindex="-1" aria-labelledby="calculatorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title" id="calculatorModalLabel">
+                        <i class="fas fa-calculator"></i> {% trans "Data Retention Calculator" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="lead mb-4">{% trans "Calculate retention periods based on data category and legal requirements:" %}</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% trans "Data Category:" %}</label>
+                        <select class="form-select" id="dataCategory" onchange="calculateRetention()">
+                            <option value="">{% trans "Select category..." %}</option>
+                            <option value="customer">{% trans "Customer Data" %}</option>
+                            <option value="employee">{% trans "Employee/HR Data" %}</option>
+                            <option value="financial">{% trans "Financial Records" %}</option>
+                            <option value="marketing">{% trans "Marketing/Consent Data" %}</option>
+                            <option value="health">{% trans "Health Data" %}</option>
+                            <option value="logs">{% trans "System Logs" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% trans "Legal Basis:" %}</label>
+                        <select class="form-select" id="legalBasis" onchange="calculateRetention()">
+                            <option value="">{% trans "Select legal basis..." %}</option>
+                            <option value="consent">{% trans "Consent" %}</option>
+                            <option value="contract">{% trans "Contract Performance" %}</option>
+                            <option value="legal">{% trans "Legal Obligation" %}</option>
+                            <option value="legitimate">{% trans "Legitimate Interest" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% trans "Jurisdiction:" %}</label>
+                        <select class="form-select" id="jurisdiction" onchange="calculateRetention()">
+                            <option value="">{% trans "Select jurisdiction..." %}</option>
+                            <option value="eu">{% trans "European Union (GDPR)" %}</option>
+                            <option value="uk">{% trans "United Kingdom (UK GDPR)" %}</option>
+                            <option value="us">{% trans "United States (varies by state)" %}</option>
+                            <option value="other">{% trans "Other" %}</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-secondary w-100 mb-3" onclick="calculateRetention()">
+                        <i class="fas fa-calculator"></i> {% trans "Calculate" %}
+                    </button>
+
+                    <div id="retentionResults" class="alert alert-primary" style="display: none;">
+                        <h6 class="alert-heading"><i class="fas fa-clock"></i> {% trans "Recommended Retention Period:" %}</h6>
+                        <p class="mb-2"><strong id="retentionPeriod"></strong></p>
+                        <hr>
+                        <p class="mb-1"><strong>{% trans "Deletion Method:" %}</strong> <span id="deletionMethod"></span></p>
+                        <p class="mb-0"><strong>{% trans "Notes:" %}</strong> <span id="retentionNotes"></span></p>
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <h6><i class="fas fa-info-circle"></i> {% trans "General Guidelines:" %}</h6>
+                        <ul class="small mb-0">
+                            <li>{% trans "Customer data: Typically 2-7 years after last interaction" %}</li>
+                            <li>{% trans "Employee data: 3-10 years after employment end (varies by law)" %}</li>
+                            <li>{% trans "Financial records: 5-10 years (tax requirements)" %}</li>
+                            <li>{% trans "Marketing consent: 2-3 years or until withdrawn" %}</li>
+                            <li>{% trans "System logs: 6-12 months (security purposes)" %}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<script>
+    (function() {
+        const links = document.querySelectorAll('.roadmap-link');
+        const targets = Array.from(document.querySelectorAll('.scroll-target'));
+        function setActiveByHash(hash) {
+            links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === hash));
+        }
+        links.forEach(a => {
+            a.addEventListener('click', function(e) {
+                const id = this.getAttribute('href');
+                const el = document.querySelector(id);
+                if (el) {
+                    e.preventDefault();
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    history.replaceState(null, '', id);
+                    setActiveByHash(id);
+                }
+            });
+        });
+        const observer = new IntersectionObserver((entries) => {
+            const visible = entries.filter(en => en.isIntersecting).sort((a,b)=> b.intersectionRatio - a.intersectionRatio)[0];
+            if (visible) setActiveByHash('#' + visible.target.id);
+        }, { rootMargin: '-40% 0px -50% 0px', threshold: [0.2, 0.6, 1] });
+        targets.forEach(t => observer.observe(t));
+        if (location.hash) setActiveByHash(location.hash);
+    })();
+
+    // Quiz functionality
+    document.querySelectorAll('.quiz-option').forEach(option => {
+        option.addEventListener('click', function() {
+            const question = this.dataset.question;
+            document.querySelectorAll(`[data-question="${question}"]`).forEach(opt => opt.classList.remove('selected'));
+            this.classList.add('selected');
+            this.querySelector('input[type="radio"]').checked = true;
+        });
+    });
+
+    function calculateQuizResults() {
+        const q1 = document.querySelector('input[name="q1"]:checked')?.value;
+        const q2 = document.querySelector('input[name="q2"]:checked')?.value;
+        const q3 = document.querySelector('input[name="q3"]:checked')?.value;
+        const q4 = document.querySelector('input[name="q4"]:checked')?.value;
+        const q5 = document.querySelector('input[name="q5"]:checked')?.value;
+
+        if (!q1 || !q2 || !q3 || !q4 || !q5) {
+            alert('{% trans "Please answer all questions" %}');
+            return;
+        }
+
+        const recommendations = [];
+        if (q1 === 'yes') recommendations.push('{% trans "Data Subjects Registry - Essential for managing personal data" %}');
+        if (q2 === 'yes') recommendations.push('{% trans "Consent Management - Track and manage consent records" %}');
+        if (q3 === 'yes') recommendations.push('{% trans "DSR Workflow - Process access, erasure, and other requests" %}');
+        if (q4 === 'yes') recommendations.push('{% trans "DPIA Module - Required for high-risk processing activities" %}');
+        if (q5 === 'yes') recommendations.push('{% trans "Breach Management - Document and report security incidents" %}');
+        if (q1 === 'yes') recommendations.push('{% trans "Processing Activities Register (Art. 30) - Document all processing" %}');
+        if (q1 === 'yes') recommendations.push('{% trans "Data Retention Policies - Define how long to keep data" %}');
+
+        const modulesList = document.getElementById('recommendedModules');
+        modulesList.innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
+        document.getElementById('quizResults').style.display = 'block';
+    }
+
+    // Wizard functionality
+    let currentStep = 1;
+    function wizardNextStep() {
+        const steps = document.querySelectorAll('.wizard-step');
+        const progressItems = document.querySelectorAll('.wizard-progress-item');
+        if (currentStep < steps.length) {
+            steps[currentStep - 1].classList.remove('active');
+            progressItems[currentStep - 1].classList.remove('active');
+            progressItems[currentStep - 1].classList.add('completed');
+            currentStep++;
+            steps[currentStep - 1].classList.add('active');
+            progressItems[currentStep - 1].classList.add('active');
+        }
+        updateWizardButtons();
+    }
+
+    function wizardPrevStep() {
+        const steps = document.querySelectorAll('.wizard-step');
+        const progressItems = document.querySelectorAll('.wizard-progress-item');
+        if (currentStep > 1) {
+            steps[currentStep - 1].classList.remove('active');
+            progressItems[currentStep - 1].classList.remove('active');
+            currentStep--;
+            steps[currentStep - 1].classList.add('active');
+            progressItems[currentStep - 1].classList.remove('completed');
+            progressItems[currentStep - 1].classList.add('active');
+        }
+        updateWizardButtons();
+    }
+
+    function updateWizardButtons() {
+        const prevBtn = document.getElementById('wizardPrev');
+        const nextBtn = document.getElementById('wizardNext');
+        prevBtn.style.display = currentStep === 1 ? 'none' : 'inline-block';
+        nextBtn.style.display = currentStep === 4 ? 'none' : 'inline-block';
+    }
+
+    document.getElementById('wizardModal')?.addEventListener('hidden.bs.modal', function () {
+        const steps = document.querySelectorAll('.wizard-step');
+        const progressItems = document.querySelectorAll('.wizard-progress-item');
+        steps.forEach(s => s.classList.remove('active'));
+        progressItems.forEach(p => { p.classList.remove('active', 'completed'); });
+        currentStep = 1;
+        steps[0].classList.add('active');
+        progressItems[0].classList.add('active');
+        updateWizardButtons();
+    });
+
+    // Retention Calculator
+    function calculateRetention() {
+        const category = document.getElementById('dataCategory').value;
+        const basis = document.getElementById('legalBasis').value;
+        const jurisdiction = document.getElementById('jurisdiction').value;
+
+        if (!category || !basis || !jurisdiction) return;
+
+        let period = '';
+        let method = '';
+        let notes = '';
+
+        // Simplified retention logic
+        if (category === 'customer') {
+            period = '3-5 {% trans "years after last interaction" %}';
+            method = '{% trans "Anonymization or secure deletion" %}';
+            notes = '{% trans "Balance business needs with data minimization" %}';
+        } else if (category === 'employee') {
+            period = '5-10 {% trans "years after employment ends" %}';
+            method = '{% trans "Secure deletion with audit trail" %}';
+            notes = '{% trans "Comply with labor law requirements" %}';
+        } else if (category === 'financial') {
+            period = '7-10 {% trans "years (tax requirements)" %}';
+            method = '{% trans "Secure archival then deletion" %}';
+            notes = '{% trans "Follow jurisdiction-specific tax laws" %}';
+        } else if (category === 'marketing') {
+            period = '2-3 {% trans "years or until consent withdrawn" %}';
+            method = '{% trans "Immediate deletion upon withdrawal" %}';
+            notes = '{% trans "Refresh consent periodically" %}';
+        } else if (category === 'health') {
+            period = '10-30 {% trans "years (medical records)" %}';
+            method = '{% trans "Secure archival with encryption" %}';
+            notes = '{% trans "Strict regulations, consult legal" %}';
+        } else if (category === 'logs') {
+            period = '6-12 {% trans "months" %}';
+            method = '{% trans "Automated deletion" %}';
+            notes = '{% trans "Security and debugging purposes only" %}';
+        }
+
+        document.getElementById('retentionPeriod').textContent = period;
+        document.getElementById('deletionMethod').textContent = method;
+        document.getElementById('retentionNotes').textContent = notes;
+        document.getElementById('retentionResults').style.display = 'block';
+    }
+
+    updateWizardButtons();
+
+    // Template viewer functionality
+    const templates = {
+        'privacy-policy': {
+            title: '{% trans "Privacy Policy Template" %}',
+            content: `PRIVACY POLICY
+
+Last updated: [DATE]
+
+1. INTRODUCTION
+We [COMPANY NAME] ("we", "our", "us") respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, and protect your information in accordance with GDPR.
+
+2. DATA CONTROLLER
+[Company Name]
+[Address]
+Email: [email]
+DPO: [DPO Name/Email]
+
+3. PERSONAL DATA WE COLLECT
+- Identity data: name, email, phone
+- Technical data: IP address, browser type, device ID
+- Usage data: how you use our website/service
+- Marketing data: your preferences for receiving marketing
+
+4. HOW WE USE YOUR DATA
+We process your personal data for:
+- Service delivery (Legal basis: Contract)
+- Marketing communications (Legal basis: Consent)
+- Legal compliance (Legal basis: Legal obligation)
+- Legitimate interests (fraud prevention, analytics)
+
+5. YOUR RIGHTS UNDER GDPR
+You have the right to:
+- Access your personal data
+- Rectify inaccurate data
+- Erase your data ("right to be forgotten")
+- Restrict processing
+- Data portability
+- Object to processing
+- Withdraw consent
+
+To exercise these rights, contact us at: [email]
+
+6. DATA RETENTION
+We retain your data for:
+- Customer data: 3 years after last interaction
+- Marketing data: until consent withdrawn
+- Legal compliance: as required by law
+
+7. DATA SECURITY
+We implement appropriate technical and organizational measures to protect your data.
+
+8. COOKIES
+We use cookies for [purposes]. See our Cookie Policy for details.
+
+9. CHANGES TO THIS POLICY
+We may update this policy. Check this page regularly for updates.
+
+10. CONTACT US
+Questions? Contact our Data Protection Officer at [email]`
+        },
+        'dpia-template': {
+            title: '{% trans "DPIA Template" %}',
+            content: `DATA PROTECTION IMPACT ASSESSMENT (DPIA)
+
+Project Name: ____________________
+Date: ____________________
+Assessor: ____________________
+
+1. DESCRIPTION OF PROCESSING
+Describe the nature, scope, context, and purposes:
+_________________________________________________
+_________________________________________________
+
+2. DATA SUBJECTS
+Who will be affected? (customers, employees, children?)
+_________________________________________________
+
+3. DATA CATEGORIES
+What personal data will be processed?
+☐ Regular data (name, email, etc.)
+☐ Special categories (health, biometric, racial/ethnic origin)
+☐ Criminal records
+
+4. NECESSITY AND PROPORTIONALITY
+Is this processing necessary and proportionate?
+_________________________________________________
+
+5. RISKS TO INDIVIDUALS
+Risk 1: __________________ Likelihood: ☐ Low ☐ Medium ☐ High
+Risk 2: __________________ Likelihood: ☐ Low ☐ Medium ☐ High
+Risk 3: __________________ Likelihood: ☐ Low ☐ Medium ☐ High
+
+6. MITIGATION MEASURES
+For each risk, describe measures to reduce it:
+_________________________________________________
+
+7. CONSULTATION
+Have you consulted with:
+☐ Data Protection Officer
+☐ Data subjects or their representatives
+☐ IT security team
+
+8. APPROVAL
+Initial Risk Level: ☐ Low ☐ Medium ☐ High
+Residual Risk Level: ☐ Low ☐ Medium ☐ High
+
+Approved by: ____________________
+Date: ____________________
+
+9. REVIEW DATE
+Next review: ____________________`
+        },
+        'dsr-response': {
+            title: '{% trans "DSR Response Templates" %}',
+            content: `=== ACCESS REQUEST RESPONSE ===
+
+Subject: Your Data Access Request
+
+Dear [Name],
+
+Thank you for your data access request submitted on [date].
+
+We have prepared a comprehensive export of your personal data that we process. Attached you will find:
+- Personal information (JSON format)
+- Account history
+- Communication records
+
+If you have any questions about this data, please contact us at [email].
+
+Best regards,
+[Company Name]
+
+---
+
+=== ERASURE REQUEST RESPONSE ===
+
+Subject: Your Data Erasure Request
+
+Dear [Name],
+
+We confirm that we have completed the erasure of your personal data from our systems on [date].
+
+The following data has been deleted:
+- Account information
+- Purchase history  
+- Marketing preferences
+
+Please note: We have retained [specific data] for [X years] due to [legal requirement/legitimate interest]. This data will be deleted on [date].
+
+Best regards,
+[Company Name]
+
+---
+
+=== ERASURE REQUEST - REJECTION ===
+
+Subject: Your Data Erasure Request
+
+Dear [Name],
+
+We have carefully reviewed your erasure request submitted on [date].
+
+Unfortunately, we cannot fulfill your request at this time because:
+☐ We have a legal obligation to retain this data for [period]
+☐ The data is necessary for establishing/defending legal claims
+☐ We require this data to fulfill our contract with you
+
+You have the right to lodge a complaint with the supervisory authority: [DPA contact]
+
+Best regards,
+[Company Name]
+
+---
+
+=== RECTIFICATION RESPONSE ===
+
+Subject: Your Data Rectification Request
+
+Dear [Name],
+
+We have updated your personal data as requested on [date]:
+
+Changed:
+- [Field]: [Old value] → [New value]
+
+The changes are now effective in our systems.
+
+Best regards,
+[Company Name]`
+        },
+        'consent-form': {
+            title: '{% trans "Consent Form Examples" %}',
+            content: `=== MARKETING CONSENT ===
+
+☐ I agree to receive marketing communications from [Company] about products, services, and special offers via email.
+
+You can withdraw your consent at any time by clicking the unsubscribe link in any email or contacting us at [email].
+
+Version: 1.0 | Date: [DATE]
+
+---
+
+=== COOKIES CONSENT ===
+
+We use cookies to improve your experience. By clicking "Accept", you consent to:
+
+☐ Essential cookies (required for site functionality)
+☐ Analytics cookies (help us understand how you use our site)
+☐ Marketing cookies (for targeted advertising)
+
+You can change your preferences at any time in Settings.
+
+Learn more: [Cookie Policy link]
+
+---
+
+=== DATA SHARING CONSENT ===
+
+☐ I consent to [Company] sharing my personal data with [Partner Company] for [specific purpose].
+
+This consent is voluntary and you can withdraw it at any time by contacting us at [email]. Withdrawal will not affect the lawfulness of processing before withdrawal.
+
+Data shared: [list data categories]
+Purpose: [specific purpose]
+Duration: [retention period]
+
+---
+
+=== CHILDREN'S DATA (PARENTAL CONSENT) ===
+
+I am the parent/guardian of [Child Name] and I consent to:
+
+☐ Collection of my child's personal data: [name, email, etc.]
+☐ Processing for purpose: [specific purpose]
+
+I understand that I can withdraw this consent at any time and request deletion of my child's data.
+
+Parent/Guardian Name: ____________________
+Signature: ____________________
+Date: ____________________`
+        },
+        'breach-notification': {
+            title: '{% trans "Breach Notification Template" %}',
+            content: `=== NOTIFICATION TO DPA (within 72 hours) ===
+
+To: [Data Protection Authority]
+From: [Company Name / DPO]
+Date: [DATE]
+Subject: Personal Data Breach Notification
+
+1. DESCRIPTION OF THE BREACH
+Date discovered: [DATE]
+Nature of breach: ☐ Confidentiality ☐ Integrity ☐ Availability
+Description: [Describe what happened]
+
+2. CATEGORIES AND NUMBERS
+Data subjects affected: Approx. [NUMBER]
+Categories: ☐ Customers ☐ Employees ☐ Other: ____
+Personal data records: Approx. [NUMBER]
+Data categories: [e.g., names, emails, passwords, etc.]
+
+3. LIKELY CONSEQUENCES
+☐ Identity theft risk
+☐ Financial loss risk
+☐ Reputational damage
+☐ Other: ____________________
+
+4. MEASURES TAKEN/PROPOSED
+Containment: [actions taken immediately]
+Investigation: [ongoing investigation details]
+Mitigation: [measures to reduce impact]
+Prevention: [measures to prevent recurrence]
+
+5. CONTACT
+DPO Name: ____________________
+Email: ____________________
+Phone: ____________________
+
+---
+
+=== NOTIFICATION TO DATA SUBJECTS ===
+
+Subject: Important Security Notice
+
+Dear [Name],
+
+We are writing to inform you of a security incident that may affect your personal data.
+
+WHAT HAPPENED:
+On [date], we discovered [brief description]. The incident has been contained.
+
+WHAT DATA WAS AFFECTED:
+The following information may have been exposed:
+- [List data categories]
+
+WHAT WE'RE DOING:
+- We have [containment actions]
+- We have notified the Data Protection Authority
+- We are [mitigation measures]
+
+WHAT YOU SHOULD DO:
+- Change your password immediately
+- Monitor your accounts for suspicious activity
+- Be alert for phishing attempts
+
+We sincerely apologize for this incident. If you have questions, contact us at [email/phone].
+
+Best regards,
+[Company Name]`
+        },
+        'ropa': {
+            title: '{% trans "ROPA (Art. 30) Template" %}',
+            content: `RECORD OF PROCESSING ACTIVITIES (Article 30 GDPR)
+
+Processing Activity #1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. NAME & DESCRIPTION
+Activity: [e.g., Customer Relationship Management]
+Purpose: [e.g., Managing customer orders and communications]
+
+2. DATA CONTROLLER
+Name: [Company Name]
+Contact: [Email]
+Representative (if outside EU): [Name/Contact]
+DPO: [Name/Contact]
+
+3. DATA SUBJECTS
+☐ Customers
+☐ Employees
+☐ Suppliers
+☐ Other: ____________________
+
+4. PERSONAL DATA CATEGORIES
+☐ Identity data (name, ID number)
+☐ Contact data (email, phone, address)
+☐ Financial data (bank account, payment info)
+☐ Technical data (IP, cookies, device ID)
+☐ Usage data (how they use service)
+☐ Special categories: ____________________
+
+5. RECIPIENTS
+Who receives the data?
+- Internal: [departments]
+- External: [processors, partners, authorities]
+- Transfers outside EU: [country, safeguards]
+
+6. RETENTION PERIODS
+- [Data category]: [period] - [reason]
+- [Data category]: [period] - [reason]
+
+7. SECURITY MEASURES
+☐ Encryption (at rest / in transit)
+☐ Access controls (role-based)
+☐ Pseudonymization
+☐ Regular backups
+☐ Security testing
+☐ Staff training
+☐ Other: ____________________
+
+8. LEGAL BASIS
+☐ Consent
+☐ Contract performance
+☐ Legal obligation
+☐ Vital interests
+☐ Public task
+☐ Legitimate interest (specify): ____________________
+
+9. PROCESSORS (if any)
+Processor 1: [Name] - [Service] - [Contract date]
+Processor 2: [Name] - [Service] - [Contract date]
+
+10. TRANSFERS OUTSIDE EEA
+☐ None
+☐ Adequacy decision: [Country]
+☐ Standard Contractual Clauses
+☐ Binding Corporate Rules
+☐ Other safeguards: ____________________
+
+11. LAST UPDATED
+Date: ____________________
+Reviewed by: ____________________
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[Repeat for each processing activity]`
+        }
+    };
+
+    function showTemplate(templateId) {
+        const template = templates[templateId];
+        if (template) {
+            document.getElementById('templateTitle').textContent = template.title;
+            document.getElementById('templateContent').textContent = template.content;
+            document.getElementById('templateViewer').style.display = 'block';
+            document.getElementById('templateViewer').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    function copyTemplate() {
+        const content = document.getElementById('templateContent').textContent;
+        navigator.clipboard.writeText(content).then(() => {
+            alert('{% trans "Template copied to clipboard!" %}');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+        });
+    }
+
+    // Glossary search functionality
+    document.getElementById('glossarySearch').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const glossaryItems = document.querySelectorAll('.glossary-item');
+        
+        glossaryItems.forEach(item => {
+            const term = item.getAttribute('data-term').toLowerCase();
+            const content = item.textContent.toLowerCase();
+            
+            if (term.includes(searchTerm) || content.includes(searchTerm)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+
+    </script>
+{% endblock %}
+
+

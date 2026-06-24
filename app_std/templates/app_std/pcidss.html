@@ -1,0 +1,1527 @@
+<!-- SecBoard\SecBoard\templates\app_std\pcidss.html-->
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+{% load std_custom_filters %}
+
+{% block title %}{% trans "PCI DSS 4.0 Controls" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_std/includes/std_styles.html" %}
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="{% static 'app_std/css/std-controls-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid std-page pcidss-page">
+    <h1 class="mb-4"><i class="bi bi-credit-card-2-front me-2"></i>{% trans "PCI DSS Requirements" %}</h1>
+    {% csrf_token %}
+
+    <div class="card mb-2 filter-section access-request-filters" id="pcidssFiltersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="pcidssFiltersCollapse" toggle_id="togglePcidssFilters" icon_id="pcidssFiltersToggleIcon" clear_btn_id="clearPcidssFilters" filters_expanded=True %}
+        <div class="collapse show" id="pcidssFiltersCollapse">
+            <div class="card-body py-2">
+                <label class="form-label mb-2">{% trans "Filter by Requirement" %}</label>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn active" data-value="all">{% trans "All" %}</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="1">1</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="2">2</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="3">3</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="4">4</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="5">5</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="6">6</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="7">7</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="8">8</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="9">9</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="10">10</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="11">11</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-req-btn" data-value="12">12</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3 ai-search-section">
+        <div class="card-body py-2">
+            <label class="form-label mb-2">{% trans "AI Search" %}</label>
+            <div class="input-group input-group-sm">
+                <div class="position-relative flex-grow-1" style="max-width: 400px;">
+                    <input type="text" class="form-control form-control-sm" id="aiSearchQuery" placeholder="{% trans 'Enter your question...' %}">
+                    <button type="button" class="btn-close clear-input" aria-label="{% trans 'Clear input' %}"
+                            style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 5;"></button>
+                </div>
+                <div class="btn-group" role="group" aria-label="{% trans 'AI Model Selection' %}">
+                    <button type="button" class="btn btn-outline-primary btn-sm ai-model-btn" data-model="google">
+                        <i class="bi bi-google"></i> Google AI
+                    </button>
+                    {% if can_edit %}
+                    <button type="button" class="btn btn-outline-primary btn-sm ai-model-btn" data-model="claude">
+                        <i class="bi bi-cpu"></i> Claude
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm ai-model-btn" data-model="deepseek">
+                        <i class="bi bi-search"></i> DeepSeek
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body p-0">
+            <div class="export-controls px-3 pt-2 pb-0">
+                <div class="row align-items-center g-1">
+                    <div class="col-md-6 d-flex align-items-center flex-wrap gap-2">
+                        <div id="translationStatus" style="display: none;"></div>
+                        <div id="requirementsSelectAllMount"></div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if can_edit %}
+                            <button class="btn btn-outline-success btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#addPCIDSSModal"
+                                    title="{% trans 'Add New' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm btn-icon-action" id="deleteSelectedBtn"
+                                    title="{% trans 'Delete Selected' %}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm btn-icon-action" id="translatePCIDSSBtn"
+                                    title="{% trans 'Translate' %}">
+                                <i class="bi bi-translate"></i>
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm btn-icon-action" id="importPCIDSSBtn"
+                                    title="{% trans 'Import' %}">
+                                <i class="bi bi-file-earmark-arrow-up"></i>
+                            </button>
+                            <input type="file" id="importFile" style="display: none;" accept=".csv">
+                            {% endif %}
+                            <button class="btn btn-success btn-sm btn-icon-action" id="exportPCIDSSBtn"
+                                    title="{% trans 'Export' %}">
+                                <i class="bi bi-file-earmark-excel"></i>
+                            </button>
+                            <button id="copyFullTableBtn" class="btn btn-outline-primary btn-sm btn-icon-action"
+                                    title="{% trans 'Copy Full Table' %}">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                            <a href="{% url 'pcidss_documents' %}" class="btn btn-outline-info btn-sm btn-icon-action"
+                               title="{% trans 'PDF Documents' %}">
+                                <i class="bi bi-file-pdf"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive full-width-table">
+        <table id="requirementsTable" class="table table-striped table-hover table-sm table-sm-font sb-data-table w-100 mb-0">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>{% trans "Requirement" %}</th>
+                    <th>{% trans "Category" %}</th>
+                    <th>{% trans "Title" %}</th>
+                    <th>{% trans "Description" %}</th>
+                    <th>{% trans "Testing Procedures" %}</th>
+                    <th>{% trans "Actions" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for requirement in requirements %}
+                <tr class="expandable-row" data-id="{{ requirement.id }}">
+                    <td>
+                        <input type="checkbox" class="requirement-checkbox" data-id="{{ requirement.id }}">
+                    </td>
+                    <td>{{ requirement.requirement_number }}</td>
+                    <td>{{ requirement.category }}</td>
+                    <td>{{ requirement.title }}</td>
+                    <td>{{ requirement.description|truncatechars:100 }}</td>
+                    <td>{{ requirement.testing_procedures|truncatechars:100 }}</td>
+                    <td class="table-actions">
+                        {% if can_edit %}
+                        <button class="btn btn-sm btn-outline-primary btn-icon-action edit-requirement"
+                                data-id="{{ requirement.id }}"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editPCIDSSModal"
+                                title="{% trans 'Edit' %}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+            </div>
+            {% include "app_std/includes/std_table_pagination_client.html" with pagination_id="requirementsTablePagination" %}
+        </div>
+    </div>
+
+    <div id="expandedDetails" style="display: none;">
+        {% for requirement in requirements %}
+        <div id="expanded-{{ requirement.id }}" class="expanded-content">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <tr>
+                        <th colspan="2" class="bg-light">{% trans "Requirements and Testing Procedures" %}</th>
+                        <th class="bg-light">{% trans "Guidance" %}</th>
+                    </tr>
+                    <tr>
+                        <td colspan="2">{{ requirement.requirement_number }} {{ requirement.title }}</td>
+                        <td rowspan="2" style="width: 25%;">
+                            {% if requirement.purpose %}
+                            <div class="mb-3">
+                                <strong>{% trans "Purpose" %}</strong>
+                                <div>{{ requirement.purpose }}</div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if requirement.definitions %}
+                            <div class="mb-3">
+                                <strong>{% trans "Definitions" %}</strong>
+                                <div>{{ requirement.definitions }}</div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if requirement.further_information %}
+                            <div class="mb-3">
+                                <strong>{% trans "Further Information" %}</strong>
+                                <div>{{ requirement.further_information }}</div>
+                            </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td width="37.5%">
+                            <div class="p-2 bg-light fw-bold">{% trans "Defined Approach Requirements" %}</div>
+                            <div class="p-2">{{ requirement.description }}</div>
+                        </td>
+                        <td width="37.5%">
+                            <div class="p-2 bg-light fw-bold">{% trans "Defined Approach Testing Procedures" %}</div>
+                            <div class="p-2">{{ requirement.testing_procedures }}</div>
+                        </td>
+                    </tr>
+                    {% if requirement.customized_approach_objective %}
+                    <tr>
+                        <td colspan="2">
+                            <div class="p-2 bg-light fw-bold">{% trans "Customized Approach Objective" %}</div>
+                            <div class="p-2">{{ requirement.customized_approach_objective }}</div>
+                        </td>
+                        <td></td>
+                    </tr>
+                    {% endif %}
+                    {% if requirement.applicability_notes %}
+                    <tr>
+                        <td colspan="2">
+                            <div class="p-2 bg-light fw-bold">{% trans "Applicability Notes" %}</div>
+                            <div class="p-2">{{ requirement.applicability_notes }}</div>
+                        </td>
+                        <td></td>
+                    </tr>
+                    {% endif %}
+                    {% if requirement.good_practice %}
+                    <tr>
+                        <td colspan="2">
+                            <div class="p-2 bg-light fw-bold">{% trans "Good Practice" %}</div>
+                            <div class="p-2">{{ requirement.good_practice }}</div>
+                        </td>
+                        <td></td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+            <div class="mt-2 text-end">
+                <button class="btn btn-sm btn-outline-primary copy-req-table-btn" data-id="{{ requirement.id }}">
+                    <i class="bi bi-clipboard"></i> {% trans "Copy Requirements Table" %}
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% include 'app_std/modals/edit_pcidss_modal.html' %}
+{% include 'app_std/modals/add_pcidss_modal.html' %}
+{% include 'app_std/modals/ai_pcidss_query_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.min.js"></script>
+
+<!-- PapaParse для CSV -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM fully loaded');
+    
+    // Ініціалізація модального вікна
+    const aiQueryModalEl = document.getElementById('aiQueryModal');
+    let aiQueryModal;
+    
+    if (aiQueryModalEl) {
+        aiQueryModal = new bootstrap.Modal(aiQueryModalEl, {
+            keyboard: true,
+            backdrop: true,
+            focus: true
+        });
+        
+        // Очищаємо дані при закритті модального вікна
+        aiQueryModalEl.addEventListener('hidden.bs.modal', function () {
+            $('#searchQueryDisplay').text('');
+            $('#aiSearchResults').hide();
+            $('#aiSearchError').hide();
+            $('#aiSearchLoading').hide();
+        });
+    } else {
+        console.error('Modal element not found');
+    }
+
+    // Визначення змінних
+    const currentLanguage = '{{ LANGUAGE_CODE }}';
+    const canEdit = JSON.parse('{{ can_edit|yesno:"true,false" }}');
+    
+    // AI Model buttons functionality
+    $('.ai-model-btn').on('click', function(e) {
+        e.preventDefault();
+        
+        const query = $('#aiSearchQuery').val().trim();
+        const selectedModel = $(this).data('model');
+        
+        if (!query) {
+            showAlert('warning', '{% trans "Please enter a search query" %}');
+            return;
+        }
+
+        // Видаляємо активний клас з усіх кнопок
+        $('.ai-model-btn').removeClass('active');
+        // Додаємо активний клас натиснутій кнопці
+        $(this).addClass('active');
+
+        // Показуємо модальне вікно
+        if (aiQueryModal) {
+            aiQueryModal.show();
+        }
+        
+        // Відображаємо пошуковий запит
+        $('#searchQueryDisplay').text(query);
+
+        // Ініціалізуємо прогрес-бар
+        $('#searchProgress').css('width', '0%').text('0%');
+        $('#searchStatus').text('{% trans "Initializing search..." %}');
+
+        const endpoints = {
+            'google': '{% url "search_pcidss_with_google" %}',
+            'claude': '{% url "search_pcidss_with_claude" %}',
+            'deepseek': '{% url "search_pcidss_with_deepseek" %}'
+        };
+
+        // Показуємо індикатор завантаження
+        $('#aiSearchLoading').show();
+        $('#aiSearchResults').hide();
+        $('#aiSearchError').hide();
+
+        // Імітуємо прогрес
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 90) {
+                progress = 90;
+                clearInterval(progressInterval);
+            }
+            $('#searchProgress').css('width', progress + '%').text(Math.round(progress) + '%');
+            
+            // Оновлюємо статус в залежності від прогресу
+            if (progress < 30) {
+                $('#searchStatus').text('{% trans "Analyzing query..." %}');
+            } else if (progress < 60) {
+                $('#searchStatus').text('{% trans "Searching relevant requirements..." %}');
+            } else {
+                $('#searchStatus').text('{% trans "Preparing results..." %}');
+            }
+        }, 300);
+
+        $.ajax({
+            url: endpoints[selectedModel],
+            type: 'POST',
+            data: JSON.stringify({
+                query: query,
+                language: currentLanguage
+            }),
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            success: function(response) {
+                clearInterval(progressInterval);
+                $('#searchProgress').css('width', '100%').text('100%');
+                $('#searchStatus').text('{% trans "Search completed!" %}');
+                setTimeout(() => handleAiSearchResponse(response), 500);
+            },
+            error: function(xhr) {
+                clearInterval(progressInterval);
+                $('#searchProgress').css('width', '100%').text('100%');
+                $('#searchStatus').text('{% trans "Search failed" %}');
+                handleAiSearchError(xhr);
+            }
+        });
+    });
+
+    // Функція для отримання CSRF токену
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Перевірка завантаження Bootstrap
+    if (typeof bootstrap === 'undefined') {
+        console.error('Bootstrap is not loaded');
+        return;
+    }
+
+    // Custom sorting function for requirement numbers
+    function compareRequirementNumbers(a, b) {
+        const numA = a.split('.');
+        const numB = b.split('.');
+
+        for (let i = 0; i < Math.max(numA.length, numB.length); i++) {
+            const partA = i < numA.length ? parseInt(numA[i]) : 0;
+            const partB = i < numB.length ? parseInt(numB[i]) : 0;
+
+            if (partA !== partB) {
+                return partA - partB;
+            }
+        }
+        return 0;
+    }
+
+    // Custom sort method for requirement numbers
+    $.fn.dataTable.ext.type.order['requirement-number-pre'] = function(data) {
+        return data.split('.').map(part =>
+            part.padStart(10, '0')
+        ).join('.');
+    };
+
+    $('.filter-req-btn').on('click', function() {
+        $('.filter-req-btn').removeClass('active');
+        $(this).addClass('active');
+
+        var value = $(this).data('value');
+        var table = $('#requirementsTable').DataTable();
+
+        if (value === 'all') {
+            table.column(1).search('').draw();
+        } else {
+            table.column(1).search('^' + value + '\\.', true).draw();
+        }
+    });
+
+    var table = $('#requirementsTable').DataTable({
+        "dom": '<"row"<"col-sm-12"tr>>',
+        "lengthChange": false,
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "order": [[1, 'asc']],
+        "columnDefs": [
+            {
+                "orderable": false,
+                "targets": [0, 6]
+            },
+            {
+                "targets": 1,
+                "type": "requirement-number",
+                "render": function(data, type, row) {
+                    if (type === 'sort') {
+                        return data;
+                    }
+                    return data;
+                }
+            }
+        ],
+        "language": {
+            "emptyTable":     "{% trans 'No data available in table' %}",
+            "info":           "{% trans 'Showing _START_ to _END_ of _TOTAL_ entries' %}",
+            "infoEmpty":      "{% trans 'Showing 0 to 0 of 0 entries' %}",
+            "infoFiltered":   "{% trans '(filtered from _MAX_ total entries)' %}",
+            "infoPostFix":    "",
+            "thousands":      ",",
+            "lengthMenu":     "{% trans 'Show _MENU_ entries' %}",
+            "loadingRecords": "{% trans 'Loading...' %}",
+            "processing":     "{% trans 'Processing...' %}",
+            "search":         "{% trans 'Search:' %}",
+            "zeroRecords":    "{% trans 'No matching records found' %}",
+            "paginate": {
+                "first":      "{% trans 'First' %}",
+                "last":       "{% trans 'Last' %}",
+                "next":       "{% trans 'Next' %}",
+                "previous":   "{% trans 'Previous' %}"
+            },
+            "aria": {
+                "sortAscending":  "{% trans ': activate to sort column ascending' %}",
+                "sortDescending": "{% trans ': activate to sort column descending' %}"
+            }
+        },
+        "initComplete": function() {
+            if (window.initStdDataTablePagination) {
+                window.initStdDataTablePagination({
+                    api: this.api(),
+                    containerId: 'requirementsTablePagination',
+                    paginationAriaLabel: '{% trans "PCI DSS requirements pagination" %}',
+                    labels: {
+                        showing: '{% trans "Showing" %}',
+                        of: '{% trans "of" %}',
+                        items: '{% trans "records" %}',
+                        perPage: '{% trans "Per page" %}'
+                    }
+                });
+            }
+        }
+    });
+
+    // Add Select All checkbox and its functionality
+    $('#requirementsSelectAllMount').html(
+        '<div class="select-all-wrapper">' +
+        '<input class="form-check-input" type="checkbox" id="selectAllRequirements">' +
+        '<label class="form-check-label" for="selectAllRequirements">{% trans "Select All" %}</label>' +
+        '</div>'
+    );
+    $('#requirementsSelectAllMount').find('#selectAllRequirements').on('change', function() {
+        var isChecked = $(this).prop('checked');
+        table.rows({ page: 'current' }).nodes().each(function(node) {
+            $(node).find('.requirement-checkbox').prop('checked', isChecked);
+        });
+    });
+
+    // Update Select All state when individual checkboxes change
+    $('#requirementsTable tbody').on('change', '.requirement-checkbox', function() {
+        var allChecked = true;
+        table.rows({ page: 'current' }).nodes().each(function(node) {
+            if (!$(node).find('.requirement-checkbox').prop('checked')) {
+                allChecked = false;
+                return false; // break the loop
+            }
+        });
+        $('#selectAllRequirements').prop('checked', allChecked);
+    });
+
+    // Update Select All state when page changes
+    table.on('page.dt', function() {
+        $('#selectAllRequirements').prop('checked', false);
+    });
+
+    // Row expansion handling
+    $('#requirementsTable tbody').on('click', 'tr.expandable-row', function(e) {
+        if (!$(e.target).is('input:checkbox') && !$(e.target).is('button')) {
+            var tr = $(this);
+            var row = table.row(tr);
+            var id = tr.data('id');
+
+            if (row.child.isShown()) {
+                row.child.hide();
+                tr.removeClass('shown');
+            } else {
+                var expandedContent = $('#expanded-' + id).html();
+                row.child(expandedContent).show();
+                tr.addClass('shown');
+                
+                // Add event listener to the copy button in the expanded row
+                row.child().find('.copy-req-table-btn').on('click', function() {
+                    copyExpandedTableToClipboard($(this).data('id'));
+                });
+            }
+        }
+    });
+
+    // Функціонал перегляду деталей
+    $('.view-details').on('click', function() {
+        var id = $(this).data('id');
+        $('#details-' + id).toggle();
+    });
+
+    // Функціонал редагування вимоги
+    $('.edit-requirement').on('click', function() {
+        if (!canEdit) {
+            e.preventDefault();
+            showAlert('error', '{% trans "You do not have permission to edit requirements" %}');
+            return;
+        }
+        var id = $(this).data('id');
+        console.log("Editing requirement:", id);
+
+        $.ajax({
+            url: '{% url "get_pcidss_requirement" 0 %}'.replace('0', id),
+            type: 'GET',
+            success: function(data) {
+                console.log("Received data for editing:", data);
+                $('#requirement-id').val(id);
+
+                var fields = [
+                    'title', 'description', 'testing_procedures', 'further_information',
+                    'applicability_notes', 'customized_approach_objective', 'definitions',
+                    'examples', 'good_practice', 'purpose'
+                ];
+
+                fields.forEach(function(field) {
+                    ['uk', 'ru', 'en'].forEach(function(lang) {
+                        var fieldId = '#' + field + '-modal-' + lang;
+                        $(fieldId).val(data[field + '_' + lang]);
+                    });
+                });
+
+                $('#editPCIDSSModal').modal('show');
+            },
+            error: function() {
+                showAlert('error', '{% trans "Error fetching requirement data" %}');
+            }
+        });
+    });
+
+    $('#deleteSelectedBtn').on('click', function() {
+        const selectedIds = $('.requirement-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select requirements to delete" %}');
+            return;
+        }
+
+        if (!confirm('{% trans "Are you sure you want to delete selected requirements?" %}')) {
+            return;
+        }
+
+        $.ajax({
+            url: '{% url "delete_pcidss_requirements" %}',
+            type: 'POST',
+            data: JSON.stringify({ ids: selectedIds }),
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert('success', '{% trans "Requirements deleted successfully" %}');
+                    location.reload();
+                } else {
+                    showAlert('error', response.error || '{% trans "Error deleting requirements" %}');
+                }
+            },
+            error: function(xhr) {
+                if (xhr.status === 403) {
+                    showAlert('error', '{% trans "Permission denied" %}');
+                } else {
+                    showAlert('error', '{% trans "Error communicating with server" %}');
+                }
+            }
+        });
+    });
+
+    // Функціонал збереження змін
+    $('#saveChanges').on('click', function() {
+        var formData = $('#editPCIDSSForm').serialize();
+        var id = $('#requirement-id').val();
+
+        $.ajax({
+            url: '{% url "edit_pcidss_requirement" 0 %}'.replace('0', id),
+            type: 'POST',
+            data: formData,
+            success: function(response) {
+                if (response.success) {
+                    showAlert('success', '{% trans "Requirement updated successfully" %}');
+                    $('#editPCIDSSModal').modal('hide');
+                    location.reload();
+                } else {
+                    showAlert('error', '{% trans "Error updating requirement" %}');
+                }
+            },
+            error: function() {
+                showAlert('error', '{% trans "Error communicating with server" %}');
+            }
+        });
+    });
+
+    // Функціонал перекладу
+    $('#translatePCIDSSBtn').on('click', function(e) {
+        if (!canEdit) {
+            e.preventDefault();
+            showAlert('error', '{% trans "You do not have permission to translate requirements" %}');
+            return;
+        }
+
+        var selectedIds = $('.requirement-checkbox:checked').map(function() {
+            return $(this).data('id').toString();
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one requirement to translate" %}');
+            return;
+        }
+
+        $('#translatePCIDSSBtn').prop('disabled', true);
+        $('#translationStatus').text('{% trans "Fetching requirements data..." %}').show();
+
+        // Get data for selected requirements
+        Promise.all(selectedIds.map(function(id) {
+            return $.ajax({
+                url: '{% url "get_pcidss_requirement" 0 %}'.replace('0', id),
+                type: 'GET'
+            });
+        })).then(function(results) {
+            var translationData = {};
+
+            results.forEach(function(data) {
+                var id = data.id.toString();
+                if (!translationData[id]) {
+                    translationData[id] = {};
+                }
+
+                // Only include English fields that have content
+                const fields = [
+                    'title', 'description', 'testing_procedures', 'further_information',
+                    'applicability_notes', 'customized_approach_objective', 'definitions',
+                    'examples', 'good_practice', 'purpose'
+                ];
+
+                fields.forEach(function(field) {
+                    const fieldName = `${field}_en`;
+                    if (data[fieldName] && data[fieldName].trim() !== '') {
+                        translationData[id][fieldName] = data[fieldName];
+                    }
+                });
+
+                // Handle category separately
+                if (data.category && data.category.category_en) {
+                    translationData[id]['category_en'] = data.category.category_en;
+                }
+            });
+
+            console.log('Translation data:', translationData);
+
+            $('#translationStatus').text('{% trans "Translation in progress..." %}');
+
+            // Send translation request
+            return $.ajax({
+                url: '{% url "translate_pcidss_fields" %}',
+                method: 'POST',
+                data: JSON.stringify(translationData),
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Accept': 'application/json'
+                },
+                error: function(xhr, status, error) {
+                    console.error('Translation request failed:', {xhr, status, error});
+                    throw new Error(xhr.responseJSON?.error || error);
+                }
+            });
+        }).then(function(response) {
+            if (!response.success) {
+                throw new Error(response.error || '{% trans "Translation failed" %}');
+            }
+
+            var translations = response.translations;
+            Object.keys(translations).forEach(function(id) {
+                Object.entries(translations[id]).forEach(function([field, value]) {
+                    updateTableCell(id, field, value);
+                });
+            });
+
+            showAlert('success', '{% trans "Translation completed successfully" %}');
+            location.reload();
+        }).catch(function(error) {
+            console.error('Translation error:', error);
+            showAlert('error', error.message || '{% trans "Translation failed. Please try again." %}');
+        }).finally(function() {
+            $('#translatePCIDSSBtn').prop('disabled', false);
+            $('#translationStatus').hide();
+        });
+    });
+
+    function updateTableCell(id, field, value) {
+        try {
+            var table = $('#requirementsTable').DataTable();
+            var rowSelector = `[data-id="${id}"]`;
+            var row = table.row(rowSelector);
+
+            if (row.length) {
+                var data = row.data();
+                if (field.startsWith('category_')) {
+                    data[2] = value;
+                } else if (field.startsWith('title_')) {
+                    data[3] = value;
+                } else if (field.startsWith('description_')) {
+                    data[4] = value.substring(0, 100) + (value.length > 100 ? '...' : '');
+                } else if (field.startsWith('testing_procedures_')) {
+                    data[5] = value.substring(0, 100) + (value.length > 100 ? '...' : '');
+                }
+                row.data(data);
+                table.draw(false);
+            }
+        } catch (error) {
+            console.error(`Error updating table cell for ID ${id}, field ${field}:`, error);
+        }
+    }
+
+    function updateTranslationStatus(translated, total) {
+        var percentage = Math.round((translated / total) * 100);
+        $('#translationStatus').text('{% trans "Translated" %} ' + translated + ' {% trans "of" %} ' + total + ' {% trans "fields" %} (' + percentage + '%)');
+    }
+
+    // Функціонал експорту
+    $('#exportPCIDSSBtn').on('click', function() {
+        var selectedIds = $('.requirement-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one requirement to export" %}');
+            return;
+        }
+
+        $.ajax({
+            url: '{% url "export_pcidss_requirements" %}',
+            type: 'POST',
+            data: JSON.stringify({ ids: selectedIds }),
+            contentType: 'application/json',
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                // Додаємо BOM для UTF-8
+                var BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+                var blob = new Blob([BOM, response], {
+                    type: 'text/csv;charset=utf-8'
+                });
+
+                var link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                link.download = 'pci_dss_requirements.csv';
+
+                // Для IE і Edge
+                if (window.navigator.msSaveOrOpenBlob) {
+                    window.navigator.msSaveBlob(blob, link.download);
+                } else {
+                    link.click();
+                }
+
+                // Очищаємо URL
+                setTimeout(function() {
+                    window.URL.revokeObjectURL(link.href);
+                }, 100);
+            },
+            error: function(xhr) {
+                if (xhr.status === 403) {
+                    showAlert('error', '{% trans "Permission denied" %}');
+                } else {
+                    showAlert('error', '{% trans "Error exporting requirements" %}');
+                }
+            }
+        });
+    });
+
+    // Функціонал імпорту
+    $('#importPCIDSSBtn').on('click', function(e) {
+        if (!canEdit) {
+            e.preventDefault();
+            showAlert('error', '{% trans "You do not have permission to import requirements" %}');
+            return;
+        }
+        $('#importFile').click();
+    });
+
+    $('#importFile').on('change', function(e) {
+        var file = e.target.files[0];
+        if (file) {
+            Papa.parse(file, {
+                complete: function(results) {
+                    $.ajax({
+                        url: '{% url "import_pcidss_requirements" %}',
+                        type: 'POST',
+                        data: JSON.stringify(results.data),
+                        contentType: 'application/json',
+                        headers: {'X-CSRFToken': getCookie('csrftoken')},
+                        success: function(response) {
+                            if (response.success) {
+                                showAlert('success', '{% trans "Requirements imported successfully" %}');
+                                location.reload();
+                            } else {
+                                showAlert('error', response.error || '{% trans "Error importing requirements" %}');
+                            }
+                        },
+                        error: function() {
+                            showAlert('error', '{% trans "Error communicating with server" %}');
+                        }
+                    });
+                },
+                header: true,
+                skipEmptyLines: true
+            });
+        }
+    });
+
+    $(document).ajaxError(function(event, xhr) {
+        if (xhr.status === 403) {
+            showAlert('error', '{% trans "Permission denied" %}');
+        }
+    });
+
+    function showAlert(type, message) {
+        console.log("Showing alert:", type, message);
+        alert(message);
+    }
+
+    function handleAiSearchResponse(response) {
+        $('#aiSearchLoading').hide();
+        if (response.success) {
+            displaySearchResults(response);
+        } else {
+            $('#aiSearchError').text(response.error).show();
+        }
+    }
+
+    function handleAiSearchError(xhr) {
+        $('#aiSearchLoading').hide();
+        $('#aiSearchError').text('{% trans "Error processing request" %}').show();
+    }
+
+    function displaySearchResults(response) {
+        // Store the search query for highlighting
+        const searchQuery = $('#searchQueryDisplay').text();
+        
+        let tableHtml = `
+            <h6>{% trans "Found Requirements" %}:</h6>
+            <div class="d-flex justify-content-end mb-2">
+                <button id="printResultsButton" class="btn btn-sm btn-outline-dark me-2">
+                    <i class="bi bi-printer"></i> {% trans "Print Results" %}
+                </button>
+                <button id="exportResultsButton" class="btn btn-sm btn-outline-success me-2">
+                    <i class="bi bi-file-earmark-excel"></i> {% trans "Export to CSV" %}
+                </button>
+                <button id="copyTableButton" class="btn btn-sm btn-outline-primary me-2">
+                    <i class="bi bi-clipboard"></i> {% trans "Copy to Clipboard" %}
+                </button>
+                <button id="collapseAllButton" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrows-collapse"></i> {% trans "Collapse All" %}
+                </button>
+            </div>`;
+
+        response.requirements.forEach(function(req, index) {
+            // Highlight search terms in title and description
+            const highlightedTitle = highlightSearchTerms(req.title[currentLanguage] || '', searchQuery);
+            const highlightedDescription = highlightSearchTerms(req.description[currentLanguage] || '', searchQuery);
+            
+            tableHtml += `
+                <div class="mb-4">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <tr style="background-color: #e9e9e9;">
+                                <th colspan="3" style="padding: 8px;"><span class="fw-bold">${req.requirement_number}</span> ${highlightedTitle}</th>
+                            </tr>
+                            <tr>
+                                <th width="37.5%" class="bg-light text-center">{% trans "Defined Approach Requirements" %}</th>
+                                <th width="37.5%" class="bg-light text-center">{% trans "Defined Approach Testing Procedures" %}</th>
+                                <th width="25%" class="bg-light text-center">{% trans "Guidance" %}</th>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; vertical-align: top;">${highlightedDescription}</td>
+                                <td style="padding: 10px; vertical-align: top;">
+                                    ${highlightSearchTerms(req.testing_procedures[currentLanguage] || '{% trans "Not specified" %}', searchQuery)}
+                                </td>
+                                <td style="padding: 10px; vertical-align: top;">
+                                    <div class="mb-3">
+                                        <strong>{% trans "Purpose" %}</strong>
+                                        <div>${highlightSearchTerms(req.purpose ? req.purpose[currentLanguage] : '{% trans "Not specified" %}', searchQuery)}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>{% trans "Definitions" %}</strong>
+                                        <div>${highlightSearchTerms(req.definitions ? req.definitions[currentLanguage] : '{% trans "Not specified" %}', searchQuery)}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>{% trans "Further Information" %}</strong>
+                                        <div>${highlightSearchTerms(req.further_information ? req.further_information[currentLanguage] : '{% trans "Not specified" %}', searchQuery)}</div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">
+                                    <div class="p-2 bg-light fw-bold">{% trans "Customized Approach Objective" %}</div>
+                                    <div class="p-2">${highlightSearchTerms(req.customized_approach_objective ? req.customized_approach_objective[currentLanguage] : (req.customized_approach ? req.customized_approach[currentLanguage] : '{% trans "Not specified" %}'), searchQuery)}</div>
+                                </td>
+                                <td rowspan="2">
+                                    <div class="p-2 bg-light fw-bold">{% trans "Good Practice" %}</div>
+                                    <div class="p-2">${highlightSearchTerms(req.good_practice ? req.good_practice[currentLanguage] : '{% trans "Not specified" %}', searchQuery)}</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">
+                                    <div class="p-2 bg-light fw-bold">{% trans "Applicability Notes" %}</div>
+                                    <div class="p-2">${highlightSearchTerms(req.applicability_notes ? req.applicability_notes[currentLanguage] : '{% trans "Not specified" %}', searchQuery)}</div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>`;
+        });
+        
+        $('#foundRequirements').html(tableHtml);
+        $('#aiExplanation').html(`
+            <div class="mt-4">
+                <h6>{% trans "AI Explanation" %}:</h6>
+                <div class="p-3 bg-light rounded border">
+                    ${highlightSearchTerms(response.explanation, searchQuery)}
+                </div>
+            </div>
+        `);
+        
+        // Add click event for Export to CSV button
+        $('#exportResultsButton').on('click', function() {
+            exportSearchResultsToCSV(response.requirements, searchQuery);
+        });
+        
+        // Add click event for Print Results button
+        $('#printResultsButton').on('click', function() {
+            printSearchResults(response.requirements, searchQuery, response.explanation);
+        });
+        
+        // Add click event for Copy to Clipboard button
+        $('#copyTableButton').on('click', function() {
+            copyRequirementsToClipboard(response.requirements, searchQuery);
+        });
+        
+        // Показуємо результати
+        $('#aiSearchResults').show();
+        
+        // Показуємо модальне вікно з результатами
+        if (aiQueryModal) {
+            aiQueryModal.show();
+        }
+    }
+
+    // Функціонал очищення поля запиту
+    const searchInput = $('#aiSearchQuery');
+    const clearButton = $('.clear-input');
+    
+    // Показуємо/приховуємо кнопку очищення
+    searchInput.on('input', function() {
+        clearButton.toggle(Boolean(this.value));
+    });
+    
+    // Очищення поля при кліку на кнопку
+    clearButton.on('click', function() {
+        searchInput.val('').focus();
+        $(this).hide();
+    });
+    
+    // Перевіряємо початковий стан поля
+    clearButton.toggle(Boolean(searchInput.val()));
+
+    // Function to print search results
+    function printSearchResults(requirements, searchQuery, explanation) {
+        if (!requirements || requirements.length === 0) {
+            alert('{% trans "No requirements to print" %}');
+            return;
+        }
+        
+        // Create a new window for printing
+        const printWindow = window.open('', '_blank');
+        
+        // Generate HTML content for printing
+        let printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>{% trans "PCI DSS Search Results" %}</title>
+                <meta charset="UTF-8">
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+                    th { background-color: #f2f2f2; text-align: center; }
+                    .header { margin-bottom: 20px; }
+                    .explanation { margin: 20px 0; padding: 10px; background-color: #f9f9f9; border: 1px solid #ddd; }
+                    .section { margin: 15px 0; padding: 10px; border: 1px solid #ddd; }
+                    h1 { font-size: 18px; }
+                    h2 { font-size: 16px; }
+                    h3 { font-size: 14px; margin-top: 15px; }
+                    .bg-light { background-color: #f8f9fa; }
+                    .fw-bold { font-weight: bold; }
+                    .p-2 { padding: 8px; }
+                    .mb-3 { margin-bottom: 15px; }
+                    .req-header { background-color: #e9e9e9; padding: 8px; }
+                    @media print {
+                        .no-print { display: none; }
+                        body { margin: 0; }
+                        .page-break { page-break-after: always; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>{% trans "PCI DSS Search Results" %}</h1>
+                    <p><strong>{% trans "Search Query" %}:</strong> ${searchQuery}</p>
+                    <p><strong>{% trans "Date" %}:</strong> ${new Date().toLocaleDateString()}</p>
+                    <div class="no-print">
+                        <button onclick="window.print()">{% trans "Print" %}</button>
+                        <button onclick="window.close()">{% trans "Close" %}</button>
+                    </div>
+                </div>
+                
+                <h2>{% trans "Found Requirements" %}</h2>
+        `;
+        
+        // Add requirement tables
+        requirements.forEach(function(req, index) {
+            printContent += `
+                <div class="${index > 0 ? 'page-break' : ''}">
+                    <table>
+                        <tr>
+                            <th colspan="3" class="req-header"><span class="fw-bold">${req.requirement_number}</span> ${req.title[currentLanguage] || ''}</th>
+                        </tr>
+                        <tr>
+                            <th width="37.5%">{% trans "Defined Approach Requirements" %}</th>
+                            <th width="37.5%">{% trans "Defined Approach Testing Procedures" %}</th>
+                            <th width="25%">{% trans "Guidance" %}</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px;">${req.description[currentLanguage] || ''}</td>
+                            <td style="padding: 10px;">${req.testing_procedures[currentLanguage] || '{% trans "Not specified" %}'}</td>
+                            <td style="padding: 10px;">
+                                <div class="mb-3">
+                                    <strong>{% trans "Purpose" %}</strong>
+                                    <div>${req.purpose ? req.purpose[currentLanguage] : '{% trans "Not specified" %}'}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>{% trans "Definitions" %}</strong>
+                                    <div>${req.definitions ? req.definitions[currentLanguage] : '{% trans "Not specified" %}'}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>{% trans "Further Information" %}</strong>
+                                    <div>${req.further_information ? req.further_information[currentLanguage] : '{% trans "Not specified" %}'}</div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                <div class="p-2 bg-light fw-bold">{% trans "Customized Approach Objective" %}</div>
+                                <div class="p-2">${req.customized_approach_objective ? req.customized_approach_objective[currentLanguage] : (req.customized_approach ? req.customized_approach[currentLanguage] : '{% trans "Not specified" %}')}</div>
+                            </td>
+                            <td rowspan="2">
+                                <div class="p-2 bg-light fw-bold">{% trans "Good Practice" %}</div>
+                                <div class="p-2">${req.good_practice ? req.good_practice[currentLanguage] : '{% trans "Not specified" %}'}</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                <div class="p-2 bg-light fw-bold">{% trans "Applicability Notes" %}</div>
+                                <div class="p-2">${req.applicability_notes ? req.applicability_notes[currentLanguage] : '{% trans "Not specified" %}'}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            `;
+        });
+        
+        // Add explanation and close HTML
+        printContent += `
+                <div class="page-break">
+                    <h2>{% trans "AI Explanation" %}</h2>
+                    <div class="explanation">
+                        ${explanation}
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        // Write to the new window and prepare for printing
+        printWindow.document.open();
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        
+        // Wait for content to load before triggering print
+        printWindow.onload = function() {
+            // Automatically open print dialog
+            printWindow.setTimeout(function() {
+                printWindow.focus();
+                printWindow.print();
+            }, 500);
+        };
+    }
+
+    // Function to export search results to CSV
+    function exportSearchResultsToCSV(requirements, searchQuery) {
+        if (!requirements || requirements.length === 0) {
+            alert('{% trans "No requirements to export" %}');
+            return;
+        }
+        
+        // Create CSV header
+        let csvContent = 'data:text/csv;charset=utf-8,';
+        csvContent += '"{% trans "Search Query" %}","' + searchQuery + '"\r\n';
+        csvContent += '"{% trans "Export Date" %}","' + new Date().toLocaleDateString() + '"\r\n\r\n';
+        
+        csvContent += '"{% trans "Requirement Number" %}","{% trans "Category" %}","{% trans "Title" %}","{% trans "Defined Approach Requirements" %}","{% trans "Defined Approach Testing Procedures" %}","{% trans "Customized Approach Objective" %}","{% trans "Applicability Notes" %}","{% trans "Good Practice" %}","{% trans "Definitions" %}","{% trans "Purpose" %}"\r\n';
+        
+        // Add data rows
+        requirements.forEach(function(req) {
+            // Escape double quotes in text fields
+            const escapeCSV = (text) => {
+                if (!text) return '';
+                return `"${(text[currentLanguage] || '').replace(/"/g, '""')}"`;
+            };
+            
+            const row = [
+                `"${req.requirement_number}"`,
+                escapeCSV(req.category),
+                escapeCSV(req.title),
+                escapeCSV(req.description),
+                escapeCSV(req.testing_procedures),
+                escapeCSV(req.customized_approach_objective || req.customized_approach),
+                escapeCSV(req.applicability_notes),
+                escapeCSV(req.good_practice),
+                escapeCSV(req.definitions),
+                escapeCSV(req.purpose)
+            ];
+            
+            csvContent += row.join(',') + '\r\n';
+        });
+        
+        // Add AI explanation
+        csvContent += '\r\n"{% trans "AI Explanation" %}"\r\n';
+        csvContent += '"' + $('#aiExplanation').text().replace(/"/g, '""') + '"\r\n';
+        
+        // Create download link
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `pcidss_search_results_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        
+        // Trigger download
+        link.click();
+        
+        // Clean up
+        document.body.removeChild(link);
+    }
+
+    // Function to highlight search terms in text
+    function highlightSearchTerms(text, searchQuery) {
+        if (!text || !searchQuery) return text;
+        
+        // Split search query into words
+        const searchTerms = searchQuery.split(/\s+/).filter(term => term.length > 2);
+        
+        if (searchTerms.length === 0) return text;
+        
+        // Create a regex pattern for all search terms
+        const pattern = new RegExp('(' + searchTerms.map(term => escapeRegExp(term)).join('|') + ')', 'gi');
+        
+        // Replace matches with highlighted version
+        return text.replace(pattern, '<span class="bg-warning">$1</span>');
+    }
+    
+    // Helper function to escape special characters in regex
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Function to copy requirements table to clipboard
+    function copyRequirementsToClipboard(requirements, searchQuery) {
+        if (!requirements || requirements.length === 0) {
+            alert('{% trans "No requirements to copy" %}');
+            return;
+        }
+        
+        // Create a text representation of the requirements
+        let clipboardText = `=======================================================\n`;
+        clipboardText += `PCI DSS SEARCH RESULTS\n`;
+        clipboardText += `Search Query: ${searchQuery}\n`;
+        clipboardText += `Date: ${new Date().toLocaleDateString()}\n`;
+        clipboardText += `=======================================================\n\n`;
+        
+        requirements.forEach(function(req, index) {
+            clipboardText += `=======================================================\n`;
+            clipboardText += `PCI DSS REQUIREMENT ${req.requirement_number}: ${req.title[currentLanguage] || ''}\n`;
+            clipboardText += `=======================================================\n\n`;
+            
+            clipboardText += `## DEFINED APPROACH REQUIREMENTS ##\n`;
+            clipboardText += `${req.description[currentLanguage] || ''}\n\n`;
+            
+            clipboardText += `## DEFINED APPROACH TESTING PROCEDURES ##\n`;
+            clipboardText += `${req.testing_procedures[currentLanguage] || '{% trans "Not specified" %}'}\n\n`;
+            
+            if (req.further_information && req.further_information[currentLanguage]) {
+                clipboardText += `## FURTHER INFORMATION ##\n`;
+                clipboardText += `${req.further_information[currentLanguage]}\n\n`;
+            }
+            
+            if (req.purpose && req.purpose[currentLanguage]) {
+                clipboardText += `## PURPOSE ##\n`;
+                clipboardText += `${req.purpose[currentLanguage]}\n\n`;
+            }
+            
+            if (req.definitions && req.definitions[currentLanguage]) {
+                clipboardText += `## DEFINITIONS ##\n`;
+                clipboardText += `${req.definitions[currentLanguage]}\n\n`;
+            }
+            
+            const customizedText = req.customized_approach_objective ? 
+                req.customized_approach_objective[currentLanguage] : 
+                (req.customized_approach ? req.customized_approach[currentLanguage] : null);
+                
+            if (customizedText) {
+                clipboardText += `## CUSTOMIZED APPROACH OBJECTIVE ##\n`;
+                clipboardText += `${customizedText}\n\n`;
+            }
+            
+            if (req.applicability_notes && req.applicability_notes[currentLanguage]) {
+                clipboardText += `## APPLICABILITY NOTES ##\n`;
+                clipboardText += `${req.applicability_notes[currentLanguage]}\n\n`;
+            }
+            
+            if (req.good_practice && req.good_practice[currentLanguage]) {
+                clipboardText += `## GOOD PRACTICE ##\n`;
+                clipboardText += `${req.good_practice[currentLanguage]}\n\n`;
+            }
+        });
+        
+        clipboardText += `=======================================================\n`;
+        clipboardText += `AI EXPLANATION:\n`;
+        clipboardText += `${$('#aiExplanation').text().trim()}\n`;
+        clipboardText += `=======================================================\n`;
+        
+        // Create and show the copy modal
+        createCopyModal(clipboardText);
+    }
+
+    // Function to create and show a modal for copying text
+    function createCopyModal(text) {
+        // Remove any existing copy modal
+        $('#copyTextModal').remove();
+        
+        // Create the modal HTML
+        const modalHTML = `
+            <div class="modal fade" id="copyTextModal" tabindex="-1" aria-labelledby="copyTextModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="copyTextModalLabel">{% trans "Copy Text" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                {% trans "The text has been pre-selected. Press Ctrl+C (or Cmd+C on Mac) to copy it." %}
+                            </div>
+                            <textarea class="form-control" id="copyTextArea" rows="15" style="white-space: pre-wrap;">${text}</textarea>
+                            <div id="copyStatus" class="mt-2"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                            <button type="button" class="btn btn-primary" id="selectAllBtn">
+                                <i class="bi bi-cursor-text"></i> {% trans "Select All Text" %}
+                            </button>
+                            <button type="button" class="btn btn-success" id="copyBtn">
+                                <i class="bi bi-clipboard"></i> {% trans "Copy to Clipboard" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add the modal to the document
+        $('body').append(modalHTML);
+        
+        // Initialize the Bootstrap modal
+        const copyModal = new bootstrap.Modal(document.getElementById('copyTextModal'));
+        
+        // Show the modal
+        copyModal.show();
+        
+        // Select all text when the modal is shown
+        $('#copyTextModal').on('shown.bs.modal', function() {
+            const textarea = document.getElementById('copyTextArea');
+            textarea.focus();
+            textarea.select();
+        });
+        
+        // Handle the Select All button
+        $('#selectAllBtn').on('click', function() {
+            const textarea = document.getElementById('copyTextArea');
+            textarea.focus();
+            textarea.select();
+        });
+        
+        // Handle the Copy button
+        $('#copyBtn').on('click', function() {
+            const textarea = document.getElementById('copyTextArea');
+            textarea.focus();
+            textarea.select();
+            
+            // Try to copy using the Clipboard API first
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textarea.value)
+                    .then(() => {
+                        $('#copyStatus').html('<div class="alert alert-success">{% trans "Text copied to clipboard successfully!" %}</div>');
+                    })
+                    .catch(err => {
+                        console.error('Clipboard API error:', err);
+                        // Fall back to execCommand
+                        copyUsingExecCommand();
+                    });
+            } else {
+                // Fall back to execCommand
+                copyUsingExecCommand();
+            }
+            
+            // Function to copy using execCommand
+            function copyUsingExecCommand() {
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        $('#copyStatus').html('<div class="alert alert-success">{% trans "Text copied to clipboard successfully!" %}</div>');
+                    } else {
+                        $('#copyStatus').html('<div class="alert alert-warning">{% trans "Copy failed. Please select the text manually and press Ctrl+C/Cmd+C." %}</div>');
+                    }
+                } catch (err) {
+                    console.error('execCommand error:', err);
+                    $('#copyStatus').html('<div class="alert alert-warning">{% trans "Copy failed. Please select the text manually and press Ctrl+C/Cmd+C." %}</div>');
+                }
+            }
+        });
+    }
+
+    // Function to copy the expanded table to clipboard
+    function copyExpandedTableToClipboard(requirementId) {
+        // Find the requirement data
+        const requirementNumber = $(`tr[data-id="${requirementId}"]`).find('td:eq(1)').text();
+        const requirementTitle = $(`tr[data-id="${requirementId}"]`).find('td:eq(3)').text();
+        
+        // Get the content from the expanded details
+        const expandedContent = $(`#expanded-${requirementId}`);
+        
+        // Extract the actual requirement text and testing procedures, without the labels
+        const requirementText = expandedContent.find('td:contains("Defined Approach Requirements") div.p-2:not(.fw-bold)').text().trim();
+        const testingText = expandedContent.find('td:contains("Defined Approach Testing Procedures") div.p-2:not(.fw-bold)').text().trim();
+        
+        // Extract additional sections if they exist
+        const customizedApproachText = expandedContent.find('td:contains("Customized Approach Objective") div.p-2:not(.fw-bold)').text().trim();
+        const applicabilityNotesText = expandedContent.find('td:contains("Applicability Notes") div.p-2:not(.fw-bold)').text().trim();
+        const goodPracticeText = expandedContent.find('td:contains("Good Practice") div.p-2:not(.fw-bold)').text().trim();
+        const purposeText = expandedContent.find('div.mb-3:contains("Purpose") div').text().trim();
+        const definitionsText = expandedContent.find('div.mb-3:contains("Definitions") div').text().trim();
+        const furtherInformationText = expandedContent.find('div.mb-3:contains("Further Information") div').text().trim();
+        
+        // Create a text representation of the table with improved formatting
+        let clipboardText = `=======================================================\n`;
+        clipboardText += `PCI DSS REQUIREMENT ${requirementNumber}: ${requirementTitle}\n`;
+        clipboardText += `=======================================================\n\n`;
+        
+        // Add main sections with consistent formatting
+        clipboardText += `## DEFINED APPROACH REQUIREMENTS ##\n`;
+        clipboardText += `${requirementText}\n\n`;
+        
+        clipboardText += `## DEFINED APPROACH TESTING PROCEDURES ##\n`;
+        clipboardText += `${testingText}\n\n`;
+        
+        // Add purpose if it exists
+        if (purposeText) {
+            clipboardText += `## PURPOSE ##\n`;
+            clipboardText += `${purposeText}\n\n`;
+        }
+        
+        // Add further information if it exists
+        if (furtherInformationText) {
+            clipboardText += `## FURTHER INFORMATION ##\n`;
+            clipboardText += `${furtherInformationText}\n\n`;
+        }
+        
+        // Add definitions if it exists
+        if (definitionsText) {
+            clipboardText += `## DEFINITIONS ##\n`;
+            clipboardText += `${definitionsText}\n\n`;
+        }
+        
+        if (customizedApproachText) {
+            clipboardText += `## CUSTOMIZED APPROACH OBJECTIVE ##\n`;
+            clipboardText += `${customizedApproachText}\n\n`;
+        }
+        
+        if (applicabilityNotesText) {
+            clipboardText += `## APPLICABILITY NOTES ##\n`;
+            clipboardText += `${applicabilityNotesText}\n\n`;
+        }
+        
+        if (goodPracticeText) {
+            clipboardText += `## GOOD PRACTICE ##\n`;
+            clipboardText += `${goodPracticeText}\n\n`;
+        }
+        
+        clipboardText += `=======================================================\n`;
+        
+        // Create and show the copy modal
+        createCopyModal(clipboardText);
+    }
+    
+    // Function to copy the full requirements table to clipboard
+    function copyFullTableToClipboard() {
+        // Get all visible rows from the DataTable
+        const table = $('#requirementsTable').DataTable();
+        const visibleRows = table.rows({search: 'applied'}).data();
+        
+        if (visibleRows.length === 0) {
+            showAlert('warning', '{% trans "No requirements to copy" %}');
+            return;
+        }
+        
+        // Create a text representation of the table
+        let clipboardText = `=======================================================\n`;
+        clipboardText += `PCI DSS REQUIREMENTS TABLE\n`;
+        clipboardText += `Date: ${new Date().toLocaleDateString()}\n`;
+        clipboardText += `=======================================================\n\n`;
+        
+        // Add header row with improved formatting
+        clipboardText += `REQUIREMENT\tCATEGORY\tTITLE\tDESCRIPTION\tTESTING PROCEDURES\tFURTHER INFORMATION\n`;
+        clipboardText += `=======================================================\n`;
+        
+        // Add data rows
+        for (let i = 0; i < visibleRows.length; i++) {
+            const row = visibleRows[i];
+            // Skip checkbox and actions columns (0 and 6)
+            const requirementNumber = row[1];
+            const category = row[2];
+            const title = row[3];
+            const description = row[4].replace(/<[^>]*>/g, ''); // Remove HTML tags
+            const testingProcedures = row[5].replace(/<[^>]*>/g, ''); // Remove HTML tags
+            
+            // For Further Information, we'll add a placeholder since we can't easily get this data
+            // from the table view without making additional requests
+            const furtherInformation = "See requirement details for further information";
+            
+            clipboardText += `${requirementNumber}\t${category}\t${title}\t${description}\t${testingProcedures}\t${furtherInformation}\n`;
+        }
+        
+        clipboardText += `=======================================================\n`;
+        
+        // Create and show the copy modal
+        createCopyModal(clipboardText);
+    }
+    
+    // Add event listener for the copy full table button
+    $('#copyFullTableBtn').on('click', function() {
+        copyFullTableToClipboard();
+    });
+});
+</script>
+{% endblock %}

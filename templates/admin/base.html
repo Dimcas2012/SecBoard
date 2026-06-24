@@ -1,0 +1,89 @@
+{% extends "admin/base.html" %}
+
+{% block extrahead %}
+    {{ block.super }}
+    
+    <!-- Fix for JavaScript permissions policy violation -->
+    <script>
+        // Override the problematic unload behavior
+        (function() {
+            // Disable the unload event listener that causes the violation
+            const originalAddEventListener = window.addEventListener;
+            window.addEventListener = function(type, listener, options) {
+                if (type === 'unload' || type === 'beforeunload') {
+                    // Skip adding unload event listeners that cause violations
+                    return;
+                }
+                return originalAddEventListener.call(this, type, listener, options);
+            };
+            
+            // Also handle the case where it's already attached
+            window.onbeforeunload = null;
+            window.onunload = null;
+        })();
+        
+        // Fix for RelatedObjectLookups.js
+        document.addEventListener('DOMContentLoaded', function() {
+            // Override the dismissRelatedLookupPopup function if it exists
+            if (typeof dismissRelatedLookupPopup !== 'undefined') {
+                const originalDismissRelatedLookupPopup = dismissRelatedLookupPopup;
+                dismissRelatedLookupPopup = function(win, chosenId) {
+                    try {
+                        return originalDismissRelatedLookupPopup(win, chosenId);
+                    } catch (e) {
+                        // Handle the error gracefully
+                        console.warn('RelatedObjectLookups error handled:', e);
+                        if (win && win.close) {
+                            win.close();
+                        }
+                    }
+                };
+            }
+            
+            // Handle popup links to avoid violations
+            const popupLinks = document.querySelectorAll('a[onclick*="showRelatedObjectLookupPopup"]');
+            popupLinks.forEach(function(link) {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const href = this.href;
+                    if (href) {
+                        // Open in same window instead of popup
+                        window.location.href = href.replace(/[?&]_popup=1/, '');
+                    }
+                });
+            });
+        });
+    </script>
+    
+    <!-- Permissions policy is handled by middleware -->
+    
+    <style>
+        /* Improve admin interface for AccessOptions */
+        .field-display_companies {
+            max-width: 300px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        .admin-filter-horizontal {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        
+        /* Style for better readability */
+        .form-row .checkbox-row {
+            display: inline-block;
+            margin-right: 15px;
+            margin-bottom: 5px;
+        }
+        
+        .form-row .checkbox-row label {
+            margin-left: 5px;
+            font-weight: normal;
+        }
+    </style>
+{% endblock %}
+
+{% block extrabody %}
+{{ block.super }}
+{% endblock %}

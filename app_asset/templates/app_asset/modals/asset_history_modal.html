@@ -1,0 +1,449 @@
+{% load i18n %}
+<!-- Asset History Modal -->
+<div class="modal fade" id="assetHistoryModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="assetHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-md">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" id="assetHistoryModalLabel" style="font-size: 0.9rem; font-weight: 600;">
+                    <i class="fas fa-history me-1"></i>{% trans "Asset History" %}
+                </h6>
+                <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding: 0.75rem;">
+                <div id="historyLoading" class="text-center py-2">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                    <p class="mt-1 mb-0" style="font-size: 0.75rem;">{% trans "Loading history..." %}</p>
+                </div>
+                <div id="historyContent" style="display: none;">
+                    <div class="mb-1 pb-1 border-bottom">
+                        <div id="historyAssetName" class="text-primary mb-0" style="font-size: 0.8rem; font-weight: 600;"></div>
+                        <small class="text-muted" id="historyAssetId" style="font-size: 0.65rem;"></small>
+                    </div>
+                    <div id="historyTimeline" class="timeline" style="max-height: 400px; overflow-y: auto; overflow-x: hidden;">
+                        <!-- History items will be inserted here -->
+                    </div>
+                </div>
+                <div id="historyError" class="alert alert-danger py-1 mb-0" style="display: none; font-size: 0.75rem;">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <span id="historyErrorMessage"></span>
+                </div>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    #historyTimeline::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    #historyTimeline::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+
+    #historyTimeline::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 3px;
+    }
+
+    #historyTimeline::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+
+    .timeline {
+        position: relative;
+        padding: 6px 0;
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-left: 22px;
+        padding-bottom: 8px;
+        border-left: 2px solid #e0e0e0;
+    }
+
+    .timeline-item:last-child {
+        border-left: none;
+        padding-bottom: 0;
+    }
+
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -4px;
+        top: 2px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: #667eea;
+        border: 1.5px solid #fff;
+        box-shadow: 0 0 0 1px #667eea;
+    }
+
+    .timeline-item.created::before {
+        background-color: #10b981;
+        box-shadow: 0 0 0 1.5px #10b981;
+    }
+
+    .timeline-item.modified::before {
+        background-color: #3b82f6;
+        box-shadow: 0 0 0 1.5px #3b82f6;
+    }
+
+    .timeline-item.deleted::before {
+        background-color: #ef4444;
+        box-shadow: 0 0 0 1.5px #ef4444;
+    }
+
+    .timeline-item.owners_changed::before,
+    .timeline-item.administrators_changed::before {
+        background-color: #f59e0b;
+        box-shadow: 0 0 0 1.5px #f59e0b;
+    }
+
+    .timeline-item.confidentiality_changed::before,
+    .timeline-item.integrity_changed::before,
+    .timeline-item.availability_changed::before {
+        background-color: #8b5cf6;
+        box-shadow: 0 0 0 1.5px #8b5cf6;
+    }
+
+    .timeline-content {
+        background: #f8f9fa;
+        border-radius: 3px;
+        padding: 5px 8px;
+        margin-bottom: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .timeline-content:hover {
+        background: #e9ecef;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+
+    .timeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2px;
+        flex-wrap: wrap;
+        gap: 3px;
+    }
+
+    .timeline-action {
+        font-weight: 500;
+        color: #374151;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+    }
+
+    .timeline-timestamp {
+        color: #6b7280;
+        font-size: 0.65rem;
+        white-space: nowrap;
+    }
+
+    .timeline-details {
+        color: #4b5563;
+        margin-top: 3px;
+        font-size: 0.7rem;
+        line-height: 1.25;
+    }
+
+    .timeline-user {
+        color: #667eea;
+        font-weight: 400;
+        margin-top: 3px;
+        font-size: 0.65rem;
+    }
+
+    .timeline-changes {
+        margin-top: 4px;
+        padding: 4px 6px;
+        background: #fff;
+        border-radius: 3px;
+        border-left: 2px solid #667eea;
+        font-size: 0.7rem;
+    }
+
+    .timeline-changes strong {
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .change-item {
+        padding: 2px 0;
+        border-bottom: 1px solid #e5e7eb;
+        line-height: 1.3;
+    }
+
+    .change-item:last-child {
+        border-bottom: none;
+    }
+
+    .change-label {
+        font-weight: 500;
+        color: #374151;
+        font-size: 0.7rem;
+    }
+
+    .change-value {
+        color: #6b7280;
+        font-size: 0.7rem;
+    }
+
+    .change-old {
+        color: #ef4444;
+        text-decoration: line-through;
+        font-size: 0.65rem;
+    }
+
+    .change-new {
+        color: #10b981;
+        font-weight: 500;
+        font-size: 0.65rem;
+    }
+
+    .badge-action {
+        padding: 0.15rem 0.3rem;
+        font-size: 0.6rem;
+        font-weight: 500;
+        border-radius: 3px;
+        line-height: 1.1;
+    }
+
+    .badge-created {
+        background-color: #d1fae5;
+        color: #065f46;
+    }
+
+    .badge-modified {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+
+    .badge-deleted {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .badge-owners-changed,
+    .badge-administrators-changed {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .badge-cia-changed {
+        background-color: #e9d5ff;
+        color: #6b21a8;
+    }
+
+    .timeline-action i {
+        font-size: 0.65rem;
+    }
+
+    .timeline-timestamp i {
+        font-size: 0.6rem;
+    }
+
+    .timeline-user i {
+        font-size: 0.6rem;
+    }
+</style>
+
+<script>
+$(document).ready(function() {
+    // Handler for history button click
+    $(document).on('click', '.history-asset', function() {
+        const assetId = $(this).data('id');
+        loadAssetHistory(assetId);
+        $('#assetHistoryModal').modal('show');
+    });
+
+    function loadAssetHistory(assetId) {
+        // Show loading, hide content and error
+        $('#historyLoading').show();
+        $('#historyContent').hide();
+        $('#historyError').hide();
+
+        $.get(`{% url 'get_asset_history' 0 %}`.replace('0', assetId))
+            .done(function(response) {
+                if (response.status === 'success') {
+                    displayHistory(response);
+                } else {
+                    showHistoryError(response.message || '{% trans "Error loading history" %}');
+                }
+            })
+            .fail(function(xhr) {
+                let errorMsg = '{% trans "Error loading history" %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMsg = xhr.responseJSON.message;
+                }
+                showHistoryError(errorMsg);
+            });
+    }
+
+    function displayHistory(data) {
+        $('#historyAssetName').text(data.asset_name);
+        $('#historyAssetId').text(`{% trans "Asset ID" %}: ${data.asset_asset_id}`);
+        
+        const timeline = $('#historyTimeline');
+        timeline.empty();
+
+        if (!data.history || data.history.length === 0) {
+            timeline.html(`
+                <div class="text-center text-muted py-2">
+                    <i class="fas fa-inbox fa-lg mb-1" style="opacity: 0.5;"></i>
+                    <p class="mb-0" style="font-size: 0.7rem;">{% trans "No history records found" %}</p>
+                </div>
+            `);
+        } else {
+            data.history.forEach(function(record) {
+                const item = createHistoryItem(record);
+                timeline.append(item);
+            });
+        }
+
+        $('#historyLoading').hide();
+        $('#historyContent').show();
+    }
+
+    function createHistoryItem(record) {
+        const actionClass = record.action.replace(/_/g, '-');
+        const badgeClass = getBadgeClass(record.action);
+        const icon = getActionIcon(record.action);
+
+        let changesHtml = '';
+        if (record.changes) {
+            changesHtml = formatChanges(record.changes, record.action);
+        }
+
+        return $(`
+            <div class="timeline-item ${actionClass}">
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        <div class="timeline-action">
+                            <i class="${icon}"></i>
+                            <span class="badge badge-action ${badgeClass}">${record.action_display}</span>
+                        </div>
+                        <div class="timeline-timestamp">
+                            <i class="fas fa-clock"></i> ${record.timestamp}
+                        </div>
+                    </div>
+                    ${record.details ? `<div class="timeline-details">${escapeHtml(record.details)}</div>` : ''}
+                    ${changesHtml}
+                    ${record.action_by ? `<div class="timeline-user"><i class="fas fa-user"></i> ${escapeHtml(record.action_by)}</div>` : ''}
+                </div>
+            </div>
+        `);
+    }
+
+    function formatChanges(changes, action) {
+        if (!changes) return '';
+
+        let html = '<div class="timeline-changes"><strong>{% trans "Changes" %}:</strong><div class="mt-1">';
+
+        if (action.includes('cia') || action.includes('confidentiality') || action.includes('integrity') || action.includes('availability')) {
+            // CIA changes
+            if (changes.old_name || changes.new_name) {
+                html += `
+                    <div class="change-item">
+                        <span class="change-label">${getFieldLabel(changes.field)}:</span>
+                        ${changes.old_name ? `<span class="change-old ms-1">${escapeHtml(changes.old_name)}</span>` : ''}
+                        ${changes.old_color ? `<span class="ms-1" title="${escapeHtml(changes.old_color)}" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeHtml(changes.old_color)};border:1px solid #ccc;"></span>` : ''}
+                        ${changes.old_name && changes.new_name ? '<i class="fas fa-arrow-right mx-1 text-muted" style="font-size: 0.6rem;"></i>' : ''}
+                        ${changes.new_name ? `<span class="change-new ms-1">${escapeHtml(changes.new_name)}</span>` : ''}
+                        ${changes.new_color ? `<span class="ms-1" title="${escapeHtml(changes.new_color)}" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeHtml(changes.new_color)};border:1px solid #ccc;"></span>` : ''}
+                    </div>
+                `;
+            }
+        } else if (action.includes('owners') || action.includes('administrators')) {
+            // Owners/Administrators changes
+            if (changes.items && changes.items.length > 0) {
+                const actionType = changes.type === 'add' ? '{% trans "Added" %}' : 
+                                 changes.type === 'remove' ? '{% trans "Removed" %}' : 
+                                 '{% trans "Cleared" %}';
+                html += `<div class="change-item"><span class="change-label">${actionType}:</span> `;
+                changes.items.forEach(function(item) {
+                    html += `<span class="badge bg-secondary ms-1" style="font-size: 0.6rem; padding: 0.1rem 0.25rem;">${escapeHtml(item.name)}</span>`;
+                });
+                html += '</div>';
+            }
+        } else if (changes.changed_fields) {
+            // General field changes
+            html += `<div class="change-item"><span class="change-label">{% trans "Fields" %}:</span> `;
+            changes.changed_fields.forEach(function(field) {
+                html += `<span class="badge bg-info ms-1" style="font-size: 0.6rem; padding: 0.1rem 0.25rem;">${escapeHtml(field)}</span>`;
+            });
+            html += '</div>';
+        }
+
+        html += '</div></div>';
+        return html;
+    }
+
+    function getFieldLabel(field) {
+        const labels = {
+            'confidentiality': '{% trans "Confidentiality" %}',
+            'integrity': '{% trans "Integrity" %}',
+            'availability': '{% trans "Availability" %}',
+            'group': '{% trans "Group" %}',
+            'asset_type': '{% trans "Asset Type" %}'
+        };
+        return labels[field] || field;
+    }
+
+    function getBadgeClass(action) {
+        if (action === 'created') return 'badge-created';
+        if (action === 'modified') return 'badge-modified';
+        if (action === 'deleted') return 'badge-deleted';
+        if (action.includes('owners') || action.includes('administrators')) return 'badge-owners-changed';
+        if (action.includes('cia') || action.includes('confidentiality') || action.includes('integrity') || action.includes('availability')) return 'badge-cia-changed';
+        return 'badge-modified';
+    }
+
+    function getActionIcon(action) {
+        if (action === 'created') return 'fas fa-plus-circle';
+        if (action === 'modified') return 'fas fa-edit';
+        if (action === 'deleted') return 'fas fa-trash';
+        if (action.includes('owners')) return 'fas fa-user';
+        if (action.includes('administrators')) return 'fas fa-user-shield';
+        if (action.includes('cia') || action.includes('confidentiality') || action.includes('integrity') || action.includes('availability')) return 'fas fa-shield-alt';
+        return 'fas fa-info-circle';
+    }
+
+    function showHistoryError(message) {
+        $('#historyErrorMessage').text(message);
+        $('#historyLoading').hide();
+        $('#historyContent').hide();
+        $('#historyError').show();
+    }
+
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    // Cleanup on modal close
+    $('#assetHistoryModal').on('hidden.bs.modal', function() {
+        $('#historyTimeline').empty();
+        $('#historyLoading').show();
+        $('#historyContent').hide();
+        $('#historyError').hide();
+    });
+});
+</script>

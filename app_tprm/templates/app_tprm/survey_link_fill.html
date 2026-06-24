@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block styles %}
+<style>
+.external-survey-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+.question-card {
+    transition: all 0.3s ease;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- External Survey Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="external-survey-header text-center">
+                <h1><i class="fas fa-clipboard-check"></i> {{ title }}</h1>
+                <p class="mb-0">{% trans "Please complete this questionnaire. Your responses will be saved automatically." %}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Progress Bar -->
+    {% if questionnaire.status != 'completed' %}
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h6>{% trans "Progress" %}</h6>
+                    {% with answered=responses|length total=responses|length %}
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {% widthratio responses.count responses.count 100 %}%">
+                            {{ responses.count }}/{{ responses.count }}
+                        </div>
+                    </div>
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" id="surveyForm" action="">
+        {% csrf_token %}
+        
+        <div class="row">
+            <div class="col-12">
+                {% for response in responses %}
+                <div class="card mb-3 question-card" 
+                     data-question-id="{{ response.question.pk }}"
+                     {% if response.question.parent_question %}
+                     data-parent-question="{{ response.question.parent_question.pk }}"
+                     data-show-if="{{ response.question.show_if_answer }}"
+                     style="display: none;"
+                     {% endif %}>
+                    <div class="card-body">
+                        <h6 class="mb-3">
+                            <span class="badge bg-primary">{{ forloop.counter }}</span>
+                            {{ response.question.question_text }}
+                            {% if response.question.is_required %}<span class="text-danger">*</span>{% endif %}
+                            {% if response.question.parent_question %}
+                            <span class="badge bg-info ms-2" title="{% trans 'Conditional question' %}">
+                                <i class="fas fa-code-branch"></i>
+                            </span>
+                            {% endif %}
+                        </h6>
+                        
+                        {% if response.question.help_text %}
+                        <p class="text-muted small"><i class="fas fa-info-circle"></i> {{ response.question.help_text }}</p>
+                        {% endif %}
+
+                        {% if response.question.question_type == 'yes_no' %}
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" 
+                                   name="question_{{ response.question.pk }}" 
+                                   id="q{{ response.question.pk }}_yes" 
+                                   value="yes"
+                                   {% if response.response_bool %}checked{% endif %}
+                                   {% if response.question.is_required %}required{% endif %}>
+                            <label class="form-check-label" for="q{{ response.question.pk }}_yes">
+                                {% trans "Yes" %}
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" 
+                                   name="question_{{ response.question.pk }}" 
+                                   id="q{{ response.question.pk }}_no" 
+                                   value="no"
+                                   {% if response.response_bool == False %}checked{% endif %}
+                                   {% if response.question.is_required %}required{% endif %}>
+                            <label class="form-check-label" for="q{{ response.question.pk }}_no">
+                                {% trans "No" %}
+                            </label>
+                        </div>
+
+                        {% elif response.question.question_type == 'scale' %}
+                        <div class="d-flex gap-3 align-items-center">
+                            <span class="text-muted">1</span>
+                            {% for i in "12345" %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" 
+                                       name="question_{{ response.question.pk }}" 
+                                       id="q{{ response.question.pk }}_{{ forloop.counter }}" 
+                                       value="{{ forloop.counter }}"
+                                       {% if response.response_scale == forloop.counter %}checked{% endif %}
+                                       {% if response.question.is_required %}required{% endif %}>
+                                <label class="form-check-label" for="q{{ response.question.pk }}_{{ forloop.counter }}">
+                                    {{ forloop.counter }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                            <span class="text-muted">5</span>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            1 = {% trans "Poor" %}, 5 = {% trans "Excellent" %}
+                        </small>
+
+                        {% elif response.question.question_type == 'text' %}
+                        <textarea class="form-control" 
+                                  name="question_{{ response.question.pk }}" 
+                                  rows="3"
+                                  {% if response.question.is_required %}required{% endif %}>{{ response.response_text }}</textarea>
+
+                        {% elif response.question.question_type == 'multiple_choice' %}
+                        <select class="form-control" 
+                                name="question_{{ response.question.pk }}"
+                                {% if response.question.is_required %}required{% endif %}>
+                            <option value="">{% trans "Select an option..." %}</option>
+                            {% for choice in response.question.choices %}
+                            <option value="{{ choice }}" {% if response.response_choice == choice %}selected{% endif %}>
+                                {{ choice }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if questionnaire.status != 'completed' %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body d-flex gap-2">
+                        <button type="submit" name="action" value="save" class="btn btn-info">
+                            <i class="fas fa-save"></i> {% trans "Save Progress" %}
+                        </button>
+                        <button type="submit" name="action" value="complete" class="btn btn-success">
+                            <i class="fas fa-check-circle"></i> {% trans "Complete Questionnaire" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </form>
+</div>
+
+<script>
+// Conditional Question Logic (same as questionnaire_fill.html)
+document.addEventListener('DOMContentLoaded', function() {
+    const questionCards = document.querySelectorAll('.question-card');
+    
+    function updateConditionalQuestions() {
+        questionCards.forEach(card => {
+            const parentId = card.dataset.parentQuestion;
+            const showIf = card.dataset.showIf;
+            
+            if (!parentId) {
+                card.style.display = 'block';
+                return;
+            }
+            
+            const parentCard = document.querySelector(`[data-question-id="${parentId}"]`);
+            if (!parentCard) {
+                card.style.display = 'none';
+                return;
+            }
+            
+            let showQuestion = false;
+            const condition = showIf.toLowerCase();
+            
+            const yesRadio = parentCard.querySelector('input[type="radio"][value="yes"]:checked');
+            const noRadio = parentCard.querySelector('input[type="radio"][value="no"]:checked');
+            
+            if (yesRadio || noRadio) {
+                if (condition === 'yes' && yesRadio) {
+                    showQuestion = true;
+                } else if (condition === 'no' && noRadio) {
+                    showQuestion = true;
+                }
+            }
+            
+            const scaleInputs = parentCard.querySelectorAll('input[type="radio"]:checked');
+            if (scaleInputs.length > 0 && !isNaN(parseInt(scaleInputs[0].value))) {
+                const value = parseInt(scaleInputs[0].value);
+                
+                if (condition.includes('-')) {
+                    const [min, max] = condition.split('-').map(Number);
+                    showQuestion = value >= min && value <= max;
+                } else if (!isNaN(parseInt(condition))) {
+                    showQuestion = value === parseInt(condition);
+                }
+            }
+            
+            const select = parentCard.querySelector('select');
+            if (select && select.value) {
+                showQuestion = select.value === condition;
+            }
+            
+            if (showQuestion) {
+                card.style.display = 'block';
+                card.classList.add('fade-in');
+            } else {
+                card.style.display = 'none';
+                card.classList.remove('fade-in');
+                clearQuestionAnswers(card);
+            }
+        });
+    }
+    
+    function clearQuestionAnswers(card) {
+        card.querySelectorAll('input[type="radio"]').forEach(radio => {
+            radio.checked = false;
+        });
+        card.querySelectorAll('textarea').forEach(textarea => {
+            textarea.value = '';
+        });
+        card.querySelectorAll('select').forEach(select => {
+            select.selectedIndex = 0;
+        });
+    }
+    
+    document.querySelectorAll('input[type="radio"], select').forEach(input => {
+        input.addEventListener('change', updateConditionalQuestions);
+    });
+    
+    updateConditionalQuestions();
+    
+    // Form submission handler for debugging
+    const form = document.getElementById('surveyForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('Form submitted');
+            console.log('Form action:', form.action);
+            console.log('Form method:', form.method);
+            
+            // Check if any button was clicked
+            const clickedButton = document.activeElement;
+            if (clickedButton && clickedButton.type === 'submit') {
+                console.log('Button clicked:', clickedButton.name, clickedButton.value);
+            }
+            
+            // Show loading state
+            const submitButtons = form.querySelectorAll('button[type="submit"]');
+            submitButtons.forEach(btn => {
+                btn.disabled = true;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> {% trans "Processing..." %}';
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

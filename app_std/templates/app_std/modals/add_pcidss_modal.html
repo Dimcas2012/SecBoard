@@ -1,0 +1,235 @@
+{% load i18n %}
+{% load std_custom_filters %}
+
+<div class="modal fade" id="addPCIDSSModal" tabindex="-1" aria-labelledby="addPCIDSSModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addPCIDSSModalLabel">{% trans "Add PCI DSS Requirement" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addPCIDSSForm">
+          {% csrf_token %}
+
+          <!-- Requirement Number -->
+          <div class="mb-3">
+            <label for="requirement_number" class="form-label">{% trans "Requirement Number" %}</label>
+            <input type="text" class="form-control" id="requirement_number" name="requirement_number" required>
+          </div>
+
+          <!-- Category fields -->
+          <div class="mb-3">
+            <label class="form-label">{% trans "Category" %}</label>
+
+            <!-- Ukrainian -->
+            <div class="form-group">
+              <label for="category-modal-uk">{% trans "Ukrainian" %}</label>
+              <input type="text" class="form-control" id="category-modal-uk" name="category_uk">
+            </div>
+
+            <!-- Russian -->
+            <div class="form-group">
+              <label for="category-modal-ru">{% trans "Russian" %}</label>
+              <input type="text" class="form-control" id="category-modal-ru" name="category_ru">
+            </div>
+
+            <!-- English -->
+            <div class="form-group">
+              <label for="category-modal-en">{% trans "English" %}</label>
+              <input type="text" class="form-control" id="category-modal-en" name="category_en" required>
+            </div>
+          </div>
+
+          {% for field in 'title,description,testing_procedures,further_information,applicability_notes,customized_approach_objective,definitions,examples,good_practice,purpose'|split:',' %}
+          <div class="mb-3">
+            <label for="{{ field }}-modal" class="form-label">{% trans field|title %}</label>
+
+            <!-- Ukrainian -->
+            <div class="form-group">
+              <label for="{{ field }}-modal-uk">{% trans "Ukrainian" %}</label>
+              {% if field == 'title' %}
+                <input type="text" class="form-control" id="{{ field }}-modal-uk" name="{{ field }}_uk">
+              {% else %}
+                <textarea class="form-control" id="{{ field }}-modal-uk" name="{{ field }}_uk" rows="3"></textarea>
+              {% endif %}
+            </div>
+
+            <!-- Russian -->
+            <div class="form-group">
+              <label for="{{ field }}-modal-ru">{% trans "Russian" %}</label>
+              {% if field == 'title' %}
+                <input type="text" class="form-control" id="{{ field }}-modal-ru" name="{{ field }}_ru">
+              {% else %}
+                <textarea class="form-control" id="{{ field }}-modal-ru" name="{{ field }}_ru" rows="3"></textarea>
+              {% endif %}
+            </div>
+
+            <!-- English -->
+            <div class="form-group">
+              <label for="{{ field }}-modal-en">{% trans "English" %}</label>
+              {% if field == 'title' %}
+                <input type="text" class="form-control" id="{{ field }}-modal-en" name="{{ field }}_en">
+              {% else %}
+                <textarea class="form-control" id="{{ field }}-modal-en" name="{{ field }}_en" rows="3"></textarea>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+        <button type="button" class="btn btn-info" id="translateAddModalFields">{% trans "Translate" %}</button>
+        <button type="button" class="btn btn-primary" id="saveNewRequirement">{% trans "Save" %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const currentLanguage = '{{ LANGUAGE_CODE }}';
+    const FIELDS = [
+        'title', 'description', 'testing_procedures', 'further_information',
+        'applicability_notes', 'customized_approach_objective', 'definitions',
+        'examples', 'good_practice', 'purpose'
+    ];
+    const LANGUAGES = ['uk', 'ru', 'en'];
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    let isProcessing = false;
+
+    // Helper Functions
+    function getFieldValue(field, lang) {
+        const elementId = field === 'category' ? `category-modal-${lang}` : `${field}-modal-${lang}`;
+        return document.getElementById(elementId)?.value || '';
+    }
+
+    function setFieldValue(field, lang, value) {
+        const elementId = field === 'category' ? `category-modal-${lang}` : `${field}-modal-${lang}`;
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.value = value || '';
+        }
+    }
+
+    function showAlert(type, message, timeout = 3000) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+        alertDiv.style.zIndex = '9999';
+
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+
+        document.body.appendChild(alertDiv);
+        setTimeout(() => alertDiv.remove(), timeout);
+    }
+
+    // Save new requirement
+    document.getElementById('saveNewRequirement').addEventListener('click', async function() {
+        if (isProcessing) return;
+
+        const form = document.getElementById('addPCIDSSForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        isProcessing = true;
+        this.disabled = true;
+
+        try {
+            const formData = new FormData(form);
+            const response = await fetch('{% url "add_pcidss_requirement" %}', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showAlert('success', '{% trans "Requirement added successfully" %}');
+                $('#addPCIDSSModal').modal('hide');
+                location.reload();
+            } else {
+                throw new Error(data.error || '{% trans "Error adding requirement" %}');
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            showAlert('danger', error.message || '{% trans "Error saving new requirement" %}');
+        } finally {
+            isProcessing = false;
+            this.disabled = false;
+        }
+    });
+
+    // Translate fields
+    document.getElementById('translateAddModalFields').addEventListener('click', async function() {
+        if (isProcessing) return;
+
+        isProcessing = true;
+        this.disabled = true;
+
+        try {
+            const translationData = {
+                'new': {}
+            };
+
+            ['category', ...FIELDS].forEach(field => {
+                const enValue = getFieldValue(field, 'en');
+                if (enValue && enValue.trim() !== '') {
+                    translationData['new'][`${field}_en`] = enValue;
+                }
+            });
+
+            const response = await fetch('{% url "translate_pcidss_fields" %}', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: JSON.stringify(translationData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (data.success && data.translations['new']) {
+                const translations = data.translations['new'];
+                Object.entries(translations).forEach(([key, value]) => {
+                    const [field, lang] = key.split('_');
+                    if (lang !== 'en') {
+                        setFieldValue(field, lang, value);
+                    }
+                });
+
+                showAlert('success', '{% trans "Fields translated successfully" %}');
+            } else {
+                throw new Error(data.error || '{% trans "No translations returned" %}');
+            }
+        } catch (error) {
+            console.error('Translation error:', error);
+            showAlert('danger', error.message || '{% trans "Translation failed. Please try again." %}');
+        } finally {
+            isProcessing = false;
+            this.disabled = false;
+        }
+    });
+
+    // Reset form on modal close
+    $('#addPCIDSSModal').on('hidden.bs.modal', function() {
+        document.getElementById('addPCIDSSForm').reset();
+    });
+});
+</script>

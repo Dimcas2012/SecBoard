@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% load i18n static custom_filters %}
+
+{% block title %}{% trans "Critical Infrastructure Objects" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_cif/includes/cif_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 cif-page">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0"><i class="bi bi-building-gear me-2"></i>{% trans "Critical Infrastructure Objects" %}</h2>
+    </div>
+
+    {% filters_expanded 'search' 'category' 'sector' 'status' as filters_expanded %}
+    <div class="card mb-2 filter-section access-request-filters cif-filters-card">
+        {% url 'app_cif:cif_object_list' as cif_list_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="cifFiltersCollapse" toggle_id="toggleCifFilters" icon_id="cifFiltersToggleIcon" filter_clear_url=cif_list_url filters_expanded=filters_expanded %}
+        <div class="collapse{% if filters_expanded %} show{% endif %}" id="cifFiltersCollapse">
+        <div class="card-body py-2">
+            <form id="cifFilterForm" method="get" class="row g-1 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                    <input type="text" class="form-control form-control-sm" id="filterSearch" name="search"
+                           value="{{ active_filters.search }}" placeholder="{% trans 'Name or EDRPOU...' %}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterCategory">{% trans "Category" %}</label>
+                    <select class="form-select form-select-sm" id="filterCategory" name="category">
+                        <option value="">{% trans "All" %}</option>
+                        {% for value, label in category_choices %}
+                        <option value="{{ value }}" {% if active_filters.category == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="filterSector">{% trans "Sector" %}</label>
+                    <select class="form-select form-select-sm" id="filterSector" name="sector">
+                        <option value="">{% trans "All Sectors" %}</option>
+                        {% for sector in sectors %}
+                        <option value="{{ sector.id }}" {% if active_filters.sector|stringformat:"s" == sector.id|stringformat:"s" %}selected{% endif %}>{{ sector.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                    <select class="form-select form-select-sm" id="filterStatus" name="status">
+                        <option value="">{% trans "All" %}</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if active_filters.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header py-2 d-flex align-items-center flex-wrap gap-2">
+            <i class="bi bi-list-ul"></i>
+            <h6 class="mb-0">{% trans "CIF Objects" %}</h6>
+            <span class="badge bg-secondary">{{ page_obj.paginator.count }} {% trans "total" %}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="export-controls px-3 pt-2 pb-0">
+                <div class="row align-items-center g-1">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            <a href="{% url 'app_cif:dashboard' %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                               title="{% trans 'Dashboard' %}">
+                                <i class="bi bi-speedometer2"></i>
+                            </a>
+                            {% if cif_permissions.can_add_objects %}
+                            <a href="{% url 'app_cif:cif_object_create' %}" class="btn btn-outline-success btn-sm btn-icon-action"
+                               title="{% trans 'Create CIF Object' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive full-width-table">
+                <table id="cifObjectTable" class="table table-hover table-sm table-sm-font sb-data-table w-100 mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>{% trans "Name" %}</th>
+                        <th>{% trans "EDRPOU" %}</th>
+                        <th>{% trans "Category" %}</th>
+                        <th>{% trans "Sector" %}</th>
+                        <th>{% trans "Passport" %}</th>
+                        <th>{% trans "Plan %" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for obj in objects %}
+                        <tr>
+                            <td>{{ obj.name }}</td>
+                            <td>{{ obj.edrpou }}</td>
+                            <td>{{ obj.category }}</td>
+                            <td>{{ obj.sector.name }}</td>
+                            <td>
+                                {% if obj.is_passport_approved %}
+                                    <span class="badge bg-success">{% trans "Approved" %}</span>
+                                {% elif obj.passport.status == "under_review" %}
+                                    <span class="badge bg-warning text-dark">{% trans "Under review" %}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "Draft" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ obj.protection_plan.implementation_percent|default:"0.00" }}%</td>
+                            <td class="table-actions">
+                                <a href="{% url 'app_cif:cif_object_detail' obj.pk %}" class="btn btn-sm btn-outline-primary btn-icon-action"
+                                   title="{% trans 'View' %}">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-muted">{% trans "No CIF objects yet." %}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light border-top px-3 py-3 mb-0">
+            {% include 'app_cif/includes/cif_table_pagination.html' with pagination_item_label=_("objects") pagination_aria_label=_("CIF objects pagination") %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filterForm = document.getElementById('cifFilterForm');
+    if (filterForm) {
+        function applyCifFilters() {
+            const params = new URLSearchParams(new FormData(filterForm));
+            params.delete('page');
+            window.location.search = params.toString();
+        }
+        filterForm.querySelectorAll('select').forEach(function(el) {
+            el.addEventListener('change', applyCifFilters);
+        });
+        const searchInput = filterForm.querySelector('#filterSearch');
+        if (searchInput) {
+            let timer;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(timer);
+                timer = setTimeout(applyCifFilters, 400);
+            });
+        }
+    }
+});
+</script>
+{% endblock %}

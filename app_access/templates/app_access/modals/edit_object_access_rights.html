@@ -1,0 +1,1946 @@
+<!-- SecBoard\templates\app_access\modals\edit_object_access_rights.html -->
+{% load i18n %}
+
+<div class="modal fade" id="editObjectAccessRightsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-shield-alt me-2"></i>{% trans "Manage Object Access Rights" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Object Info -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <strong>{% trans "Object" %}:</strong> <span id="selectedObjectAccessRightInfo">{% trans "Please wait while loading..." %}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="objectAccessRightsLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                    <p class="mt-2">{% trans "Loading access rights..." %}</p>
+                </div>
+
+                <!-- Error Alert -->
+                <div id="objectAccessRightsError" class="alert alert-danger d-none">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="objectAccessRightsErrorMessage"></span>
+                </div>
+
+                <!-- Success Alert -->
+                <div id="objectAccessRightsSuccess" class="alert alert-success d-none">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span id="objectAccessRightsSuccessMessage"></span>
+                </div>
+
+                <!-- Alert контейнер -->
+                <div id="objectAccessRightsModalAlert" style="display: none;"></div>
+
+                <!-- Access Rights Management Content -->
+                <div id="objectAccessRightsContent" class="d-none">
+                    <div class="row">
+                        <!-- Available Access Rights -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-list me-2"></i>{% trans "Available Access Rights" %}
+                                        <span class="badge bg-secondary ms-2" id="availableAccessRightsCount">0</span>
+                                    </h6>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="toggleAccessRightReorderMode" title="{% trans 'Toggle Reorder Mode' %}">
+                                            <i class="fas fa-sort me-1"></i><span class="btn-text">{% trans "Reorder" %}</span>
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-success btn-sm" 
+                                                id="addNewAccessRightBtn">
+                                            <i class="fas fa-plus me-1"></i> {% trans "Add New" %}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0">
+                                    <!-- Search -->
+                                    <div class="p-3 border-bottom">
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control" id="searchAvailableAccessRights" 
+                                                   placeholder="{% trans 'Search access rights...' %}">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Access Rights List -->
+                                    <div class="access-rights-list" style="max-height: 500px; overflow-y: auto;">
+                                        <div id="availableAccessRightsList" class="list-group list-group-flush">
+                                            <div class="text-center text-muted p-4">
+                                                <i class="bi bi-hourglass-split fs-1 mb-3"></i>
+                                                <p>{% trans "Loading available access rights..." %}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <button type="button" class="btn btn-primary btn-sm" id="addSelectedAccessRights" disabled>
+                                        <i class="fas fa-arrow-right me-2"></i>{% trans "Add Selected" %}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="selectAllAvailableAccessRights">
+                                        <i class="fas fa-check-square me-2"></i>{% trans "Select All" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Assigned Access Rights -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-check-circle me-2"></i>{% trans "Assigned Access Rights" %}
+                                        <span class="badge bg-light text-dark ms-2" id="assignedAccessRightsCount">0</span>
+                                    </h6>
+                                    <button type="button" class="btn btn-outline-light btn-sm" id="toggleAssignedAccessRightReorderMode" title="{% trans 'Toggle Assigned Access Rights Reorder Mode' %}">
+                                        <i class="fas fa-sort me-1"></i><span class="btn-text">{% trans "Reorder" %}</span>
+                                    </button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <!-- Search -->
+                                    <div class="p-3 border-bottom">
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control" id="searchAssignedAccessRights" 
+                                                   placeholder="{% trans 'Search assigned access rights...' %}">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Access Rights List -->
+                                    <div class="access-rights-list" style="max-height: 500px; overflow-y: auto;">
+                                        <div id="selectedAccessRightsList" class="list-group list-group-flush">
+                                            <div class="text-center text-muted p-3" id="noSelectedAccessRights">
+                                                <i class="bi bi-plus-circle fs-1 mb-2"></i>
+                                                <p>{% trans "No access rights selected. Click on access rights above to add them." %}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <button type="button" class="btn btn-danger btn-sm" id="removeSelectedAccessRights" disabled>
+                                        <i class="fas fa-trash me-2"></i>{% trans "Remove Selected" %}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm ms-2" id="selectAllAssignedAccessRights">
+                                        <i class="fas fa-check-square me-2"></i>{% trans "Select All" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Форма для створення нового права доступу -->
+                <div id="newAccessRightForm" class="card mt-3" style="display: none;">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0">{% trans "Create New Access Right" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="createAccessRightForm">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="newAccessRightName" class="form-label">{% trans "Access Right Name" %} *</label>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="newAccessRightName" 
+                                               name="name" 
+                                               required
+                                               placeholder="{% trans 'Enter access right name...' %}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="newAccessRightColor" class="form-label">{% trans "Color" %}</label>
+                                        <input type="color" 
+                                               class="form-control form-control-color" 
+                                               id="newAccessRightColor" 
+                                               name="color" 
+                                               value="#007bff">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="newAccessRightDescription" class="form-label">{% trans "Description" %}</label>
+                                <textarea class="form-control" 
+                                          id="newAccessRightDescription" 
+                                          name="description" 
+                                          rows="3"
+                                          placeholder="{% trans 'Enter access right description...' %}"></textarea>
+                            </div>
+                            <div class="d-flex justify-content-end">
+                                <button type="button" class="btn btn-secondary me-2" id="cancelAccessRightBtn">
+                                    {% trans "Cancel" %}
+                                </button>
+                                <button type="submit" class="btn btn-success" id="saveAccessRightBtn">
+                                    <i class="bi bi-plus-circle"></i> {% trans "Create Access Right" %}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Close" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="refreshObjectAccessRights">
+                    <i class="fas fa-sync-alt me-2"></i>{% trans "Refresh" %}
+                </button>
+                <button type="button" class="btn btn-success" id="saveObjectAccessRightsBtn">
+                    <i class="bi bi-check-lg"></i> {% trans "Save Changes" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Custom Access Right Modal -->
+<div class="modal fade" id="editCustomAccessRightModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>{% trans "Edit Custom Access Right" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Success Alert -->
+                <div id="editCustomAccessRightSuccess" class="alert alert-success d-none">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span id="editCustomAccessRightSuccessMessage"></span>
+                </div>
+                
+                <!-- Error Alert -->
+                <div id="editCustomAccessRightError" class="alert alert-danger d-none">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="editCustomAccessRightErrorMessage"></span>
+                </div>
+
+                <!-- Edit Form -->
+                <form id="editCustomAccessRightForm">
+                    <input type="hidden" id="editCustomAccessRightId" name="access_right_id">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editCustomAccessRightName" class="form-label">{% trans "Access Right Name" %} <span class="text-danger">*</span></label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="editCustomAccessRightName" 
+                                       name="name"
+                                       placeholder="{% trans 'Enter access right name...' %}"
+                                       required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editCustomAccessRightColor" class="form-label">{% trans "Color" %}</label>
+                                <input type="color" 
+                                       class="form-control form-control-color" 
+                                       id="editCustomAccessRightColor" 
+                                       name="color" 
+                                       value="#0d6efd">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCustomAccessRightDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" 
+                                  id="editCustomAccessRightDescription" 
+                                  name="description"
+                                  rows="3"
+                                  placeholder="{% trans 'Enter description...' %}"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="updateCustomAccessRightBtn">
+                    <i class="fas fa-save me-2"></i>{% trans "Update Access Right" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentObjectAccessRightId = null;
+let currentSystemAccessRightId = null;
+let availableObjectAccessRights = [];
+let selectedObjectAccessRights = [];
+let isCreatingAccessRight = false;
+let isUpdatingAccessRight = false;
+let currentEditingAccessRightId = null;
+let isReorderMode = false;
+let isAssignedReorderMode = false;
+
+// Функція для отримання CSRF токену
+function getAccessRightCSRFToken() {
+    const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (csrfInput) {
+        return csrfInput.value;
+    }
+    
+    return null;
+}
+
+// Налаштування CSRF токену для всіх AJAX запитів
+$.ajaxSetup({
+    beforeSend: function(xhr, settings) {
+        if (!this.crossDomain && /^(GET|HEAD|OPTIONS|TRACE)$/.test(settings.type) === false) {
+            xhr.setRequestHeader("X-CSRFToken", getAccessRightCSRFToken());
+        }
+    }
+});
+
+// Функція для відкриття модального вікна Object Access Rights
+function openObjectAccessRightsModal(objectId, objectName, systemId, companyId) {
+    console.log('Opening object access rights modal:', objectId, objectName, systemId, companyId);
+    
+    currentObjectAccessRightId = objectId;
+    currentSystemAccessRightId = systemId;
+    
+    // Скидаємо режими reorder
+    isReorderMode = false;
+    isAssignedReorderMode = false;
+    
+    // Оновлюємо інформацію про об'єкт
+    document.getElementById('selectedObjectAccessRightInfo').textContent = 
+        `{% trans "Editing access rights for object:" %} ${objectName}`;
+    
+    // Очищаємо попередні дані
+    selectedObjectAccessRights = [];
+    availableObjectAccessRights = [];
+    
+    // Показуємо завантаження та ховаємо контент
+    document.getElementById('objectAccessRightsLoading').style.display = 'block';
+    document.getElementById('objectAccessRightsContent').classList.add('d-none');
+    hideErrors();
+    
+    // Показуємо модальне вікно
+    const modal = new bootstrap.Modal(document.getElementById('editObjectAccessRightsModal'));
+    modal.show();
+    
+    // Завантажуємо дані
+    loadObjectAccessRightsData();
+}
+
+// Функція для завантаження даних прав доступу об'єкта
+function loadObjectAccessRightsData() {
+    Promise.all([
+        loadAvailableObjectAccessRights(currentObjectAccessRightId),
+        loadCurrentObjectAccessRights(currentObjectAccessRightId)
+    ]).then(() => {
+        // Ховаємо завантаження та показуємо контент
+        document.getElementById('objectAccessRightsLoading').style.display = 'none';
+        document.getElementById('objectAccessRightsContent').classList.remove('d-none');
+        
+        // Оновлюємо лічильники
+        updateAccessRightsCounts();
+    });
+}
+
+// Функція для завантаження доступних прав доступу об'єкта
+function loadAvailableObjectAccessRights(objectId) {
+    console.log('Loading available access rights for object:', objectId);
+    
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    return $.ajax({
+        url: `/${languagePrefix}/app_access/object-access-rights/${objectId}/available/`,
+        type: 'GET',
+        success: function(response) {
+            console.log('Available object access rights loaded:', response);
+            if (response && response.status === 'success' && response.access_rights) {
+                availableObjectAccessRights = response.access_rights;
+                displayAvailableAccessRights();
+            } else {
+                showError('{% trans "No access rights found for this object" %}');
+                availableObjectAccessRights = [];
+                displayAvailableAccessRights();
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error loading available object access rights:', error);
+            showError('{% trans "Error loading available access rights" %}');
+            availableObjectAccessRights = [];
+            displayAvailableAccessRights();
+        }
+    });
+}
+
+// Функція для завантаження поточних прав доступу об'єкта
+function loadCurrentObjectAccessRights(objectId) {
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    fetch(`/${languagePrefix}/app_access/object-access-rights/${objectId}/`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('Current object access rights loaded:', data);
+            
+            if (data.status === 'success') {
+                // Store the loaded data directly - it already has embedded access right information
+                selectedObjectAccessRights = data.access_rights.map((item, index) => ({
+                    ...item,
+                    order: item.order || index + 1 // Ensure we have order field
+                }));
+                
+                displaySelectedAccessRights();
+                updateAccessRightsCounts();
+            } else {
+                console.error('Error loading current access rights:', data.message);
+                showNotification('error', data.message || '{% trans "Error loading current access rights" %}');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading current access rights:', error);
+            showNotification('error', '{% trans "Error loading current access rights" %}');
+        });
+}
+
+// Функція для відображення доступних прав доступу
+function displayAvailableAccessRights() {
+    const container = document.getElementById('availableAccessRightsList');
+    const currentLang = window.location.pathname.split('/')[1] || 'ua';
+    
+    if (!availableObjectAccessRights || availableObjectAccessRights.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted p-3">
+                <i class="fas fa-exclamation-circle fs-1 mb-2"></i>
+                <p>{% trans "No available access rights for this object" %}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Get IDs of already selected rights
+    const selectedRightIds = selectedObjectAccessRights.map(objRight => {
+        return objRight.access_right_id || objRight.id;
+    });
+    
+    // Filter available rights to show only those not already selected
+    const availableRights = availableObjectAccessRights.filter(right => 
+        !selectedRightIds.includes(right.id)
+    );
+    
+    if (availableRights.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted p-3">
+                <i class="fas fa-check-circle fs-1 mb-2 text-success"></i>
+                <p>{% trans "All available access rights are already selected" %}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    
+    availableRights.forEach((right, index) => {
+        // Determine the name based on language
+        let rightName = right.name || '';
+        
+        // Determine the description based on language
+        let description = right.description || '';
+        
+        // Badge for object-specific access rights
+        const objectSpecificBadge = right.is_object_specific ? 
+            '<span class="badge bg-info ms-2" title="{% trans "Custom access right for this object" %}">{% trans "Custom" %}</span>' : '';
+        
+        // Order indicator for reorder mode
+        const orderIndicator = `
+            <div class="order-indicator me-2" style="display: none;">
+                <span class="badge bg-primary">${index + 1}</span>
+            </div>
+        `;
+        
+        // Checkbox for selection
+        const checkbox = `
+            <input type="checkbox" 
+                   class="form-check-input available-access-right-checkbox me-2" 
+                   value="${right.id}" 
+                   onchange="updateAddSelectedButton()">
+        `;
+        
+        // Drag handle for reorder mode
+        const dragHandle = `
+            <div class="drag-handle me-2" style="display: none;">
+                <i class="fas fa-grip-vertical text-muted"></i>
+            </div>
+        `;
+        
+        // Edit and delete buttons for custom access rights
+        const customButtons = right.is_object_specific ? `
+            <div class="btn-group me-2" role="group">
+                <button type="button" 
+                        class="btn btn-sm btn-outline-primary" 
+                        onclick="editCustomAccessRight(${right.id})"
+                        title="{% trans 'Edit custom access right' %}">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button type="button" 
+                        class="btn btn-sm btn-outline-danger" 
+                        onclick="deleteCustomAccessRight(${right.id}, '${rightName.replace(/'/g, "\\'")}')"
+                        title="{% trans 'Delete custom access right' %}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        ` : '';
+        
+        html += `
+            <div class="access-right-item list-group-item d-flex align-items-center ${right.is_object_specific ? 'border-info' : ''}" 
+                 data-access-right-id="${right.id}">
+                ${orderIndicator}
+                ${dragHandle}
+                ${checkbox}
+                <div class="color-dot me-3" style="background-color: ${right.color}; width: 10px; height: 10px; border-radius: 50%;"></div>
+                <div class="flex-grow-1">
+                    <strong>${rightName}${objectSpecificBadge}</strong>
+                    ${description ? `<br><small class="text-muted">${description}</small>` : ''}
+                </div>
+                ${customButtons}
+                <button type="button" 
+                        class="btn btn-sm btn-outline-success add-btn" 
+                        onclick="addObjectAccessRight(${right.id})"
+                        title="{% trans 'Add access right' %}">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Функція для відображення обраних прав доступу
+function displaySelectedAccessRights() {
+    const container = document.getElementById('selectedAccessRightsList');
+    const currentLang = window.location.pathname.split('/')[1] || 'ua';
+    
+    if (!selectedObjectAccessRights || selectedObjectAccessRights.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted p-3" id="noSelectedAccessRights">
+                <i class="bi bi-plus-circle fs-1 mb-2"></i>
+                <p>{% trans "No access rights selected. Click on access rights above to add them." %}</p>
+            </div>
+        `;
+        updateAccessRightsCounts();
+        return;
+    }
+    
+    let html = '';
+    
+    selectedObjectAccessRights.forEach((objRight, index) => {
+        // Check if objRight has embedded access right data or just reference
+        let right;
+        if (objRight.name) {
+            // Data has embedded access right information
+            right = objRight;
+        } else {
+            // Data has reference, need to find in available rights
+            right = availableObjectAccessRights.find(r => r.id === objRight.access_right_id);
+        }
+        
+        if (right) {
+            // Determine the access right ID
+            const accessRightId = right.access_right_id || right.id;
+            
+            // Определяем название права в зависимости от языка
+            let rightName = right.name || '';
+            
+            // Определяем описание права в зависимости от языка
+            let description = right.description || '';
+            
+            // Позначення для object-specific прав доступу
+            const objectSpecificBadge = right.is_object_specific ? 
+                '<span class="badge bg-info ms-2" title="{% trans "Custom access right for this object" %}">{% trans "Custom" %}</span>' : '';
+            
+            // Order indicator для reorder режиму
+            const orderIndicator = `
+                <div class="order-indicator me-2" style="display: none;">
+                    <span class="badge bg-primary">${index + 1}</span>
+                </div>
+            `;
+            
+            // Checkbox для вибору
+            const checkbox = `
+                <input type="checkbox" 
+                       class="form-check-input assigned-access-right-checkbox me-2" 
+                       value="${accessRightId}" 
+                       onchange="updateRemoveSelectedButton()">
+            `;
+            
+            // Drag handle для reorder режиму
+            const dragHandle = `
+                <div class="drag-handle me-2" style="display: none;">
+                    <i class="fas fa-grip-vertical text-muted"></i>
+                </div>
+            `;
+            
+            // Edit and delete buttons for custom access rights
+            const customButtons = right.is_object_specific ? `
+                <div class="btn-group me-2" role="group">
+                    <button type="button" 
+                            class="btn btn-sm btn-outline-primary" 
+                            onclick="editCustomAccessRight(${accessRightId})"
+                            title="{% trans 'Edit custom access right' %}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="button" 
+                            class="btn btn-sm btn-outline-danger" 
+                            onclick="deleteCustomAccessRight(${accessRightId}, '${rightName.replace(/'/g, "\\'")}')"
+                            title="{% trans 'Delete custom access right' %}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            ` : '';
+            
+            html += `
+                <div class="access-right-item list-group-item d-flex align-items-center ${right.is_object_specific ? 'border-info' : ''}" 
+                     data-access-right-id="${accessRightId}">
+                    ${orderIndicator}
+                    ${dragHandle}
+                    ${checkbox}
+                    <div class="color-dot me-3" style="background-color: ${right.color}; width: 10px; height: 10px; border-radius: 50%;"></div>
+                    <div class="flex-grow-1">
+                        <strong>${rightName}${objectSpecificBadge}</strong>
+                        ${description ? `<br><small class="text-muted">${description}</small>` : ''}
+                    </div>
+                    ${customButtons}
+                    <button type="button" 
+                            class="btn btn-sm btn-outline-danger remove-btn" 
+                            onclick="removeObjectAccessRight(${accessRightId})"
+                            title="{% trans 'Remove access right' %}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        }
+    });
+    
+    container.innerHTML = html;
+    updateAccessRightsCounts();
+}
+
+// Функція для оновлення лічильників
+function updateAccessRightsCounts() {
+    const availableCount = availableObjectAccessRights ? availableObjectAccessRights.length : 0;
+    const selectedCount = selectedObjectAccessRights ? selectedObjectAccessRights.length : 0;
+    
+    document.getElementById('availableAccessRightsCount').textContent = availableCount;
+    document.getElementById('assignedAccessRightsCount').textContent = selectedCount;
+}
+
+// Функція для перемикання права доступу
+function toggleObjectAccessRight(accessRightId) {
+    // Перевіряємо чи не в режимі reorder
+    if (isReorderMode || isAssignedReorderMode) {
+        return;
+    }
+    
+    const existingIndex = selectedObjectAccessRights.findIndex(sr => sr.access_right_id === accessRightId);
+    
+    if (existingIndex >= 0) {
+        // Видаляємо право доступу
+        selectedObjectAccessRights.splice(existingIndex, 1);
+    } else {
+        // Додаємо право доступу
+        selectedObjectAccessRights.push({
+            access_right_id: accessRightId,
+            order: selectedObjectAccessRights.length,
+            is_active: true
+        });
+    }
+    
+    // Оновлюємо відображення
+    displayAvailableAccessRights();
+    displaySelectedAccessRights();
+}
+
+// Функція для видалення права доступу з обраних
+function removeObjectAccessRight(accessRightId) {
+    // Remove from selected array
+    selectedObjectAccessRights = selectedObjectAccessRights.filter(objRight => {
+        const rightId = objRight.access_right_id || objRight.id;
+        return rightId !== accessRightId;
+    });
+    
+    // Update displays
+    displaySelectedAccessRights();
+    displayAvailableAccessRights();
+    updateAccessRightsCounts();
+}
+
+// === REORDER FUNCTIONALITY ===
+
+// Toggle reorder mode for available access rights
+$(document).on('click', '#toggleAccessRightReorderMode', function() {
+    console.log('Toggle reorder mode clicked for available access rights. Current mode:', isReorderMode);
+    isReorderMode = !isReorderMode;
+    toggleReorderMode('#availableAccessRightsList', isReorderMode, $(this));
+});
+
+// Toggle reorder mode for assigned access rights
+$(document).on('click', '#toggleAssignedAccessRightReorderMode', function() {
+    console.log('Toggle reorder mode clicked for assigned access rights. Current mode:', isAssignedReorderMode);
+    isAssignedReorderMode = !isAssignedReorderMode;
+    toggleReorderMode('#selectedAccessRightsList', isAssignedReorderMode, $(this));
+});
+
+// Toggle reorder mode function
+function toggleReorderMode(containerId, isActive, button) {
+    const container = $(containerId);
+    
+    console.log('toggleReorderMode called:', {
+        containerId: containerId,
+        isActive: isActive,
+        containerExists: container.length > 0,
+        buttonExists: button.length > 0
+    });
+    
+    if (isActive) {
+        // Enable reorder mode
+        container.addClass('reorder-mode');
+        
+        // Update button appearance based on container
+        if (containerId === '#availableAccessRightsList') {
+            button.removeClass('btn-outline-primary').addClass('btn-primary');
+        } else {
+            button.removeClass('btn-outline-light').addClass('btn-light text-dark');
+        }
+        
+        button.find('.btn-text').text('{% trans "Save Order" %}');
+        
+        // Show order indicators and hide checkboxes/buttons
+        container.find('.order-indicator').show();
+        container.find('.drag-handle').show();
+        container.find('.form-check-input').hide();
+        container.find('.remove-btn').hide();
+        container.find('.btn-group').hide();
+        
+        // Check if jQuery UI sortable is available
+        if (typeof container.sortable !== 'function') {
+            console.error('jQuery UI sortable is not available!');
+            return;
+        }
+        
+        // Make items sortable
+        container.sortable({
+            items: '.access-right-item',
+            cursor: 'grabbing',
+            opacity: 0.8,
+            placeholder: 'sortable-placeholder',
+            tolerance: 'pointer',
+            start: function(event, ui) {
+                console.log('Sortable start event triggered');
+                ui.item.addClass('dragging');
+                ui.placeholder.height(ui.item.outerHeight());
+            },
+            stop: function(event, ui) {
+                console.log('Sortable stop event triggered');
+                ui.item.removeClass('dragging');
+                // Update order indicators after sorting
+                updateOrderIndicators(containerId);
+            }
+        });
+        
+        console.log('Reorder mode enabled for', containerId);
+    } else {
+        // Disable reorder mode and save order
+        container.removeClass('reorder-mode');
+        
+        // Update button appearance based on container
+        if (containerId === '#availableAccessRightsList') {
+            button.removeClass('btn-primary').addClass('btn-outline-primary');
+        } else {
+            button.removeClass('btn-light text-dark').addClass('btn-outline-light');
+        }
+        
+        button.find('.btn-text').text('{% trans "Reorder" %}');
+        
+        // Hide order indicators and show checkboxes/buttons
+        container.find('.order-indicator').hide();
+        container.find('.drag-handle').hide();
+        container.find('.form-check-input').show();
+        container.find('.remove-btn').show();
+        container.find('.btn-group').show();
+        
+        // Save the new order
+        if (containerId === '#selectedAccessRightsList') {
+            console.log('Saving assigned access rights order...');
+            saveAssignedAccessRightsOrder();
+        }
+        
+        // Destroy sortable
+        if (container.hasClass('ui-sortable')) {
+            console.log('Destroying sortable for', containerId);
+            container.sortable('destroy');
+        }
+        
+        console.log('Reorder mode disabled for', containerId);
+    }
+}
+
+// Update order indicators after sorting
+function updateOrderIndicators(containerId) {
+    $(containerId + ' .access-right-item').each(function(index) {
+        $(this).find('.order-indicator .badge').text(index + 1);
+    });
+}
+
+// Save assigned access rights order
+function saveAssignedAccessRightsOrder() {
+    const accessRightOrders = [];
+    $('#selectedAccessRightsList .access-right-item').each(function(index) {
+        const accessRightId = $(this).data('access-right-id');
+        accessRightOrders.push({
+            access_right_id: accessRightId,
+            order: index + 1
+        });
+    });
+    
+    if (accessRightOrders.length === 0) {
+        console.log('No access rights to reorder');
+        return;
+    }
+    
+    console.log('Saving access right order:', accessRightOrders);
+    
+    // Update local array order
+    selectedObjectAccessRights = accessRightOrders.map(order => {
+        const existing = selectedObjectAccessRights.find(sr => sr.access_right_id === order.access_right_id);
+        return {
+            access_right_id: order.access_right_id,
+            order: order.order - 1, // Convert to 0-based index
+            is_active: existing ? existing.is_active : true
+        };
+    });
+    
+    showSuccess('{% trans "Access right order updated successfully" %}');
+}
+
+// Функція для фільтрації прав доступу
+function filterObjectAccessRights(searchTerm) {
+    const accessRightItems = document.querySelectorAll('.access-right-item');
+    const term = searchTerm.toLowerCase();
+    
+    accessRightItems.forEach(item => {
+        const accessRightId = parseInt(item.dataset.accessRightId);
+        const right = availableObjectAccessRights.find(r => r.id === accessRightId);
+        
+        if (right) {
+            const rightName = (right.name || '').toLowerCase();
+            const description = (right.description || '').toLowerCase();
+            
+            if (rightName.includes(term) || description.includes(term)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        }
+    });
+}
+
+// Функція для оновлення стану кнопки "Add Selected"
+function updateAddSelectedButton() {
+    const checkedBoxes = document.querySelectorAll('#availableAccessRightsList .available-access-right-checkbox:checked');
+    const addButton = document.getElementById('addSelectedAccessRights');
+    if (addButton) {
+        addButton.disabled = checkedBoxes.length === 0;
+    }
+}
+
+// Функція для оновлення стану кнопки "Remove Selected"
+function updateRemoveSelectedButton() {
+    const checkedBoxes = document.querySelectorAll('#selectedAccessRightsList .assigned-access-right-checkbox:checked');
+    const removeButton = document.getElementById('removeSelectedAccessRights');
+    if (removeButton) {
+        removeButton.disabled = checkedBoxes.length === 0;
+    }
+}
+
+// Add selected access rights
+$(document).on('click', '#addSelectedAccessRights', function() {
+    const checkedBoxes = document.querySelectorAll('.available-access-right-checkbox:checked:not(:disabled)');
+    
+    checkedBoxes.forEach(checkbox => {
+        const accessRightId = parseInt(checkbox.value);
+        if (!selectedObjectAccessRights.some(sr => sr.access_right_id === accessRightId)) {
+            selectedObjectAccessRights.push({
+                access_right_id: accessRightId,
+                order: selectedObjectAccessRights.length,
+                is_active: true
+            });
+        }
+    });
+    
+    displayAvailableAccessRights();
+    displaySelectedAccessRights();
+});
+
+// Remove selected access rights
+$(document).on('click', '#removeSelectedAccessRights', function() {
+    const checkedBoxes = document.querySelectorAll('.assigned-access-right-checkbox:checked');
+    
+    checkedBoxes.forEach(checkbox => {
+        const accessRightId = parseInt(checkbox.value);
+        const index = selectedObjectAccessRights.findIndex(sr => sr.access_right_id === accessRightId);
+        if (index >= 0) {
+            selectedObjectAccessRights.splice(index, 1);
+        }
+    });
+    
+    displayAvailableAccessRights();
+    displaySelectedAccessRights();
+});
+
+// Select all available access rights
+$(document).on('click', '#selectAllAvailableAccessRights', function() {
+    const checkboxes = document.querySelectorAll('.available-access-right-checkbox:not(:disabled)');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !allChecked;
+    });
+    
+    updateAddSelectedButton();
+});
+
+// Select all assigned access rights
+$(document).on('click', '#selectAllAssignedAccessRights', function() {
+    const checkboxes = document.querySelectorAll('.assigned-access-right-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !allChecked;
+    });
+    
+    updateRemoveSelectedButton();
+});
+
+// Search functionality
+$(document).on('input', '#searchAvailableAccessRights', function() {
+    const searchTerm = this.value.toLowerCase();
+    $('#availableAccessRightsList .access-right-item').each(function() {
+        const text = $(this).text().toLowerCase();
+        $(this).toggle(text.includes(searchTerm));
+    });
+});
+
+$(document).on('input', '#searchAssignedAccessRights', function() {
+    const searchTerm = this.value.toLowerCase();
+    $('#selectedAccessRightsList .access-right-item').each(function() {
+        const text = $(this).text().toLowerCase();
+        $(this).toggle(text.includes(searchTerm));
+    });
+});
+
+// Refresh functionality
+$(document).on('click', '#refreshObjectAccessRights', function() {
+    loadObjectAccessRightsData();
+});
+
+// Show error message
+function showError(message) {
+    $('#objectAccessRightsErrorMessage').text(message);
+    $('#objectAccessRightsError').removeClass('d-none');
+    $('#objectAccessRightsSuccess').addClass('d-none');
+    
+    setTimeout(() => {
+        $('#objectAccessRightsError').addClass('d-none');
+    }, 5000);
+}
+
+// Show success message
+function showSuccess(message) {
+    $('#objectAccessRightsSuccessMessage').text(message);
+    $('#objectAccessRightsSuccess').removeClass('d-none');
+    $('#objectAccessRightsError').addClass('d-none');
+    
+    setTimeout(() => {
+        $('#objectAccessRightsSuccess').addClass('d-none');
+    }, 3000);
+}
+
+// Hide all messages
+function hideErrors() {
+    $('#objectAccessRightsError').addClass('d-none');
+    $('#objectAccessRightsSuccess').addClass('d-none');
+}
+
+// Функція для збереження змін
+document.addEventListener('DOMContentLoaded', function() {
+    $(document).on('click', '#saveObjectAccessRightsBtn', function() {
+        const button = this;
+        const originalText = button.innerHTML;
+        
+        // Показуємо індикатор завантаження
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Saving..." %}';
+        button.disabled = true;
+        
+        console.log('Sending object access rights data:', selectedObjectAccessRights);
+        
+        const languagePrefix = window.location.pathname.split('/')[1];
+        
+        const requestData = {
+            object_id: currentObjectAccessRightId,
+            access_rights: selectedObjectAccessRights
+        };
+        
+        $.ajax({
+            url: `/${languagePrefix}/app_access/object-access-rights/add/`,
+            type: 'POST',
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': getAccessRightCSRFToken()
+            },
+            data: JSON.stringify(requestData),
+            success: function(response) {
+                console.log('Server response:', response);
+                
+                button.innerHTML = originalText;
+                button.disabled = false;
+                
+                if (response.status === 'success') {
+                    showSuccess(response.message);
+                    
+                    // Оновлюємо індикатор прав доступу для об'єкта
+                    if (typeof loadObjectAccessRightsCount === 'function') {
+                        loadObjectAccessRightsCount(currentObjectAccessRightId);
+                    }
+                    
+                    // Оновлюємо блок прав доступу якщо об'єкт обраний
+                    if (window.selectedObjectData && window.selectedObjectData.id === currentObjectAccessRightId) {
+                        if (typeof loadObjectAccessRightsForDisplay === 'function') {
+                            loadObjectAccessRightsForDisplay(currentObjectAccessRightId);
+                        }
+                    }
+                } else {
+                    throw new Error(response.message || '{% trans "Error saving changes" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error saving object access rights:', error);
+                console.error('XHR response:', xhr.responseText);
+                
+                button.innerHTML = originalText;
+                button.disabled = false;
+                
+                let errorMessage = '{% trans "Error saving changes" %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                } else if (xhr.status === 403) {
+                    errorMessage = '{% trans "Access denied. Please refresh the page and try again." %}';
+                }
+                
+                showError(errorMessage);
+            }
+        });
+    });
+});
+
+// Обробники для форми створення нового права доступу
+$(document).on('click', '#addNewAccessRightBtn', function() {
+    // Скидаємо ID редагування якщо були в режимі редагування
+    currentEditingAccessRightId = null;
+    
+    // Відновлюємо заголовок та кнопку для створення
+    document.querySelector('#newAccessRightForm h6').textContent = '{% trans "Create New Access Right" %}';
+    document.getElementById('saveAccessRightBtn').innerHTML = '<i class="bi bi-plus-circle"></i> {% trans "Create Access Right" %}';
+    
+    document.getElementById('newAccessRightForm').style.display = 'block';
+    document.getElementById('newAccessRightName').focus();
+});
+
+$(document).on('click', '#cancelAccessRightBtn', function() {
+    resetAccessRightForm();
+});
+
+$(document).on('submit', '#createAccessRightForm', function(e) {
+    e.preventDefault();
+    
+    // Перевіряємо чи це редагування чи створення
+    if (currentEditingAccessRightId) {
+        // Це редагування
+        updateCustomAccessRight(currentEditingAccessRightId);
+    } else {
+        // Це створення нового
+        createNewAccessRight();
+    }
+});
+
+// Функція для створення нового права доступу
+function createNewAccessRight() {
+    // Захист від подвійного кліку
+    if (isCreatingAccessRight) {
+        console.log('Already creating access right, ignoring request');
+        return;
+    }
+    
+    const formData = new FormData(document.getElementById('createAccessRightForm'));
+    const data = {
+        object_id: currentObjectAccessRightId,
+        name: (formData.get('name') || '').trim(),
+        description: formData.get('description') || '',
+        color: formData.get('color')
+    };
+
+    if (!data.name) {
+        showError('{% trans "Please enter access right name" %}');
+        return;
+    }
+
+    const button = document.getElementById('saveAccessRightBtn');
+    const originalText = button.innerHTML;
+    
+    // Встановлюємо прапорець і блокуємо кнопку
+    isCreatingAccessRight = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Creating..." %}';
+    button.disabled = true;
+
+    $.ajax({
+        url: '{% url "save_custom_object_access_right" %}',
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getAccessRightCSRFToken(),
+            'Content-Type': 'application/json'
+        },
+        data: JSON.stringify(data),
+        success: function(response) {
+            // Скидаємо прапорець і розблоковуємо кнопку
+            isCreatingAccessRight = false;
+            button.innerHTML = originalText;
+            button.disabled = false;
+            
+            if (response.status === 'success') {
+                showSuccess(response.message);
+                
+                // Сховати форму та очистити її
+                resetAccessRightForm();
+                
+                // Перезавантажити доступні права доступу
+                loadAvailableObjectAccessRights(currentObjectAccessRightId);
+                
+                // Додати нове право доступу до списку доступних
+                if (response.access_right) {
+                    availableObjectAccessRights.push(response.access_right);
+                    displayAvailableAccessRights();
+                }
+            } else {
+                showError(response.message || '{% trans "Error creating access right" %}');
+            }
+        },
+        error: function(xhr, status, error) {
+            // Скидаємо прапорець і розблоковуємо кнопку
+            isCreatingAccessRight = false;
+            button.innerHTML = originalText;
+            button.disabled = false;
+            
+            let errorMessage = '{% trans "Error creating access right" %}';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            } else if (xhr.status === 403) {
+                errorMessage = '{% trans "Access denied. Please refresh the page and try again." %}';
+            }
+            
+            showError(errorMessage);
+        }
+    });
+}
+
+// Функція для редагування кастомного права доступу
+function editCustomAccessRight(accessRightId) {
+    const right = availableObjectAccessRights.find(r => r.id === accessRightId);
+    if (!right || !right.is_object_specific) {
+        showError('{% trans "This access right cannot be edited" %}');
+        return;
+    }
+    
+    // Встановлюємо ID права що редагується
+    currentEditingAccessRightId = accessRightId;
+    
+    document.getElementById('newAccessRightName').value = right.name || '';
+    document.getElementById('newAccessRightDescription').value = right.description || '';
+    document.getElementById('newAccessRightColor').value = right.color || '#007bff';
+    
+    // Змінюємо заголовок та кнопку форми
+    document.querySelector('#newAccessRightForm h6').textContent = '{% trans "Edit Custom Access Right" %}';
+    document.getElementById('saveAccessRightBtn').innerHTML = '<i class="bi bi-check-lg"></i> {% trans "Update Access Right" %}';
+    
+    // Показуємо форму
+    document.getElementById('newAccessRightForm').style.display = 'block';
+    document.getElementById('newAccessRightName').focus();
+}
+
+// Функція для оновлення кастомного права доступу
+function updateCustomAccessRight(accessRightId) {
+    // Захист від подвійного кліку
+    if (isUpdatingAccessRight) {
+        console.log('Already updating access right, ignoring request');
+        return;
+    }
+    
+    const formData = new FormData(document.getElementById('createAccessRightForm'));
+    const data = {
+        access_right_id: accessRightId,
+        object_id: currentObjectAccessRightId,
+        name: (formData.get('name') || '').trim(),
+        description: formData.get('description') || '',
+        color: formData.get('color')
+    };
+
+    if (!data.name) {
+        showError('{% trans "Please enter access right name" %}');
+        return;
+    }
+
+    const button = document.getElementById('saveAccessRightBtn');
+    const originalText = button.innerHTML;
+    
+    // Встановлюємо прапорець і блокуємо кнопку
+    isUpdatingAccessRight = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Updating..." %}';
+    button.disabled = true;
+
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    $.ajax({
+        url: `/${languagePrefix}/app_access/object-access-rights/edit-custom/`,
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getAccessRightCSRFToken(),
+            'Content-Type': 'application/json'
+        },
+        data: JSON.stringify(data),
+        success: function(response) {
+            // Скидаємо прапорець і розблоковуємо кнопку
+            isUpdatingAccessRight = false;
+            button.innerHTML = originalText;
+            button.disabled = false;
+            
+            if (response.status === 'success') {
+                showSuccess(response.message);
+                
+                // Оновлюємо дані в локальному масиві замість повторного завантаження
+                if (response.access_right) {
+                    const index = availableObjectAccessRights.findIndex(r => r.id === accessRightId);
+                    if (index >= 0) {
+                        availableObjectAccessRights[index] = response.access_right;
+                        displayAvailableAccessRights();
+                    }
+                }
+                
+                // Сховати форму та очистити її
+                resetAccessRightForm();
+            } else {
+                showError(response.message || '{% trans "Error updating access right" %}');
+            }
+        },
+        error: function(xhr, status, error) {
+            // Скидаємо прапорець і розблоковуємо кнопку
+            isUpdatingAccessRight = false;
+            button.innerHTML = originalText;
+            button.disabled = false;
+            
+            let errorMessage = '{% trans "Error updating access right" %}';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+            
+            showError(errorMessage);
+        }
+    });
+}
+
+// Функція для видалення кастомного права доступу
+function deleteCustomAccessRight(accessRightId) {
+    const right = availableObjectAccessRights.find(r => r.id === accessRightId);
+    if (!right || !right.is_object_specific) {
+        showError('{% trans "This access right cannot be deleted" %}');
+        return;
+    }
+    
+    const rightName = right.name || '{% trans "Unknown" %}';
+    
+    if (!confirm(`{% trans "Are you sure you want to delete the custom access right" %} "${rightName}"?\n\n{% trans "This action cannot be undone and will remove this access right from all objects that use it." %}`)) {
+        return;
+    }
+    
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    $.ajax({
+        url: `/${languagePrefix}/app_access/object-access-rights/delete-custom/`,
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getAccessRightCSRFToken(),
+            'Content-Type': 'application/json'
+        },
+        data: JSON.stringify({
+            access_right_id: accessRightId,
+            object_id: currentObjectAccessRightId
+        }),
+        success: function(response) {
+            if (response.status === 'success') {
+                showSuccess(response.message);
+                
+                // Видалити з локального масиву
+                const index = availableObjectAccessRights.findIndex(r => r.id === accessRightId);
+                if (index >= 0) {
+                    availableObjectAccessRights.splice(index, 1);
+                }
+                
+                // Видалити з вибраних прав якщо присутнє
+                const selectedIndex = selectedObjectAccessRights.findIndex(sr => sr.access_right_id === accessRightId);
+                if (selectedIndex >= 0) {
+                    selectedObjectAccessRights.splice(selectedIndex, 1);
+                }
+                
+                // Оновити відображення
+                displayAvailableAccessRights();
+                displaySelectedAccessRights();
+            } else {
+                showError(response.message || '{% trans "Error deleting access right" %}');
+            }
+        },
+        error: function(xhr, status, error) {
+            let errorMessage = '{% trans "Error deleting access right" %}';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+            
+            showError(errorMessage);
+        }
+    });
+}
+
+// Функція для скидання форми до початкового стану
+function resetAccessRightForm() {
+    // Скидаємо прапорці захисту від подвійного кліку
+    isCreatingAccessRight = false;
+    isUpdatingAccessRight = false;
+    
+    // Скидаємо ID редагування
+    currentEditingAccessRightId = null;
+    
+    document.getElementById('newAccessRightForm').style.display = 'none';
+    document.getElementById('createAccessRightForm').reset();
+    
+    // Відновлюємо початкове значення кольору
+    document.getElementById('newAccessRightColor').value = '#007bff';
+    
+    // Відновлюємо заголовок та кнопку форми
+    document.querySelector('#newAccessRightForm h6').textContent = '{% trans "Create New Access Right" %}';
+    document.getElementById('saveAccessRightBtn').innerHTML = '<i class="bi bi-plus-circle"></i> {% trans "Create Access Right" %}';
+    
+    // Розблоковуємо кнопку якщо вона була заблокована
+    document.getElementById('saveAccessRightBtn').disabled = false;
+}
+
+// Modal cleanup on hide
+$('#editObjectAccessRightsModal').on('hidden.bs.modal', function() {
+    currentObjectAccessRightId = null;
+    currentSystemAccessRightId = null;
+    isReorderMode = false;
+    isAssignedReorderMode = false;
+    hideErrors();
+    
+    // Reset search fields
+    $('#searchAvailableAccessRights, #searchAssignedAccessRights').val('');
+    
+    // Clear lists
+    $('#availableAccessRightsList, #selectedAccessRightsList').empty();
+    $('#availableAccessRightsCount, #assignedAccessRightsCount').text('0');
+    
+    // Reset buttons
+    $('#addSelectedAccessRights, #removeSelectedAccessRights').prop('disabled', true);
+    
+    // Hide form
+    resetAccessRightForm();
+    
+    // Fix scrolling issues
+    setTimeout(() => {
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        document.documentElement.style.overflow = '';
+        
+        // Remove all backdrop elements
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+    }, 50);
+});
+
+// Функція для додавання права доступу до обраних
+function addObjectAccessRight(accessRightId) {
+    const right = availableObjectAccessRights.find(r => r.id === accessRightId);
+    if (right) {
+        // Check if already selected
+        const alreadySelected = selectedObjectAccessRights.some(objRight => {
+            const rightId = objRight.access_right_id || objRight.id;
+            return rightId === accessRightId;
+        });
+        
+        if (!alreadySelected) {
+            // Add to selected array with proper structure
+            selectedObjectAccessRights.push({
+                access_right_id: accessRightId,
+                name: right.name,
+                description: right.description,
+                color: right.color,
+                is_object_specific: right.is_object_specific,
+                order: selectedObjectAccessRights.length + 1,
+                is_active: true
+            });
+            
+            // Update displays
+            displaySelectedAccessRights();
+            displayAvailableAccessRights();
+            updateAccessRightsCounts();
+        }
+    }
+}
+
+// ================ CUSTOM ACCESS RIGHT MANAGEMENT FUNCTIONS ================
+
+// Global variables for custom access right management
+window.editCustomAccessRight = function(accessRightId) {
+    console.log('Editing custom access right:', accessRightId);
+    
+    if (!confirm('{% trans "Are you sure you want to edit this custom access right?" %}')) {
+        return;
+    }
+    
+    loadCustomAccessRightForEdit(accessRightId);
+};
+
+window.deleteCustomAccessRight = function(accessRightId, accessRightName) {
+    console.log('Deleting custom access right:', accessRightId, accessRightName);
+    
+    if (!confirm(`{% trans "Are you sure you want to delete custom access right" %} "${accessRightName}"?\n\n{% trans "This action cannot be undone." %}`)) {
+        return;
+    }
+    
+    deleteCustomAccessRightConfirmed(accessRightId);
+};
+
+// Load custom access right data for editing
+function loadCustomAccessRightForEdit(accessRightId) {
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    console.log('Loading custom access right data for editing:', accessRightId);
+    
+    fetch(`/${languagePrefix}/app_access/object-access-rights/${currentObjectAccessRightId}/custom/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const accessRight = data.access_rights.find(ar => ar.id === accessRightId);
+                if (accessRight) {
+                    populateEditAccessRightForm(accessRight);
+                    $('#editCustomAccessRightModal').modal('show');
+                } else {
+                    showAccessRightNotification('error', '{% trans "Custom access right not found" %}');
+                }
+            } else {
+                showAccessRightNotification('error', data.message || '{% trans "Failed to load custom access right data" %}');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading custom access right data:', error);
+            showAccessRightNotification('error', '{% trans "Failed to load custom access right data" %}');
+        });
+}
+
+// Populate edit access right form
+function populateEditAccessRightForm(accessRight) {
+    $('#editCustomAccessRightId').val(accessRight.id);
+    $('#editCustomAccessRightName').val(accessRight.name || '');
+    $('#editCustomAccessRightDescription').val(accessRight.description || '');
+    $('#editCustomAccessRightColor').val(accessRight.color || '#0d6efd');
+    
+    console.log('Populated edit form with access right data:', accessRight);
+}
+
+// Update custom access right
+$('#updateCustomAccessRightBtn').on('click', function() {
+    updateCustomAccessRight();
+});
+
+// Update custom access right function
+function updateCustomAccessRight() {
+    const accessRightId = $('#editCustomAccessRightId').val();
+    const name = $('#editCustomAccessRightName').val().trim();
+    const description = $('#editCustomAccessRightDescription').val().trim();
+    const color = $('#editCustomAccessRightColor').val();
+
+    if (!name) {
+        showEditCustomAccessRightError('{% trans "Name is required" %}');
+        return;
+    }
+
+    if (!accessRightId || !currentObjectAccessRightId) {
+        showEditCustomAccessRightError('{% trans "Access Right ID or Object ID is missing" %}');
+        return;
+    }
+
+    const accessRightData = {
+        access_right_id: accessRightId,
+        object_id: currentObjectAccessRightId,
+        name: name,
+        description: description,
+        color: color
+    };
+
+    console.log('Updating custom access right with data:', accessRightData);
+
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    // Disable the update button while processing
+    $('#updateCustomAccessRightBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Updating..." %}');
+
+    fetch(`/${languagePrefix}/app_access/object-access-rights/edit-custom/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(accessRightData)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Error response text:', text);
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Custom access right update response:', data);
+        
+        if (data && (data.status === 'success' || data.success)) {
+            showEditCustomAccessRightSuccess('{% trans "Custom access right updated successfully" %}');
+            
+            // Close modal after a short delay
+            setTimeout(() => {
+                $('#editCustomAccessRightModal').modal('hide');
+                // Refresh the access right lists
+                loadObjectAccessRightsData();
+            }, 1500);
+            
+        } else {
+            showEditCustomAccessRightError(data.message || data.error || '{% trans "Failed to update custom access right" %}');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating custom access right:', error);
+        showEditCustomAccessRightError('{% trans "Failed to update custom access right" %}');
+    })
+    .finally(() => {
+        // Re-enable the update button
+        $('#updateCustomAccessRightBtn').prop('disabled', false).html('<i class="fas fa-save me-2"></i>{% trans "Update Access Right" %}');
+    });
+}
+
+// Delete custom access right confirmed
+function deleteCustomAccessRightConfirmed(accessRightId, forceDelete = false) {
+    const languagePrefix = window.location.pathname.split('/')[1];
+    
+    console.log('Deleting custom access right:', accessRightId, 'Force delete:', forceDelete);
+    
+    fetch(`/${languagePrefix}/app_access/object-access-rights/delete-custom/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            access_right_id: accessRightId,
+            object_id: currentObjectAccessRightId,
+            force_delete: forceDelete
+        })
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Error response text:', text);
+                
+                // Try to parse as JSON for structured error handling
+                try {
+                    const errorData = JSON.parse(text);
+                    if (errorData.status === 'warning' && errorData.requires_confirmation) {
+                        // Handle dependency warning - show confirmation dialog
+                        return { warning: true, data: errorData };
+                    }
+                    throw new Error(`HTTP ${response.status}: ${errorData.message || text}`);
+                } catch (parseError) {
+                    throw new Error(`HTTP ${response.status}: ${text}`);
+                }
+            });
+        }
+        return response.json();
+    })
+    .then(result => {
+        if (result.warning) {
+            // Show confirmation dialog for force delete
+            const confirmMessage = `${result.data.message}\n\n{% trans "This action cannot be undone." %}\n\n{% trans "Do you want to proceed?" %}`;
+            if (confirm(confirmMessage)) {
+                // Retry with force_delete flag
+                deleteCustomAccessRightConfirmed(accessRightId, true);
+            }
+            return;
+        }
+        
+        console.log('Delete custom access right response:', result);
+        
+        if (result && result.status === 'success') {
+            showAccessRightNotification('success', result.message || '{% trans "Custom access right deleted successfully" %}');
+            
+            // Refresh the access right lists
+            loadObjectAccessRightsData();
+        } else {
+            showAccessRightNotification('error', result.message || '{% trans "Failed to delete custom access right" %}');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting custom access right:', error);
+        
+        // Try to parse error response for better error messages
+        let errorMessage = '{% trans "Failed to delete custom access right" %}';
+        if (error.message && error.message.includes('HTTP 400:')) {
+            try {
+                const errorData = JSON.parse(error.message.replace('HTTP 400: ', ''));
+                errorMessage = errorData.message || errorData.error || errorMessage;
+            } catch (e) {
+                // Use default message
+            }
+        }
+        
+        showAccessRightNotification('error', errorMessage);
+    });
+}
+
+// Show edit custom access right error
+function showEditCustomAccessRightError(message) {
+    $('#editCustomAccessRightErrorMessage').text(message);
+    $('#editCustomAccessRightError').removeClass('d-none');
+    $('#editCustomAccessRightSuccess').addClass('d-none');
+    
+    setTimeout(() => {
+        $('#editCustomAccessRightError').addClass('d-none');
+    }, 5000);
+}
+
+// Show edit custom access right success
+function showEditCustomAccessRightSuccess(message) {
+    $('#editCustomAccessRightSuccessMessage').text(message);
+    $('#editCustomAccessRightSuccess').removeClass('d-none');
+    $('#editCustomAccessRightError').addClass('d-none');
+    
+    setTimeout(() => {
+        $('#editCustomAccessRightSuccess').addClass('d-none');
+    }, 3000);
+}
+
+// Access right notification function
+function showAccessRightNotification(type, message) {
+    if (typeof toastr !== 'undefined') {
+        if (type === 'success') {
+            toastr.success(message);
+        } else {
+            toastr.error(message);
+        }
+    } else {
+        alert(message);
+    }
+}
+
+// Reset edit custom access right form when modal is hidden
+$('#editCustomAccessRightModal').on('hidden.bs.modal', function() {
+    $('#editCustomAccessRightForm')[0].reset();
+    $('#editCustomAccessRightColor').val('#0d6efd');
+    $('#editCustomAccessRightError').addClass('d-none');
+    $('#editCustomAccessRightSuccess').addClass('d-none');
+    $('#updateCustomAccessRightBtn').prop('disabled', false).html('<i class="fas fa-save me-2"></i>{% trans "Update Access Right" %}');
+});
+
+</script>
+
+<style>
+/* Виправлення проблем зі скролінгом */
+html, body {
+    overflow-x: hidden;
+}
+
+body {
+    overflow-y: auto !important;
+}
+
+/* Переконуємося, що після закриття модального вікна скролінг відновлюється */
+body:not(.modal-open) {
+    overflow: auto !important;
+    padding-right: 0 !important;
+}
+
+/* Стилі для прав доступу */
+.access-right-item {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #e9ecef !important;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.access-right-item:hover {
+    border-color: #0d6efd !important;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.selected-item {
+    border-color: #28a745 !important;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+}
+
+.selected-item:hover {
+    border-color: #0d6efd !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Reorder mode styles */
+.reorder-mode .access-right-item {
+    cursor: grabbing !important;
+    border-left: 4px solid #fd7e14 !important;
+}
+
+.reorder-mode .access-right-item:hover {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border-color: #fd7e14 !important;
+}
+
+.reorder-mode .access-right-item.ui-sortable-helper {
+    transform: rotate(5deg);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+.sortable-placeholder {
+    border: 2px dashed #fd7e14 !important;
+    background: rgba(253, 126, 20, 0.1) !important;
+    height: 60px;
+    margin: 2px 0;
+    border-radius: 6px;
+}
+
+.dragging {
+    opacity: 0.8;
+    transform: scale(1.02);
+}
+
+/* Order indicators */
+.order-indicator .badge {
+    font-size: 0.7rem;
+    font-weight: bold;
+    min-width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Drag handle styles */
+.drag-handle {
+    cursor: grab;
+}
+
+.drag-handle:hover {
+    color: #fd7e14 !important;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+/* Color dot improvements */
+.color-dot {
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.access-right-item:hover .color-dot {
+    transform: scale(1.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Checkbox styles */
+.form-check-input {
+    border-width: 2px;
+    transition: all 0.2s ease;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Button improvements */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.775rem;
+}
+
+/* Card improvements */
+.card {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border: none;
+}
+
+.card-header {
+    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+/* List group improvements */
+.list-group-item {
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.list-group-item:first-child {
+    border-top: none !important;
+}
+
+.list-group-item:last-child {
+    border-bottom: none !important;
+}
+
+/* Search input improvements */
+.input-group-text {
+    background-color: #f8f9fa;
+    border-color: #e9ecef;
+}
+
+/* Form improvements */
+#newAccessRightForm .card {
+    border: 2px solid #28a745;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);
+}
+
+#newAccessRightForm .form-control:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+/* Alert improvements */
+.alert {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Spinner overlay */
+.spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Badge improvements */
+.badge {
+    font-size: 0.7rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .modal-xl {
+        max-width: 95%;
+    }
+    
+    .card-header h6 {
+        font-size: 0.9rem;
+    }
+    
+    .btn-sm {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .access-right-item {
+        padding: 0.5rem !important;
+    }
+    
+    .color-dot {
+        width: 8px !important;
+        height: 8px !important;
+    }
+}
+
+/* Accessibility improvements */
+.access-right-item:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+.btn:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Animation improvements */
+.access-right-item {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Custom scrollbar */
+.access-rights-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.access-rights-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.access-rights-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.access-rights-list::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+</style> 

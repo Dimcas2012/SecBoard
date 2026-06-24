@@ -1,0 +1,519 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block styles %}
+{{ block.super }}
+{% include "app_access/includes/access_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid access-page px-2 py-1">
+    <div class="row">
+        <div class="col-12">
+            <h2>{% trans "Scheduled API Syncs" %}</h2>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <p>{% trans "Schedule automatic synchronization of API users." %}</p>
+                <div>
+                    {% if can_add_access_api %}
+                    <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#scheduleModal">
+                        <i class="fas fa-clock me-1"></i> {% trans "Schedule Sync" %}
+                    </button>
+                    {% endif %}                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduled Syncs Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    {% if schedules %}
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Name" %}</th>
+                                    <th>{% trans "Credential" %}</th>
+                                    <th>{% trans "Frequency" %}</th>
+                                    <th>{% trans "Scheduled Time" %}</th>
+                                    <th>{% trans "Next Run" %}</th>
+                                    <th>{% trans "Last Run" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for schedule in schedules %}
+                                <tr>
+                                    <td>{{ schedule.name }}</td>
+                                    <td>{{ schedule.credential.name }}</td>
+                                    <td>
+                                        {% if schedule.frequency == 'hourly' %}
+                                            {{ schedule.get_frequency_display }} - {% trans "Every" %} {{ schedule.hourly_cycle }} {% trans "hours" %}
+                                        {% else %}
+                                            {{ schedule.get_frequency_display }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ schedule.scheduled_time|date:"d-m-Y H:i" }}</td>
+                                    <td>
+                                        {% if schedule.next_run %}
+                                            {{ schedule.next_run|date:"d-m-Y H:i" }}
+                                        {% else %}
+                                            {% if schedule.frequency == 'once' %}
+                                                <span class="badge bg-info">{% trans "One-time" %}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if schedule.last_run %}
+                                            {{ schedule.last_run|date:"d-m-Y H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">{% trans "Never" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if schedule.is_active %}
+                                            <span class="badge bg-success">{% trans "Active" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% trans "Inactive" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            {% if can_edit_access_api %}
+                                            <button type="button" class="btn btn-sm btn-outline-primary edit-schedule"
+                                                    data-id="{{ schedule.id }}"
+                                                    data-name="{{ schedule.name }}"
+                                                    data-credential="{{ schedule.credential.id }}"
+                                                    data-frequency="{{ schedule.frequency }}"
+                                                    data-scheduled-time="{{ schedule.scheduled_time|date:'Y-m-d H:i' }}"
+                                                    data-is-active="{{ schedule.is_active|yesno:'true,false' }}"
+                                                    data-hourly-cycle="{{ schedule.hourly_cycle }}">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% if can_delete_access_api %}
+                                            <button type="button" class="btn btn-sm btn-outline-danger delete-schedule"
+                                                    data-id="{{ schedule.id }}"
+                                                    data-name="{{ schedule.name }}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        {% trans "No scheduled syncs found. Use the Schedule Sync button to create your first schedule." %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Sync Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'scheduled_syncs' %}" id="scheduleForm">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="scheduleModalLabel">{% trans "Schedule API Sync" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">{% trans "Schedule Name" %}*</label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               placeholder="{% trans 'Daily sync' %}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="credential_id" class="form-label">{% trans "API Credential" %}*</label>
+                        <select class="form-select" id="credential_id" name="credential_id" required>
+                            <option value="">{% trans "Select a credential" %}</option>
+                            {% for cred in credentials %}
+                            <option value="{{ cred.id }}">{{ cred.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="frequency" class="form-label">{% trans "Frequency" %}*</label>
+                        <select class="form-select" id="frequency" name="frequency" required>
+                            <option value="once">{% trans "Once" %}</option>
+                            <option value="hourly">{% trans "Hourly" %}</option>
+                            <option value="daily">{% trans "Daily" %}</option>
+                            <option value="weekly">{% trans "Weekly" %}</option>
+                            <option value="monthly">{% trans "Monthly" %}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3 hourly-options" style="display: none;">
+                        <label for="hourly_cycle" class="form-label">{% trans "Hourly Cycle" %}*</label>
+                        <select class="form-select" id="hourly_cycle" name="hourly_cycle">
+                            <option value="1">{% trans "Every hour" %}</option>
+                            <option value="2">{% trans "Every 2 hours" %}</option>
+                            <option value="3">{% trans "Every 3 hours" %}</option>
+                            <option value="4">{% trans "Every 4 hours" %}</option>
+                            <option value="6">{% trans "Every 6 hours" %}</option>
+                            <option value="8">{% trans "Every 8 hours" %}</option>
+                            <option value="12">{% trans "Every 12 hours" %}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="scheduled_date" class="form-label">{% trans "Date" %}*</label>
+                                <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="scheduled_time" class="form-label">{% trans "Time" %}*</label>
+                                <input type="time" class="form-control" id="scheduled_time" name="scheduled_time" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Schedule" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Schedule Modal -->
+<div class="modal fade" id="editScheduleModal" tabindex="-1" aria-labelledby="editScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'scheduled_syncs' %}" id="editScheduleForm">
+                {% csrf_token %}
+                <input type="hidden" id="edit_id" name="id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editScheduleModalLabel">{% trans "Edit Scheduled Sync" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_name" class="form-label">{% trans "Schedule Name" %}*</label>
+                        <input type="text" class="form-control" id="edit_name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_credential_id" class="form-label">{% trans "API Credential" %}*</label>
+                        <select class="form-select" id="edit_credential_id" name="credential_id" required>
+                            <option value="">{% trans "Select a credential" %}</option>
+                            {% for cred in credentials %}
+                            <option value="{{ cred.id }}">{{ cred.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_frequency" class="form-label">{% trans "Frequency" %}*</label>
+                        <select class="form-select" id="edit_frequency" name="frequency" required>
+                            <option value="once">{% trans "Once" %}</option>
+                            <option value="hourly">{% trans "Hourly" %}</option>
+                            <option value="daily">{% trans "Daily" %}</option>
+                            <option value="weekly">{% trans "Weekly" %}</option>
+                            <option value="monthly">{% trans "Monthly" %}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3 edit-hourly-options" style="display: none;">
+                        <label for="edit_hourly_cycle" class="form-label">{% trans "Hourly Cycle" %}*</label>
+                        <select class="form-select" id="edit_hourly_cycle" name="hourly_cycle">
+                            <option value="1">{% trans "Every hour" %}</option>
+                            <option value="2">{% trans "Every 2 hours" %}</option>
+                            <option value="3">{% trans "Every 3 hours" %}</option>
+                            <option value="4">{% trans "Every 4 hours" %}</option>
+                            <option value="6">{% trans "Every 6 hours" %}</option>
+                            <option value="8">{% trans "Every 8 hours" %}</option>
+                            <option value="12">{% trans "Every 12 hours" %}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_scheduled_date" class="form-label">{% trans "Date" %}*</label>
+                                <input type="date" class="form-control" id="edit_scheduled_date" name="scheduled_date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_scheduled_time" class="form-label">{% trans "Time" %}*</label>
+                                <input type="time" class="form-control" id="edit_scheduled_time" name="scheduled_time" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="edit_is_active" name="is_active" checked>
+                        <label class="form-check-label" for="edit_is_active">{% trans "Active" %}</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Save Changes" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Schedule Modal -->
+<div class="modal fade" id="deleteScheduleModal" tabindex="-1" aria-labelledby="deleteScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteScheduleModalLabel">{% trans "Delete Scheduled Sync" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Are you sure you want to delete the scheduled sync" %}: <strong id="delete_schedule_name"></strong>?</p>
+                <p class="text-danger">{% trans "This action cannot be undone." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteSchedule">{% trans "Delete" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extrajs %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default values and initialize form states
+    const today = new Date();
+    const dateString = today.toISOString().substring(0, 10);
+    document.getElementById('scheduled_date').value = dateString;
+    
+    // Set next hour as default for time picker
+    const nextHour = new Date();
+    nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+    const timeString = nextHour.toTimeString().substring(0, 5);
+    document.getElementById('scheduled_time').value = timeString;
+    
+    // Handle showing/hiding hourly cycle options
+    function toggleHourlyCycle(frequencySelect, hourlyCycleContainer) {
+        if (frequencySelect.value === 'hourly') {
+            hourlyCycleContainer.style.display = 'block';
+        } else {
+            hourlyCycleContainer.style.display = 'none';
+        }
+    }
+    
+    // For new schedule form
+    const frequencySelect = document.getElementById('frequency');
+    const hourlyCycleContainer = document.querySelector('.hourly-options');
+    
+    // Initialize hourly options visibility based on current frequency value
+    toggleHourlyCycle(frequencySelect, hourlyCycleContainer);
+    
+    // Initialize modals
+    const editModal = new bootstrap.Modal(document.getElementById('editScheduleModal'));
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteScheduleModal'));
+    
+    frequencySelect.addEventListener('change', function() {
+        toggleHourlyCycle(this, hourlyCycleContainer);
+    });
+    
+    // For edit schedule form
+    const editFrequencySelect = document.getElementById('edit_frequency');
+    const editHourlyCycleContainer = document.querySelector('.edit-hourly-options');
+    
+    editFrequencySelect.addEventListener('change', function() {
+        toggleHourlyCycle(this, editHourlyCycleContainer);
+    });
+    
+    // Edit schedule button
+    document.querySelectorAll('.edit-schedule').forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const name = this.getAttribute('data-name');
+            const credentialId = this.getAttribute('data-credential');
+            const frequency = this.getAttribute('data-frequency');
+            const scheduledTime = this.getAttribute('data-scheduled-time');
+            const isActive = this.getAttribute('data-is-active') === 'true';
+            const hourlyCycle = this.getAttribute('data-hourly-cycle') || '1';
+            
+            // Split datetime into date and time
+            if (scheduledTime) {
+                const [date, time] = scheduledTime.split(' ');
+                document.getElementById('edit_scheduled_date').value = date;
+                document.getElementById('edit_scheduled_time').value = time;
+            }
+            
+            // Set form values
+            document.getElementById('edit_id').value = id;
+            document.getElementById('edit_name').value = name;
+            document.getElementById('edit_credential_id').value = credentialId;
+            document.getElementById('edit_frequency').value = frequency;
+            document.getElementById('edit_hourly_cycle').value = hourlyCycle;
+            document.getElementById('edit_is_active').checked = isActive;
+            
+            // Show/hide hourly cycle options based on frequency
+            toggleHourlyCycle(document.getElementById('edit_frequency'), document.querySelector('.edit-hourly-options'));
+            
+            // Show modal
+            editModal.show();
+        });
+    });
+    
+    // Delete schedule button
+    document.querySelectorAll('.delete-schedule').forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const name = this.getAttribute('data-name');
+            
+            // Store data for delete confirmation
+            document.getElementById('delete_schedule_name').textContent = name;
+            document.getElementById('confirmDeleteSchedule').setAttribute('data-id', id);
+            
+            // Show modal
+            deleteModal.show();
+        });
+    });
+    
+    // Handle delete confirmation
+    document.getElementById('confirmDeleteSchedule').addEventListener('click', function() {
+        const id = this.getAttribute('data-id');
+        
+        // Delete via AJAX
+        fetch('{% url "scheduled_syncs" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                action: 'delete',
+                id: id
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Hide modal
+                deleteModal.hide();
+                
+                // Show success message and reload page
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.error || 'Error deleting schedule');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the schedule');
+        });
+    });
+    
+    // Handle form submissions via AJAX
+    document.getElementById('scheduleForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Get form data
+        const formData = {
+            action: 'create',
+            name: document.getElementById('name').value,
+            credential_id: document.getElementById('credential_id').value,
+            frequency: document.getElementById('frequency').value,
+            hourly_cycle: document.getElementById('hourly_cycle').value,
+            scheduled_date: document.getElementById('scheduled_date').value,
+            scheduled_time: document.getElementById('scheduled_time').value
+        };
+        
+        // Submit via AJAX
+        fetch('{% url "scheduled_syncs" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Hide modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('scheduleModal'));
+                modal.hide();
+                
+                // Show success message and reload page
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.error || 'Error creating schedule');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while creating the schedule');
+        });
+    });
+    
+    // Handle edit form submissions via AJAX
+    document.getElementById('editScheduleForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Get form data
+        const formData = {
+            action: 'update',
+            id: document.getElementById('edit_id').value,
+            name: document.getElementById('edit_name').value,
+            credential_id: document.getElementById('edit_credential_id').value,
+            frequency: document.getElementById('edit_frequency').value,
+            hourly_cycle: document.getElementById('edit_hourly_cycle').value,
+            scheduled_date: document.getElementById('edit_scheduled_date').value,
+            scheduled_time: document.getElementById('edit_scheduled_time').value,
+            is_active: document.getElementById('edit_is_active').checked
+        };
+        
+        // Submit via AJAX
+        fetch('{% url "scheduled_syncs" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Hide modal
+                editModal.hide();
+                
+                // Show success message and reload page
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.error || 'Error updating schedule');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while updating the schedule');
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %} 

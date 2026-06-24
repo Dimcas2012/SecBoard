@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 my-3">
+        <h1 class="mb-0">
+            <i class="fas fa-tachometer-alt me-2"></i>
+            {{ page_title }}
+            {% if role %}
+            <span class="badge ms-2" style="background-color: {{ role.color|default:'#6c757d' }};">{{ role.name }}</span>
+            {% endif %}
+        </h1>
+        <div class="d-flex align-items-center gap-2">
+            {% if companies %}
+            <label class="mb-0 small text-nowrap">{% trans "Company" %}:</label>
+            <select id="execCompanySelect" class="form-select form-select-sm" style="min-width: 180px;">
+                <option value="">{% trans "All companies" %}</option>
+                {% for c in companies %}
+                <option value="{{ c.id }}" {% if c.id in selected_company_ids %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            <a href="{% url 'personal_cabinet' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>{% trans "Personal Cabinet" %}
+            </a>
+        </div>
+    </div>
+
+    {% if not sections %}
+    <div class="alert alert-info">
+        {% trans "No dashboard sections are configured for your role. Ask an administrator to set up Executive View in Manage Roles → Dashboard display settings." %}
+    </div>
+    {% else %}
+
+    <!-- Top panel -->
+    {% for sec in sections %}
+    {% if sec.id == 'top_panel' %}
+    <div class="card mb-3 border-primary">
+        <div class="card-header bg-primary text-white">
+            <i class="fas fa-chart-line me-1"></i>{{ sec.label }}
+        </div>
+        <div class="card-body">
+            {% if sec.widgets %}
+            <div class="row g-3">
+                {% for w in sec.widgets %}
+                <div class="col-md-6 col-lg-3">
+                    <div class="border rounded p-3 h-100 bg-light">
+                        <div class="small text-muted">{{ w.label }}</div>
+                        <div class="mt-2 exec-widget-value" data-widget-id="{{ w.id }}"><span class="text-muted">—</span></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">{% trans "No widgets selected." %}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            {% for sec in sections %}
+            {% if sec.id == 'compliance' or sec.id == 'risks_tprm' %}
+            <div class="card mb-3">
+                <div class="card-header">{{ sec.label }}</div>
+                <div class="card-body">
+                    {% if sec.description %}<p class="small text-muted">{{ sec.description }}</p>{% endif %}
+                    {% for w in sec.widgets %}
+                    <div class="border-bottom pb-2 mb-2"><strong>{{ w.label }}</strong>
+                        <span class="exec-widget-value d-block mt-1" data-widget-id="{{ w.id }}"><span class="text-muted">—</span></span>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted mb-0">{% trans "No widgets selected." %}</p>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        <div class="col-lg-6 mb-4">
+            {% for sec in sections %}
+            {% if sec.id == 'operations' or sec.id == 'access' %}
+            <div class="card mb-3">
+                <div class="card-header">{{ sec.label }}</div>
+                <div class="card-body">
+                    {% if sec.description %}<p class="small text-muted">{{ sec.description }}</p>{% endif %}
+                    {% for w in sec.widgets %}
+                    <div class="border-bottom pb-2 mb-2"><strong>{{ w.label }}</strong>
+                        <span class="exec-widget-value d-block mt-1" data-widget-id="{{ w.id }}"><span class="text-muted">—</span></span>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted mb-0">{% trans "No widgets selected." %}</p>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    {% for sec in sections %}
+    {% if sec.id == 'people' %}
+    <div class="card mb-4">
+        <div class="card-header">{% trans "Organization, people, awareness" %}</div>
+        <div class="card-body">
+            {% if sec.widgets %}
+            <div class="row g-2">
+                {% for w in sec.widgets %}
+                <div class="col-md-6"><span class="me-2">{{ w.label }}</span>
+                    <span class="exec-widget-value" data-widget-id="{{ w.id }}"><span class="text-muted">—</span></span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">{% trans "No widgets selected." %}</p>
+            {% endif %}
+            <hr>
+            <div class="small">
+                <a href="{% url 'org_structure' %}"><i class="fas fa-sitemap me-1"></i>{% trans "Organization structure" %}</a>
+                <span class="mx-2">|</span>
+                <a href="{% url 'org_chart' %}"><i class="fas fa-project-diagram me-1"></i>{% trans "Organization chart" %}</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {% endif %}
+</div>
+
+<script>
+(function() {
+    var widgetIds = {{ widget_ids_json|safe }};
+    if (!widgetIds || widgetIds.length === 0) return;
+
+    var apiUrl = "{% url 'executive_view_metrics_api' %}";
+    var companySelect = document.getElementById('execCompanySelect');
+
+    function formatWidgetValue(widgetId, data) {
+        if (data.error) return '<span class="text-warning">' + (data.error || '') + '</span>';
+        switch (widgetId) {
+            case 'security_index':
+                return (data.score != null) ? data.score + ' / 100' : '—';
+            case 'incidents_critical_mttr':
+                var s = (data.open_critical != null) ? data.open_critical + ' open' : '';
+                if (data.mttr_hours != null) s += (s ? ', ' : '') + 'MTTR ' + Math.round(data.mttr_hours) + 'h';
+                return s || '—';
+            case 'mandatory_processes_pct':
+                return (data.pct != null) ? data.pct + '% (' + (data.completed || 0) + '/' + (data.total || 0) + ')' : '—';
+            case 'compliance_traffic_light':
+                if (!data.frameworks || !data.frameworks.length) return '—';
+                return data.frameworks.map(function(f) {
+                    var c = f.status === 'green' ? 'success' : (f.status === 'yellow' ? 'warning' : 'danger');
+                    return '<span class="badge bg-' + c + ' me-1">' + (f.name || '') + ' ' + (f.pct != null ? f.pct + '%' : '') + '</span>';
+                }).join('');
+            case 'framework_pct':
+                return data.frameworks && data.frameworks.length ? data.frameworks.map(function(f) { return (f.name || '') + ' ' + (f.pct != null ? f.pct + '%' : ''); }).join(', ') : '—';
+            case 'failed_controls':
+                return data.frameworks && data.frameworks.length ? data.frameworks.map(function(f) { return (f.name || '') + ': ' + (f.failed || 0); }).join(', ') : '—';
+            case 'audit_readiness':
+                return (data.pct != null) ? data.pct + '%' : '—';
+            case 'mandatory_status':
+                return 'planned: ' + (data.planned || 0) + ', completed: ' + (data.completed || 0) + ', overdue: ' + (data.overdue || 0);
+            case 'risks_by_level':
+                if (data.by_level && Object.keys(data.by_level).length) {
+                    return Object.keys(data.by_level).map(function(k) { return k + ': ' + data.by_level[k]; }).join(', ') + ' (total: ' + (data.total || 0) + ')';
+                }
+                return 'total: ' + (data.total || 0);
+            case 'top_risks':
+                return (data.items && data.items.length) ? data.items.length + ' items' : '0';
+            case 'risk_plans':
+                return (data.pct_with_plan != null) ? 'with plan: ' + data.pct_with_plan + '%, closed: ' + (data.pct_closed || 0) + '%' : '—';
+            case 'tprm_suppliers':
+                return 'total: ' + (data.total || 0) + ', high risk: ' + (data.high_risk || 0);
+            case 'incidents_by_period':
+                return 'week: ' + (data.week || 0) + ', month: ' + (data.month || 0);
+            case 'mttd_mttr':
+                return (data.mttr_hours != null) ? 'MTTR ' + Math.round(data.mttr_hours) + 'h' : '—';
+            case 'incident_categories':
+                return (data.categories && data.categories.length) ? data.categories.length + ' categories' : '—';
+            case 'fim_critical':
+                return (data.open_critical != null) ? data.open_critical + ' open' : '—';
+            case 'access_requests':
+                return (data.open != null) ? data.open + ' pending' : '—';
+            case 'excessive_rights':
+                if (data.error) return data.error;
+                return (data.pct != null)
+                    ? data.pct + '% (' + (data.excessive_count || 0) + ' / ' + (data.total_users || 0) + ' users, admin in >' + (data.threshold || 3) + ' systems)'
+                    : '—';
+            case 'access_review':
+                if (data.error) return data.error;
+                if (data.total == null || data.total === 0) return '—';
+                var st = data.status === 'OK' ? 'success' : (data.status === 'attention' ? 'warning' : 'danger');
+                return '<span class="badge bg-' + st + ' me-1">' + (data.pct_reviewed != null ? data.pct_reviewed + '% reviewed' : '') + '</span> '
+                    + (data.on_time != null ? data.on_time + ' on time' : '') + ', '
+                    + (data.overdue != null ? data.overdue + ' overdue' : '') + ' (total ' + data.total + ')';
+            case 'api_keys':
+                return 'total: ' + (data.total || 0) + (data.without_owner ? ', no owner: ' + data.without_owner : '');
+            case 'training_completion':
+                return (data.pct != null) ? data.pct + '%' : '—';
+            case 'quiz_results':
+                return (data.avg_score != null) ? 'avg ' + data.avg_score : '—';
+            case 'gophish_metrics':
+                return (data.campaigns != null) ? data.campaigns + ' campaigns' : '—';
+            case 'department_risk_profile':
+                if (data.error) return data.error;
+                if (!data.departments || !data.departments.length) return '—';
+                return data.departments.map(function(d) {
+                    var r = d.risk_label === 'high' ? 'danger' : (d.risk_label === 'medium' ? 'warning' : 'success');
+                    var a = d.awareness_pct != null ? d.awareness_pct + '% awareness' : '—';
+                    return '<span class="badge bg-' + r + ' me-1" title="' + (d.risk_high || 0) + ' high / ' + (d.risk_total || 0) + ' risks">' + (d.name || '') + '</span> ' + a;
+                }).join('<br>');
+            default:
+                return typeof data === 'object' ? JSON.stringify(data) : (data || '—');
+        }
+    }
+
+    function loadMetrics() {
+        var companyId = companySelect ? companySelect.value : '';
+        var params = new URLSearchParams();
+        if (companyId) params.set('company_id', companyId);
+        params.set('widgets', widgetIds.join(','));
+        var url = apiUrl + '?' + params.toString();
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                var metrics = res.metrics || {};
+                widgetIds.forEach(function(wid) {
+                    var el = document.querySelector('.exec-widget-value[data-widget-id="' + wid + '"]');
+                    if (!el) return;
+                    var data = metrics[wid] || {};
+                    var html = formatWidgetValue(wid, data);
+                    el.innerHTML = html;
+                });
+            })
+            .catch(function() {
+                document.querySelectorAll('.exec-widget-value').forEach(function(el) {
+                    el.innerHTML = '<span class="text-muted">—</span>';
+                });
+            });
+    }
+
+    if (companySelect) {
+        companySelect.addEventListener('change', function() {
+            var companyId = this.value;
+            var url = new URL(window.location.href);
+            if (companyId) url.searchParams.set('company_id', companyId);
+            else url.searchParams.delete('company_id');
+            window.history.replaceState({}, '', url.toString());
+            loadMetrics();
+        });
+    }
+    loadMetrics();
+})();
+</script>
+{% endblock %}

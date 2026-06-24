@@ -1,0 +1,692 @@
+<!-- SecBoard\templates\app_access\modals\edit_default_roles&functions_modal.html -->
+{% load i18n %}
+
+<div class="modal fade" id="editRolesFunctionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Edit Default Roles & Functions" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="rolesFunctionsModalAlerts"></div>
+                
+                <div class="row">
+                    <!-- Ліва колонка - Ролі -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">{% trans "Default Roles" %}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="roles-list" id="rolesListContainer">
+                                    <!-- Ролі будуть додані тут динамічно -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Права колонка - Функції -->
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="card-title mb-0">{% trans "Default Functions" %}</h6>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="selectAllFunctions">
+                                        <label class="form-check-label" for="selectAllFunctions">
+                                            <small>{% trans "Select All" %}</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- Пошукове поле -->
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="searchFunctions" 
+                                           placeholder="{% trans 'Search functions...' %}"
+                                           autocomplete="off">
+                                    <button class="btn btn-outline-secondary" 
+                                            type="button" 
+                                            id="clearSearchFunctions"
+                                            style="display: none;">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted" id="searchResultsCount" style="display: none;">
+                                    <i class="bi bi-info-circle"></i> 
+                                    <span id="searchResultsText"></span>
+                                </small>
+                            </div>
+                            <div class="card-body">
+                                <div class="functions-tree" id="functionsTreeContainer">
+                                    <!-- Дерево функцій буде додано тут динамічно -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="saveRolesFunctionsBtn">{% trans "Save Changes" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.roles-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.role-item {
+    padding: 10px;
+    margin: 5px 0;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.role-item.selected {
+    background-color: #e9ecef;
+    border-color: #0d6efd;
+}
+
+.functions-tree {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.function-item {
+    padding: 8px;
+    margin: 4px 0;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.function-item .form-check {
+    margin: 0;
+}
+
+.function-children {
+    margin-left: 20px;
+    padding-left: 10px;
+    border-left: 2px solid #dee2e6;
+}
+
+.color-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+/* Стилі для пошуку */
+.function-item.hidden {
+    display: none !important;
+}
+
+.function-item.search-match {
+    background-color: #fff3cd;
+    border-color: #ffc107;
+}
+
+.search-highlight {
+    background-color: #ffeb3b;
+    font-weight: bold;
+    padding: 1px 2px;
+    border-radius: 2px;
+}
+
+#searchResultsCount {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.85rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('editRolesFunctionsModal');
+    const rolesContainer = document.getElementById('rolesListContainer');
+    const functionsContainer = document.getElementById('functionsTreeContainer');
+    let currentSystemId = null;
+    let selectedRoleId = null;
+    let roleFunctionsMap = new Map();
+
+    // Ініціалізація tooltips
+    function initTooltips() {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function(tooltipTriggerEl) {
+            new bootstrap.Tooltip(tooltipTriggerEl, {
+                container: 'body',
+                trigger: 'hover'
+            });
+        });
+    }
+
+    // Ініціалізація модального вікна
+    modal.addEventListener('show.bs.modal', function(event) {
+        currentSystemId = document.getElementById('systemSelect').value;
+        if (!currentSystemId) {
+            event.preventDefault();
+            toastr.error('{% trans "Please select a system first" %}');
+            return;
+        }
+        loadRolesAndFunctions();
+    });
+
+    // Завантаження ролей та функцій
+    function loadRolesAndFunctions() {
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const environment = modal.getAttribute('data-environment') || 'test';
+        
+        console.log('loadRolesAndFunctions using environment:', environment);
+        
+        // Завантажуємо ролі
+        $.ajax({
+            url: `/${languagePrefix}/app_access/roles/system/?system_id=${currentSystemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.roles) {
+                    renderRoles(response.roles);
+                }
+            },
+            error: function(error) {
+                showModalAlert('danger', '{% trans "Error loading roles" %}');
+            }
+        });
+
+        // Завантажуємо функції
+        $.ajax({
+            url: `/${languagePrefix}/app_access/functions/system/?system_id=${currentSystemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.functions) {
+                    renderFunctions(response.functions);
+                }
+            },
+            error: function(error) {
+                showModalAlert('danger', '{% trans "Error loading functions" %}');
+            }
+        });
+    }
+
+    // Відображення ролей
+    function renderRoles(roles) {
+        rolesContainer.innerHTML = '';
+        const currentLang = window.location.pathname.split('/')[1] || 'ua';
+        
+        roles.forEach(role => {
+            const roleDiv = document.createElement('div');
+            roleDiv.className = 'role-item';
+            roleDiv.dataset.roleId = role.id;
+            roleDiv.dataset.bsToggle = 'tooltip';
+            roleDiv.dataset.bsPlacement = 'right';
+            roleDiv.title = role.description || '';
+            
+            const name = role.name || '';
+            
+            roleDiv.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="color-dot" style="background-color: ${role.color}"></div>
+                    <span>${name}</span>
+                </div>
+            `;
+            
+            roleDiv.addEventListener('click', function() {
+                document.querySelectorAll('.role-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                selectedRoleId = role.id;
+                loadRoleFunctions(role.id);
+            });
+            
+            rolesContainer.appendChild(roleDiv);
+        });
+
+        // Ініціалізуємо tooltips
+        initTooltips();
+    }
+
+    // Відображення функцій
+    function renderFunctions(functions, selectedFunctions = []) {
+        functionsContainer.innerHTML = '';
+        const currentLang = window.location.pathname.split('/')[1] || 'ua';
+        
+        function renderFunction(func, level = 0) {
+            const funcDiv = document.createElement('div');
+            funcDiv.className = 'function-item';
+            
+            const name = func.name || '';
+            const description = func.description || '';
+            
+            funcDiv.innerHTML = `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" 
+                           id="func_${func.id}" 
+                           value="${func.id}"
+                           ${selectedFunctions.includes(func.id) ? 'checked' : ''}>
+                    <label class="form-check-label" for="func_${func.id}">
+                        <div class="d-flex align-items-center"
+                             data-bs-toggle="tooltip"
+                             data-bs-placement="right"
+                             title="${description}">
+                            <div class="color-dot" style="background-color: ${func.color}"></div>
+                            <span>${name}</span>
+                        </div>
+                    </label>
+                </div>
+            `;
+            
+            if (func.children && func.children.length > 0) {
+                const childrenDiv = document.createElement('div');
+                childrenDiv.className = 'function-children';
+                func.children.forEach(child => {
+                    childrenDiv.appendChild(renderFunction(child, level + 1));
+                });
+                funcDiv.appendChild(childrenDiv);
+            }
+            
+            return funcDiv;
+        }
+        
+        functions.forEach(func => {
+            functionsContainer.appendChild(renderFunction(func));
+        });
+
+        // Ініціалізуємо tooltips
+        initTooltips();
+        
+        // Налаштовуємо чекбокс "Обрати всі"
+        setupSelectAllCheckbox();
+        
+        // Налаштовуємо пошук
+        setupFunctionsSearch();
+    }
+    
+    // Функція для налаштування чекбоксу "Обрати всі"
+    function setupSelectAllCheckbox() {
+        const selectAllCheckbox = document.getElementById('selectAllFunctions');
+        if (!selectAllCheckbox) return;
+        
+        // Видаляємо старі обробники подій
+        const newSelectAll = selectAllCheckbox.cloneNode(true);
+        selectAllCheckbox.parentNode.replaceChild(newSelectAll, selectAllCheckbox);
+        
+        // Обробник для чекбоксу "Обрати всі"
+        newSelectAll.addEventListener('change', function() {
+            const allFunctionCheckboxes = functionsContainer.querySelectorAll('input[type="checkbox"]');
+            allFunctionCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+        });
+        
+        // Функція для оновлення стану "Обрати всі"
+        const updateSelectAllState = () => {
+            const allFunctionCheckboxes = functionsContainer.querySelectorAll('input[type="checkbox"]');
+            const checkedCheckboxes = functionsContainer.querySelectorAll('input[type="checkbox"]:checked');
+            
+            if (allFunctionCheckboxes.length === 0) {
+                newSelectAll.checked = false;
+                newSelectAll.indeterminate = false;
+            } else if (checkedCheckboxes.length === 0) {
+                newSelectAll.checked = false;
+                newSelectAll.indeterminate = false;
+            } else if (checkedCheckboxes.length === allFunctionCheckboxes.length) {
+                newSelectAll.checked = true;
+                newSelectAll.indeterminate = false;
+            } else {
+                newSelectAll.checked = false;
+                newSelectAll.indeterminate = true;
+            }
+        };
+        
+        // Додаємо слухачів для всіх чекбоксів функцій
+        functionsContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectAllState);
+        });
+        
+        // Оновлюємо стан при ініціалізації
+        updateSelectAllState();
+    }
+
+    // Завантаження функцій для ролі
+    function loadRoleFunctions(roleId) {
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const environment = modal.getAttribute('data-environment') || 'test';
+        
+        $.ajax({
+            url: `/${languagePrefix}/app_access/roles/${roleId}/functions/?environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.functions) {
+                    // Оновлюємо чекбокси функцій
+                    const selectedFunctions = response.functions.map(f => f.id);
+                    document.querySelectorAll('.function-item input[type="checkbox"]').forEach(checkbox => {
+                        checkbox.checked = selectedFunctions.includes(parseInt(checkbox.value));
+                    });
+                    roleFunctionsMap.set(roleId, selectedFunctions);
+                    
+                    // Оновлюємо стан чекбоксу "Обрати всі"
+                    updateSelectAllCheckboxState();
+                }
+            },
+            error: function(error) {
+                showModalAlert('danger', '{% trans "Error loading role functions" %}');
+            }
+        });
+    }
+    
+    // Функція для оновлення стану чекбоксу "Обрати всі"
+    function updateSelectAllCheckboxState() {
+        const selectAllCheckbox = document.getElementById('selectAllFunctions');
+        if (!selectAllCheckbox) return;
+        
+        const allFunctionCheckboxes = functionsContainer.querySelectorAll('input[type="checkbox"]');
+        const checkedCheckboxes = functionsContainer.querySelectorAll('input[type="checkbox"]:checked');
+        
+        if (allFunctionCheckboxes.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedCheckboxes.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedCheckboxes.length === allFunctionCheckboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+    
+    // Функція для налаштування пошуку функцій
+    function setupFunctionsSearch() {
+        const searchInput = document.getElementById('searchFunctions');
+        const clearButton = document.getElementById('clearSearchFunctions');
+        const resultsCount = document.getElementById('searchResultsCount');
+        const resultsText = document.getElementById('searchResultsText');
+        
+        if (!searchInput) return;
+        
+        // Обробник введення тексту в пошук
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            if (searchTerm.length > 0) {
+                clearButton.style.display = 'block';
+                filterFunctions(searchTerm);
+            } else {
+                clearButton.style.display = 'none';
+                clearSearch();
+            }
+        });
+        
+        // Обробник кнопки очищення пошуку
+        if (clearButton) {
+            clearButton.addEventListener('click', function() {
+                searchInput.value = '';
+                clearButton.style.display = 'none';
+                clearSearch();
+                searchInput.focus();
+            });
+        }
+        
+        // Функція фільтрації функцій
+        function filterFunctions(searchTerm) {
+            const allFunctionItems = functionsContainer.querySelectorAll('.function-item');
+            let matchCount = 0;
+            let totalCount = allFunctionItems.length;
+            
+            // Очищаємо попередні підсвічування
+            allFunctionItems.forEach(item => {
+                const labels = item.querySelectorAll('label');
+                labels.forEach(label => {
+                    const text = label.getAttribute('data-original-text') || label.textContent;
+                    if (!label.getAttribute('data-original-text')) {
+                        label.setAttribute('data-original-text', text);
+                    }
+                    // Відновлюємо оригінальний текст (без HTML тегів підсвічування)
+                    const textNode = label.querySelector('.d-flex');
+                    if (textNode) {
+                        const spanText = textNode.querySelector('span');
+                        if (spanText) {
+                            spanText.innerHTML = spanText.textContent;
+                        }
+                    }
+                });
+            });
+            
+            // Перевіряємо кожен елемент функції
+            allFunctionItems.forEach(item => {
+                const label = item.querySelector('label');
+                const functionName = label ? label.textContent.toLowerCase() : '';
+                const functionDesc = label ? (label.getAttribute('title') || '').toLowerCase() : '';
+                const isMatch = functionName.includes(searchTerm) || functionDesc.includes(searchTerm);
+                
+                if (isMatch) {
+                    item.classList.remove('hidden');
+                    item.classList.add('search-match');
+                    matchCount++;
+                    
+                    // Підсвічуємо знайдений текст
+                    highlightText(item, searchTerm);
+                    
+                    // Показуємо всі батьківські елементи
+                    showParents(item);
+                } else {
+                    item.classList.add('hidden');
+                    item.classList.remove('search-match');
+                }
+            });
+            
+            // Показуємо результати пошуку
+            if (resultsCount && resultsText) {
+                resultsCount.style.display = 'block';
+                resultsText.textContent = `{% trans "Found" %} ${matchCount} {% trans "of" %} ${totalCount} {% trans "functions" %}`;
+            }
+        }
+        
+        // Функція підсвічування тексту
+        function highlightText(item, searchTerm) {
+            const label = item.querySelector('label .d-flex span');
+            if (!label) return;
+            
+            const text = label.textContent;
+            const lowerText = text.toLowerCase();
+            const index = lowerText.indexOf(searchTerm);
+            
+            if (index !== -1) {
+                const before = text.substring(0, index);
+                const match = text.substring(index, index + searchTerm.length);
+                const after = text.substring(index + searchTerm.length);
+                
+                label.innerHTML = `${before}<span class="search-highlight">${match}</span>${after}`;
+            }
+        }
+        
+        // Функція показу батьківських елементів
+        function showParents(item) {
+            let parent = item.parentElement;
+            while (parent && parent !== functionsContainer) {
+                if (parent.classList.contains('function-item')) {
+                    parent.classList.remove('hidden');
+                }
+                if (parent.classList.contains('function-children')) {
+                    parent.style.display = 'block';
+                }
+                parent = parent.parentElement;
+            }
+        }
+        
+        // Функція очищення пошуку
+        function clearSearch() {
+            const allFunctionItems = functionsContainer.querySelectorAll('.function-item');
+            
+            allFunctionItems.forEach(item => {
+                item.classList.remove('hidden');
+                item.classList.remove('search-match');
+                
+                // Видаляємо підсвічування
+                const labels = item.querySelectorAll('label');
+                labels.forEach(label => {
+                    const textNode = label.querySelector('.d-flex span');
+                    if (textNode) {
+                        textNode.innerHTML = textNode.textContent;
+                    }
+                });
+            });
+            
+            // Ховаємо результати пошуку
+            if (resultsCount) {
+                resultsCount.style.display = 'none';
+            }
+        }
+    }
+
+    // Збереження змін
+    document.getElementById('saveRolesFunctionsBtn').addEventListener('click', function() {
+        if (!selectedRoleId) {
+            showModalAlert('warning', '{% trans "Please select a role first" %}');
+            return;
+        }
+
+        const selectedFunctions = Array.from(
+            document.querySelectorAll('.function-item input[type="checkbox"]:checked')
+        ).map(cb => parseInt(cb.value));
+
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const environment = modal.getAttribute('data-environment') || 'test';
+        
+        $.ajax({
+            url: `/${languagePrefix}/app_access/roles/${selectedRoleId}/functions/update/`,
+            type: 'POST',
+            data: JSON.stringify({
+                functions: selectedFunctions,
+                environment: environment
+            }),
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            success: function(response) {
+                if (response.success) {
+                    showModalAlert('success', response.message);
+                    roleFunctionsMap.set(selectedRoleId, selectedFunctions);
+                    updateMainTable();
+                } else {
+                    showModalAlert('danger', response.message);
+                }
+            },
+            error: function(error) {
+                showModalAlert('danger', '{% trans "Error saving changes" %}');
+            }
+        });
+    });
+
+    // Оновлення основної таблиці
+    function updateMainTable() {
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const environment = modal.getAttribute('data-environment') || 'test';
+        
+        $.ajax({
+            url: `/${languagePrefix}/app_access/roles-functions/system/?system_id=${currentSystemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.data) {
+                    const tbody = document.querySelector('#rolesFunctionsTable tbody');
+                    tbody.innerHTML = '';
+                    
+                    response.data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="color-dot" style="background-color: ${item.role.color}"></div>
+                                    <span>${item.role.name}</span>
+                                </div>
+                            </td>
+                            <td>${item.functions.map(f => f.name).join(', ')}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            },
+            error: function(error) {
+                console.error('Error updating main table:', error);
+                showModalAlert('danger', '{% trans "Error updating table" %}');
+            }
+        });
+    }
+
+    // Показ сповіщень
+    function showModalAlert(type, message) {
+        const alertsContainer = document.getElementById('rolesFunctionsModalAlerts');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        alertsContainer.appendChild(alert);
+        
+        setTimeout(() => {
+            alert.remove();
+        }, 5000);
+    }
+
+    // Додаємо обробник для очищення tooltips при закритті модального вікна
+    modal.addEventListener('hidden.bs.modal', function() {
+        const tooltips = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltips.forEach(tooltipEl => {
+            const tooltip = bootstrap.Tooltip.getInstance(tooltipEl);
+            if (tooltip) {
+                tooltip.dispose();
+            }
+        });
+        
+        // Очищаємо пошук при закритті модального вікна
+        const searchInput = document.getElementById('searchFunctions');
+        const clearButton = document.getElementById('clearSearchFunctions');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        if (clearButton) {
+            clearButton.style.display = 'none';
+        }
+    });
+});
+
+// Глобальна функція для відкриття модального вікна
+function openDefaultRolesFunctionsModal() {
+    const systemId = document.getElementById('systemSelect').value;
+    const environment = document.getElementById('environmentSelect').value;
+    
+    if (!systemId) {
+        toastr.error('{% trans "Please select a system first" %}');
+        return;
+    }
+    
+    console.log('openDefaultRolesFunctionsModal called with environment:', environment);
+    
+    // Зберігаємо environment в модальному вікні
+    const modal = document.getElementById('editRolesFunctionsModal');
+    modal.setAttribute('data-environment', environment);
+    
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+}
+
+// Також додаємо функцію з назвою, яку викликає кнопка
+function openObjectRolesFunctionsModal() {
+    openDefaultRolesFunctionsModal();
+}
+</script> 

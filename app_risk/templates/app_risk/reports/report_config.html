@@ -1,0 +1,354 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Generate Risk Assessment Report" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-preview {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+}
+
+.report-preview h2 {
+    color: #0d6efd;
+    border-bottom: 2px solid #0d6efd;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.report-preview h3 {
+    color: #6c757d;
+    margin-top: 30px;
+    margin-bottom: 15px;
+}
+
+.report-preview h5 {
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.report-preview .card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1rem;
+}
+
+.report-preview .table {
+    font-size: 0.9rem;
+}
+
+.report-preview .table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    border-top: none;
+}
+
+.report-preview .badge {
+    font-size: 0.75rem;
+}
+
+.report-preview .progress {
+    height: 20px;
+}
+
+.report-preview .progress-bar {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.report-preview .alert {
+    border: none;
+    border-radius: 8px;
+}
+
+.report-preview .report-header {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+}
+
+.report-preview .report-footer {
+    border-top: 1px solid #dee2e6;
+    padding-top: 20px;
+    margin-top: 30px;
+}
+
+#reportPreviewModal .modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.report-preview .card-header {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.report-preview .text-primary {
+    color: #0d6efd !important;
+}
+
+.report-preview .text-secondary {
+    color: #6c757d !important;
+}
+
+.report-preview .text-success {
+    color: #198754 !important;
+}
+
+.report-preview .text-danger {
+    color: #dc3545 !important;
+}
+
+.report-preview .text-warning {
+    color: #ffc107 !important;
+}
+
+.report-preview .text-info {
+    color: #0dcaf0 !important;
+}
+
+/* Confidentiality Classification Styling */
+.confidentiality-classification {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    border: 2px solid #dc3545;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 20px 0;
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+.confidentiality-classification p {
+    margin: 0;
+    color: white !important;
+    font-size: 1.1rem;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.confidentiality-classification i {
+    font-size: 1.2rem;
+    margin-right: 8px;
+}
+
+.confidentiality-classification strong {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-file-alt mr-2"></i>
+                        {% trans "Generate Risk Assessment Report" %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form id="reportForm">
+                        {% csrf_token %}
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-4 d-none">
+                                <!-- Report Type hidden per requirements -->
+                                <label class="form-label">{% trans "Report Type" %}</label>
+                                <select class="form-control" id="reportType" name="reportType"></select>
+                            </div>
+                            <div class="col-md-4 d-none">
+                                <!-- Report Format hidden per requirements -->
+                                <label class="form-label">{% trans "Report Format" %}</label>
+                                <select class="form-control" id="format" name="format"></select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">{% trans "Report Language" %}</label>
+                                <select class="form-control" id="language" name="language">
+                                    <option value="uk">{% trans "Ukrainian" %}</option>
+                                    <option value="en">{% trans "English" %}</option>
+                                    <option value="ru">{% trans "Russian" %}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="text-center">
+                            <button type="button" class="btn btn-info btn-lg me-3" id="previewBtn">
+                                <i class="fas fa-eye mr-2"></i>
+                                {% trans "Preview Report" %}
+                            </button>
+                            <button type="submit" class="btn btn-primary btn-lg" id="generateBtn">
+                                <i class="fas fa-file-download mr-2"></i>
+                                {% trans "Generate Report" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Preview Modal -->
+<div class="modal fade" id="reportPreviewModal" tabindex="-1" aria-labelledby="reportPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="reportPreviewModalLabel">
+                    <i class="fas fa-eye me-2"></i>{% trans "Report Preview" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="reportPreviewContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                    <p class="mt-2">{% trans "Loading report preview..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>{% trans "Close" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="generateFromPreviewBtn">
+                    <i class="fas fa-file-download me-1"></i>{% trans "Generate Report" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const reportForm = document.getElementById('reportForm');
+    const generateBtn = document.getElementById('generateBtn');
+    const previewBtn = document.getElementById('previewBtn');
+    const generateFromPreviewBtn = document.getElementById('generateFromPreviewBtn');
+    const reportPreviewModal = new bootstrap.Modal(document.getElementById('reportPreviewModal'));
+    
+    // Set current language as default
+    const currentLanguage = '{{ LANGUAGE_CODE|slice:":2" }}';
+    const languageSelect = document.getElementById('language');
+    if (languageSelect && currentLanguage) {
+        languageSelect.value = currentLanguage;
+    }
+    
+    // Preview button click handler
+    previewBtn.addEventListener('click', function() {
+        const reportType = 'profile';
+        const format = '';
+        const language = document.getElementById('language').value;
+        
+        // Show modal with loading state
+        reportPreviewModal.show();
+        
+        // Disable preview button
+        previewBtn.disabled = true;
+        previewBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>{% trans "Loading..." %}';
+        
+        // Load preview content
+        fetch('{% url "preview_risk_report" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: new URLSearchParams({
+                'reportType': reportType,
+                'format': format,
+                'language': language
+            })
+        })
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('reportPreviewContent').innerHTML = html;
+            
+            // Re-enable preview button
+            previewBtn.disabled = false;
+            previewBtn.innerHTML = '<i class="fas fa-eye mr-2"></i>{% trans "Preview Report" %}';
+        })
+        .catch(error => {
+            console.error('Error loading preview:', error);
+            document.getElementById('reportPreviewContent').innerHTML = 
+                '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>{% trans "Error loading preview. Please try again." %}</div>';
+            
+            // Re-enable preview button
+            previewBtn.disabled = false;
+            previewBtn.innerHTML = '<i class="fas fa-eye mr-2"></i>{% trans "Preview Report" %}';
+        });
+    });
+    
+    // Generate from preview button
+    generateFromPreviewBtn.addEventListener('click', function() {
+        reportPreviewModal.hide();
+        generateReport();
+    });
+    
+    // Form submit handler
+    reportForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        generateReport();
+    });
+    
+    // Generate report function
+    function generateReport() {
+        const reportType = 'profile';
+        const format = '';
+        const language = document.getElementById('language').value;
+        
+        // Disable button and show loading state
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>{% trans "Generating..." %}';
+        
+        // Create a temporary form to submit via GET
+        const tempForm = document.createElement('form');
+        tempForm.method = 'GET';
+        tempForm.action = '{% url "generate_risk_report" %}';
+        
+        // Add form fields
+        const reportTypeInput = document.createElement('input');
+        reportTypeInput.type = 'hidden';
+        reportTypeInput.name = 'reportType';
+        reportTypeInput.value = reportType;
+        tempForm.appendChild(reportTypeInput);
+        
+        const formatInput = document.createElement('input');
+        formatInput.type = 'hidden';
+        formatInput.name = 'format';
+        formatInput.value = format;
+        tempForm.appendChild(formatInput);
+        
+        const languageInput = document.createElement('input');
+        languageInput.type = 'hidden';
+        languageInput.name = 'language';
+        languageInput.value = language;
+        tempForm.appendChild(languageInput);
+        
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        tempForm.appendChild(csrfInput);
+        
+        // Add to DOM and submit
+        document.body.appendChild(tempForm);
+        tempForm.submit();
+        
+        // Re-enable button after a delay
+        setTimeout(function() {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="fas fa-file-download mr-2"></i>{% trans "Generate Report" %}';
+            if (document.body.contains(tempForm)) {
+                document.body.removeChild(tempForm);
+            }
+        }, 3000);
+    }
+});
+</script>
+{% endblock %}

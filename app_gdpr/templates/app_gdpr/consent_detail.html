@@ -1,0 +1,272 @@
+{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+
+{% block title %}{{ object.data_subject.email }} - {% trans "Consent Record" %}{% endblock %}
+
+{% block gdpr_content %}
+<div class="mb-3">
+    <a href="{% url 'app_gdpr:consent_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> {% trans "Back to List" %}
+    </a>
+    {% if can_manage_consents %}
+    <a href="{% url 'app_gdpr:consent_withdraw' object.pk %}" class="btn btn-warning">
+        <i class="fas fa-times"></i> {% trans "Withdraw Consent" %}
+    </a>
+    {% endif %}
+</div>
+
+<div class="card border-success">
+    <div class="card-header bg-success text-white">
+        <h3 class="mb-0">
+            <i class="fas fa-handshake"></i> {{ object.data_subject.email }} - {{ object.get_consent_type_display }}
+        </h3>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Consent Information" %}</h5>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Data Subject" %}:</label>
+                    <p class="form-control-plaintext">{{ object.data_subject.email }}</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Consent Type" %}:</label>
+                    <p class="form-control-plaintext">{{ object.get_consent_type_display }}</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Status" %}:</label>
+                    <span class="badge {% if object.is_active %}badge-success{% else %}badge-secondary{% endif %}">
+                        {% if object.is_active %}{% trans "Active" %}{% else %}{% trans "Withdrawn" %}{% endif %}
+                    </span>
+                </div>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Consent Method" %}:</label>
+                    <p class="form-control-plaintext">{{ object.consent_method }}</p>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Timeline" %}</h5>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Given Date" %}:</label>
+                    <p class="form-control-plaintext">{{ object.given_date|date:"d.m.Y H:i" }}</p>
+                </div>
+                
+                {% if object.withdrawn_date %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Withdrawn Date" %}:</label>
+                    <p class="form-control-plaintext">{{ object.withdrawn_date|date:"d.m.Y H:i" }}</p>
+                </div>
+                {% endif %}
+                
+                {% if object.expiration_date %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Expiration Date" %}:</label>
+                    <p class="form-control-plaintext 
+                        {% if object.expiration_date < now %}text-danger font-weight-bold{% endif %}">
+                        {{ object.expiration_date|date:"d.m.Y" }}
+                        {% if object.expiration_date < now %}
+                            <span class="badge badge-danger">{% trans "EXPIRED" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                {% endif %}
+                
+                {% if object.consent_version %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Consent Version" %}:</label>
+                    <p class="form-control-plaintext">{{ object.consent_version }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Consent Text" %}</h5>
+                <div class="form-group">
+                    <p class="form-control-plaintext">{{ object.consent_text|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Technical Details" %}</h5>
+                
+                {% if object.ip_address %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "IP Address" %}:</label>
+                    <p class="form-control-plaintext">{{ object.ip_address }}</p>
+                </div>
+                {% endif %}
+                
+                {% if object.user_agent %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "User Agent" %}:</label>
+                    <p class="form-control-plaintext">{{ object.user_agent }}</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "GDPR Compliance" %}</h5>
+                
+                {% if object.is_active %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <strong>{% trans "Active Consent" %}:</strong>
+                    {% trans "This consent is currently active and valid." %}
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>{% trans "Withdrawn Consent" %}:</strong>
+                    {% trans "This consent has been withdrawn and is no longer valid." %}
+                </div>
+                {% endif %}
+                
+                {% if object.expiration_date and object.expiration_date < now %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-clock"></i>
+                    <strong>{% trans "Expired Consent" %}:</strong>
+                    {% trans "This consent has expired and needs renewal." %}
+                </div>
+                {% endif %}
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-shield-alt"></i>
+                    <strong>{% trans "GDPR Article 7" %}:</strong>
+                    {% trans "Consent must be demonstrable and can be withdrawn at any time. The data subject has the right to withdraw consent." %}
+                </div>
+            </div>
+        </div>
+        
+        {% if object.is_active and object.expiration_date %}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Consent Management" %}</h5>
+                
+                {% if object.expiration_date > now %}
+                <div class="alert alert-info">
+                    <i class="fas fa-calendar"></i>
+                    <strong>{% trans "Expiration Reminder" %}:</strong>
+                    {% trans "This consent will expire on " %}{{ object.expiration_date|date:"d.m.Y" }}.
+                    {% trans "Consider contacting the data subject for renewal." %}
+                </div>
+                {% endif %}
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h6>{% trans "Available Actions" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if can_manage_consents %}
+                            <a href="{% url 'app_gdpr:consent_withdraw' object.pk %}" class="btn btn-warning mr-2">
+                                <i class="fas fa-times"></i> {% trans "Withdraw Consent" %}
+                            </a>
+                        {% endif %}
+                        <a href="{% url 'app_gdpr:consent_list' %}" class="btn btn-secondary mr-2">
+                            <i class="fas fa-list"></i> {% trans "All Consents" %}
+                        </a>
+                        <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-info">
+                            <i class="fas fa-dashboard"></i> {% trans "Dashboard" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>{% trans "Consent History" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-success"></div>
+                                <div class="timeline-content">
+                                    <h6>{% trans "Consent Given" %}</h6>
+                                    <p class="text-muted">{{ object.given_date|date:"d.m.Y H:i" }}</p>
+                                    <p>{% trans "Consent was given via" %} {{ object.consent_method }}</p>
+                                </div>
+                            </div>
+                            
+                            {% if object.withdrawn_date %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-danger"></div>
+                                <div class="timeline-content">
+                                    <h6>{% trans "Consent Withdrawn" %}</h6>
+                                    <p class="text-muted">{{ object.withdrawn_date|date:"d.m.Y H:i" }}</p>
+                                    <p>{% trans "Data subject withdrew their consent" %}</p>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if object.expiration_date %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker 
+                                    {% if object.expiration_date < now %}bg-danger{% else %}bg-warning{% endif %}">
+                                </div>
+                                <div class="timeline-content">
+                                    <h6>{% trans "Consent Expiration" %}</h6>
+                                    <p class="text-muted">{{ object.expiration_date|date:"d.m.Y" }}</p>
+                                    <p>{% trans "Consent expires on this date" %}</p>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -30px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    border-left: 3px solid #dee2e6;
+}
+
+.timeline-content h6 {
+    margin-bottom: 5px;
+    color: #495057;
+}
+
+.timeline-content p {
+    margin-bottom: 5px;
+}
+</style>
+{% endblock %}

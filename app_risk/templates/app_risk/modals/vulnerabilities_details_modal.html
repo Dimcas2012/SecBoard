@@ -1,0 +1,273 @@
+<!-- SecBoard\SecBoard\templates\app_risk\modals\vulnerabilities_details_modal.html-->
+{% load i18n %}
+
+<div class="modal fade" id="vulnerabilitiesDetailsModal" tabindex="-1" aria-labelledby="vulnerabilitiesDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="vulnerabilitiesDetailsModalLabel">{% trans "View Asset Vulnerabilities" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="assetInfoPanel" class="mb-4 card shadow-sm">
+                    <div class="card-header bg-light">
+                        <h6 class="m-0"><i class="fas fa-info-circle me-2"></i>{% trans "Asset Information" %}</h6>
+                    </div>
+                    <div class="card-body" id="assetDetails">
+                        <!-- Asset details will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>{% trans "Vulnerabilities" %} (<span id="vulnCount">0</span>)</h5>
+                    <div class="btn-group">
+                        <button id="exportVulnerabilities" class="btn btn-success">
+                            <i class="fas fa-file-export me-2"></i>{% trans "Export" %}
+                        </button>
+                        <button id="editVulnerabilities" class="btn btn-primary">
+                            <i class="fas fa-edit me-2"></i>{% trans "Edit" %}
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <input type="text" id="vulnerabilitySearch" class="form-control" placeholder="{% trans 'Search vulnerabilities...' %}">
+                </div>
+                
+                <div class="accordion" id="vulnerabilitiesAccordion">
+                    <!-- Vulnerabilities will be loaded here -->
+                </div>
+                
+                <div id="noVulnerabilities" class="alert alert-info" style="display: none;">
+                    {% trans "No vulnerabilities found for this asset." %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    var currentLanguage = '{{ LANGUAGE_CODE }}';
+    var currentAssetId = null;
+    
+    function showVulnerabilitiesDetails(assetId) {
+        currentAssetId = assetId;
+        $.ajax({
+            url: "{% url 'get_asset_vulnerabilities' %}",
+            data: {asset_id: assetId},
+            success: function(response) {
+                // Display asset information
+                if (response.asset) {
+                    var asset = response.asset;
+                    var criticality = asset.criticality || {};
+                    var critName = criticality.name || '{% trans "Undefined" %}';
+                    var critCost = typeof criticality.cost !== 'undefined' ? criticality.cost : '';
+                    var critColor = criticality.color || '#6c757d';
+
+                    var cia = asset.cia || {};
+                    var c = cia.confidentiality || {};
+                    var i = cia.integrity || {};
+                    var a = cia.availability || {};
+
+                    function formatCiaLevel(level) {
+                        if (!level || (!level.name && level.cost == null)) {
+                            return '{% trans "Undefined" %}';
+                        }
+                        var name = level.name || '';
+                        var cost = (typeof level.cost !== 'undefined' && level.cost !== null) ? ' (' + level.cost + ')' : '';
+                        return name + cost;
+                    }
+
+                    var owners = asset.owners || [];
+                    var admins = asset.administrators || [];
+                    var software = asset.software || [];
+
+                    var ownersHtml = owners.length
+                        ? owners.map(function(o){ return o.name; }).join(', ')
+                        : '{% trans "Not specified" %}';
+                    var adminsHtml = admins.length
+                        ? admins.map(function(a){ return a.name; }).join(', ')
+                        : '{% trans "Not specified" %}';
+                    var softwareHtml = software.length
+                        ? software.map(function(sw){ return sw.name; }).join(', ')
+                        : '{% trans "Not linked" %}';
+
+                    var actual = asset.actualization || {};
+
+                    var assetDetailsHtml = `
+                        <div class="row">
+                            <div class="col-md-5">
+                                <p class="mb-1"><strong>{% trans "Asset ID" %}:</strong> ${asset.asset_id || 'N/A'}</p>
+                                <p class="mb-1"><strong>{% trans "Name" %}:</strong> ${asset.name || 'N/A'}</p>
+                                <p class="mb-1"><strong>{% trans "Company" %}:</strong> ${asset.company || 'N/A'}</p>
+                                <p class="mb-1"><strong>{% trans "Group/Type" %}:</strong> ${asset.group || 'N/A'} / ${asset.asset_type || 'N/A'}</p>
+                                <p class="mb-1"><strong>{% trans "Software" %}:</strong> ${softwareHtml}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="mb-1">
+                                    <strong>{% trans "Criticality" %}:</strong>
+                                    <span class="badge fw-medium ms-1" style="background-color: ${critColor}; color: #fff;">
+                                        ${critName}${critCost !== '' ? ' (' + critCost + ')' : ''}
+                                    </span>
+                                </p>
+                                <p class="mb-1"><strong>{% trans "CIA" %}:</strong> 
+                                    C: ${formatCiaLevel(c)}, I: ${formatCiaLevel(i)}, A: ${formatCiaLevel(a)}
+                                </p>
+                                <p class="mb-1"><strong>{% trans "Location" %}:</strong> ${asset.location || 'N/A'}</p>
+                                <p class="mb-1"><strong>{% trans "Registration Date" %}:</strong> ${asset.registration_date || 'N/A'}</p>
+                                <p class="mb-1"><strong>{% trans "Deletion Date" %}:</strong> ${asset.deletion_date || 'N/A'}</p>
+                                <p class="mb-1">
+                                    <strong>{% trans "Status" %}:</strong>
+                                    <span class="badge ${asset.is_active ? 'bg-success' : 'bg-secondary'} ms-1">
+                                        ${asset.is_active ? '{% trans "Active" %}' : '{% trans "Inactive" %}'}
+                                    </span>
+                                </p>
+                                <p class="mb-1"><strong>{% trans "Actualization" %}:</strong> ${actual.actualization_date || '{% trans "Not actualized" %}'}</p>
+                            </div>
+                            <div class="col-md-3">
+                                <h6 class="small text-muted mb-1">{% trans "Owners" %}</h6>
+                                <p class="small mb-2">${ownersHtml}</p>
+                                <h6 class="small text-muted mb-1">{% trans "Administrators" %}</h6>
+                                <p class="small mb-2">${adminsHtml}</p>
+                                <h6 class="small text-muted mb-1">{% trans "Description" %}</h6>
+                                <p class="small mb-1">${asset.description || '{% trans "No description" %}'}</p>
+                            </div>
+                        </div>
+                    `;
+                    $('#vulnerabilitiesDetailsModal #assetDetails').html(assetDetailsHtml);
+                }
+                
+                // Display vulnerabilities
+                var accordionHtml = '';
+                var vulnerabilitiesCount = 0;
+                
+                if (response.vulnerabilities && response.vulnerabilities.length > 0) {
+                    $('#noVulnerabilities').hide();
+                    vulnerabilitiesCount = response.vulnerabilities.length;
+                    
+                    response.vulnerabilities.forEach(function(vulnerability, index) {
+                        var vulnId = 'vuln-' + index;
+                        var avData = response.asset_vulnerabilities[vulnerability.id] || {};
+                        var statusClass = getStatusClass(avData.status);
+                        
+                        accordionHtml += `
+                            <div class="accordion-item vulnerability-item" data-vulnerability="${vulnerability.vulnerability}">
+                                <h2 class="accordion-header" id="heading-${vulnId}">
+                                    <button class="accordion-button ${index > 0 ? 'collapsed' : ''}" type="button" 
+                                            data-bs-toggle="collapse" data-bs-target="#collapse-${vulnId}" 
+                                            aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="collapse-${vulnId}">
+                                        <div class="d-flex align-items-center w-100">
+                                            <span class="badge ${statusClass} me-2">${avData.status || 'Undefined'}</span>
+                                            <span class="vuln-title">${vulnerability.vulnerability}</span>
+                                        </div>
+                                    </button>
+                                </h2>
+                                <div id="collapse-${vulnId}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" 
+                                     aria-labelledby="heading-${vulnId}" data-bs-parent="#vulnerabilitiesAccordion">
+                                    <div class="accordion-body">
+                                        <div class="row">
+                                            <div class="col-12 mb-3">
+                                                <h6 class="fw-bold border-bottom pb-2">{% trans "Description" %}</h6>
+                                                <p>${vulnerability.description || '{% trans "No description available" %}'}</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6 class="fw-bold border-bottom pb-2">{% trans "Scope" %}</h6>
+                                                <p>${vulnerability.scope || '{% trans "Not specified" %}'}</p>
+                                                
+                                                <h6 class="fw-bold border-bottom pb-2 mt-4">{% trans "Status" %}</h6>
+                                                <div class="d-flex align-items-center">
+                                                    <span class="badge ${statusClass} me-2">${avData.status || 'Undefined'}</span>
+                                                    <span>${avData.comment || '{% trans "No comment" %}'}</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6 class="fw-bold border-bottom pb-2">{% trans "Compliance" %}</h6>
+                                                <p><strong>{% trans "PCI DSS" %}:</strong> ${vulnerability.pci_dss_requirement || '{% trans "Not specified" %}'}</p>
+                                                <p><strong>{% trans "ISO 27001" %}:</strong> ${vulnerability.iso27001_requirement || '{% trans "Not specified" %}'}</p>
+                                                
+                                                <h6 class="fw-bold border-bottom pb-2 mt-4">{% trans "Notes" %}</h6>
+                                                <p>${vulnerability.note || '{% trans "No notes available" %}'}</p>
+                                            </div>
+                                            <div class="col-12 mt-3">
+                                                <h6 class="fw-bold border-bottom pb-2">{% trans "Risk Mitigation Controls" %}</h6>
+                                                <p>${vulnerability.risk_mitigation_controls || '{% trans "Not specified" %}'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    $('#vulnerabilitiesAccordion').html(accordionHtml);
+                    $('#vulnCount').text(vulnerabilitiesCount);
+                } else {
+                    $('#vulnerabilitiesAccordion').html('');
+                    $('#noVulnerabilities').show();
+                    $('#vulnCount').text('0');
+                }
+                
+                $('#vulnerabilitiesDetailsModal').modal('show');
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading vulnerabilities:", error);
+                showAlert('error', '{% trans "Error loading vulnerabilities. Please try again." %}');
+            }
+        });
+    }
+    
+    function getStatusClass(status) {
+        switch(status) {
+            case 'Yes':
+                return 'bg-danger';
+            case 'No':
+                return 'bg-success';
+            default:
+                return 'bg-warning';
+        }
+    }
+    
+    // Handle search
+    $('#vulnerabilitySearch').on('keyup', function() {
+        var searchTerm = $(this).val().toLowerCase();
+        $('.vulnerability-item').each(function() {
+            var vulnerabilityText = $(this).data('vulnerability').toLowerCase();
+            if (vulnerabilityText.indexOf(searchTerm) > -1) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    });
+    
+    // Handle export button
+    $('#exportVulnerabilities').on('click', function() {
+        if (!currentAssetId) {
+            showAlert('warning', '{% trans "No asset selected" %}');
+            return;
+        }
+        
+        window.location.href = "{% url 'export_asset_vulnerabilities' %}?ids=" + currentAssetId;
+    });
+    
+    // Handle edit button
+    $('#editVulnerabilities').on('click', function() {
+        if (!currentAssetId) {
+            showAlert('warning', '{% trans "No asset selected" %}');
+            return;
+        }
+        
+        $('#vulnerabilitiesDetailsModal').modal('hide');
+        setTimeout(function() {
+            $('.open-vulnerabilities-modal[data-asset-id="' + currentAssetId + '"]').trigger('click');
+        }, 500);
+    });
+    
+    // Make the function globally accessible
+    window.showVulnerabilitiesDetails = showVulnerabilitiesDetails;
+});
+</script>

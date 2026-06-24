@@ -1,0 +1,317 @@
+<!--SecBoard/templates/app_cabinet/modals/add_position_modal.html-->
+{% load i18n %}
+<!-- Modal -->
+<div class="modal fade" id="addPositionModal" tabindex="-1" aria-labelledby="addPositionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addPositionModalLabel">{% trans "Add New Position" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addPositionForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+
+                    <!-- Company Selection -->
+                    <div class="mb-3">
+                        <label for="addPosCompany" class="form-label">{% trans "Company" %} *</label>
+                        <select class="form-select" id="addPosCompany" name="company" required>
+                            <option value="">{% trans "Select Company" %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select a company" %}
+                        </div>
+                    </div>
+
+                    <!-- Department Selection -->
+                    <div class="mb-3">
+                        <label for="addPosDepartment" class="form-label">{% trans "Department" %}</label>
+                        <select class="form-select" id="addPosDepartment" name="department">
+                            <option value="">{% trans "Select Department" %}</option>
+                        </select>
+                        <div class="form-text">{% trans "Select either Department or Parent Position (not both)" %}</div>
+                    </div>
+
+                    <!-- Parent Position Selection -->
+                    <div class="mb-3">
+                        <label for="addPosParentPosition" class="form-label">{% trans "Parent Position" %}</label>
+                        <select class="form-select" id="addPosParentPosition" name="parent_position">
+                            <option value="">{% trans "None" %}</option>
+                        </select>
+                        <div class="form-text">{% trans "Select either Department or Parent Position (not both)" %}</div>
+                    </div>
+
+                    <!-- Position Name (default English; other languages = Translations, like Department) -->
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Name" %}</label>
+                        {% for lang_code, lang_name in position_form_languages %}
+                        <input type="text" class="form-control mb-2" id="addPosName_{{ lang_code }}" name="name_{{ lang_code }}" placeholder="{{ lang_name }}" {% if forloop.first %}required{% endif %}>
+                        {% endfor %}
+                        <div class="invalid-feedback">{% trans "Please enter position name (English)." %}</div>
+                    </div>
+
+                    <!-- Position Description (default English; other languages = Translations) -->
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        {% for lang_code, lang_name in position_form_languages %}
+                        <textarea class="form-control mb-2" id="addPosDesc_{{ lang_code }}" name="description_{{ lang_code }}" rows="3" placeholder="{{ lang_name }}"></textarea>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Color Selection -->
+                    <div class="mb-3">
+                        <label for="addPosColor" class="form-label">{% trans "Color (HEX)" %}</label>
+                        <div class="input-group">
+                            <input type="color" class="form-control form-control-color" id="addPosColor" name="color" value="#2e6da4" style="max-width: 60px;">
+                            <input type="text" class="form-control" id="addPosColorHex" name="color_hex" value="#2e6da4" maxlength="7" pattern="^#([A-Fa-f0-9]{6})$" title="{% trans 'Please enter a valid HEX color code.' %}">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="addPositionSubmit">{% trans "Add Position" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block add_position_modal_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addPositionForm = document.getElementById('addPositionForm');
+    const addPositionSubmit = document.getElementById('addPositionSubmit');
+    const addPosCompany = document.getElementById('addPosCompany');
+    const addPosDepartment = document.getElementById('addPosDepartment');
+    const addPosParentPosition = document.getElementById('addPosParentPosition');
+    const addPosColor = document.getElementById('addPosColor');
+    const addPosColorHex = document.getElementById('addPosColorHex');
+    const modalElement = document.getElementById('addPositionModal');
+    const addPositionModal = new bootstrap.Modal(modalElement);
+
+    // Color input synchronization
+    addPosColor.addEventListener('input', function() {
+        addPosColorHex.value = this.value;
+    });
+
+    addPosColorHex.addEventListener('input', function() {
+        if (/^#([A-Fa-f0-9]{6})$/.test(this.value)) {
+            addPosColor.value = this.value;
+        }
+    });
+
+    // Build department tree options
+    function buildTreeOptions(departments, parentId = null, prefix = '') {
+        let html = '';
+        departments.filter(dept => dept.parent_id === parentId).forEach(dept => {
+            html += `<option value="${dept.id}">${prefix} ${dept.name}</option>`;
+            html += buildTreeOptions(departments, dept.id, prefix + '--');
+        });
+        return html;
+    }
+
+    // Load departments when company is selected
+    async function loadDepartments(companyId) {
+        if (!companyId) {
+            addPosDepartment.innerHTML = '<option value="">{% trans "Select Department" %}</option>';
+            return;
+        }
+
+        try {
+            const response = await fetch(`{% url 'get_company_departments' '0' %}`.replace('0', companyId));
+            if (!response.ok) {
+                throw new Error('Failed to load departments');
+            }
+
+            const departments = await response.json();
+            let options = '<option value="">{% trans "Select Department" %}</option>';
+            options += buildTreeOptions(departments);
+            addPosDepartment.innerHTML = options;
+        } catch (error) {
+            console.error('Error loading departments:', error);
+            alert('{% trans "Error loading departments. Please try again." %}');
+        }
+    }
+
+    // Helper function to get localized position name
+    function getLocalizedPositionName(pos) {
+        // Try multiple ways to get current language
+        let currentLanguage = $('html').attr('lang') || 
+                             (window.location.pathname.match(/^\/([a-z]{2})\//) ? window.location.pathname.match(/^\/([a-z]{2})\//)[1] : null) ||
+                             'uk';
+        
+        // Normalize language code (en, ru, uk)
+        if (currentLanguage && currentLanguage.length > 2) {
+            currentLanguage = currentLanguage.substring(0, 2);
+        }
+        
+        if (pos.name) return pos.name;
+        if (currentLanguage === 'ru' && pos.position_name_ru) return pos.position_name_ru;
+        if (currentLanguage === 'en' && pos.position_name_en) return pos.position_name_en;
+        if (pos.position_name_ua) return pos.position_name_ua;
+        return `Position ${pos.id}`;
+    }
+
+    // Заповнення випадаючого списку позицій
+    async function loadParentPositions(companyId) {
+        if (!companyId) {
+            addPosParentPosition.innerHTML = `<option value="">{% trans "None" %}</option>`;
+            return;
+        }
+
+        try {
+            const response = await fetch(`/companies/${companyId}/positions/`);
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}: Failed to load positions.`);
+            }
+
+            const positions = await response.json();
+            let options = `<option value="">{% trans "None" %}</option>`;
+            if (Array.isArray(positions)) {
+                positions.forEach(pos => {
+                    const positionName = getLocalizedPositionName(pos);
+                    options += `<option value="${pos.id}">${positionName}</option>`;
+                });
+            }
+            addPosParentPosition.innerHTML = options;
+        } catch (error) {
+            console.error('Error loading parent positions:', error);
+            addPosParentPosition.innerHTML = `<option value="">{% trans "None" %}</option>`;
+        }
+    }
+
+    // Company change handler
+    addPosCompany.addEventListener('change', function() {
+        const companyId = this.value;
+        loadDepartments(companyId);
+        loadParentPositions(companyId);
+    });
+
+    // Валідація: можна вибрати лише одне - Department або Parent Position
+    addPosDepartment.addEventListener('change', function() {
+        if (this.value) {
+            // Якщо вибрано Department, очищаємо Parent Position
+            addPosParentPosition.value = '';
+        }
+    });
+
+    addPosParentPosition.addEventListener('change', function() {
+        if (this.value) {
+            // Якщо вибрано Parent Position, очищаємо Department
+            addPosDepartment.value = '';
+        }
+    });
+
+    // Form submission handler
+    addPositionSubmit.addEventListener('click', async function(e) {
+        e.preventDefault();
+
+        // Перевірка, що вибрано щонайменше одне - Department або Parent Position
+        if (!addPosDepartment.value && !addPosParentPosition.value) {
+            alert('{% trans "Please select either Department or Parent Position" %}');
+            return;
+        }
+
+        if (addPosDepartment.value && addPosParentPosition.value) {
+            alert('{% trans "You can select either Department or Parent Position, but not both" %}');
+            return;
+        }
+
+        if (!addPositionForm.checkValidity()) {
+            addPositionForm.classList.add('was-validated');
+            return;
+        }
+
+        try {
+            addPositionSubmit.disabled = true;
+            const formData = new FormData(addPositionForm);
+
+            const response = await fetch("{% url 'add_position' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // Show success message
+                alert(result.message);
+
+                // Reset form first
+                addPositionForm.reset();
+                addPositionForm.classList.remove('was-validated');
+                addPosDepartment.innerHTML = '<option value="">{% trans "Select Department" %}</option>';
+                addPosParentPosition.innerHTML = '<option value="">{% trans "None" %}</option>';
+
+                // Close modal
+                addPositionModal.hide();
+
+                // Clean up modal artifacts
+                setTimeout(() => {
+                    const backdrop = document.querySelector('.modal-backdrop');
+                    if (backdrop) {
+                        backdrop.remove();
+                    }
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                }, 150);
+
+                // Refresh the organization structure
+                const companyId = document.getElementById('companySelect').value;
+                if (companyId && window.location.pathname.includes('org-structure')) {
+                    // Trigger a custom event to refresh the organization structure
+                    const refreshEvent = new CustomEvent('refreshOrgStructure', {
+                        detail: { companyId: companyId }
+                    });
+                    document.dispatchEvent(refreshEvent);
+                }
+
+            } else {
+                if (result.errors) {
+                    let errorMessage = '{% trans "Please correct the following errors:" %}\n';
+                    Object.entries(result.errors).forEach(([field, errors]) => {
+                        errorMessage += `\n${field}: ${errors.join(', ')}`;
+                    });
+                    alert(errorMessage);
+                } else {
+                    alert(result.message || '{% trans "An error occurred while creating the position." %}');
+                }
+            }
+        } catch (error) {
+            console.error('Error creating position:', error);
+            alert('{% trans "An unexpected error occurred. Please try again later." %}');
+        } finally {
+            addPositionSubmit.disabled = false;
+        }
+    });
+
+    // Reset form and clean up when modal is hidden
+    modalElement.addEventListener('hidden.bs.modal', () => {
+        // Reset form
+        addPositionForm.reset();
+        addPositionForm.classList.remove('was-validated');
+        addPosDepartment.innerHTML = '<option value="">{% trans "Select Department" %}</option>';
+        addPosParentPosition.innerHTML = '<option value="">{% trans "None" %}</option>';
+
+        // Clean up modal artifacts with a slight delay
+        setTimeout(() => {
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }, 150);
+    });
+
+});
+</script>
+{% endblock %}

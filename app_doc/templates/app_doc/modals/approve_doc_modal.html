@@ -1,0 +1,895 @@
+<!-- SecBoard\SecBoard\templates\app_doc\modals\approve_doc_modal.html-->
+{% load i18n %}
+<!-- Approve Document Modal -->
+<div class="modal fade" id="approveDocModal" tabindex="-1" aria-labelledby="approveDocModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="approveDocModalLabel">
+                    <i class="fas fa-file-signature me-2"></i>
+                    {% trans "Approve Document" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="approveDocForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="approve_doc_id" name="doc_id">
+
+                    <!-- Document Details -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Document Details" %}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>{% trans "Name" %}:</strong> <span id="approve_doc_name"></span></p>
+                                    <p><strong>{% trans "Version" %}:</strong> <span id="approve_doc_version"></span></p>
+                                    <p><strong>{% trans "Date" %}:</strong> <span id="approve_doc_date"></span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>{% trans "Company" %}:</strong> <span id="approve_doc_company"></span></p>
+                                    <p><strong>{% trans "Type" %}:</strong> <span id="approve_doc_type"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Approval Status Section -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-users me-2"></i>
+                                {% trans "Approval Status" %}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="approvalStatus">
+                                <!-- Will be populated dynamically -->
+                            </div>
+                            <div class="approvers-list mt-3">
+                                <h6 class="mb-2">{% trans "Required Approvers" %}</h6>
+                                <div id="approversList">
+                                    <!-- Will be populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File Hash Section -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-fingerprint me-2"></i>
+                                {% trans "File Hash" %}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label mb-0">{% trans "Document Hash" %}</label>
+                                    <button type="button"
+                                            id="calculateHashBtn"
+                                            class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-calculator me-1"></i>
+                                        {% trans "Calculate Hash" %}
+                                    </button>
+                                </div>
+                                <div class="input-group">
+                                    <input type="text"
+                                           class="form-control font-monospace"
+                                           id="documentHash"
+                                           readonly>
+                                    <button class="btn btn-outline-secondary"
+                                            type="button"
+                                            id="copyHashBtn"
+                                            title="{% trans 'Copy hash' %}">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <div id="hashError" class="invalid-feedback"></div>
+                            </div>
+
+                            <!-- Current File Info -->
+                            <div id="currentFileInfo" class="border rounded p-3 bg-light">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file fa-2x text-primary me-3"></i>
+                                    <div>
+                                        <h6 class="mb-1" id="currentFileName"></h6>
+                                        <small class="text-muted" id="currentFileSize"></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+                    {% trans "Close" %}
+                </button>
+                <button type="button"
+                        id="approveDocBtn"
+                        class="btn btn-success"
+                        disabled>
+                    <i class="fas fa-check me-1"></i>
+                    {% trans "Approve Document" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.font-monospace {
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.875rem;
+}
+
+#documentHash {
+    background-color: #f8f9fa;
+}
+
+#documentHash:read-only {
+    cursor: default;
+}
+
+.approval-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+#approveDocBtn:disabled {
+    cursor: not-allowed;
+}
+
+.hash-calculating {
+    position: relative;
+    pointer-events: none;
+}
+
+.hash-calculating::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.invalid-feedback {
+    display: none;
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.invalid-feedback.show {
+    display: block;
+}
+
+.approvers-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.approver-item {
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid #dee2e6;
+    background-color: #fff;
+}
+
+.approver-item:last-child {
+    margin-bottom: 0;
+}
+
+.approver-item.approved {
+    border-color: #198754;
+    background-color: #d1e7dd;
+}
+
+.approver-item.pending {
+    border-color: #ffc107;
+    background-color: #fff3cd;
+}
+
+.approval-progress {
+    height: 0.5rem;
+}
+
+.approval-status {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.approval-info {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.current-user {
+    font-weight: bold;
+    position: relative;
+}
+
+.current-user::after {
+    content: '(You)';
+    margin-left: 0.5rem;
+    color: #6c757d;
+    font-weight: normal;
+}
+    .alert {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 0.25rem;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border-color: #ffecb5;
+    color: #664d03;
+}
+
+.alert hr {
+    margin: 0.75rem 0;
+    border-top-color: rgba(0,0,0,0.1);
+}
+
+.btn-outline-primary {
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-outline-primary:hover {
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+</style>
+
+<script>
+// Оголошуємо функцію глобально
+// Глобальна функція для перерахунку хешу
+window.recalculateHash = function() {
+    $('#calculateHashBtn').click();
+    $('#hashError').removeClass('show');
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    let currentDocData = null;
+    let isCalculating = false;
+    let approvalStatusInterval = null;
+
+    // Конвертація hex в bytes
+    function hexToBytes(hex) {
+        const bytes = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < hex.length; i += 2) {
+            bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+        }
+        return bytes;
+    }
+
+    // Форматування розміру файлу
+    function formatFileSize(bytes) {
+        if (!bytes || isNaN(bytes)) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    function formatApproverDetails(approval) {
+        const currentLanguage = window.currentLanguage.substring(0, 2);
+        console.log('Current language:', currentLanguage);
+        console.log('Position data:', approval.position);
+        console.log('Department data:', approval.department);
+
+        // Get localized value with proper fallback chain
+        function getLocalizedValue(data, fieldPrefix) {
+            if (!data) return '';
+
+            // First try exact language match
+            const directKey = `${fieldPrefix}_${currentLanguage}`;
+            if (data[directKey] && data[directKey].trim()) {
+                return data[directKey];
+            }
+
+            // Fallback chain
+            const fallbacks = {
+                'uk': ['ua', 'en', 'ru'],
+                'ru': ['ru', 'uk', 'ua', 'en'],
+                'en': ['en', 'ua', 'ru']
+            };
+
+            const fallbackChain = fallbacks[currentLanguage] || ['en', 'ua', 'ru'];
+
+            for (const lang of fallbackChain) {
+                const key = `${fieldPrefix}_${lang}`;
+                if (data[key] && data[key].trim()) {
+                    return data[key];
+                }
+            }
+
+            // Final fallback to any non-empty value
+            for (const key of Object.keys(data)) {
+                if (key.startsWith(fieldPrefix) && data[key] && data[key].trim()) {
+                    return data[key];
+                }
+            }
+
+            return '';
+        }
+
+        // Prefer backend-provided localized name (site language)
+        let positionText = (approval.position_name != null && approval.position_name !== '') ? approval.position_name : '';
+        if (!positionText && approval.position) {
+            positionText = getLocalizedValue(approval.position, 'position_name');
+        }
+
+        let departmentText = (approval.department_name != null && approval.department_name !== '') ? approval.department_name : '';
+        if (!departmentText && approval.department) {
+            departmentText = getLocalizedValue(approval.department, 'department_name');
+        }
+
+        // Format details string
+        const details = [];
+        if (positionText) details.push(positionText);
+        if (departmentText) details.push(departmentText);
+
+        console.log('Final formatted details:', details.join(' | '));
+        return details.length > 0 ? details.join(' | ') : '';
+    }
+
+    function processApprovalsList(approvals, currentUserId, currentDocHash) {
+        return approvals.map(approval => {
+            const isCurrentUser = parseInt(approval.approver_id) === currentUserId;
+            const isApproved = approval.status === 'approved';
+            const hashValid = approval.document_hash === currentDocHash;
+            const needsApproval = isCurrentUser && (!isApproved || !hashValid);
+
+            const formattedDate = approval.approval_date ?
+                new Date(approval.approval_date).toLocaleString(window.currentLanguage, {
+                    dateStyle: 'short',
+                    timeStyle: 'medium'
+                }) : '';
+
+            // Get localized status
+            const status = isApproved
+                ? (hashValid
+                    ? window.getLocalizedText('Approved')
+                    : window.getLocalizedText('Needs reapproval'))
+                : window.getLocalizedText('Pending');
+
+            return `
+                <div class="approver-item ${isApproved ? 'approved' : 'pending'} ${isCurrentUser ? 'current-user' : ''}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-${isApproved ? 'check-circle text-success' : 'clock text-warning'} me-2"></i>
+                            ${updateApproverDisplay(approval, isCurrentUser)}
+                        </div>
+                        <div>
+                            <small class="text-${isApproved ? (hashValid ? 'success' : 'warning') : 'muted'} text-end">
+                                ${status}
+                                ${formattedDate ? `<br>${formattedDate}` : ''}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function updateApproverDisplay(approval, isCurrentUser) {
+        const youText = isCurrentUser ?
+            ` (${window.getLocalizedText('You')})` : '';
+        const details = formatApproverDetails(approval);
+        const userNameDisplay = `${approval.approver_name}${youText}`;
+
+        return `
+            <div>
+                <div>${userNameDisplay}</div>
+                ${details ? `<small class="text-muted d-block">${details}</small>` : ''}
+            </div>
+        `;
+    }
+
+    // Перевірка прав на погодження
+    function checkApprovalPermission(docId) {
+        return new Promise((resolve, reject) => {
+            $.ajax({
+                url: `{% url 'document_approvals' '0' %}`.replace('0', docId),
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const currentUserId = UserData.getCurrentUserId();
+                        console.log('Checking approvals:', {
+                            currentUserId,
+                            approvals: response.approvals
+                        });
+
+                        // Перевірка чи є користувач серед погоджувачів по ID
+                        const isApprover = response.approvals.some(approval => {
+                            const approverId = parseInt(approval.approver_id);
+                            const isMatch = approverId === currentUserId;
+
+                            console.log('Checking approver:', {
+                                approverId,
+                                currentUserId,
+                                approverName: approval.approver_name,
+                                isMatch
+                            });
+
+                            return isMatch;
+                        });
+
+                        console.log('Approval permission result:', isApprover);
+                        resolve(isApprover);
+                    } else {
+                        reject(new Error(response.error));
+                    }
+                },
+                error: function(xhr) {
+                    reject(new Error('Failed to check approval permission'));
+                }
+            });
+        });
+    }
+
+
+
+
+    function updateApprovalStatus() {
+        if (!currentDocData?.id) return;
+
+        $.ajax({
+            url: `{% url 'document_approvals' '0' %}`.replace('0', currentDocData.id),
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    const approvals = response.approvals || [];
+                    const currentUserId = UserData.getCurrentUserId();
+
+                    const approvedCount = approvals.filter(a => a.status === 'approved').length;
+                    const totalRequired = response.required_approvers_count || approvals.length;
+                    const percentage = totalRequired > 0 ? (approvedCount / totalRequired) * 100 : 0;
+
+                    const statusHtml = `
+                        <div class="approval-status">
+                            <div class="progress approval-progress mb-2">
+                                <div class="progress-bar ${percentage === 100 ? 'bg-success' : 'bg-primary'}"
+                                     role="progressbar"
+                                     style="width: ${percentage}%"
+                                     aria-valuenow="${percentage}"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
+                            <div class="approval-info">
+                                <span>${approvedCount} ${window.getLocalizedText('of')} ${totalRequired} ${window.getLocalizedText('approvals received')}</span>
+                                <span>${percentage.toFixed(1)}% ${window.getLocalizedText('complete')}</span>
+                            </div>
+                        </div>
+                    `;
+                    $('#approvalStatus').html(statusHtml);
+
+                    const approversHtml = processApprovalsList(approvals, currentUserId, currentDocData.document_hash);
+                    $('#approversList').html(approversHtml);
+
+                    const currentUserApproval = approvals.find(approval =>
+                        parseInt(approval.approver_id) === currentUserId
+                    );
+
+                    const hasValidHash = $('#documentHash').val() !== '';
+                    const canApprove = currentUserApproval && (!currentUserApproval.status === 'approved' ||
+                                     currentUserApproval.document_hash !== currentDocData.document_hash);
+
+                    $('#approveDocBtn').prop('disabled', !hasValidHash || !canApprove);
+                }
+            },
+            error: function(xhr) {
+                console.error('Error updating status:', xhr);
+                $('#approvalStatus').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        ${window.getLocalizedText('Error loading approval status')}
+                    </div>
+                `);
+            }
+        });
+    }
+
+
+    // Показ модального вікна погодження
+    window.showApproveModal = async function(docId) {
+        try {
+            // Скидаємо стан
+            $('#approvalStatus').empty();
+            $('#approversList').empty();
+            $('#documentHash').val('');
+            $('#hashError').removeClass('show');
+            $('#approveDocBtn').prop('disabled', true);
+            currentDocData = null;
+
+            $('.loading-overlay').removeClass('d-none');
+
+            // Перевіряємо права
+            const hasPermission = await checkApprovalPermission(docId);
+            console.log('Permission check result:', hasPermission);
+
+            if (!hasPermission) {
+                window.showNotification('error', 'You are not authorized to approve this document');
+                return;
+            }
+
+            // Отримуємо дані документа
+            const response = await fetch(`{% url 'get_register_doc' '0' %}`.replace('0', docId));
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load document data');
+            }
+
+            currentDocData = data.data;
+            console.log('Document data loaded:', currentDocData);
+
+            // Заповнюємо поля
+            $('#approve_doc_id').val(docId);
+            $('#approve_doc_name').text(currentDocData.name_doc || '-');
+            $('#approve_doc_version').text(currentDocData.vers_doc || '-');
+            $('#approve_doc_date').text(currentDocData.date_doc ?
+                new Date(currentDocData.date_doc).toLocaleDateString() : '-');
+
+            // Коректно відображаємо назву компанії
+            if (typeof currentDocData.company === 'object' && currentDocData.company !== null) {
+                $('#approve_doc_company').text(currentDocData.company.name || '-');
+            } else if (typeof currentDocData.company === 'string') {
+                $('#approve_doc_company').text(currentDocData.company || '-');
+            } else {
+                $('#approve_doc_company').text('-');
+            }
+
+            // Коректно відображаємо тип документа
+            if (currentDocData.type_doc && currentDocData.type_doc.text) {
+                $('#approve_doc_type')
+                    .text(currentDocData.type_doc.text)
+                    .css('color', currentDocData.type_doc.color || 'inherit');
+            } else {
+                $('#approve_doc_type').text('-').css('color', 'inherit');
+            }
+
+            // Обробляємо файл
+            if (currentDocData.file_doc) {
+                $('#calculateHashBtn').prop('disabled', false);
+                const fileName = typeof currentDocData.file_doc === 'string'
+                    ? currentDocData.file_doc.split('/').pop()
+                    : currentDocData.file_doc.name;
+                const fileSize = typeof currentDocData.file_doc === 'object'
+                    ? currentDocData.file_doc.size
+                    : 0;
+
+                $('#currentFileInfo').html(`
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-${window.fileUtils.getFileIcon(fileName)} fa-2x text-primary me-3"></i>
+                        <div>
+                            <h6 class="mb-1">${fileName || ''}</h6>
+                            <small class="text-muted">${fileSize ? formatFileSize(fileSize) : ''}</small>
+                        </div>
+                        ${currentDocData.file_doc.url ? `
+                            <a href="${currentDocData.file_doc.url}"
+                               class="btn btn-sm btn-outline-primary ms-auto"
+                               download>
+                                <i class="fas fa-download me-1"></i>Download
+                            </a>
+                        ` : ''}
+                    </div>
+                `);
+            } else {
+                $('#calculateHashBtn').prop('disabled', true);
+                $('#currentFileInfo').html(`
+                    <div class="d-flex align-items-center text-muted">
+                        <i class="fas fa-file-alt fa-2x me-3"></i>
+                        <div>No file attached</div>
+                    </div>
+                `);
+            }
+
+            // Показуємо модальне вікно
+            const modal = new bootstrap.Modal(document.getElementById('approveDocModal'));
+            modal.show();
+            updateApprovalStatus();
+
+        } catch (error) {
+            console.error('Error showing approve modal:', error);
+            window.showNotification('error', error.message || 'Error loading document');
+        } finally {
+            $('.loading-overlay').addClass('d-none');
+        }
+    };
+
+    // Обробник кнопки розрахунку хешу
+    $('#calculateHashBtn').on('click', async function() {
+        if (!currentDocData || !currentDocData.id) {
+            console.error('No document data available');
+            window.showNotification('error', 'Document data not available');
+            return;
+        }
+
+        const btn = $(this);
+        const hashInput = $('#documentHash');
+        const errorDiv = $('#hashError');
+
+        try {
+            btn.prop('disabled', true)
+               .html('<i class="fas fa-spinner fa-spin me-1"></i>Calculating...');
+            errorDiv.removeClass('show');
+            isCalculating = true;
+
+            const response = await fetch(`{% url 'get_file_content' '0' %}`.replace('0', currentDocData.id), {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch file content');
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to get file content');
+            }
+
+            const fileContent = hexToBytes(data.content);
+            const wordArray = CryptoJS.lib.WordArray.create(fileContent);
+            const hash = CryptoJS.SHA256(wordArray);
+            const hashHex = hash.toString();
+
+            hashInput.val(hashHex);
+            $('#approveDocBtn').prop('disabled', false);
+            window.showNotification('success', 'Hash calculated successfully');
+
+            // Оновлюємо статус після розрахунку хешу
+            updateApprovalStatus();
+
+        } catch (error) {
+            console.error('Hash calculation error:', error);
+            errorDiv.html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    ${error.message || 'Error calculating file hash'}
+                </div>
+            `).addClass('show');
+            hashInput.val('');
+            $('#approveDocBtn').prop('disabled', true);
+            window.showNotification('error', 'Failed to calculate hash');
+        } finally {
+            isCalculating = false;
+            btn.prop('disabled', false)
+               .html('<i class="fas fa-calculator me-1"></i>Calculate Hash');
+        }
+    });
+
+    // Копіювання хешу
+    $('#copyHashBtn').on('click', function() {
+        const hashInput = $('#documentHash')[0];
+        if (hashInput.value) {
+            hashInput.select();
+            document.execCommand('copy');
+            window.showNotification('success', 'Hash copied to clipboard');
+        }
+    });
+
+    // Погодження документа
+    $('#approveDocBtn').on('click', async function() {
+        try {
+            const docId = $('#approve_doc_id').val();
+            const documentHash = $('#documentHash').val();
+
+            if (!documentHash) {
+                window.showNotification('error', 'Please calculate file hash first');
+                return;
+            }
+
+            const hasPermission = await checkApprovalPermission(docId);
+            if (!hasPermission) {
+                window.showNotification('error', 'You do not have permission to approve this document');
+                return;
+            }
+
+            const btn = $(this);
+            btn.prop('disabled', true)
+               .html('<i class="fas fa-spinner fa-spin me-1"></i>Approving...');
+
+            const response = await fetch(`{% url 'approve_document' '0' %}`.replace('0', docId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({ document_hash: documentHash })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                if (response.status === 400 && data.current_hash) {
+                    $('#hashError').html(`
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.error}
+                            <hr>
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm"
+                                    onclick="window.recalculateHash()">
+                                <i class="fas fa-sync-alt me-1"></i>
+                                Calculate New Hash
+                            </button>
+                        </div>
+                    `).addClass('show');
+                    $('#documentHash').val('');
+                    $('#approveDocBtn').prop('disabled', true);
+                } else {
+                    throw new Error(data.error || 'Approval failed');
+                }
+            } else if (data.success) {
+                const message = data.is_approved
+                    ? 'Document has been fully approved'
+                    : `Your approval has been recorded. Waiting for ${data.approval_status.remaining_count} more approval(s)`;
+
+                window.showNotification('success', message);
+
+                // Завжди закриваємо модальне вікно та оновлюємо таблицю після успішного погодження
+                const modal = bootstrap.Modal.getInstance(document.getElementById('approveDocModal'));
+
+                // Встановлюємо затримку для кращого UX
+                setTimeout(() => {
+                    // Закриваємо модальне вікно
+                    modal.hide();
+
+                    // Перевіряємо чи існує таблиця і оновлюємо її
+                    if (window.mainDocsTable) {
+                        window.mainDocsTable.ajax.reload(null, false);
+                    }
+                }, 1000); // 1 секунда затримки для відображення повідомлення
+            }
+        } catch (error) {
+            console.error('Approval error:', error);
+            window.showNotification('error', error.message || 'Error approving document');
+            $('#hashError').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    ${error.message || 'Error approving document'}
+                </div>
+            `).addClass('show');
+        } finally {
+            const btn = $('#approveDocBtn');
+            btn.prop('disabled', false)
+               .html('<i class="fas fa-check me-1"></i>Approve Document');
+        }
+    });
+
+    // Обробники подій модального вікна
+    $('#approveDocModal')
+        .on('hidden.bs.modal', function() {
+            currentDocData = null;
+            $('#documentHash').val('');
+            $('#hashError').removeClass('show');
+            $('#approveDocBtn').prop('disabled', true);
+            $('#currentFileName').text('');
+            $('#currentFileSize').text('');
+            $('#approvalStatus').empty();
+            $('#approversList').empty();
+
+            if (approvalStatusInterval) {
+                clearInterval(approvalStatusInterval);
+                approvalStatusInterval = null;
+            }
+
+            $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+        })
+        .on('shown.bs.modal', function() {
+            $('#calculateHashBtn').focus();
+            updateApprovalStatus();
+
+            if (!approvalStatusInterval) {
+                approvalStatusInterval = setInterval(updateApprovalStatus, 30000);
+            }
+
+            $('[data-bs-toggle="tooltip"]').tooltip({
+                trigger: 'hover'
+            });
+        })
+        .on('hide.bs.modal', function(e) {
+            if (isCalculating) {
+                e.preventDefault();
+                window.showNotification('warning', 'Please wait for hash calculation to complete');
+            }
+        });
+
+    // Перетягування файлів
+    const dropZone = document.getElementById('currentFileInfo');
+    if (dropZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function highlight(e) {
+            dropZone.classList.add('drag-over');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('drag-over');
+        }
+    }
+
+    // Закриття по Escape
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape' && $('#approveDocModal').hasClass('show')) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('approveDocModal'));
+            if (modal && !isCalculating) {
+                modal.hide();
+            }
+        }
+    });
+
+    // Оновлення статусу при зміні хешу
+    const originalHashValue = $('#documentHash').val();
+    $('#documentHash').on('change', function() {
+        const newHashValue = $(this).val();
+        if (newHashValue !== originalHashValue) {
+            updateApprovalStatus();
+        }
+    });
+
+    // Ініціалізація підказок
+    function initTooltips() {
+        $('[data-bs-toggle="tooltip"]').tooltip({
+            trigger: 'hover'
+        });
+    }
+
+    $('#approveDocModal').on('shown.bs.modal', initTooltips);
+    $('#approveDocModal').on('hidden.bs.modal', function() {
+        $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+    });
+
+    initTooltips();
+});
+</script>
+

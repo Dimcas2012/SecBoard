@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Internal Compliance Dashboard" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_compliance/includes/compliance_styles.html" %}
+    {% include "includes/sb_compact_css.html" %}
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%) !important;
+    color: #fff !important;
+}
+.bg-gradient-info {
+    background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%) !important;
+    color: #fff !important;
+}
+.bg-gradient-success {
+    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%) !important;
+    color: #fff !important;
+}
+.bg-gradient-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%) !important;
+    color: #fff !important;
+}
+.card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: 0;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+.stats-card {
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 0;
+    height: 100%;
+}
+/* Selected companies badges */
+.company-badge-remove {
+    transition: all 0.2s ease-in-out;
+    font-size: 0.675rem !important;
+}
+.company-badge-remove:hover {
+    opacity: 0.8;
+    transform: scale(1.05);
+    background-color: #138496 !important;
+}
+.company-badge-remove:active {
+    transform: scale(0.95);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 compliance-page sb-compact">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1><i class="bi bi-briefcase me-2"></i>{% trans "Internal Compliance Dashboard" %}</h1>
+            <p class="text-muted">
+                {% trans "Compliance with internal company requirements" %}
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            {% include "app_compliance/includes/compliance_internal_nav_toolbar.html" with active="dashboard" %}
+        </div>
+    </div>
+    
+    <!-- Company Filter -->
+    {% if available_companies.count > 1 or user.is_superuser or user.is_staff %}
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card" style="border: 1px solid #dee2e6;">
+                <div class="card-body" style="padding: 1rem;">
+                    <form method="get" id="companyFilterForm">
+                        <div class="row align-items-center">
+                            <div class="col-md-2">
+                                <label class="mb-0" style="font-weight: bold;">
+                                    <i class="fas fa-building"></i> {% trans "Companies" %}:
+                                </label>
+                            </div>
+                            <div class="col-md-8">
+                                <select name="company" id="companySelect" class="form-control" multiple size="1" 
+                                        style="height: auto; min-height: 38px;">
+                                    {% for company in available_companies %}
+                                    <option value="{{ company.id }}" 
+                                            {% if company.id in selected_company_ids %}selected{% endif %}>
+                                        {{ company.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">
+                                    {% trans "Hold Ctrl/Cmd to select multiple companies. Leave empty for all." %}
+                                </small>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary btn-block" style="width: 100%;">
+                                    <i class="fas fa-filter"></i> {% trans "Apply" %}
+                                </button>
+                                <a href="{% url 'compliance:internal_compliance' %}" class="btn btn-secondary btn-block mt-2" style="width: 100%;">
+                                    <i class="fas fa-times"></i> {% trans "Clear" %}
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <!-- Display selected companies -->
+                        {% if selected_companies %}
+                        <div class="row mt-2">
+                            <div class="col-md-12">
+                                <strong>{% trans "Selected" %}:</strong>
+                                {% for company in selected_companies %}
+                                <span class="badge bg-info ms-1 company-badge-remove" 
+                                      style="font-size: 0.9em; cursor: pointer;" 
+                                      data-company-id="{{ company.id }}"
+                                      title="{% trans 'Click to remove' %}">
+                                    <i class="fas fa-building"></i> {{ company.name }}
+                                    <i class="fas fa-times ms-1"></i>
+                                </span>
+                                {% endfor %}
+                                <span class="text-muted ms-2">({{ selected_companies.count }} {% trans "companies" %})</span>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="row mt-2">
+                            <div class="col-md-12">
+                                <span class="badge bg-secondary" style="font-size: 0.9em;">
+                                    <i class="fas fa-globe"></i> {% trans "All companies" %} ({{ available_companies.count }})
+                                </span>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <!-- Total Sources -->
+        <div class="col-md-3 mb-3">
+            <div class="card bg-gradient-primary h-100">
+                <div class="card-body p-3">
+                    <h6 class="mb-2"><i class="fas fa-folder"></i> {% trans "Sources" %}</h6>
+                    <h2 class="mb-0">{{ total_sources }}</h2>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Total Requirements -->
+        <div class="col-md-3 mb-3">
+            <div class="card bg-gradient-info h-100">
+                <div class="card-body p-3">
+                    <h6 class="mb-2"><i class="fas fa-file-alt"></i> {% trans "Requirements" %}</h6>
+                    <h2 class="mb-0">{{ total_requirements }}</h2>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Total Controls -->
+        <div class="col-md-3 mb-3">
+            <div class="card bg-gradient-success h-100">
+                <div class="card-body p-3">
+                    <h6 class="mb-2"><i class="fas fa-tasks"></i> {% trans "Controls" %}</h6>
+                    <h2 class="mb-0">{{ total_controls }}</h2>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Overall Completion -->
+        <div class="col-md-3 mb-3">
+            <div class="card bg-gradient-warning h-100">
+                <div class="card-body p-3">
+                    <h6 class="mb-2"><i class="fas fa-check-circle"></i> {% trans "Completion" %}</h6>
+                    <h2 class="mb-0">{{ overall_completion }}%</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Status Breakdown -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>{% trans "Control Status" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-success">{{ completed_controls }}</h3>
+                                <p>{% trans "Completed" %}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-warning">{{ in_progress_controls }}</h3>
+                                <p>{% trans "In Progress" %}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-danger">{{ not_started_controls }}</h3>
+                                <p>{% trans "Not Started" %}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Overdue Controls -->
+    {% if overdue_controls %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-exclamation-triangle text-danger"></i> {% trans "Overdue Controls" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Code" %}</th>
+                                    <th>{% trans "Name" %}</th>
+                                    <th>{% trans "Company" %}</th>
+                                    <th>{% trans "Due Date" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for control in overdue_controls %}
+                                <tr>
+                                    <td>{{ control.code }}</td>
+                                    <td>{{ control.name|truncatewords:10 }}</td>
+                                    <td>
+                                        {% if control.company %}
+                                            <span class="badge bg-info">{{ control.company.short_name|default:control.company.name }}</span>
+                                        {% elif control.requirement and control.requirement.company %}
+                                            <span class="badge bg-info">{{ control.requirement.company.short_name|default:control.requirement.company.name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ control.target_completion_date|date:"M. d, Y" }}</td>
+                                    <td>
+                                        <span class="badge {% if control.status == 'completed' %}bg-success{% elif control.status == 'in_progress' %}bg-warning{% elif control.status == 'not_started' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                            {{ control.get_status_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Source Statistics -->
+    {% if source_stats %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>{% trans "Statistics by Source" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Source" %}</th>
+                                    <th>{% trans "Requirements" %}</th>
+                                    <th>{% trans "Controls" %}</th>
+                                    <th>{% trans "Completed" %}</th>
+                                    <th>{% trans "Completion" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stat in source_stats %}
+                                <tr>
+                                    <td>{{ stat.source.name }}</td>
+                                    <td>{{ stat.requirements_count }}</td>
+                                    <td>{{ stat.total_controls }}</td>
+                                    <td>{{ stat.completed_controls }}</td>
+                                    <td>
+                                        <div class="progress">
+                                            <div class="progress-bar" role="progressbar" style="width: {{ stat.completion }}%">
+                                                {{ stat.completion }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Internal Compliance Guide Modal -->
+<div class="modal fade" id="internalComplianceGuideModal" tabindex="-1" aria-labelledby="internalComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:internal_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="internalComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Internal Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="internalComplianceGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('internalComplianceGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('internalComplianceGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Remove company badge functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const badges = document.querySelectorAll('.company-badge-remove');
+    badges.forEach(function(badge) {
+        badge.addEventListener('click', function() {
+            const companyId = this.getAttribute('data-company-id');
+            const select = document.getElementById('companySelect');
+            const option = select.querySelector('option[value="' + companyId + '"]');
+            if (option) {
+                option.selected = false;
+                document.getElementById('companyFilterForm').submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+

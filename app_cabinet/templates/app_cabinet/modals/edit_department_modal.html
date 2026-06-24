@@ -1,0 +1,352 @@
+<!--SecBoard/templates/app_cabinet/modals/edit_department_modal.html-->
+{% load i18n %}
+<!-- Modal -->
+<div class="modal fade" id="editDepartmentModal" tabindex="-1" aria-labelledby="editDepartmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editDepartmentModalLabel">{% trans "Edit Department" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editDepartmentForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" id="edit_department_id" name="department_id">
+
+                    <!-- Company Selection -->
+                    <div class="mb-3">
+                        <label for="editDeptCompany" class="form-label">{% trans "Company" %} *</label>
+                        <select class="form-select" id="editDeptCompany" name="company" required>
+                            <option value="">{% trans "Select Company" %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select a company" %}
+                        </div>
+                    </div>
+
+                    <!-- Parent Department Selection -->
+                    <div class="mb-3">
+                        <label for="editDeptParent" class="form-label">{% trans "Parent Department" %}</label>
+                        <select class="form-select" id="editDeptParent" name="parent">
+                            <option value="">{% trans "None (Top Level)" %}</option>
+                        </select>
+                    </div>
+
+                    <!-- Parent Position Selection -->
+                    <div class="mb-3">
+                        <label for="editDeptParentPosition" class="form-label">{% trans "Parent Position" %}</label>
+                        <select class="form-select" id="editDeptParentPosition" name="parent_position">
+                            <option value="">{% trans "None" %}</option>
+                        </select>
+                    </div>
+
+                    <!-- Department Name (default English; other languages = Translations, like Vulnerability) -->
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Name" %}</label>
+                        {% for lang_code, lang_name in department_form_languages %}
+                        <input type="text" class="form-control mb-2" id="editDeptName_{{ lang_code }}" name="name_{{ lang_code }}" placeholder="{{ lang_name }}" {% if forloop.first %}required{% endif %}>
+                        {% endfor %}
+                        <div class="invalid-feedback">{% trans "Please enter department name (English)." %}</div>
+                    </div>
+
+                    <!-- Department Description (default English; other languages = Translations) -->
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        {% for lang_code, lang_name in department_form_languages %}
+                        <textarea class="form-control mb-2" id="editDeptDesc_{{ lang_code }}" name="description_{{ lang_code }}" rows="3" placeholder="{{ lang_name }}"></textarea>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Color Selection -->
+                    <div class="mb-3">
+                        <label for="editDeptColor" class="form-label">{% trans "Color (HEX)" %}</label>
+                        <div class="input-group">
+                            <input type="color" class="form-control form-control-color" id="editDeptColor" name="color" value="#2e6da4" style="max-width: 60px;">
+                            <input type="text" class="form-control" id="editDeptColorHex" name="color_hex" value="#2e6da4" maxlength="7" pattern="^#([A-Fa-f0-9]{6})$" title="{% trans 'Please enter a valid HEX color code.' %}">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="editDepartmentSubmit">{% trans "Save Changes" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block edit_department_modal_scripts %}
+<script>
+window.departmentFormLanguages = [{% for lang_code, lang_name in department_form_languages %}'{{ lang_code }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+if (!window.departmentFormLanguages.length) window.departmentFormLanguages = ['en', 'uk', 'ru', 'de'];
+$(document).ready(function () {
+    const editDepartmentModal = new bootstrap.Modal(document.getElementById('editDepartmentModal'));
+    const editDepartmentForm = $('#editDepartmentForm');
+
+    // Функція для відновлення прокрутки
+    function restoreScrolling() {
+        $('body').css('overflow', '');
+        $('body').css('padding-right', '');
+        $('.modal-backdrop').remove();
+        $('body').removeClass('modal-open');
+    }
+
+    // Додаємо обробник закриття модального вікна
+    $('#editDepartmentModal').on('hidden.bs.modal', function () {
+        restoreScrolling();
+        editDepartmentForm[0].reset();
+        editDepartmentForm.removeClass('was-validated');
+    });
+
+    function buildTreeOptions(departments, parentId = null, prefix = '') {
+        let html = '';
+        departments.filter(dept => dept.parent_id === parentId).forEach(dept => {
+            html += `<option value="${dept.id}">${prefix} ${dept.name}</option>`;
+            html += buildTreeOptions(departments, dept.id, prefix + '--');
+        });
+        return html;
+    }
+
+    // Load department data into modal
+    function loadDepartmentData(departmentId) {
+        $.ajax({
+            url: `{% url 'get_department' '0' %}`.replace('0', departmentId),
+            method: 'GET',
+            success: function(data) {
+                const dept = data.department;
+                if (!dept.company_id) {
+                    throw new Error('Company ID is undefined for this department.');
+                }
+
+                // Load parent departments
+                $.ajax({
+                    url: `{% url 'get_company_departments' '0' %}`.replace('0', dept.company_id),
+                    method: 'GET',
+                    success: function(departments) {
+                        let options = `<option value="">None (Top Level)</option>`;
+                        options += buildTreeOptions(departments, null, '');
+                        $('#editDeptParent').html(options);
+
+                        // Load parent positions
+                        $.ajax({
+                            url: `/companies/${dept.company_id}/positions/`,
+                            method: 'GET',
+                            success: function(positions) {
+                                let positionOptions = `<option value="">None</option>`;
+                                positions.forEach(pos => {
+                                    positionOptions += `<option value="${pos.id}">${pos.name}</option>`;
+                                });
+                                $('#editDeptParentPosition').html(positionOptions);
+
+                                // Fill form fields - dynamic Name/Description by language (like Vulnerability)
+                                $('#edit_department_id').val(dept.id);
+                                $('#editDeptCompany').val(dept.company_id);
+                                $('#editDeptParent').val(dept.parent_id);
+                                if (dept.parent_position_id) {
+                                    $('#editDeptParentPosition').val(dept.parent_position_id);
+                                }
+                                window.departmentFormLanguages.forEach(function(lang) {
+                                    $('#editDeptName_' + lang).val(dept['name_' + lang] || '');
+                                    $('#editDeptDesc_' + lang).val(dept['description_' + lang] || '');
+                                });
+                                $('#editDeptColor').val(dept.color);
+                                $('#editDeptColorHex').val(dept.color);
+
+                                editDepartmentModal.show();
+                            },
+                            error: function(xhr, status, error) {
+                                console.error('Error loading positions:', error);
+                                // Still show modal even if positions fail to load
+                                $('#editDeptParentPosition').html(`<option value="">None</option>`);
+                                
+                                // Fill form fields (dynamic Name/Description by language)
+                                $('#edit_department_id').val(dept.id);
+                                $('#editDeptCompany').val(dept.company_id);
+                                $('#editDeptParent').val(dept.parent_id);
+                                if (dept.parent_position_id) {
+                                    $('#editDeptParentPosition').val(dept.parent_position_id);
+                                }
+                                window.departmentFormLanguages.forEach(function(lang) {
+                                    $('#editDeptName_' + lang).val(dept['name_' + lang] || '');
+                                    $('#editDeptDesc_' + lang).val(dept['description_' + lang] || '');
+                                });
+                                $('#editDeptColor').val(dept.color);
+                                $('#editDeptColorHex').val(dept.color);
+
+                                editDepartmentModal.show();
+                            }
+                        });
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error loading departments:', error);
+                        alert('Failed to load departments. Please try again.');
+                    }
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading department data:', error);
+                alert('Failed to load department data. Please try again.');
+            }
+        });
+    }
+
+    // Handle edit button click
+    $(document).on('click', '.edit-dept-btn', function() {
+        const departmentId = $(this).data('id');
+        loadDepartmentData(departmentId);
+    });
+
+    // Handle form submission
+    $('#editDepartmentSubmit').on('click', function() {
+        const form = document.getElementById('editDepartmentForm');
+        if (!form.checkValidity()) {
+            form.classList.add('was-validated');
+            return;
+        }
+
+        const formData = new FormData(form);
+        const departmentId = $('#edit_department_id').val();
+
+        $.ajax({
+            url: `{% url 'edit_department' '0' %}`.replace('0', departmentId),
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(result) {
+                if (result.status === 'success') {
+                    // Закриваємо модальне вікно
+                    editDepartmentModal.hide();
+
+                    // Відновлюємо прокрутку
+                    restoreScrolling();
+
+                    // Оновлюємо дані
+                    const companyId = $('#editDeptCompany').val();
+                    if(companyId) {
+                        $('#companySelector').val(companyId).trigger('change');
+                    }
+
+                    alert(result.message);
+                } else {
+                    alert(result.message || 'An error occurred while saving the department.');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error updating department:', xhr.responseText);
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    const errors = xhr.responseJSON.errors;
+                    let errorMessage = 'Please correct the following errors:\n';
+                    Object.keys(errors).forEach(key => {
+                        errorMessage += `\n${key}: ${errors[key].join(', ')}`;
+                    });
+                    alert(errorMessage);
+                } else {
+                    alert('An unexpected error occurred. Please try again later.');
+                }
+            }
+        });
+    });
+    // Додаємо обробник для кнопки закриття
+    $('.btn-close, button[data-bs-dismiss="modal"]').on('click', function() {
+        restoreScrolling();
+    });
+
+     $(document).on('keydown', function(e) {
+        if (e.key === 'Escape' && $('.modal.show').length > 0) {
+            restoreScrolling();
+        }
+    });
+
+    // Sync color input with hex input
+    $('#editDeptColor').on('input', function() {
+        $('#editDeptColorHex').val(this.value);
+    });
+
+    $('#editDeptColorHex').on('input', function() {
+        if (/^#([A-Fa-f0-9]{6})$/.test(this.value)) {
+            $('#editDeptColor').val(this.value);
+        }
+    });
+
+    // Змінна для збереження parent_position_id під час завантаження
+    let savedParentPositionId = null;
+
+    // Helper function to get localized position name
+    function getLocalizedPositionName(pos) {
+        // Try multiple ways to get current language
+        let currentLanguage = $('html').attr('lang') || 
+                             (window.location.pathname.match(/^\/([a-z]{2})\//) ? window.location.pathname.match(/^\/([a-z]{2})\//)[1] : null) ||
+                             'uk';
+        
+        // Normalize language code (en, ru, uk)
+        if (currentLanguage && currentLanguage.length > 2) {
+            currentLanguage = currentLanguage.substring(0, 2);
+        }
+        
+        if (pos.name) return pos.name;
+        if (currentLanguage === 'ru' && pos.position_name_ru) return pos.position_name_ru;
+        if (currentLanguage === 'en' && pos.position_name_en) return pos.position_name_en;
+        if (pos.position_name_ua) return pos.position_name_ua;
+        return `Position ${pos.id}`;
+    }
+
+    // Load positions when company changes
+    $('#editDeptCompany').on('change', function() {
+        const companyId = $(this).val();
+        if (!companyId) {
+            $('#editDeptParentPosition').html('<option value="">{% trans "None" %}</option>');
+            return;
+        }
+
+        // Зберігаємо поточне значення перед завантаженням
+        savedParentPositionId = $('#editDeptParentPosition').val();
+
+        $.ajax({
+            url: `/companies/${companyId}/positions/`,
+            method: 'GET',
+            success: function(positions) {
+                let options = '<option value="">{% trans "None" %}</option>';
+                positions.forEach(pos => {
+                    const positionName = getLocalizedPositionName(pos);
+                    options += `<option value="${pos.id}">${positionName}</option>`;
+                });
+                $('#editDeptParentPosition').html(options);
+                
+                // Відновлюємо збережене значення, якщо воно існує
+                if (savedParentPositionId) {
+                    $('#editDeptParentPosition').val(savedParentPositionId);
+                }
+                savedParentPositionId = null;
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading positions:', error);
+                $('#editDeptParentPosition').html('<option value="">{% trans "None" %}</option>');
+                savedParentPositionId = null;
+            }
+        });
+    });
+
+    // Валідація: можна вибрати лише одне - Parent Department або Parent Position
+    $('#editDeptParent').on('change', function() {
+        if ($(this).val()) {
+            // Якщо вибрано Parent Department, очищаємо Parent Position
+            $('#editDeptParentPosition').val('');
+        }
+    });
+
+    $('#editDeptParentPosition').on('change', function() {
+        if ($(this).val()) {
+            // Якщо вибрано Parent Position, очищаємо Parent Department
+            $('#editDeptParent').val('');
+        }
+    });
+});
+</script>
+{% endblock %}

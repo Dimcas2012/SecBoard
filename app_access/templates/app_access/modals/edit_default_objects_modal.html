@@ -1,0 +1,946 @@
+<!-- SecBoard\templates\app_access\modals\edit_default_objects_modal.html -->
+{% load i18n %}
+
+<div class="modal fade" id="editObjectsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Edit Objects" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="objectModalAlerts"></div>
+                
+                <!-- Дерево об'єктів -->
+                <div class="objects-tree mb-3">
+                    <div id="objectsTreeView" class="sortable-tree">
+                        <!-- Об'єкти будуть додані тут динамічно -->
+                    </div>
+                </div>
+
+                <!-- Кнопки управління -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-primary" id="addRootObjectBtn">
+                        <i class="bi bi-plus-circle"></i> {% trans "Add Root Object" %}
+                    </button>
+                    <button type="button" class="btn btn-success" id="addChildObjectBtn">
+                        <i class="bi bi-plus-circle"></i> {% trans "Add Child Object" %}
+                    </button>
+                    <button type="button" class="btn btn-warning" id="copyObjectBtn" disabled>
+                        <i class="bi bi-copy"></i> {% trans "Copy Object" %}
+                    </button>
+                </div>
+
+                <!-- Форма редагування об'єкта -->
+                <form id="objectForm" class="d-none">
+                    {% csrf_token %}
+                    <input type="hidden" id="objectId" name="object_id">
+                    <input type="hidden" id="parentObjectId" name="parent_id">
+                    
+                    <div class="row g-3">
+                        <!-- Root/Child selector -->
+                        <div class="col-12">
+                            <label class="form-label">{% trans "Object Type" %}</label>
+                            <div>
+                                <input type="radio" name="object_type" value="root" id="objectTypeRoot">
+                                <label for="objectTypeRoot">{% trans "Root" %}</label>
+                                <input type="radio" name="object_type" value="child" id="objectTypeChild">
+                                <label for="objectTypeChild">{% trans "Child" %}</label>
+                            </div>
+                        </div>
+                        <div class="col-12" id="parentObjectSelectContainer" style="display:none;">
+                            <label for="parentObjectSelect" class="form-label">{% trans "Parent Object" %}</label>
+                            <select id="parentObjectSelect" name="parent_id" class="form-select"></select>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="objectName" class="form-label required">{% trans "Name" %}</label>
+                            <input type="text" class="form-control object-name-input" id="objectName" name="name" required>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="objectColor" class="form-label">{% trans "Color" %}</label>
+                            <input type="color" class="form-control form-control-color w-100" id="objectColor" name="color" value="#6c757d">
+                        </div>
+
+                        <div class="col-12">
+                            <label for="objectDescription" class="form-label">{% trans "Description" %}</label>
+                            <textarea class="form-control object-description-input" id="objectDescription" name="description" rows="2"></textarea>
+                        </div>
+                        
+                        <!-- Попередній перегляд -->
+                        <div class="col-12">
+                            <div class="preview-box p-3 border rounded">
+                                <h6>{% trans "Preview" %}</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="color-dot me-2" id="previewObjectColorDot"></div>
+                                    <span id="previewObjectName"></span>
+                                </div>
+                                <p class="text-muted small mb-0 mt-2" id="previewObjectDescription"></p>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-success">{% trans "Save Object" %}</button>
+                            <button type="button" class="btn btn-secondary" id="cancelObjectEdit">{% trans "Cancel" %}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.required:after {
+    content: " *";
+    color: red;
+}
+
+.objects-tree {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.object-item {
+    margin: 5px 0;
+    padding: 5px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.object-item:hover {
+    background-color: #f8f9fa;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.object-item.selected {
+    background-color: #e9ecef;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.object-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.object-content {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.object-children {
+    margin-left: 20px;
+    padding-left: 10px;
+    border-left: 2px solid #dee2e6;
+}
+
+.drag-handle {
+    cursor: move;
+    color: #6c757d;
+    padding: 0 5px;
+}
+
+.drag-handle:hover {
+    color: #000;
+}
+
+.sortable-ghost {
+    opacity: 0.5;
+    background-color: #f8f9fa;
+}
+
+.sortable-chosen {
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.color-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.preview-box {
+    background-color: #f8f9fa;
+}
+
+#previewObjectColorDot {
+    width: 16px;
+    height: 16px;
+}
+
+/* Стиль для неактивної кнопки */
+.btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Стилі для кнопки копіювання */
+.copy-object {
+    transition: all 0.2s ease;
+}
+
+.copy-object:hover {
+    background-color: #fff3cd;
+    border-color: #ffc107;
+    color: #856404;
+}
+
+.object-actions {
+    display: flex;
+    gap: 2px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('objectForm');
+    const modalElement = document.getElementById('editObjectsModal');
+    const modal = new bootstrap.Modal(modalElement);
+    const treeView = document.getElementById('objectsTreeView');
+    let selectedObjectId = null;
+
+    // Додаємо функцію для завантаження об'єктів
+    function loadObjects() {
+        const systemId = document.getElementById('systemSelect').value;
+        const environment = document.getElementById('environmentSelect').value;
+        
+        if (!systemId) {
+            showModalAlert('warning', '{% trans "Please select a system first" %}');
+            return;
+        }
+        
+        if (!environment) {
+            showModalAlert('warning', '{% trans "Please select an environment first" %}');
+            return;
+        }
+
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/objects/system/?system_id=${systemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.objects) {
+                    renderObjectTree(response.objects);
+                }
+            },
+            error: function() {
+                showModalAlert('danger', '{% trans "Error loading objects" %}');
+            }
+        });
+
+        // Після завантаження об'єктів скидаємо виділення і деактивуємо кнопки
+        selectedObjectId = null;
+        document.getElementById('addChildObjectBtn').disabled = true;
+        document.getElementById('copyObjectBtn').disabled = true;
+    }
+
+    // Додаємо функцію renderObjectChildren перед renderObjectTree
+    function renderObjectChildren(children, container) {
+        // Сортуємо дочірні елементи за order
+        children.sort((a, b) => a.order - b.order);
+        
+        const currentLang = window.location.pathname.split('/')[1] || 'ua';
+        
+        children.forEach(function(child) {
+            const childItem = document.createElement('div');
+            childItem.className = 'object-item';
+            childItem.dataset.objectId = child.id;
+            childItem.dataset.order = child.order; // Додаємо order в data-атрибут
+            
+            const name = child.name || '';
+            
+            childItem.innerHTML = `
+                <div class="object-header">
+                    <div class="drag-handle">
+                        <i class="bi bi-grip-vertical"></i>
+                    </div>
+                    <div class="object-content">
+                        <div class="d-flex align-items-center">
+                            <div class="color-dot me-2" style="background-color: ${child.color}"></div>
+                            <span class="object-name">${name}</span>
+                        </div>
+                        <div class="object-actions">
+                            <button type="button" class="btn btn-sm btn-outline-primary edit-object" data-object-id="${child.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-warning copy-object" data-object-id="${child.id}">
+                                <i class="bi bi-copy"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-object" data-object-id="${child.id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                ${child.children && child.children.length > 0 ? '<div class="object-children sortable-tree"></div>' : ''}
+            `;
+            
+            container.appendChild(childItem);
+            
+            if (child.children && child.children.length > 0) {
+                const childrenContainer = childItem.querySelector('.object-children');
+                renderObjectChildren(child.children, childrenContainer);
+            }
+        });
+    }
+
+    // Оновлюємо функцію для рендерингу дерева об'єктів
+    function renderObjectTree(objects) {
+        const treeView = document.getElementById('objectsTreeView');
+        treeView.innerHTML = '';
+        
+        // Сортуємо об'єкти за order перед рендерингом
+        objects.sort((a, b) => a.order - b.order);
+        
+        objects.forEach(function(obj) {
+            const objItem = document.createElement('div');
+            objItem.className = 'object-item';
+            objItem.dataset.objectId = obj.id;
+            objItem.dataset.order = obj.order; // Додаємо order в data-атрибут
+            
+            const currentLang = window.location.pathname.split('/')[1] || 'ua';
+            const name = obj.name || '';
+            
+            objItem.innerHTML = `
+                <div class="object-header">
+                    <div class="drag-handle">
+                        <i class="bi bi-grip-vertical"></i>
+                    </div>
+                    <div class="object-content">
+                        <div class="d-flex align-items-center">
+                            <div class="color-dot me-2" style="background-color: ${obj.color}"></div>
+                            <span class="object-name">${name}</span>
+                        </div>
+                        <div class="object-actions">
+                            <button type="button" class="btn btn-sm btn-outline-primary edit-object" data-object-id="${obj.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-warning copy-object" data-object-id="${obj.id}">
+                                <i class="bi bi-copy"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-object" data-object-id="${obj.id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                ${obj.children && obj.children.length > 0 ? '<div class="object-children sortable-tree"></div>' : ''}
+            `;
+            
+            treeView.appendChild(objItem);
+            
+            if (obj.children && obj.children.length > 0) {
+                const childrenContainer = objItem.querySelector('.object-children');
+                renderObjectChildren(obj.children, childrenContainer);
+            }
+        });
+        
+        initializeSortable();
+    }
+
+    function initializeSortable() {
+        document.querySelectorAll('.sortable-tree').forEach(el => {
+            new Sortable(el, {
+                group: 'objects',
+                handle: '.drag-handle',
+                animation: 150,
+                fallbackOnBody: true,
+                swapThreshold: 0.65,
+                onEnd: function(evt) {
+                    // Отримуємо всі об'єкти в поточному контейнері та їх порядок
+                    const container = evt.to;
+                    const items = Array.from(container.children);
+                    const orders = items.map((item, index) => ({
+                        id: item.dataset.objectId,
+                        order: index
+                    }));
+
+                    // Отримуємо батьківський елемент
+                    const parentElement = container.closest('.object-item');
+                    const parentId = parentElement ? parentElement.dataset.objectId : null;
+
+                    // Отримуємо переміщений елемент
+                    const movedItemId = evt.item.dataset.objectId;
+
+                    const systemId = document.getElementById('systemSelect').value;
+                    const environment = document.getElementById('environmentSelect').value;
+                    
+                    if (!systemId) {
+                        showModalAlert('warning', '{% trans "Please select a system first" %}');
+                        evt.preventDefault();
+                        return;
+                    }
+                    
+                    if (!environment) {
+                        showModalAlert('warning', '{% trans "Please select an environment first" %}');
+                        evt.preventDefault();
+                        return;
+                    }
+
+                    const languagePrefix = window.location.pathname.split('/')[1];
+                    $.ajax({
+                        url: `/${languagePrefix}/app_access/objects/update-order/`,
+                        type: 'POST',
+                        data: JSON.stringify({
+                            orders: orders,
+                            parent_id: parentId,
+                            moved_item_id: movedItemId,
+                            system_id: systemId,
+                            environment: environment
+                        }),
+                        contentType: 'application/json',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                showModalAlert('success', response.message);
+                            } else {
+                                showModalAlert('danger', response.message || '{% trans "Error updating order" %}');
+                                // Повертаємо елемент на початкову позицію
+                                evt.from.insertBefore(evt.item, evt.oldIndex >= evt.from.children.length ? null : evt.from.children[evt.oldIndex]);
+                            }
+                        },
+                        error: function(xhr) {
+                            console.error('Error updating order:', xhr.responseJSON);
+                            showModalAlert('danger', xhr.responseJSON?.message || '{% trans "Error updating order" %}');
+                            // Повертаємо елемент на початкову позицію
+                            evt.from.insertBefore(evt.item, evt.oldIndex >= evt.from.children.length ? null : evt.from.children[evt.oldIndex]);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    function updatePreview() {
+        const previewName = document.getElementById('objectName')?.value || '';
+        const previewDescription = document.getElementById('objectDescription')?.value || '';
+        const color = document.getElementById('objectColor').value;
+        document.getElementById('previewObjectName').textContent = previewName;
+        document.getElementById('previewObjectDescription').textContent = previewDescription;
+        document.getElementById('previewObjectColorDot').style.backgroundColor = color;
+    }
+
+    // Додаємо обробники подій
+    document.getElementById('addRootObjectBtn').addEventListener('click', function() {
+        form.reset();
+        document.getElementById('objectId').value = '';
+        document.getElementById('parentObjectId').value = '';
+        form.classList.remove('d-none');
+    });
+
+    // Додаємо обробник для кнопки додавання під-об'єкта
+    document.getElementById('addChildObjectBtn').addEventListener('click', function() {
+        if (!selectedObjectId) {
+            showModalAlert('warning', '{% trans "Please select a parent object first" %}');
+            return;
+        }
+        
+        // Очищаємо форму
+        form.reset();
+        form.classList.remove('d-none');
+        
+        // Встановлюємо parent_id
+        document.getElementById('parentObjectId').value = selectedObjectId;
+        document.getElementById('objectId').value = '';
+    });
+
+    // Додаємо обробник для кнопки копіювання об'єкта
+    document.getElementById('copyObjectBtn').addEventListener('click', function() {
+        if (!selectedObjectId) {
+            showModalAlert('warning', '{% trans "Please select an object to copy first" %}');
+            return;
+        }
+        
+        // Показуємо індикатор завантаження
+        showModalAlert('info', '{% trans "Copying object with all related data..." %}');
+        
+        // Використовуємо нову функцію копіювання з усіма пов'язаними даними
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        $.ajax({
+            url: `/${languagePrefix}/app_access/objects/${selectedObjectId}/copy/`,
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            success: function(response) {
+                if (response.success) {
+                    showModalAlert('success', response.message || '{% trans "Object copied successfully with all related data" %}');
+                    // Перезавантажуємо дерево об'єктів
+                    loadObjects();
+                    
+                    // Скидаємо виділення
+                    selectedObjectId = null;
+                    document.getElementById('addChildObjectBtn').disabled = true;
+                    document.getElementById('copyObjectBtn').disabled = true;
+                    
+                    // Видаляємо виділення з елементів
+                    document.querySelectorAll('.object-item').forEach(item => {
+                        item.classList.remove('selected');
+                    });
+                } else {
+                    showModalAlert('danger', response.message || '{% trans "Error copying object" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error copying object:', {xhr, status, error});
+                const errorMessage = xhr.responseJSON?.message || '{% trans "Error copying object" %}';
+                showModalAlert('danger', errorMessage);
+            }
+        });
+    });
+
+    // Додаємо обробник для вибору об'єкта
+    treeView.addEventListener('click', function(e) {
+        const objectItem = e.target.closest('.object-item, .object-header');
+        if (objectItem && !e.target.closest('.edit-object') && !e.target.closest('.copy-object') && !e.target.closest('.delete-object')) {
+            // Знімаємо виділення з усіх об'єктів
+            document.querySelectorAll('.object-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Знаходимо батьківський object-item, якщо клікнули на object-header
+            const targetItem = objectItem.classList.contains('object-header') 
+                ? objectItem.closest('.object-item') 
+                : objectItem;
+            
+            // Виділяємо вибраний об'єкт
+            targetItem.classList.add('selected');
+            selectedObjectId = targetItem.dataset.objectId;
+            
+            // Активуємо кнопки додавання дочірнього об'єкта та копіювання
+            document.getElementById('addChildObjectBtn').disabled = false;
+            document.getElementById('copyObjectBtn').disabled = false;
+        }
+    });
+
+    // Додаємо обробник для наведення курсору
+    treeView.addEventListener('mouseover', function(e) {
+        const objectItem = e.target.closest('.object-item');
+        if (objectItem && !objectItem.classList.contains('selected')) {
+            objectItem.style.backgroundColor = '#f8f9fa';
+        }
+    });
+
+    // Додаємо обробник для виходу курсору
+    treeView.addEventListener('mouseout', function(e) {
+        const objectItem = e.target.closest('.object-item');
+        if (objectItem && !objectItem.classList.contains('selected')) {
+            objectItem.style.backgroundColor = '';
+        }
+    });
+
+    // Обробка форми
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(form);
+        formData.append('system_id', document.getElementById('systemSelect').value);
+        formData.append('environment', document.getElementById('environmentSelect').value);
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/objects/save/`,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            success: function(response) {
+                if (response.success) {
+                    showModalAlert('success', response.message);
+                    loadObjects();
+                    form.classList.add('d-none');
+                    document.getElementById('addChildObjectBtn').classList.remove('d-none');
+                    document.getElementById('addChildObjectBtn').disabled = true;
+                    document.getElementById('copyObjectBtn').disabled = true;
+                } else {
+                    showModalAlert('danger', response.message || '{% trans "Error saving object" %}');
+                }
+            },
+            error: function(xhr) {
+                const errorMessage = xhr.responseJSON?.message || '{% trans "Error saving object" %}';
+                showModalAlert('danger', errorMessage);
+            }
+        });
+    });
+
+    // Додаємо обробники подій для полів форми
+    form.querySelectorAll('input, textarea').forEach(input => {
+        input.addEventListener('input', updatePreview);
+    });
+
+    // Оновлюємо обробник відкриття модального вікна
+    $(modalElement).on('show.bs.modal', function() {
+        const systemId = document.getElementById('systemSelect').value;
+        const environment = document.getElementById('environmentSelect').value;
+        
+        if (!systemId) {
+            showModalAlert('warning', '{% trans "Please select a system first" %}');
+            return;
+        }
+        
+        if (!environment) {
+            showModalAlert('warning', '{% trans "Please select an environment first" %}');
+            return;
+        }
+
+        // Завантажуємо актуальні дані з сервера
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/objects/system/?system_id=${systemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.objects) {
+                    renderObjectTree(response.objects);
+                    document.getElementById('addChildObjectBtn').disabled = true;
+                    document.getElementById('copyObjectBtn').disabled = true;
+                    selectedObjectId = null;
+                    document.getElementById('addChildObjectBtn').classList.remove('d-none');
+                }
+            },
+            error: function(error) {
+                console.error('Error loading objects:', error);
+                showModalAlert('danger', '{% trans "Error loading objects" %}');
+            }
+        });
+    });
+
+    // Оновлюємо обробник закриття модального вікна
+    $(modalElement).on('hidden.bs.modal', function() {
+        form.reset();
+        form.classList.add('d-none');
+        selectedObjectId = null;
+
+        // Оновлюємо дані на головній сторінці
+        const systemId = document.getElementById('systemSelect').value;
+        const environment = document.getElementById('environmentSelect').value;
+        if (systemId && environment) {
+            updateMainObjects(systemId, environment);
+        }
+    });
+
+    // Додаємо обробник для кнопки скасування
+    document.getElementById('cancelObjectEdit').addEventListener('click', function() {
+        form.reset();
+        form.classList.add('d-none');
+        // Не скидаємо виділення об'єкта при скасуванні редагування
+    });
+
+    // Додаємо обробник для редагування об'єкта
+    treeView.addEventListener('click', function(e) {
+        const editButton = e.target.closest('.edit-object');
+        if (editButton) {
+            const objectItem = editButton.closest('.object-item');
+            if (!objectItem) {
+                console.error('Object item not found');
+                return;
+            }
+            
+            const objectId = objectItem.dataset.objectId;
+            if (!objectId) {
+                showModalAlert('danger', '{% trans "Object ID not found" %}');
+                return;
+            }
+
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const url = `/${languagePrefix}/app_access/objects/${objectId}/detail/`;
+            
+            console.log('Fetching object details from:', url);
+            
+            $.ajax({
+                url: url,
+                type: 'GET',
+                success: function(response) {
+                    console.log('Object details response:', response);
+                    
+                    if (!response || response.error) {
+                        showModalAlert('danger', response.error || '{% trans "Error loading object details" %}');
+                        return;
+                    }
+
+                    document.getElementById('objectId').value = response.id;
+                    document.getElementById('objectColor').value = response.color || '#6c757d';
+                    document.getElementById('parentObjectId').value = response.parent_id || '';
+
+                    document.getElementById('objectName').value = response.name || '';
+                    document.getElementById('objectDescription').value = response.description || '';
+                    
+                    form.classList.remove('d-none');
+                    updatePreview();
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading object details:', {xhr, status, error});
+                    const errorMessage = xhr.responseJSON?.error || '{% trans "Error loading object details" %}';
+                    showModalAlert('danger', errorMessage);
+                }
+            });
+        }
+    });
+
+    // Додаємо обробник для копіювання об'єкта з дерева
+    treeView.addEventListener('click', function(e) {
+        const copyButton = e.target.closest('.copy-object');
+        if (copyButton) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const objectItem = copyButton.closest('.object-item');
+            if (!objectItem) {
+                console.error('Object item not found');
+                return;
+            }
+            
+            const objectId = objectItem.dataset.objectId;
+            if (!objectId) {
+                showModalAlert('danger', '{% trans "Object ID not found" %}');
+                return;
+            }
+
+            // Показуємо індикатор завантаження
+            showModalAlert('info', '{% trans "Copying object with all related data..." %}');
+            
+            // Використовуємо нову функцію копіювання з усіма пов'язаними даними
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            $.ajax({
+                url: `/${languagePrefix}/app_access/objects/${objectId}/copy/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                success: function(response) {
+                    if (response.success) {
+                        showModalAlert('success', response.message || '{% trans "Object copied successfully with all related data" %}');
+                        // Перезавантажуємо дерево об'єктів
+                        loadObjects();
+                        
+                        // Оновлюємо таблицю в основному вікні
+                        const systemId = document.getElementById('systemSelect').value;
+                        const environment = document.getElementById('environmentSelect').value;
+                        if (systemId && environment) {
+                            updateMainObjects(systemId, environment);
+                        }
+                    } else {
+                        showModalAlert('danger', response.message || '{% trans "Error copying object" %}');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error copying object:', {xhr, status, error});
+                    const errorMessage = xhr.responseJSON?.message || '{% trans "Error copying object" %}';
+                    showModalAlert('danger', errorMessage);
+                }
+            });
+        }
+    });
+
+    // Додаємо обробник для видалення об'єкта
+    treeView.addEventListener('click', function(e) {
+        const deleteButton = e.target.closest('.delete-object');
+        if (deleteButton) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const objectItem = deleteButton.closest('.object-item');
+            if (!objectItem) {
+                console.error('Object item not found');
+                return;
+            }
+            
+            const objectId = objectItem.dataset.objectId;
+            if (!objectId) {
+                showModalAlert('danger', '{% trans "Object ID not found" %}');
+                return;
+            }
+
+            if (confirm('{% trans "Are you sure you want to delete this object?" %}')) {
+                const languagePrefix = window.location.pathname.split('/')[1];
+                const url = `/${languagePrefix}/app_access/objects/${objectId}/delete/`;
+                
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            showModalAlert('success', response.message);
+                            loadObjects(); // Оновлюємо дерево в модальному вікні
+                            
+                            // Оновлюємо таблицю в основному вікні
+                            const systemId = document.getElementById('systemSelect').value;
+                            const environment = document.getElementById('environmentSelect').value;
+                            if (systemId && environment) {
+                                $.ajax({
+                                    url: `/${languagePrefix}/app_access/objects/system/?system_id=${systemId}&environment=${environment}`,
+                                    type: 'GET',
+                                    success: function(response) {
+                                        if (response.objects) {
+                                            if (typeof updateObjectsTable === 'function') {
+                                                updateObjectsTable(response.objects);
+                                            }
+                                        }
+                                    },
+                                    error: function(error) {
+                                        console.error('Error updating objects table:', error);
+                                    }
+                                });
+                            }
+                        } else {
+                            showModalAlert('danger', response.message || '{% trans "Error deleting object" %}');
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error deleting object:', xhr);
+                        const errorMessage = xhr.responseJSON?.message || '{% trans "Error deleting object" %}';
+                        showModalAlert('danger', errorMessage);
+                    }
+                });
+            }
+        }
+    });
+
+    // Додаємо функцію для показу сповіщень
+    function showModalAlert(type, message) {
+        const alertsContainer = document.getElementById('objectModalAlerts');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        alertsContainer.appendChild(alert);
+        
+        setTimeout(() => {
+            alert.remove();
+        }, 5000);
+    }
+
+    // Функція для оновлення даних на головній сторінці
+    function updateMainObjects(systemId, environment) {
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/objects/system/?system_id=${systemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.objects) {
+                    // Оновлюємо таблицю об'єктів на головній сторінці
+                    updateObjectsTable(response.objects);
+                    document.getElementById('defaultObjectsSection').style.display = 'block';
+                }
+            },
+            error: function(error) {
+                console.error('Error updating objects:', error);
+                toastr.error('{% trans "Error updating objects" %}');
+            }
+        });
+    }
+
+    // Root/Child selector logic
+    const objectTypeRoot = document.getElementById('objectTypeRoot');
+    const objectTypeChild = document.getElementById('objectTypeChild');
+    const parentObjectSelectContainer = document.getElementById('parentObjectSelectContainer');
+    const parentObjectSelect = document.getElementById('parentObjectSelect');
+    const parentObjectIdInput = document.getElementById('parentObjectId');
+
+    function loadParentObjects(selectedId = null) {
+        const systemId = document.getElementById('systemSelect').value;
+        const environment = document.getElementById('environmentSelect').value;
+        
+        if (!systemId || !environment) return;
+        
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/objects/system/?system_id=${systemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                parentObjectSelect.innerHTML = '<option value="">{% trans "Select parent object" %}</option>';
+                if (response.objects) {
+                    response.objects.forEach(obj => {
+                        const option = document.createElement('option');
+                        option.value = obj.id;
+                        option.textContent = obj.name || '';
+                        if (selectedId && obj.id == selectedId) option.selected = true;
+                        parentObjectSelect.appendChild(option);
+                    });
+                }
+            }
+        });
+    }
+
+    objectTypeRoot.addEventListener('change', function() {
+        if (this.checked) {
+            parentObjectSelectContainer.style.display = 'none';
+            parentObjectSelect.value = '';
+            parentObjectIdInput.value = '';
+        }
+    });
+    objectTypeChild.addEventListener('change', function() {
+        if (this.checked) {
+            parentObjectSelectContainer.style.display = '';
+            loadParentObjects();
+        }
+    });
+    parentObjectSelect.addEventListener('change', function() {
+        parentObjectIdInput.value = this.value;
+    });
+
+    // When loading object details for edit, set selector state
+    function setObjectTypeAndParent(parentId) {
+        if (!parentId) {
+            objectTypeRoot.checked = true;
+            parentObjectSelectContainer.style.display = 'none';
+            parentObjectSelect.value = '';
+            parentObjectIdInput.value = '';
+        } else {
+            objectTypeChild.checked = true;
+            parentObjectSelectContainer.style.display = '';
+            loadParentObjects(parentId);
+            parentObjectIdInput.value = parentId;
+        }
+    }
+
+    // Patch: call setObjectTypeAndParent when loading object details
+    const origSuccess = window.loadObjectDetailsSuccess;
+    window.loadObjectDetailsSuccess = function(response) {
+        setObjectTypeAndParent(response.parent_id);
+        if (origSuccess) origSuccess(response);
+    };
+
+    // Patch: on form submit, set parent_id correctly
+    const objectForm = document.getElementById('objectForm');
+    objectForm.addEventListener('submit', function(e) {
+        if (objectTypeRoot.checked) {
+            parentObjectIdInput.value = '';
+        } else if (objectTypeChild.checked) {
+            parentObjectIdInput.value = parentObjectSelect.value;
+        }
+    });
+});
+</script> 

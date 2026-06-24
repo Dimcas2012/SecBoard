@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Agent Details" %} - {{ agent.agent_name }}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_soc/includes/soc_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_soc/css/soc-detail-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid soc-page soc-detail-page">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="mb-0"><i class="bi bi-pc-display me-2"></i>{% trans "Agent Details" %}</h1>
+                <div class="btn-group sb-toolbar" role="group">
+                    <a href="{% url 'app_soc:fim_dashboard' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                       title="{% trans 'Back to Dashboard' %}">
+                        <i class="bi bi-arrow-left"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Agent Information Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Agent Information" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>{% trans "Agent ID" %}:</strong></td>
+                                    <td><code>{{ agent.agent_id }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>{% trans "Agent Name" %}:</strong></td>
+                                    <td>{{ agent.agent_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>{% trans "IP Address" %}:</strong></td>
+                                    <td>{{ agent.agent_ip }}</td>
+                                </tr>
+                                {% if agent.agent_version %}
+                                <tr>
+                                    <td><strong>{% trans "Agent Version" %}:</strong></td>
+                                    <td>{{ agent.agent_version }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>{% trans "Status" %}:</strong></td>
+                                    <td>
+                                        <span class="badge badge-{% if agent.status == 'active' %}success{% else %}secondary{% endif %}">
+                                            {{ agent.status|title }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>{% trans "Platform" %}:</strong></td>
+                                    <td>{{ agent.platform|default:"-" }}</td>
+                                </tr>
+                                {% if agent.os_name %}
+                                <tr>
+                                    <td><strong>{% trans "OS Name" %}:</strong></td>
+                                    <td>{{ agent.os_name }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if agent.os_version %}
+                                <tr>
+                                    <td><strong>{% trans "OS Version" %}:</strong></td>
+                                    <td>{{ agent.os_version }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>{% trans "First Seen" %}:</strong></td>
+                                    <td>{{ agent.first_seen|date:"Y-m-d H:i:s" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>{% trans "Last Seen" %}:</strong></td>
+                                    <td>{{ agent.last_seen|date:"Y-m-d H:i:s"|default:"-" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>{% trans "Total Alerts" %}:</strong></td>
+                                    <td>
+                                        <span class="badge badge-info">{{ alert_count }}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Alerts Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Recent Alerts (Last 30 Days)" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_alerts %}
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table w-100 mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Alert ID" %}</th>
+                                    <th>{% trans "File" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Severity" %}</th>
+                                    <th>{% trans "Timestamp" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for alert in recent_alerts %}
+                                <tr class="{% if alert.is_critical %}table-danger{% elif alert.is_high_severity %}table-warning{% endif %}">
+                                    <td>
+                                        <code>{{ alert.alert_id|truncatechars:12 }}</code>
+                                    </td>
+                                    <td>
+                                        <strong>{{ alert.file_name }}</strong><br>
+                                        <small class="text-muted">{{ alert.file_path|truncatechars:50 }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-{% if alert.alert_type == 'added' %}success{% elif alert.alert_type == 'modified' %}warning{% elif alert.alert_type == 'deleted' %}danger{% else %}info{% endif %}">
+                                            {{ alert.get_alert_type_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-{% if alert.level <= 3 %}danger{% elif alert.level <= 5 %}warning{% else %}info{% endif %}">
+                                            {{ alert.get_severity_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {{ alert.timestamp|date:"Y-m-d H:i:s" }}
+                                    </td>
+                                    <td>
+                                        {% if alert.processed %}
+                                            <span class="badge badge-success">{% trans "Processed" %}</span>
+                                        {% else %}
+                                            <span class="badge badge-warning">{% trans "Pending" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="table-actions">
+                                        <a href="{% url 'app_soc:fim_alert_detail' alert.alert_id %}" class="btn btn-sm btn-outline-primary btn-icon-action"
+                                           title="{% trans 'View' %}">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-info-circle fa-2x mb-3"></i>
+                        <p>{% trans "No alerts found for this agent in the last 30 days." %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Metadata Card -->
+            {% if agent.metadata %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Metadata" %}</h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-3"><code>{{ agent.metadata|pprint }}</code></pre>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

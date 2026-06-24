@@ -1,0 +1,140 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Target Groups" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fas fa-users me-2"></i>{% trans "Target Groups" %}</h2>
+    </div>
+</div>
+
+{% url 'app_gophish:group_list' as group_list_clear_url %}
+{% filters_expanded 'search' 'server' 'server_id' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="groupFiltersCollapse" toggle_id="toggleGroupFilters" icon_id="groupFiltersToggleIcon" filter_clear_url=group_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="groupFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" class="row g-1 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" class="form-control form-control-sm" id="filterSearch" name="search"
+                       value="{{ search }}" placeholder="{% trans 'Group name...' %}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="filterServer">{% trans "Server" %}</label>
+                <select class="form-select form-select-sm" id="filterServer" name="server">
+                    <option value="">{% trans "All Servers" %}</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}" {% if server_id == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+<!-- Groups Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table sb-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Server" %}</th>
+                                <th class="text-center">{% trans "Targets" %}</th>
+                                <th>{% trans "Last Sync" %}</th>
+                                <th>{% trans "Created" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for group in page_obj %}
+                            <tr>
+                                <td>
+                                    <strong>{{ group.name }}</strong>
+                                    {% if group.gophish_id %}
+                                    <br><small class="text-muted">ID: {{ group.gophish_id }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ group.server.name }}</td>
+                                <td class="numeric {% if group.target_count == 0 %}zero{% else %}positive{% endif %}">
+                                    {{ group.target_count }}
+                                </td>
+                                <td>{{ group.last_sync|date:"M d, H:i" }}</td>
+                                <td>{{ group.created_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <button class="btn btn-outline-info btn-sm" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#groupModal{{ group.id }}" 
+                                            title="{% trans 'View Targets' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if page_obj|length == 0 %}
+                <div class="text-center text-muted py-4">
+                    {% trans "No groups found" %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'app_gophish/includes/gophish_table_pagination.html' with pagination_item_label=_("groups") pagination_aria_label=_("Groups pagination") %}
+
+<!-- Group Details Modals -->
+{% for group in page_obj %}
+<div class="modal fade" id="groupModal{{ group.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ group.name }} - {% trans "Targets" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font sb-data-table w-100">
+                        <thead>
+                            <tr>
+                                <th>{% trans "First Name" %}</th>
+                                <th>{% trans "Last Name" %}</th>
+                                <th>{% trans "Email" %}</th>
+                                <th>{% trans "Position" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for target in group.targets_data.targets %}
+                            <tr>
+                                <td>{{ target.first_name }}</td>
+                                <td>{{ target.last_name }}</td>
+                                <td>{{ target.email }}</td>
+                                <td>{{ target.position }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    {% trans "No targets found" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

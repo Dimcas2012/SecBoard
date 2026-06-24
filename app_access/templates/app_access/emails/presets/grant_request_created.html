@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grant Access Request</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.3; color: #333; max-width: 480px; margin: 0 auto; padding: 8px; font-size: 13px; }
+        .header { background-color: #198754; color: white; padding: 12px; text-align: center; border-radius: 4px 4px 0 0; }
+        .header h2 { margin: 0; font-size: 16px; }
+        .header p { margin: 4px 0 0 0; font-size: 12px; opacity: 0.9; }
+        .content { background-color: #f8f9fa; padding: 12px; border: 1px solid #dee2e6; border-top: none; }
+        .greeting { margin: 0 0 8px 0; font-size: 13px; }
+        .compact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #198754; }
+        .grid-item { padding: 2px 0; }
+        .grid-item.full { grid-column: 1 / -1; }
+        .label { font-weight: bold; font-size: 10px; color: #666; text-transform: uppercase; display: block; margin-bottom: 1px; }
+        .value { font-size: 12px; color: #212529; }
+        .environment { display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 10px; font-weight: bold; }
+        .env-production { background-color: #dc3545; color: white; }
+        .env-test { background-color: #ffc107; color: black; }
+        .env-development { background-color: #17a2b8; color: white; }
+        .roles { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 2px; }
+        .role-badge { background-color: #6c757d; color: white; padding: 1px 4px; border-radius: 2px; font-size: 10px; }
+        .text-box { background: white; padding: 6px; border-radius: 3px; border-left: 3px solid #198754; margin: 8px 0; font-size: 12px; }
+        .button { display: inline-block; background-color: #198754; color: white !important; padding: 6px 12px; text-decoration: none; border-radius: 3px; margin: 8px 0; font-size: 12px; }
+        .footer { background-color: #6c757d; color: white; padding: 6px; text-align: center; border-radius: 0 0 4px 4px; font-size: 10px; }
+        @media (max-width: 400px) { .compact-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Grant Access Request</h2>
+        <p>{{ company_name }} / {{ system_name }}{% if object_name and object_name != 'No Object' %} / {{ object_name }}{% endif %}</p>
+    </div>
+    <div class="content">
+        <p class="greeting">Dear {{ recipient_name }},</p>
+        <p class="greeting">A new <strong>grant access</strong> request requires your attention as <strong>{{ recipient_role }}</strong>.</p>
+        <div class="compact-grid">
+            <div class="grid-item"><span class="label">Request ID</span><span class="value">#{{ access_request.id }}</span></div>
+            <div class="grid-item">
+                <span class="label">Environment</span>
+                <span class="value">
+                    <span class="environment {% if access_request.environment == 'production' %}env-production{% elif access_request.environment == 'test' %}env-test{% else %}env-development{% endif %}">
+                        {% if access_request.environment == 'production' %}PROD{% elif access_request.environment == 'test' %}TEST{% else %}DEV{% endif %}
+                    </span>
+                </span>
+            </div>
+            <div class="grid-item">
+                {% if has_third_party and include_third_party_info %}
+                <span class="label">Third Party</span><span class="value">{{ third_party_name }}</span>
+                {% else %}
+                <span class="label">Requested For</span><span class="value">{{ requested_for }}</span>
+                {% endif %}
+            </div>
+            <div class="grid-item"><span class="label">Requested By</span><span class="value">{{ requested_by }}</span></div>
+            <div class="grid-item">
+                <span class="label">Period</span>
+                <span class="value">{{ start_date|date:"d.m.y" }}{% if end_date %} - {{ end_date|date:"d.m.y" }}{% else %} - ∞{% endif %}</span>
+            </div>
+            <div class="grid-item"><span class="label">Type</span><span class="value">{{ request_type }}</span></div>
+            {% if access_records_data %}
+            <div class="grid-item full">
+                <span class="label">{% if has_multiple_objects %}Object Roles ({{ access_records_data|length }} objects){% else %}Object Roles{% endif %}</span>
+                <div style="margin-top: 4px;">
+                    {% for record in access_records_data %}
+                    <div style="margin-bottom: 6px;">
+                        {% if record.object_name and record.object_name != 'No Object' %}<strong style="color: {{ record.object_color }}; font-size: 11px;">{{ record.object_name }}:</strong>{% endif %}
+                        <div class="roles">{% for role in record.roles %}<span class="role-badge">{{ role.name }}</span>{% endfor %}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% if justification %}
+        <div class="text-box"><span class="label">Justification</span><br>{{ justification }}</div>
+        {% endif %}
+        <div style="text-align: center;">
+            <a href="{{ site_protocol }}://{{ site_domain }}/app_access/user-access-request/" class="button">Review Request</a>
+        </div>
+    </div>
+    <div class="footer">SecBoard Access Management - Automated Notification</div>
+</body>
+</html>

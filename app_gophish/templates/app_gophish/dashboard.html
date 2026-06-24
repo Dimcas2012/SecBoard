@@ -1,0 +1,491 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "Gophish Dashboard" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>{% trans "Gophish Integration Dashboard" %}</h2>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted">{% trans "Active Servers" %}</h6>
+                        <h4 class="mb-0">{{ servers.count }}</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-server fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted">{% trans "Total Campaigns" %}</h6>
+                        <h4 class="mb-0">{{ campaigns.count }}</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-bullhorn fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted">{% trans "Running Campaigns" %}</h6>
+                        <h4 class="mb-0">{{ campaigns|length }}</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-play fa-2x text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted">{% trans "Recent Events" %}</h6>
+                        <h4 class="mb-0">{{ recent_events.count }}</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-chart-line fa-2x text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Campaigns -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{% trans "Recent Campaigns" %}</h5>
+                <a href="{% url 'app_gophish:campaign_list' %}" class="btn btn-sm btn-outline-primary">
+                    {% trans "View All" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table sb-data-table gophish-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Server" %}</th>
+                                <th>{% trans "Status" %}</th>
+                                <th>{% trans "Created" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for campaign in campaigns %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'app_gophish:campaign_detail' campaign.id %}">
+                                        {{ campaign.name|truncatechars:30 }}
+                                    </a>
+                                </td>
+                                <td>{{ campaign.server.name }}</td>
+                                <td>
+                                    <span class="campaign-status status-{{ campaign.status }}">
+                                        {{ campaign.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ campaign.created_at|date:"M d, Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    {% trans "No campaigns found" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Events -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{% trans "Recent Events" %}</h5>
+                <a href="{% url 'app_gophish:events_list' %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-list"></i> {% trans "View All" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table sb-data-table gophish-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Event" %}</th>
+                                <th>{% trans "Campaign" %}</th>
+                                <th>{% trans "Target" %}</th>
+                                <th>{% trans "Time" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in recent_events %}
+                            <tr>
+                                <td>
+                                    <span class="event-type-badge event-type-{{ event.event_type }}" 
+                                          style="{% if event.event_type == 'email_sent' %}background-color: #4472C4; color: white;{% elif event.event_type == 'email_opened' %}background-color: #70AD47; color: white;{% elif event.event_type == 'link_clicked' %}background-color: #FFC000; color: black;{% elif event.event_type == 'credentials_submitted' %}background-color: #C00000; color: white;{% elif event.event_type == 'data_submitted' %}background-color: #ED7D31; color: white;{% else %}background-color: #A5A5A5; color: white;{% endif %} padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; display: inline-block; min-width: 80px; text-align: center;">
+                                        {{ event.get_event_type_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="{% url 'app_gophish:campaign_detail' event.campaign.id %}">
+                                        {{ event.campaign.name|truncatechars:20 }}
+                                    </a>
+                                </td>
+                                <td>{{ event.target_email|truncatechars:20 }}</td>
+                                <td>{{ event.timestamp|timesince }} {% trans "ago" %}</td>
+                                <td>
+                                    {% if event.details %}
+                                    <button class="btn btn-outline-info btn-sm" 
+                                            onclick="showEventDetails({{ event.id }}, '{{ event.details|escapejs }}')"
+                                            data-toggle="tooltip" 
+                                            title="{% trans 'Show additional details' %}">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">
+                                    {% trans "No recent events" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sync Logs -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{% trans "Recent Sync Logs" %}</h5>
+                <div>
+                    <a href="{% url 'app_gophish:sync_data' %}" class="btn btn-sm btn-outline-primary">
+                        {% trans "Manual Sync" %}
+                    </a>
+                    <a href="{% url 'app_gophish:sync_logs' %}" class="btn btn-sm btn-outline-secondary">
+                        {% trans "View All" %}
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Server" %}</th>
+                                <th>{% trans "Sync Type" %}</th>
+                                <th>{% trans "Status" %}</th>
+                                <th>{% trans "Started" %}</th>
+                                <th>{% trans "Duration" %}</th>
+                                <th>{% trans "Records" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in sync_logs %}
+                            <tr>
+                                <td>{{ log.server.name }}</td>
+                                <td>{{ log.get_sync_type_display }}</td>
+                                <td class="sync-status-{{ log.status }}">
+                                    {{ log.get_status_display }}
+                                </td>
+                                <td>{{ log.started_at|date:"M d, H:i" }}</td>
+                                <td>
+                                    {% if log.duration %}
+                                        {{ log.duration }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="campaign-metrics">
+                                        <div class="d-flex justify-content-between">
+                                            <span>{% trans "Processed" %}:</span>
+                                            <span class="numeric {% if log.records_processed == 0 %}zero{% else %}positive{% endif %}">{{ log.records_processed }}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>{% trans "Created" %}:</span>
+                                            <span class="numeric {% if log.records_created == 0 %}zero{% else %}positive{% endif %}">{{ log.records_created }}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>{% trans "Updated" %}:</span>
+                                            <span class="numeric {% if log.records_updated == 0 %}zero{% else %}positive{% endif %}">{{ log.records_updated }}</span>
+                                        </div>
+                                        {% if log.records_failed > 0 %}
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-danger">{% trans "Failed" %}:</span>
+                                            <span class="numeric text-danger">{{ log.records_failed }}</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">
+                                    {% trans "No sync logs found" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Quick Actions" %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <a href="{% url 'app_gophish:server_create' %}" class="btn btn-secondary btn-block">
+                            <i class="fas fa-server"></i> {% trans "Add Server" %}
+                        </a>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <a href="{% url 'app_gophish:sync_data' %}" class="btn btn-warning btn-block">
+                            <i class="fas fa-sync"></i> {% trans "Sync Data" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1" role="dialog" aria-labelledby="eventDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventDetailsModalLabel">
+                    <i class="fas fa-info-circle"></i> {% trans "Event Details" %}
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close" onclick="closeEventDetailsModal()">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="eventDetailsContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeEventDetailsModal()">
+                    <i class="fas fa-times"></i> {% trans "Close" %}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="copyEventDetails()">
+                    <i class="fas fa-copy"></i> {% trans "Copy Details" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'app_gophish/css/gophish-events-page.css' %}">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentEventDetails = '';
+
+function showEventDetails(eventId, details) {
+    currentEventDetails = details;
+    
+    // Parse JSON details
+    let detailsHtml = '<div class="event-details">';
+    detailsHtml += '<h6><i class="fas fa-calendar-alt"></i> Event ID: ' + eventId + '</h6>';
+    detailsHtml += '<hr>';
+    
+    try {
+        const detailsObj = JSON.parse(details);
+        detailsHtml += '<div class="details-json">';
+        
+        for (const [key, value] of Object.entries(detailsObj)) {
+            detailsHtml += '<div class="detail-item mb-3">';
+            detailsHtml += '<strong class="text-primary">' + key.replace(/_/g, ' ').toUpperCase() + ':</strong><br>';
+            
+            if (typeof value === 'object' && value !== null) {
+                detailsHtml += '<pre class="mt-1 p-2 bg-light border rounded" style="font-size: 0.9rem;">' + JSON.stringify(value, null, 2) + '</pre>';
+            } else {
+                detailsHtml += '<span class="text-dark">' + value + '</span>';
+            }
+            detailsHtml += '</div>';
+        }
+        
+        detailsHtml += '</div>';
+    } catch (e) {
+        // If not JSON, display as plain text
+        detailsHtml += '<div class="details-text">';
+        detailsHtml += '<pre class="p-3 bg-light border rounded" style="white-space: pre-wrap; font-size: 0.9rem;">' + details + '</pre>';
+        detailsHtml += '</div>';
+    }
+    
+    detailsHtml += '</div>';
+    
+    // Update modal content
+    document.getElementById('eventDetailsContent').innerHTML = detailsHtml;
+    
+    // Show modal
+    $('#eventDetailsModal').modal('show');
+}
+
+function copyEventDetails() {
+    if (!currentEventDetails) return;
+    
+    const btn = document.querySelector('button[onclick="copyEventDetails()"]');
+    const originalText = btn.innerHTML;
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(currentEventDetails).then(function() {
+            // Show success message
+            btn.innerHTML = '<i class="fas fa-check"></i> {% trans "Copied!" %}';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-primary');
+            }, 2000);
+        }).catch(function(err) {
+            console.error('Clipboard API failed: ', err);
+            // Fallback to legacy method
+            fallbackCopyText(currentEventDetails, btn, originalText);
+        });
+    } else {
+        // Use fallback method directly
+        fallbackCopyText(currentEventDetails, btn, originalText);
+    }
+}
+
+function fallbackCopyText(text, btn, originalText) {
+    // Create temporary textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.top = '0';
+    textarea.style.left = '0';
+    document.body.appendChild(textarea);
+    
+    try {
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // For mobile devices
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (successful) {
+            // Show success message
+            btn.innerHTML = '<i class="fas fa-check"></i> {% trans "Copied!" %}';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-primary');
+            }, 2000);
+        } else {
+            throw new Error('execCommand failed');
+        }
+    } catch (err) {
+        console.error('Fallback copy failed: ', err);
+        document.body.removeChild(textarea);
+        alert('{% trans "Failed to copy event details" %}');
+    }
+}
+
+// Close modal function
+function closeEventDetailsModal() {
+    // Try Bootstrap 5 method
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modalElement = document.getElementById('eventDetailsModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+    } 
+    // Try Bootstrap 4/jQuery method
+    else if (typeof $ !== 'undefined' && $.fn.modal) {
+        $('#eventDetailsModal').modal('hide');
+    }
+    // Fallback: remove modal manually
+    else {
+        const modalElement = document.getElementById('eventDetailsModal');
+        modalElement.classList.remove('show');
+        modalElement.style.display = 'none';
+        modalElement.setAttribute('aria-hidden', 'true');
+        modalElement.removeAttribute('aria-modal');
+        
+        // Remove backdrop
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }
+}
+
+// Initialize tooltips
+$(document).ready(function() {
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>
+{% endblock %}

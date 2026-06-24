@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Questionnaire Templates" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_tprm/includes/tprm_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_tprm/css/questionnaire_list-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 tprm-page">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>{% trans "Questionnaires" %}</h2>
+        </div>
+    </div>
+
+    <div class="card mb-2 filter-section access-request-filters" id="questionnaireListFiltersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="questionnaireListFiltersCollapse" toggle_id="toggleQuestionnaireListFilters" icon_id="questionnaireListFiltersToggleIcon" clear_btn_id="clearQuestionnaireListFilters" filters_expanded=True %}
+        <div class="collapse show" id="questionnaireListFiltersCollapse">
+            <div class="card-body py-2">
+                <label for="questionnaireListSearch" class="form-label">{% trans "Search templates" %}</label>
+                <input type="text" class="form-control form-control-sm" id="questionnaireListSearch" placeholder="{% trans 'Name or description...' %}">
+            </div>
+        </div>
+    </div>
+
+    <div class="export-controls mb-2">
+        <div class="row align-items-center g-1">
+            <div class="col-md-6"></div>
+            <div class="col-md-6 text-end">
+                <div class="btn-group sb-toolbar" role="group">
+                    <a href="{% url 'app_tprm:template_list' %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                       title="{% trans 'Manage' %}">
+                        <i class="bi bi-gear"></i>
+                    </a>
+                    <a href="{% url 'app_tprm:dashboard' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                       title="{% trans 'Back' %}">
+                        <i class="bi bi-arrow-left"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for template in templates %}
+        <div class="col-md-6 col-lg-4 col-xl-3 mb-3 questionnaire-list-col">
+            <div class="card questionnaire-card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-file-alt"></i> {{ template.name }}
+                    </h6>
+                    <small class="text-muted">{{ template.get_category_display }}</small>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">{{ template.description|truncatewords:12 }}</p>
+                    <small class="text-muted">
+                        <i class="fas fa-question-circle"></i> 
+                        {{ template.questions.count }} {% trans "questions" %}
+                    </small>
+                </div>
+                <div class="card-footer">
+                    <button type="button" class="btn btn-primary btn-sm w-100" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#selectVendorModal"
+                            data-template-id="{{ template.pk }}"
+                            data-template-name="{{ template.name }}">
+                        <i class="fas fa-play"></i> {% trans "Start" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                {% trans "No questionnaire templates available. Create templates in the admin panel." %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Select Vendor Modal -->
+<div class="modal fade" id="selectVendorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-building"></i> {% trans "Select Vendor" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="startQuestionnaireForm">
+                    <input type="hidden" id="selectedTemplateId" name="template_id">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Select Vendor" %}</label>
+                        <select class="form-control" id="vendorSelect" name="vendor_id" required>
+                            <option value="">{% trans "Choose a vendor..." %}</option>
+                            {% for vendor in vendors %}
+                            <option value="{{ vendor.pk }}">{{ vendor.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="startQuestionnaire()">
+                    <i class="fas fa-play"></i> {% trans "Start" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Handle template selection
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('selectVendorModal');
+    modal.addEventListener('show.bs.modal', function(event) {
+        const button = event.relatedTarget;
+        const templateId = button.getAttribute('data-template-id');
+        document.getElementById('selectedTemplateId').value = templateId;
+    });
+});
+
+function startQuestionnaire() {
+    const vendorId = document.getElementById('vendorSelect').value;
+    const templateId = document.getElementById('selectedTemplateId').value;
+    
+    if (!vendorId) {
+        alert('{% trans "Please select a vendor" %}');
+        return;
+    }
+    
+    window.location.href = `/app_tprm/questionnaires/start/${vendorId}/${templateId}/`;
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title|default:_("Create Local Requirement Template") }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <h1>
+                <i class="fas fa-plus-circle"></i> {{ page_title|default:_("Create Local Requirement Template") }}
+            </h1>
+            <p class="text-muted">{{ page_subtitle|default:_("Create a template for regulatory requirement that can be applied to multiple companies") }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'compliance:control_mapping' %}" class="btn btn-sm btn-outline-info">
+                <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+            </a>
+            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#localComplianceGuideModal">
+                <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+            </button>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <form method="post" action="{{ form_action }}">
+                {% csrf_token %}
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> {% trans "Basic Information" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{% trans "Country" %} *</label>
+                                <select id="country-select" class="form-control" required>
+                                    <option value="">{% trans "Select Country" %}</option>
+                                    {% for country in countries %}
+                                    <option value="{{ country.id }}" {% if country.id|stringformat:"s" == selected_country_id %}selected{% endif %}>{{ country.display_name|default:country.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{% trans "Regulator" %} *</label>
+                                <select name="regulator" id="regulator-select" class="form-control" required>
+                                    <option value="">{% trans "Select Country first" %}</option>
+                                    {% for regulator in regulators %}
+                                    <option value="{{ regulator.id }}" data-country-id="{{ regulator.country.id }}" style="display: none;" {% if regulator.id|stringformat:"s" == selected_regulator_id %}data-selected="true"{% endif %}>
+                                        {{ regulator.display_label|default:regulator.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Company Types" %}</label>
+                                <select name="company_types" id="company-types-select" class="form-control" multiple size="5">
+                                    {% for option in company_type_choices %}
+                                    <option value="{{ option.id }}" {% if option.id in selected_company_type_ids %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">{% trans "Hold Ctrl/Cmd to select multiple company types." %}</small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Requirement Code" %} *</label>
+                                <input type="text" name="code" class="form-control" required 
+                                       placeholder="{% trans 'e.g., №77 від 15.06.2023' %}" value="{{ requirement.code|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Requirement Name" %} *</label>
+                                <input type="text" name="name" class="form-control" required 
+                                       placeholder="{% trans 'Full name of requirement' %}" value="{{ requirement.name|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Requirement Local Name" %}</label>
+                                <input type="text" name="name_local" class="form-control" 
+                                       placeholder="{% trans 'Requirement name in local language' %}" value="{{ requirement.name_local|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Requirement Type" %} *</label>
+                                {% with current_type=requirement.requirement_type|default:'' %}
+                                <select name="requirement_type" class="form-control" required>
+                                    {% for option in requirement_types %}
+                                    <option value="{{ option.code }}" {% if option.code == current_type %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% endwith %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Status" %}</label>
+                                {% with current_status=default_status %}
+                                <select name="status" class="form-control">
+                                    {% for option in status_choices %}
+                                    <option value="{{ option.code }}" {% if option.code == current_status %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% endwith %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Priority" %}</label>
+                                {% with current_priority=default_priority %}
+                                <select name="priority" class="form-control">
+                                    {% for option in priority_choices %}
+                                    <option value="{{ option.code }}" {% if option.code == current_priority %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% endwith %}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Description" %}</label>
+                                <textarea name="description" class="form-control" rows="3" 
+                                          placeholder="{% trans 'Detailed description' %}">{{ requirement.description|default:'' }}</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Applicable To" %}</label>
+                                <input type="text" name="applicable_to" class="form-control" 
+                                       placeholder="{% trans 'e.g., banks, financial institutions, etc.' %}" value="{{ requirement.applicable_to|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-calendar"></i> {% trans "Important Dates" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Publication Date" %}</label>
+                                <input type="date" name="publication_date" class="form-control" value="{% if requirement.publication_date %}{{ requirement.publication_date|date:'Y-m-d' }}{% endif %}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Effective Date" %}</label>
+                                <input type="date" name="effective_date" class="form-control" value="{% if requirement.effective_date %}{{ requirement.effective_date|date:'Y-m-d' }}{% endif %}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Compliance Deadline" %}</label>
+                                <input type="date" name="deadline_date" class="form-control" value="{% if requirement.deadline_date %}{{ requirement.deadline_date|date:'Y-m-d' }}{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-link"></i> {% trans "References" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Official Link" %}</label>
+                                <input type="url" name="official_link" class="form-control" 
+                                       placeholder="https://..." value="{{ requirement.official_link|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input type="checkbox" name="is_mandatory" value="1" 
+                                           class="form-check-input" id="is_mandatory" {% if default_is_mandatory %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_mandatory">
+                                        {% trans "Is Mandatory" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if requirement.id %}
+                <!-- Applied to Companies -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-building"></i> {% trans "Applied to Companies" %}
+                        </h5>
+                        {% if permissions.can_edit_requirements %}
+                        <small class="text-muted">{% trans "Select companies and mark mandatory status" %}</small>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        {% if permissions.can_edit_requirements %}
+                        <form method="post" action="{% url 'compliance:local_requirement_template_apply' requirement.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{% url 'compliance:local_requirement_template_edit' requirement.id %}">
+                            {% if companies %}
+                            <div class="table-responsive full-width-table">
+                                <table class="table table-hover table-sm table-sm-font sb-data-table align-middle mb-3">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 60px;">{% trans "Apply" %}</th>
+                                            <th>{% trans "Company" %}</th>
+                                            <th style="width: 140px;">{% trans "Mandatory" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for company in companies %}
+                                        <tr>
+                                            <td>
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="companies"
+                                                       value="{{ company.id }}"
+                                                       id="company_{{ company.id }}"
+                                                       {% if company.id in applied_companies %}checked{% endif %}>
+                                            </td>
+                                            <td>
+                                                <label class="mb-0" for="company_{{ company.id }}">
+                                                    <strong>{{ company.name }}</strong>
+                                                    {% if company.id in applied_companies %}
+                                                    <span class="badge bg-success ms-2">
+                                                        <i class="fas fa-check"></i> {% trans "Applied" %}
+                                                    </span>
+                                                    {% endif %}
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <div class="form-check">
+                                                    <input class="form-check-input"
+                                                           type="checkbox"
+                                                           name="mandatory_{{ company.id }}"
+                                                           value="1"
+                                                           id="mandatory_{{ company.id }}"
+                                                           {% if company.id in applied_companies_mandatory %}checked{% endif %}>
+                                                    <label class="form-check-label" for="mandatory_{{ company.id }}">
+                                                        <span class="badge bg-danger">
+                                                            <i class="fas fa-exclamation-circle"></i> {% trans "Mandatory" %}
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-between flex-wrap">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i>
+                                    {% trans "Uncheck company to remove the applied requirement." %}
+                                </small>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save"></i> {% trans "Save Changes" %}
+                                </button>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0">{% trans "You do not have any accessible companies to manage." %}</p>
+                            {% endif %}
+                        </form>
+                        {% else %}
+                        <p class="text-muted mb-0">{% trans "You do not have permission to manage company applications." %}</p>
+                        {% endif %}
+
+                        <hr class="my-4">
+                        <h6 class="mb-3">{% trans "Currently Applied" %}</h6>
+                        {% with applied_list=instances %}
+                        {% if applied_list %}
+                        <div class="d-flex flex-wrap" style="gap: .5rem;">
+                            {% for instance in applied_list %}
+                                {% if instance.company %}
+                                <span class="badge bg-light text-dark border">
+                                    <i class="fas fa-building text-primary"></i> {{ instance.company.name }}
+                                    {% if instance.is_mandatory %}
+                                    <span class="badge bg-danger ms-2">{% trans "Mandatory" %}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary ms-2">{% trans "Optional" %}</span>
+                                    {% endif %}
+                                </span>
+                                {% endif %}
+                            {% empty %}
+                            <span class="text-muted">{% trans "No companies have this requirement yet." %}</span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <span class="text-muted">{% trans "No companies have this requirement yet." %}</span>
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="d-flex justify-content-end">
+                    <a href="{% url 'compliance:local_requirements_library' %}" class="btn btn-secondary me-2">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {{ submit_label|default:_('Create Template') }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="localComplianceGuideModal" tabindex="-1" aria-labelledby="localComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:local_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="localComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Local Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="localComplianceGuideModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const countrySelect = document.getElementById('country-select');
+    const regulatorSelect = document.getElementById('regulator-select');
+    const allRegulatorOptions = Array.from(regulatorSelect.options);
+    const initialCountryId = '{{ selected_country_id|default:""|escapejs }}';
+    const initialRegulatorId = '{{ selected_regulator_id|default:""|escapejs }}';
+    const companyTypesSelect = document.getElementById('company-types-select');
+    const initialCompanyTypeIds = {{ selected_company_type_ids|default:"[]"|safe }};
+    
+    // Функція для фільтрування регуляторів
+    function filterRegulators() {
+        const selectedCountryId = countrySelect.value;
+        
+        // Очищуємо список регуляторів (крім першого - placeholder)
+        regulatorSelect.innerHTML = '';
+        
+        if (!selectedCountryId) {
+            // Якщо країна не вибрана
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = '{% trans "Select Country first" %}';
+            regulatorSelect.appendChild(emptyOption);
+            regulatorSelect.disabled = true;
+        } else {
+            // Додаємо placeholder
+            const placeholderOption = document.createElement('option');
+            placeholderOption.value = '';
+            placeholderOption.textContent = '{% trans "Select Regulator" %}';
+            regulatorSelect.appendChild(placeholderOption);
+            
+            // Фільтруємо та додаємо відповідні регулятори
+            let hasOptions = false;
+            allRegulatorOptions.forEach(option => {
+                if (option.value && option.dataset.countryId === selectedCountryId) {
+                    const newOption = option.cloneNode(true);
+                    newOption.style.display = '';
+                    regulatorSelect.appendChild(newOption);
+                    hasOptions = true;
+                }
+            });
+            
+            regulatorSelect.disabled = !hasOptions;
+            
+            if (!hasOptions) {
+                const noDataOption = document.createElement('option');
+                noDataOption.value = '';
+                noDataOption.textContent = '{% trans "No regulators available for this country" %}';
+                regulatorSelect.appendChild(noDataOption);
+            }
+        }
+    }
+    
+    // Обробник зміни країни
+    countrySelect.addEventListener('change', filterRegulators);
+    
+    if (initialCountryId) {
+        countrySelect.value = initialCountryId;
+        filterRegulators();
+        if (initialRegulatorId) {
+            regulatorSelect.value = initialRegulatorId;
+            regulatorSelect.disabled = false;
+        }
+    } else {
+        filterRegulators();
+        regulatorSelect.disabled = true;
+    }
+
+    if (companyTypesSelect && initialCompanyTypeIds.length > 0) {
+        const options = Array.from(companyTypesSelect.options);
+        options.forEach(option => {
+            if (initialCompanyTypeIds.includes(parseInt(option.value, 10))) {
+                option.selected = true;
+            }
+        });
+    }
+});
+
+document.getElementById('localComplianceGuideModal').addEventListener('show.bs.modal', function() {
+    var body = document.getElementById('localComplianceGuideModalBody');
+    var url = this.getAttribute('data-guide-url');
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+    fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+        })
+        .catch(function() {
+            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+        });
+});
+</script>
+{% endblock %}
+

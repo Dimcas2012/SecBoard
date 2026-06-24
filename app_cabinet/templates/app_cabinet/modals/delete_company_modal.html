@@ -1,0 +1,133 @@
+<!--SecBoard/templates/app_cabinet/modals/delete_company_modal.html-->
+{% load i18n %}
+
+<!-- Modal -->
+<div class="modal fade" id="deleteCompanyModal" tabindex="-1" aria-labelledby="deleteCompanyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteCompanyModalLabel">{% trans "Delete Company" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="deleteCompanyForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="deleteCompanyId" name="id">
+                    
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        {% trans "Are you sure you want to delete this company?" %}
+                    </div>
+                    
+                    <p><strong>{% trans "Company:" %}</strong> <span id="deleteCompanyName"></span></p>
+                    
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>
+                        {% trans "This action cannot be undone. The company will be permanently deleted along with all associated data." %}
+                    </div>
+                    
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>
+                        {% trans "Note: Companies with associated users, departments, positions, or cabinet groups cannot be deleted." %}
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger" id="deleteCompanySubmit">{% trans "Delete Company" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% block delete_company_modal_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const deleteCompanyForm = document.getElementById('deleteCompanyForm');
+    const deleteCompanySubmit = document.getElementById('deleteCompanySubmit');
+
+    // Listen for load company data event
+    document.addEventListener('loadCompanyDeleteData', function(event) {
+        const company = event.detail.company;
+        document.getElementById('deleteCompanyId').value = company.id;
+        document.getElementById('deleteCompanyName').textContent = company.name;
+    });
+
+    // Submit form for deleting company
+    deleteCompanySubmit.addEventListener('click', async function () {
+        const formData = new FormData(deleteCompanyForm);
+        const companyId = document.getElementById('deleteCompanyId').value;
+
+        try {
+            const response = await fetch(`/companies/${companyId}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // Hide the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteCompanyModal'));
+                modal.hide();
+
+                // Reset the form
+                deleteCompanyForm.reset();
+
+                // Clean up modal artifacts
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+
+                // Show success message
+                alert(result.message);
+
+                // Refresh the organization structure
+                const currentCompanyId = document.getElementById('companySelect').value;
+                if (currentCompanyId && window.location.pathname.includes('org-structure')) {
+                    // Clear company selection if deleted company was selected
+                    if (currentCompanyId === companyId) {
+                        document.getElementById('companySelect').value = '';
+                    }
+                    
+                    // Trigger a custom event to refresh the organization structure
+                    const refreshEvent = new CustomEvent('refreshOrgStructure', {
+                        detail: { companyId: document.getElementById('companySelect').value }
+                    });
+                    document.dispatchEvent(refreshEvent);
+                }
+
+                // Refresh company list in dropdown
+                if (typeof loadCompanies === 'function') {
+                    loadCompanies();
+                }
+
+            } else {
+                alert(result.error || "{% trans 'Error deleting company. Please try again.' %}");
+            }
+        } catch (error) {
+            console.error('Error deleting company:', error);
+            alert("{% trans 'Error deleting company. Please try again.' %}");
+        }
+    });
+
+    // Clean up modal on hide
+    document.getElementById('deleteCompanyModal').addEventListener('hidden.bs.modal', function () {
+        // Clean up any remaining modal artifacts
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+    });
+});
+</script>
+{% endblock %} 

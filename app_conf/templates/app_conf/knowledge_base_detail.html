@@ -1,0 +1,478 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{{ article.title }}{% endblock %}
+
+{% block meta_description %}{{ meta_description }}{% endblock %}
+{% block meta_keywords %}{{ meta_keywords }}{% endblock %}
+
+{% block og_title %}{{ article.title }}{% endblock %}
+{% block og_description %}{{ article.summary }}{% endblock %}
+
+{% block structured_data %}
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "{{ article.title|escapejs }}",
+    "description": "{{ article.summary|escapejs }}",
+    "author": {
+        "@type": "Person",
+        "name": "{{ article.author.get_full_name|default:article.author.username }}"
+    },
+    "datePublished": "{{ article.published_at|date:'Y-m-d' }}",
+    "dateModified": "{{ article.updated_at|date:'Y-m-d' }}",
+    "publisher": {
+        "@type": "Organization",
+        "name": "SecBoard"
+    }
+}
+{% endblock structured_data %}
+
+{% block styles %}
+<style>
+    .article-hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 3rem 0;
+        margin-bottom: 3rem;
+    }
+
+    .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .breadcrumb a {
+        color: rgba(255,255,255,0.9);
+        text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+        color: white;
+    }
+
+    .article-header {
+        margin-bottom: 2rem;
+    }
+
+    .article-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .article-badge {
+        padding: 0.35rem 1rem;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .priority-critical { background: #dc3545; }
+    .priority-high { background: #fd7e14; }
+    .priority-medium { background: #ffc107; color: #333; }
+    .priority-low { background: #28a745; }
+    .priority-info { background: #17a2b8; }
+
+    .article-meta {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+        color: rgba(255,255,255,0.9);
+        font-size: 0.95rem;
+    }
+
+    .article-content {
+        background: white;
+        border-radius: 15px;
+        padding: 3rem;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        margin-bottom: 2rem;
+    }
+
+    .article-content h1, .article-content h2, .article-content h3 {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        color: #2c3e50;
+    }
+
+    .article-content h1 { font-size: 2rem; }
+    .article-content h2 { font-size: 1.75rem; }
+    .article-content h3 { font-size: 1.5rem; }
+
+    .article-content p {
+        line-height: 1.8;
+        color: #555;
+        margin-bottom: 1.5rem;
+    }
+
+    .article-content ul, .article-content ol {
+        margin-bottom: 1.5rem;
+        padding-left: 2rem;
+    }
+
+    .article-content li {
+        margin-bottom: 0.5rem;
+        line-height: 1.8;
+    }
+
+    .article-content blockquote {
+        border-left: 4px solid #667eea;
+        padding-left: 1.5rem;
+        margin: 2rem 0;
+        color: #666;
+        font-style: italic;
+    }
+
+    .article-content code {
+        background: #f8f9fa;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        color: #e83e8c;
+        font-family: 'Courier New', monospace;
+    }
+
+    .article-content pre {
+        background: #2c3e50;
+        color: #ecf0f1;
+        padding: 1.5rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+    }
+
+    .article-tags {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin: 2rem 0;
+    }
+
+    .tag {
+        background: #f8f9fa;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        color: #666;
+        text-decoration: none;
+        border: 1px solid #e0e0e0;
+    }
+
+    .tag:hover {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+    }
+
+    .navigation-buttons {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 2rem 0;
+    }
+
+    .nav-button {
+        flex: 1;
+        padding: 1.5rem;
+        background: white;
+        border-radius: 12px;
+        text-decoration: none;
+        color: #666;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s;
+    }
+
+    .nav-button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        color: #667eea;
+    }
+
+    .nav-button-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #999;
+        margin-bottom: 0.5rem;
+    }
+
+    .nav-button-title {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .related-articles {
+        margin-top: 3rem;
+    }
+
+    .related-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s;
+        height: 100%;
+        text-decoration: none;
+        display: block;
+        color: inherit;
+    }
+
+    .related-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+
+    .related-card h5 {
+        color: #2c3e50;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .related-card p {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+
+    .back-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: white;
+        color: #667eea;
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 600;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+
+    .back-button:hover {
+        background: #667eea;
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    @media (max-width: 768px) {
+        .article-content {
+            padding: 1.5rem;
+        }
+
+        .navigation-buttons {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Article Hero -->
+<div class="article-hero">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'app_conf:knowledge_base_list' %}">
+                        <i class="fas fa-book-open me-1"></i>{% trans "Knowledge Base" %}
+                    </a>
+                </li>
+                {% if article.category %}
+                <li class="breadcrumb-item">
+                    <a href="{% url 'app_conf:knowledge_base_list' %}?category={{ article.category.slug }}">
+                        {{ article.category.name }}
+                    </a>
+                </li>
+                {% endif %}
+                <li class="breadcrumb-item active" aria-current="page">{{ article.title|truncatewords:5 }}</li>
+            </ol>
+        </nav>
+
+        <!-- Article Header -->
+        <div class="article-header">
+            <div class="article-badges">
+                {% if article.category %}
+                <span class="article-badge bg-{{ article.category.color }}">
+                    <i class="fas {{ article.category.icon }}"></i>
+                    {{ article.category.name }}
+                </span>
+                {% endif %}
+                <span class="article-badge priority-{{ article.priority }}">
+                    {{ article.get_priority_display }}
+                </span>
+                <span class="article-badge bg-secondary">
+                    <i class="fas fa-tag"></i>
+                    {{ article.get_article_type_display }}
+                </span>
+            </div>
+
+            <h1 class="display-4 mb-3">{{ article.title }}</h1>
+
+            <div class="article-meta">
+                {% if article.author %}
+                <span>
+                    <i class="fas fa-user me-1"></i>
+                    {{ article.author.get_full_name|default:article.author.username }}
+                </span>
+                {% endif %}
+                <span>
+                    <i class="fas fa-calendar me-1"></i>
+                    {{ article.published_at|date:"d F Y" }}
+                </span>
+                <span>
+                    <i class="fas fa-eye me-1"></i>
+                    {{ article.views_count }} {% trans "views" %}
+                </span>
+                <span>
+                    <i class="fas fa-clock me-1"></i>
+                    {% trans "Updated" %}: {{ article.updated_at|date:"d M Y" }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <a href="{% url 'app_conf:knowledge_base_list' %}" class="back-button">
+        <i class="fas fa-arrow-left"></i>
+        {% trans "Back to articles" %}
+    </a>
+
+    <div class="row">
+        <div class="col-lg-9">
+            <!-- Article Summary -->
+            <div class="article-content">
+                <div class="lead mb-4">
+                    {{ article.summary }}
+                </div>
+                <hr>
+                <!-- Article Content -->
+                <div class="mt-4">
+                    {{ article.content|safe }}
+                </div>
+
+                <!-- Tags -->
+                {% if article.tags %}
+                <hr class="my-4">
+                <div class="article-tags">
+                    <strong class="me-2"><i class="fas fa-tags me-1"></i>{% trans "Tags" %}:</strong>
+                    {% for tag in article.get_tags_list %}
+                    <a href="{% url 'app_conf:knowledge_base_list' %}?q={{ tag }}" class="tag">
+                        {{ tag }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="navigation-buttons">
+                {% if prev_article %}
+                <a href="{% url 'app_conf:knowledge_base_detail' prev_article.slug %}" class="nav-button text-start">
+                    <div class="nav-button-label">
+                        <i class="fas fa-chevron-left me-1"></i>{% trans "Previous Article" %}
+                    </div>
+                    <div class="nav-button-title">{{ prev_article.title|truncatewords:10 }}</div>
+                </a>
+                {% else %}
+                <div></div>
+                {% endif %}
+
+                {% if next_article %}
+                <a href="{% url 'app_conf:knowledge_base_detail' next_article.slug %}" class="nav-button text-end">
+                    <div class="nav-button-label">
+                        {% trans "Next Article" %}<i class="fas fa-chevron-right ms-1"></i>
+                    </div>
+                    <div class="nav-button-title">{{ next_article.title|truncatewords:10 }}</div>
+                </a>
+                {% endif %}
+            </div>
+
+            <!-- Related Articles -->
+            {% if related_articles %}
+            <div class="related-articles">
+                <h3 class="mb-4">
+                    <i class="fas fa-link me-2"></i>{% trans "Related Articles" %}
+                </h3>
+                <div class="row">
+                    {% for related in related_articles %}
+                    <div class="col-md-4 mb-3">
+                        <a href="{% url 'app_conf:knowledge_base_detail' related.slug %}" class="related-card">
+                            {% if related.category %}
+                            <span class="article-badge bg-{{ related.category.color }} mb-2">
+                                <i class="fas {{ related.category.icon }} me-1"></i>
+                                {{ related.category.name }}
+                            </span>
+                            {% endif %}
+                            <h5>{{ related.title }}</h5>
+                            <p>{{ related.summary|truncatewords:15 }}</p>
+                            <small class="text-muted">
+                                <i class="fas fa-eye me-1"></i>{{ related.views_count }}
+                            </small>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-3">
+            <div class="sticky-top" style="top: 20px;">
+                <!-- Article Info -->
+                <div class="related-card mb-3">
+                    <h5><i class="fas fa-info-circle me-2"></i>{% trans "Article Info" %}</h5>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <strong>{% trans "Category" %}:</strong><br>
+                            {{ article.category.name|default:"-" }}
+                        </li>
+                        <li class="mb-2">
+                            <strong>{% trans "Type" %}:</strong><br>
+                            {{ article.get_article_type_display }}
+                        </li>
+                        <li class="mb-2">
+                            <strong>{% trans "Priority" %}:</strong><br>
+                            <span class="article-badge priority-{{ article.priority }}">
+                                {{ article.get_priority_display }}
+                            </span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>{% trans "Published" %}:</strong><br>
+                            {{ article.published_at|date:"d M Y" }}
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Share -->
+                <div class="related-card">
+                    <h5><i class="fas fa-share-alt me-2"></i>{% trans "Share" %}</h5>
+                    <div class="d-flex gap-2">
+                        <a href="https://twitter.com/intent/tweet?url={{ request.build_absolute_uri }}&text={{ article.title }}" 
+                           target="_blank" class="btn btn-sm btn-primary">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ request.build_absolute_uri }}" 
+                           target="_blank" class="btn btn-sm btn-primary">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri }}" 
+                           target="_blank" class="btn btn-sm btn-primary">
+                            <i class="fab fa-facebook"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,661 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Risk Report" %} - Enhanced{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% load static %}{% static 'app_risk/js/validation.js' %}">
+<link rel="stylesheet" href="{% load static %}{% static 'app_risk/js/error-display-system.js' %}">
+<link rel="stylesheet" href="{% load static %}{% static 'app_risk/js/schedule-validation.js' %}">
+<link rel="stylesheet" href="{% load static %}{% static 'app_risk/js/network-error-handler.js' %}">
+<link rel="stylesheet" href="{% load static %}{% static 'app_risk/js/validation-integration.js' %}">
+
+<style>
+/* Enhanced styles for validation and error handling */
+.report-preview {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+}
+
+.report-config-card {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.report-config-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+}
+
+.report-config-card .card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px 15px 0 0;
+    padding: 20px;
+}
+
+.form-control, .form-select {
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.connection-status-display {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+    padding: 10px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+}
+
+.connection-status-display.online {
+    background-color: #28a745;
+    color: white;
+}
+
+.connection-status-display.offline {
+    background-color: #dc3545;
+    color: white;
+}
+
+.validation-indicator {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-left: 10px;
+    transition: all 0.3s ease;
+}
+
+.validation-indicator.valid {
+    background-color: #28a745;
+}
+
+.validation-indicator.invalid {
+    background-color: #dc3545;
+}
+
+.validation-indicator.validating {
+    background-color: #ffc107;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.form-enhancement {
+    position: relative;
+}
+
+.field-status {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    z-index: 10;
+}
+
+.error-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1060;
+    max-width: 350px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Connection Status Display -->
+    <div id="connection-status" class="connection-status-display" style="display: none;">
+        <i class="fas fa-wifi me-2"></i>
+        <span id="connection-text">{% trans "Online" %}</span>
+    </div>
+
+    <!-- Page Header -->
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-file-alt text-primary me-2"></i>
+                    {% trans "Risk Report" %}
+                    <span class="validation-indicator" id="page-validation-indicator"></span>
+                </h1>
+                <p class="text-muted">{% trans "Generate comprehensive risk assessment reports with enhanced validation and error handling" %}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Display Container -->
+    <div id="error-container"></div>
+
+    <!-- Global Form Status -->
+    <div id="global-form-status" class="alert alert-info" style="display: none;">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-info-circle me-2"></i>
+            <span id="global-status-text"></span>
+        </div>
+    </div>
+
+    {% if error_message %}
+    <div class="alert alert-danger" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        {{ error_message }}
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Enhanced Report Configuration -->
+        <div class="col-12">
+            <div class="card report-config-card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>
+                        {% trans "Report Configuration" %}
+                        <span class="validation-indicator" id="form-validation-indicator"></span>
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Form Status Indicator -->
+                    <div class="form-status-indicator mb-3" style="display: none;">
+                        <div class="status-item" data-status="valid">
+                            <i class="fas fa-check-circle text-success"></i>
+                            <span>{% trans "Form is valid and ready to submit" %}</span>
+                        </div>
+                        <div class="status-item" data-status="invalid">
+                            <i class="fas fa-exclamation-circle text-danger"></i>
+                            <span>{% trans "Please correct the errors below" %}</span>
+                        </div>
+                        <div class="status-item" data-status="validating">
+                            <i class="fas fa-spinner fa-spin text-info"></i>
+                            <span>{% trans "Validating form..." %}</span>
+                        </div>
+                    </div>
+
+                    <!-- Validation Summary -->
+                    <div class="validation-summary alert alert-danger" style="display: none;">
+                        <h6><i class="fas fa-exclamation-triangle me-2"></i>{% trans "Please correct the following errors:" %}</h6>
+                        <ul class="error-list mb-0"></ul>
+                    </div>
+
+                    <form id="reportForm" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3 form-enhancement">
+                                    <label class="form-label" for="reportType">
+                                        <i class="fas fa-file-alt me-1"></i>
+                                        {% trans "Report Type" %}
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-control" id="reportType" name="reportType" 
+                                            data-validate="required" required>
+                                        <option value="">{% trans "Select report type..." %}</option>
+                                        <option value="full">{% trans "Full Risk Assessment Report" %}</option>
+                                        <option value="summary">{% trans "Executive Summary" %}</option>
+                                        <option value="compliance">{% trans "Compliance Report" %}</option>
+                                    </select>
+                                    <div class="field-status"></div>
+                                    <div class="invalid-feedback"></div>
+                                    <div class="valid-feedback">{% trans "Valid selection" %}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3 form-enhancement">
+                                    <label class="form-label" for="reportFormat">
+                                        <i class="fas fa-file-export me-1"></i>
+                                        {% trans "Report Format" %}
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-control" id="reportFormat" name="reportFormat" 
+                                            data-validate="required" required>
+                                        <option value="">{% trans "Select format..." %}</option>
+                                        <option value="pdf">PDF</option>
+                                        <option value="word">Word (.docx)</option>
+                                    </select>
+                                    <div class="field-status"></div>
+                                    <div class="invalid-feedback"></div>
+                                    <div class="valid-feedback">{% trans "Valid selection" %}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3 form-enhancement">
+                                    <label class="form-label" for="reportLanguage">
+                                        <i class="fas fa-language me-1"></i>
+                                        {% trans "Report Language" %}
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-control" id="reportLanguage" name="reportLanguage" 
+                                            data-validate="required" required>
+                                        <option value="">{% trans "Select language..." %}</option>
+                                        <option value="uk" {% if current_language == 'uk' %}selected{% endif %}>Українська</option>
+                                        <option value="en" {% if current_language == 'en' %}selected{% endif %}>English</option>
+                                        <option value="ru" {% if current_language == 'ru' %}selected{% endif %}>Русский</option>
+                                    </select>
+                                    <div class="field-status"></div>
+                                    <div class="invalid-feedback"></div>
+                                    <div class="valid-feedback">{% trans "Valid selection" %}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3 form-enhancement">
+                                    <label class="form-label" for="reportCompany">
+                                        <i class="fas fa-building me-1"></i>
+                                        {% trans "Company" %}
+                                    </label>
+                                    <select class="form-control" id="reportCompany" name="reportCompany">
+                                        <option value="">{% trans "All Companies" %}</option>
+                                        {% for company in companies %}
+                                        <option value="{{ company.id }}">{{ company.name }}</option>
+                                        {% empty %}
+                                        <option disabled>{% trans "No companies available" %}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="field-status"></div>
+                                    <div class="invalid-feedback"></div>
+                                    <div class="valid-feedback">{% trans "Valid selection" %}</div>
+                                    <small class="form-text text-muted">
+                                        {% trans "Debug" %}: {{ companies.count }} {% trans "companies loaded" %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Date Range Section -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3 form-enhancement">
+                                    <label class="form-label" for="reportStartDate">
+                                        <i class="fas fa-calendar-alt me-1"></i>
+                                        {% trans "Start Date" %}
+                                    </label>
+                                    <input type="date" class="form-control" id="reportStartDate" name="reportStartDate"
+                                           data-validate="date">
+                                    <div class="field-status"></div>
+                                    <div class="invalid-feedback"></div>
+                                    <div class="valid-feedback">{% trans "Valid date" %}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3 form-enhancement">
+                                    <label class="form-label" for="reportEndDate">
+                                        <i class="fas fa-calendar-alt me-1"></i>
+                                        {% trans "End Date" %}
+                                    </label>
+                                    <input type="date" class="form-control" id="reportEndDate" name="reportEndDate"
+                                           data-validate="date">
+                                    <div class="field-status"></div>
+                                    <div class="invalid-feedback"></div>
+                                    <div class="valid-feedback">{% trans "Valid date" %}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="mb-3 form-enhancement">
+                                    <label class="form-label" for="reportNotes">
+                                        <i class="fas fa-sticky-note me-1"></i>
+                                        {% trans "Additional Notes" %}
+                                    </label>
+                                    <textarea class="form-control" id="reportNotes" name="reportNotes" rows="4" 
+                                              maxlength="1000" data-validate="maxLength:1000"
+                                              placeholder="{% trans 'Enter any additional notes or comments for the report...' %}"></textarea>
+                                    <div class="field-status"></div>
+                                    <div class="invalid-feedback"></div>
+                                    <div class="valid-feedback">{% trans "Valid input" %}</div>
+                                    <div class="character-counter text-muted small">
+                                        <span class="current">0</span> / <span class="max">1000</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <button type="button" class="btn btn-outline-secondary" 
+                                                data-action="reset-form" data-target="#reportForm">
+                                            <i class="fas fa-undo me-2"></i>
+                                            {% trans "Reset Form" %}
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info ms-2" 
+                                                data-action="validate-form" data-target="#reportForm">
+                                            <i class="fas fa-check me-2"></i>
+                                            {% trans "Validate Form" %}
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted me-3">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            {% trans "Fields marked with * are required" %}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+
+    <!-- Recent Reports (Enhanced) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        {% trans "Recent Reports" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Format" %}</th>
+                                    <th>{% trans "Language" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentReportsTable">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        {% trans "No recent reports found" %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Modals and Scripts -->
+{% include 'app_risk/modals/enhanced_schedule_modal.html' %}
+{% include 'app_risk/modals/enhanced_preview_modal.html' %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% load static %}{% static 'app_risk/js/validation.js' %}"></script>
+<script src="{% load static %}{% static 'app_risk/js/error-display-system.js' %}"></script>
+<script src="{% load static %}{% static 'app_risk/js/schedule-validation.js' %}"></script>
+<script src="{% load static %}{% static 'app_risk/js/network-error-handler.js' %}"></script>
+<script src="{% load static %}{% static 'app_risk/js/validation-integration.js' %}"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize enhanced form functionality
+    initializeEnhancedRiskReport();
+    
+    // Setup real-time validation status updates
+    setupValidationStatusUpdates();
+    
+    // Setup connection monitoring
+    setupConnectionMonitoring();
+    
+    // Setup form submission handling
+    setupFormSubmission();
+    
+
+});
+
+function initializeEnhancedRiskReport() {
+    const form = document.getElementById('reportForm');
+    if (!form) return;
+    
+    // Form validation events
+    form.addEventListener('validation:complete', function(e) {
+        updateValidationStatus(e.detail);
+        updateGenerateButton(e.detail.isValid);
+    });
+    
+    // Real-time field validation
+    const fields = form.querySelectorAll('input, select, textarea');
+    fields.forEach(field => {
+        field.addEventListener('input', debounce(() => {
+            validateField(field);
+        }, 300));
+        
+        field.addEventListener('blur', () => {
+            validateField(field);
+        });
+    });
+    
+    // Cross-field validation for date range
+    document.getElementById('reportStartDate').addEventListener('change', validateDateRange);
+    document.getElementById('reportEndDate').addEventListener('change', validateDateRange);
+}
+
+function validateField(field) {
+    if (window.validationIntegration) {
+        const isValid = window.validationIntegration.validateForm('reportForm');
+        updateFieldStatus(field, isValid);
+    }
+}
+
+function validateDateRange() {
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+    
+    if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (start > end) {
+            if (window.errorDisplay) {
+                window.errorDisplay.showError({
+                    message: '{% trans "Start date must be before end date" %}',
+                    category: 'validation'
+                });
+            }
+        }
+    }
+}
+
+function updateFieldStatus(field, isValid) {
+    const statusElement = field.parentElement.querySelector('.field-status');
+    if (statusElement) {
+        statusElement.innerHTML = isValid ? 
+            '<i class="fas fa-check text-success"></i>' : 
+            '<i class="fas fa-times text-danger"></i>';
+    }
+}
+
+function updateValidationStatus(validationResult) {
+    const indicator = document.getElementById('form-validation-indicator');
+    if (indicator) {
+        indicator.className = `validation-indicator ${validationResult.isValid ? 'valid' : 'invalid'}`;
+    }
+    
+    // Update validation status panel
+    const statusItems = document.querySelectorAll('#validation-status .validation-item i');
+    statusItems.forEach((item, index) => {
+        if (index === 0) { // Form validation
+            item.className = `fas fa-circle ${validationResult.isValid ? 'text-success' : 'text-danger'} me-2`;
+        }
+    });
+}
+
+function updateGenerateButton(isValid) {
+    const generateBtn = document.getElementById('generateReport');
+    if (generateBtn) {
+        generateBtn.disabled = !isValid;
+        generateBtn.title = isValid ? '' : '{% trans "Please complete form validation first" %}';
+    }
+}
+
+function setupValidationStatusUpdates() {
+    // Update validation status in real-time
+    setInterval(() => {
+        if (window.validationIntegration) {
+            const isValid = window.validationIntegration.getFormValidationStatus('reportForm');
+            if (isValid !== null) {
+                updateValidationStatus({ isValid });
+            }
+        }
+    }, 1000);
+}
+
+function setupConnectionMonitoring() {
+    if (window.networkErrorHandler) {
+        // Update connection status display
+        setInterval(() => {
+            const status = window.networkErrorHandler.getConnectionStatus();
+            updateConnectionInfo(status);
+        }, 2000);
+    }
+}
+
+function updateConnectionInfo(status) {
+    document.getElementById('connection-status-text').textContent = 
+        status.isOnline ? '{% trans "Online" %}' : '{% trans "Offline" %}';
+    
+    document.getElementById('retry-queue-size').textContent = status.retryQueueSize;
+    document.getElementById('offline-queue-size').textContent = status.offlineQueueSize;
+    
+    const indicator = document.querySelector('.connection-indicator');
+    if (indicator) {
+        indicator.className = `connection-indicator fas fa-circle ${status.isOnline ? 'text-success' : 'text-danger'}`;
+    }
+}
+
+function setupFormSubmission() {
+    // Generate Report button
+    document.getElementById('generateReport').addEventListener('click', function() {
+        if (window.validationIntegration && !window.validationIntegration.validateForm('reportForm')) {
+            return;
+        }
+        
+        const btn = this;
+        const spinner = btn.querySelector('.spinner-border');
+        
+        // Show loading state
+        btn.disabled = true;
+        spinner.style.display = 'inline-block';
+        
+        // Collect form data
+        const formData = new FormData(document.getElementById('reportForm'));
+        
+        // Submit request
+        fetch('{% url "generate_risk_report" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.blob();
+            }
+            throw new Error('Network response was not ok');
+        })
+        .then(blob => {
+            // Download file
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'risk_report.' + document.getElementById('reportFormat').value;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            if (window.errorDisplay) {
+                window.errorDisplay.showError({
+                    message: '{% trans "Report generated successfully" %}',
+                    category: 'user',
+                    autoHide: true
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error generating report:', error);
+        })
+        .finally(() => {
+            // Hide loading state
+            btn.disabled = false;
+            spinner.style.display = 'none';
+        });
+    });
+    
+    // Preview Report button
+    document.getElementById('previewReport').addEventListener('click', function() {
+        if (window.validationIntegration && !window.validationIntegration.validateForm('reportForm')) {
+            return;
+        }
+        
+        // Show preview modal (implementation depends on existing modal)
+        $('#reportPreviewModal').modal('show');
+    });
+    
+    // Schedule Report button
+    document.getElementById('scheduleReport').addEventListener('click', function() {
+        // Show schedule modal (implementation depends on existing modal)
+        $('#scheduleReportModal').modal('show');
+    });
+}
+
+
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+</script>
+{% endblock %} 

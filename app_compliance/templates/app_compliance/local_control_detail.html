@@ -1,0 +1,906 @@
+﻿{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ control.code }} - {{ control.name }}{% endblock %}
+
+{% block extra_css %}
+{% include "includes/sb_compact_css.html" %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<style>
+.info-card {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: #f8f9fa;
+}
+.evidence-item {
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: #fff;
+}
+.notes-list .note-item {
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    background: #f8f9fa;
+}
+/* Hide email in Control Details and Responsible sections */
+.card-body p:has(i.fa-envelope),
+.card-body p:has(i.fas.fa-envelope),
+.card-body p:has(i.far.fa-envelope) {
+    display: none !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 sb-compact">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="alert alert-success mb-2">
+                <i class="fas fa-clipboard-check"></i>
+                <strong>{% trans "Local Control Detail" %}</strong>
+                <span class="ms-2 text-muted">
+                    {{ requirement.code }} - {{ requirement.name }}
+                    {% if requirement.company %}
+                    | <i class="fas fa-building"></i> {{ requirement.company.name }}
+                    {% endif %}
+                </span>
+            </div>
+            <h1>
+                <i class="fas fa-shield-alt"></i> {{ control.code }}
+                <span class="badge
+                    {% if control.status == 'completed' %}bg-success
+                    {% elif control.status == 'in_progress' %}bg-info
+                    {% elif control.status == 'ready_for_review' %}bg-warning text-dark
+                    {% elif control.status == 'failed' %}bg-danger
+                    {% else %}bg-secondary{% endif %}">
+                    {{ control.get_status_display }}
+                </span>
+            </h1>
+            <h4 class="text-muted">{{ control.name }}</h4>
+            {% if control.description %}
+            <p class="text-muted" style="white-space: pre-wrap;">{{ control.description }}</p>
+            {% endif %}
+            <p class="mb-0">
+                <strong>{% trans "Priority" %}:</strong> {{ control.get_priority_display }} |
+                <strong>{% trans "Category" %}:</strong>
+                {% if control.category %}{{ control.category.code }} - {{ control.category.name }}{% else %}-{% endif %} |
+                <strong>{% trans "Requirement" %}:</strong> {{ requirement.code }}
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-toolbar justify-content-end flex-wrap" role="toolbar" style="gap: 0.25rem; row-gap: 0.25rem;">
+                <a href="{% url 'compliance:control_mapping' %}" class="btn btn-sm btn-outline-info">
+                    <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#localComplianceGuideModal">
+                    <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+                </button>
+                {% if permissions.can_edit_controls %}
+                <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editControlModal">
+                    <i class="fas fa-edit"></i> {% trans "Edit Control" %}
+                </button>
+                {% endif %}
+                <a href="{% url 'compliance:local_requirement_instance_detail' requirement.id %}" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-arrow-left"></i> {% trans "Back to Requirement" %}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "Control Details" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">{% trans "Requirement" %}:</dt>
+                                <dd class="col-sm-8">
+                                    <a href="{% url 'compliance:local_requirement_instance_detail' requirement.id %}">
+                                        {{ requirement.code }} - {{ requirement.name }}
+                                    </a>
+                                </dd>
+                                <dt class="col-sm-4">{% trans "Company" %}:</dt>
+                                <dd class="col-sm-8">{% if requirement.company %}{{ requirement.company.name }}{% else %}—{% endif %}</dd>
+                                <dt class="col-sm-4">{% trans "Status" %}:</dt>
+                                <dd class="col-sm-8">
+                                    {% if permissions.can_edit_controls %}
+                                    <form method="post" action="{% url 'compliance:local_control_update' control.id %}" class="d-inline-block">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="code" value="{{ control.code }}">
+                                        <input type="hidden" name="name" value="{{ control.name }}">
+                                        <input type="hidden" name="description" value="{{ control.description|default:'' }}">
+                                        <input type="hidden" name="priority" value="{{ control.priority }}">
+                                        <input type="hidden" name="required_evidence_count" value="{{ control.required_evidence_count }}">
+                                        <div class="d-flex align-items-center flex-wrap" style="gap: 0.5rem;">
+                                            <select name="status" class="form-control form-control-sm" style="width: auto;" onchange="this.form.submit()">
+                                                {% for value,label in Control.STATUS_CHOICES %}
+                                                <option value="{{ value }}" {% if control.status == value %}selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <span class="badge
+                                                {% if control.status == 'completed' %}bg-success
+                                                {% elif control.status == 'in_progress' %}bg-info
+                                                {% elif control.status == 'ready_for_review' %}bg-warning text-dark
+                                                {% elif control.status == 'failed' %}bg-danger
+                                                {% else %}bg-secondary{% endif %}">
+                                                {{ control.get_status_display }}
+                                            </span>
+                                            {% if control.status_changed_date %}
+                                            <small class="text-muted" style="white-space: nowrap;">
+                                                <i class="far fa-calendar-alt"></i> {{ control.status_changed_date|date:"Y-m-d H:i" }}
+                                            </small>
+                                            {% endif %}
+                                        </div>
+                                    </form>
+                                    {% else %}
+                                    <span class="badge
+                                        {% if control.status == 'completed' %}bg-success
+                                        {% elif control.status == 'in_progress' %}bg-info
+                                        {% elif control.status == 'ready_for_review' %}bg-warning text-dark
+                                        {% elif control.status == 'failed' %}bg-danger
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ control.get_status_display }}
+                                    </span>
+                                    {% endif %}
+                                </dd>
+                                <dt class="col-sm-4">{% trans "Responsible" %}:</dt>
+                                <dd class="col-sm-8">
+                                    {% if control.responsible %}
+                                        {{ control.responsible.get_full_name|default:control.responsible.username }}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </dd>
+                                <dt class="col-sm-4">{% trans "Target Date" %}:</dt>
+                                <dd class="col-sm-8">{{ control.target_completion_date|date:"Y-m-d"|default:"—" }}</dd>
+                                <dt class="col-sm-4">{% trans "Completed" %}:</dt>
+                                <dd class="col-sm-8">{{ control.actual_completion_date|date:"Y-m-d"|default:"—" }}</dd>
+                                <dt class="col-sm-4">{% trans "Evidence Required" %}:</dt>
+                                <dd class="col-sm-8">
+                                    {{ evidence_count }}/{{ control.required_evidence_count }}
+                                    {% if has_sufficient_evidence %}
+                                    <span class="text-success"><i class="fas fa-check-circle"></i></span>
+                                    {% else %}
+                                    <span class="text-warning"><i class="fas fa-exclamation-circle"></i></span>
+                                    {% endif %}
+                                </dd>
+                                <dt class="col-sm-4">{% trans "Implementation Notes" %}:</dt>
+                                <dd class="col-sm-8">
+                                    {% if control.implementation_notes %}
+                                    <div style="white-space: pre-wrap;">{{ control.implementation_notes }}</div>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </dd>
+                                <dt class="col-sm-4">{% trans "Evidence Notes" %}:</dt>
+                                <dd class="col-sm-8">
+                                    {% if control.evidence_notes %}
+                                    <div style="white-space: pre-wrap;">{{ control.evidence_notes }}</div>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </dd>
+                                <dt class="col-sm-4">{% trans "Created" %}:</dt>
+                                <dd class="col-sm-8">{{ control.created_date|date:"Y-m-d H:i" }}</dd>
+                                <dt class="col-sm-4">{% trans "Updated" %}:</dt>
+                                <dd class="col-sm-8">{{ control.updated_date|date:"Y-m-d H:i" }}</dd>
+                                <dt class="col-sm-4">{% trans "Verified" %}:</dt>
+                                <dd class="col-sm-8">
+                                    {% if control.is_verified %}
+                                        <span class="badge bg-success">{% trans "Verified" %}</span>
+                                        {% if control.verified_by %}
+                                        <small class="text-muted ms-2">{{ control.verified_by.get_full_name|default:control.verified_by.username }}</small>
+                                        {% endif %}
+                                        {% if control.verified_date %}
+                                        <small class="text-muted">({{ control.verified_date|date:"Y-m-d H:i" }})</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="fas fa-file-alt"></i> {% trans "Evidence" %} ({{ evidences|length }})</h4>
+                    {% if permissions.can_manage_evidence %}
+                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addEvidenceModal">
+                        <i class="fas fa-plus"></i> {% trans "Add Evidence" %}
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% for evidence in evidences %}
+                    <div class="evidence-item">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h5 class="mb-1">
+                                    {{ evidence.title }}
+                                    {% if evidence.document_status %}
+                                    <span class="badge"
+                                          style="background-color: {{ evidence.document_status.color|default:'#6c757d' }}; color: #fff;">
+                                        {{ evidence.document_status }}
+                                    </span>
+                                    {% endif %}
+                                    <span class="badge
+                                        {% if evidence.approval_status == 'approved' %}bg-success
+                                        {% elif evidence.approval_status == 'rejected' %}bg-danger
+                                        {% else %}bg-warning text-dark{% endif %}">
+                                        {{ evidence.get_approval_status_display }}
+                                    </span>
+                                    <span class="badge bg-secondary">{{ evidence.get_evidence_type_display }}</span>
+                                </h5>
+                                <p class="text-muted mb-2">{{ evidence.description }}</p>
+                                {% if evidence.file %}
+                                <p class="mb-1"><i class="fas fa-paperclip"></i>
+                                    <a href="{{ evidence.file.url }}" target="_blank">{{ evidence.file.name|cut:"compliance/local_control_evidence/" }}</a>
+                                </p>
+                                {% endif %}
+                                {% if evidence.external_link %}
+                                <p class="mb-1"><i class="fas fa-link"></i>
+                                    <a href="{{ evidence.external_link }}" target="_blank">{{ evidence.external_link }}</a>
+                                </p>
+                                {% endif %}
+                                {% if evidence.text_evidence %}
+                                <p class="mb-1"><i class="fas fa-align-left"></i> {{ evidence.text_evidence }}</p>
+                                {% endif %}
+                                {% if evidence.mandatory_process %}
+                                <div class="alert alert-info p-2 mb-2">
+                                    <i class="fas fa-tasks"></i> 
+                                    <strong>{% trans "Linked to Mandatory Process" %}:</strong>
+                                    <span class="fw-bold">{{ evidence.mandatory_process.process_name }}</span>
+                                    {% if evidence.mandatory_process.company %}
+                                        <span class="badge bg-light text-dark">{{ evidence.mandatory_process.company.short_name }}</span>
+                                    {% endif %}
+                                    <span class="badge bg-secondary">{{ evidence.mandatory_process.get_frequency_display }}</span>
+                                    <span class="badge 
+                                        {% if evidence.mandatory_process.priority == 'critical' %}bg-danger
+                                        {% elif evidence.mandatory_process.priority == 'high' %}bg-warning text-dark
+                                        {% elif evidence.mandatory_process.priority == 'medium' %}bg-info
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ evidence.mandatory_process.get_priority_display }}
+                                    </span>
+                                    <br><small class="text-muted">{{ evidence.mandatory_process.description|truncatewords:30 }}</small>
+                                </div>
+                                {% endif %}
+                                <small class="text-muted">
+                                    {% trans "Uploaded by" %} {{ evidence.uploaded_by.get_full_name|default:evidence.uploaded_by.username }}
+                                    ({{ evidence.uploaded_date|date:"Y-m-d H:i" }})
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                {% if permissions.can_manage_evidence %}
+                                <button type="button" class="btn btn-warning btn-sm mb-1" onclick="editLocalEvidence({{ evidence.id }})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form method="post" action="{% url 'compliance:local_control_evidence_delete' evidence.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger btn-sm mb-1" onclick="return confirm('{% trans "Delete this evidence?" %}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                {% if evidence.approval_status == 'pending' and permissions.can_approve_evidence %}
+                                <form method="post" action="{% url 'compliance:local_control_evidence_approve' evidence.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success btn-sm mb-1">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                                <form method="post" action="{% url 'compliance:local_control_evidence_reject' evidence.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm mb-1">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted mb-0">{% trans "No evidence uploaded yet" %}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Responsible Section -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="fas fa-user-tie"></i> {% trans "Responsible" %}</h4>
+                    {% if permissions.can_edit_controls %}
+                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#setResponsibleModal">
+                        <i class="fas fa-user-edit"></i> {% trans "Set Responsible" %}
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if control.responsible %}
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h5 class="mb-1">
+                                <i class="fas fa-user text-primary"></i>
+                                {{ control.responsible.get_full_name|default:control.responsible.username }}
+                            </h5>
+                            {% if control.responsible.cabinet %}
+                                {% if control.responsible.cabinet.position %}
+                                <p class="text-muted mb-1">
+                                    <i class="fas fa-briefcase"></i> {{ control.responsible.cabinet.position }}
+                                </p>
+                                {% endif %}
+                                {% if control.responsible.cabinet.department %}
+                                <p class="text-muted mb-0">
+                                    <i class="fas fa-building"></i> {{ control.responsible.cabinet.department }}
+                                </p>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        {% if permissions.can_edit_controls %}
+                        <div>
+                            <form method="post" action="{% url 'compliance:local_control_set_responsible' control.id %}" style="display: inline;" onsubmit="return confirm('{% trans 'Clear responsible person?' %}')">
+                                {% csrf_token %}
+                                <input type="hidden" name="responsible_id" value="">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-times"></i> {% trans "Clear" %}
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-user-slash fa-2x mb-2"></i>
+                        <p class="mb-0">{% trans "No responsible person assigned" %}</p>
+                        {% if permissions.can_edit_controls %}
+                        <button type="button" class="btn btn-sm btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#setResponsibleModal">
+                            <i class="fas fa-user-plus"></i> {% trans "Assign Responsible" %}
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="fas fa-users"></i> {% trans "Assigned Users" %} ({{ assignments|length }})</h4>
+                    {% if permissions.can_edit_controls %}
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#assignUserModal">
+                        <i class="fas fa-user-plus"></i> {% trans "Assign" %}
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "User" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Assigned" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for assignment in assignments %}
+                                <tr>
+                                    <td>
+                                        {{ assignment.user.get_full_name|default:assignment.user.username }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ assignment.get_assignment_type_display }}</span>
+                                    </td>
+                                    <td>
+                                        {{ assignment.assigned_date|date:"Y-m-d H:i" }}<br>
+                                        <small class="text-muted">{% trans "by" %} {{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.username }}</small>
+                                    </td>
+                                    <td>
+                                        {% if permissions.can_edit_controls %}
+                                        <form method="post" action="{% url 'compliance:local_control_assignment_delete' assignment.id %}" onsubmit="return confirm('{% trans "Remove this assignment?" %}')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </form>
+                                        {% else %}-{% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">{% trans "No assignments yet" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row with Activity Log, Control Mappings, and Notes in one row -->
+    <div class="row">
+        <div class="col-md-4 col-sm-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-history"></i> {% trans "Activity Log" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "User" %}</th>
+                                    <th>{% trans "Action" %}</th>
+                                    <th>{% trans "Timestamp" %}</th>
+                                    <th>{% trans "Notes" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in logs %}
+                                <tr>
+                                    <td>{{ log.user.get_full_name|default:log.user.username }}</td>
+                                    <td>{{ log.get_action_display }}</td>
+                                    <td>{{ log.timestamp|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        {% if log.notes %}
+                                            {{ log.notes }}
+                                        {% elif log.changes %}
+                                            {% with log.get_changes_dict as changes %}
+                                                <small class="text-muted">{{ changes }}</small>
+                                            {% endwith %}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">{% trans "No activity yet" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-12">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="fas fa-project-diagram"></i> {% trans "Control Mappings" %}</h4>
+                    {% if can_edit %}
+                    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#addMappingModal">
+                        <i class="fas fa-plus"></i> {% trans "Add Mapping" %}
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if mappings %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Target" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Notes" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mapping in mappings %}
+                                <tr>
+                                    <td>
+                                        {% if mapping.target_internal_control %}
+                                            <span class="badge bg-primary">Internal</span>
+                                            <strong>{{ mapping.target_internal_control.code }}</strong>
+                                            <div class="text-muted small">{{ mapping.target_internal_control.name }}</div>
+                                        {% elif mapping.target_local_control %}
+                                            <span class="badge bg-info">Local</span>
+                                            <strong>{{ mapping.target_local_control.code }}</strong>
+                                            <div class="text-muted small">{{ mapping.target_local_control.name }}</div>
+                                        {% elif mapping.target_framework_control %}
+                                            <span class="badge bg-success">Framework</span>
+                                            <strong>{{ mapping.target_framework_control.code }}</strong>
+                                            <div class="text-muted small">{{ mapping.target_framework_control.name }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="badge bg-secondary">{{ mapping.get_mapping_type_display }}</span></td>
+                                    <td>{{ mapping.notes|default:"—" }}</td>
+                                    <td>
+                                        {% if can_edit %}
+                                        <form method="post" action="{% url 'compliance:local_control_mapping_delete' mapping.id %}" onsubmit="return confirm('{% trans 'Delete this mapping?' %}')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% else %}-{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">{% trans "No mappings yet" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-12">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="fas fa-sticky-note"></i> {% trans "Notes" %} ({{ notes|length }})</h4>
+                    {% if can_edit %}
+                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addNoteModal">
+                        <i class="fas fa-plus"></i> {% trans "Add Note" %}
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if notes %}
+                    <div class="notes-list">
+                        {% for note in notes %}
+                        <div class="note-item p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ note.created_by.get_full_name|default:note.created_by.username }}</strong>
+                                    <small class="text-muted ms-2">{{ note.created_date|date:"Y-m-d H:i" }}</small>
+                                    {% if note.updated_date and note.updated_date != note.created_date %}
+                                    <small class="text-muted">({% trans "updated" %}: {{ note.updated_date|date:"Y-m-d H:i" }})</small>
+                                    {% endif %}
+                                </div>
+                                {% if can_edit %}
+                                <form method="post" action="{% url 'compliance:local_control_note_delete' note.id %}" onsubmit="return confirm('{% trans "Delete this note?" %}')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% if can_edit %}
+                            <form method="post" action="{% url 'compliance:local_control_note_update' note.id %}" enctype="multipart/form-data" class="mt-2">
+                                {% csrf_token %}
+                                <div class="mb-2">
+                                    <textarea name="note" class="form-control form-control-sm" rows="3">{{ note.note }}</textarea>
+                                </div>
+                                <div class="mb-2">
+                                    {% if note.attachment %}
+                                    <div class="mb-1 d-flex align-items-center justify-content-between">
+                                        <small class="text-muted me-2">
+                                            {% trans "Existing file" %}: 
+                                            <a href="{{ note.attachment.url }}" target="_blank">{{ note.attachment_filename }}</a>
+                                        </small>
+                                        <div class="form-check form-check-sm">
+                                            <input class="form-check-input" type="checkbox" name="clear_attachment" value="1" id="clearLocalNoteAttachment{{ note.id }}">
+                                            <label class="form-check-label small text-danger" for="clearLocalNoteAttachment{{ note.id }}">
+                                                {% trans "Remove" %}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if note.attachments.all %}
+                                    <div class="mb-1">
+                                        <small class="text-muted d-block">{% trans "Attachments" %}:</small>
+                                        {% for att in note.attachments.all %}
+                                        <div class="d-flex align-items-center justify-content-between small mb-1">
+                                            <a href="{{ att.file.url }}" target="_blank">
+                                                <i class="fas fa-paperclip"></i> {{ att.filename }}
+                                            </a>
+                                            <form method="post" action="{% url 'compliance:local_control_note_attachment_delete' att.id %}" style="display:inline;" onsubmit="return confirm('{% trans "Delete this attachment?" %}')">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="{% trans 'Delete attachment' %}">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    <input type="file" name="attachments" class="form-control form-control-sm" multiple>
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-save"></i> {% trans "Save" %}
+                                    </button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <div class="mt-2" style="white-space: pre-wrap;">{{ note.note }}</div>
+                            <div class="mt-2">
+                                {% if note.attachment %}
+                                <a href="{{ note.attachment.url }}" class="btn btn-sm btn-outline-primary me-2" target="_blank">
+                                    <i class="fas fa-paperclip"></i> {{ note.attachment_filename }}
+                                </a>
+                                {% endif %}
+                                {% if note.attachments.all %}
+                                {% for att in note.attachments.all %}
+                                <a href="{{ att.file.url }}" class="btn btn-sm btn-outline-primary me-1" target="_blank">
+                                    <i class="fas fa-paperclip"></i> {{ att.filename }}
+                                </a>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">{% trans "No notes yet" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include "app_compliance/local_control_detail_modals.html" %}
+
+<div class="modal fade" id="localComplianceGuideModal" tabindex="-1" aria-labelledby="localComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:local_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="localComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Local Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="localComplianceGuideModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+function editLocalEvidence(evidenceId) {
+    fetch("{% url 'compliance:local_control_evidence_edit' 0 %}".replace('0', evidenceId))
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('editEvidenceForm').action = "{% url 'compliance:local_control_evidence_update' 0 %}".replace('0', evidenceId);
+            document.getElementById('edit_title').value = data.title || '';
+            document.getElementById('edit_evidence_type').value = data.evidence_type || '';
+            document.getElementById('edit_description').value = data.description || '';
+            document.getElementById('edit_text_evidence').value = data.text_evidence || '';
+            document.getElementById('edit_external_link').value = data.external_link || '';
+            document.getElementById('edit_current_file').innerHTML = data.file_name ? '<i class="fas fa-file"></i> ' + data.file_name : '{% trans "No file uploaded" %}';
+            
+            // Set mandatory process if exists
+            if (data.mandatory_process_id) {
+                $('#editLocalMandatoryProcessSelect').val(data.mandatory_process_id).trigger('change');
+            } else {
+                $('#editLocalMandatoryProcessSelect').val('').trigger('change');
+            }
+            
+            new bootstrap.Modal(document.getElementById('editEvidenceModal')).show();
+        })
+        .catch(() => alert('{% trans "Error loading evidence data" %}'));
+}
+
+// Hide email in Control Details and Responsible sections
+function hideEmails() {
+    // Hide email in Control Details section (dd elements)
+    $('.card-body dd').each(function() {
+        var $this = $(this);
+        var text = $this.text();
+        if (text && text.includes('@')) {
+            // Remove email from text
+            var newText = text.replace(/\S+@\S+\.\S+/g, '').trim();
+            if (newText) {
+                $this.text(newText);
+            } else {
+                $this.hide();
+            }
+        }
+    });
+    
+    // Hide email paragraphs in Responsible section
+    $('.card-body p').each(function() {
+        var $this = $(this);
+        var text = $this.text();
+        if (text && text.includes('@')) {
+            $this.hide();
+        }
+    });
+    
+    // Hide email in small tags
+    $('.card-body small').each(function() {
+        var $this = $(this);
+        var text = $this.text();
+        if (text && text.includes('@')) {
+            $this.hide();
+        }
+    });
+    
+    // Hide any element with fa-envelope icon (email icon)
+    $('.card-body i.fa-envelope, .card-body i.fas.fa-envelope, .card-body i.far.fa-envelope').each(function() {
+        var $parent = $(this).closest('p, small, div, span, dd');
+        if ($parent.length) {
+            // Hide the entire parent element if it contains email icon
+            $parent.hide();
+        } else {
+            // If no parent found, hide the icon itself and its siblings
+            $(this).parent().hide();
+        }
+    });
+    
+    // Also hide any paragraph that contains email pattern
+    $('.card-body p, .card-body dd').each(function() {
+        var $this = $(this);
+        var text = $this.text();
+        if (text && /\S+@\S+\.\S+/.test(text)) {
+            $this.hide();
+        }
+    });
+    
+    // Hide any text node that contains email pattern
+    $('.card-body').contents().filter(function() {
+        return this.nodeType === 3 && this.textContent && this.textContent.includes('@');
+    }).each(function() {
+        var text = this.textContent;
+        if (text && /\S+@\S+\.\S+/.test(text)) {
+            $(this).replaceWith(text.replace(/\S+@\S+\.\S+/g, ''));
+        }
+    });
+}
+
+$(document).ready(function() {
+    // Run immediately
+    hideEmails();
+    
+    // Run after a short delay to catch dynamically added content
+    setTimeout(hideEmails, 100);
+    setTimeout(hideEmails, 500);
+    
+    // Use MutationObserver to catch dynamically added content
+    var observer = new MutationObserver(function(mutations) {
+        hideEmails();
+    });
+    
+    // Observe changes in card-body elements
+    $('.card-body').each(function() {
+        observer.observe(this, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
+    });
+
+// Initialize Select2 for user selection in local control assign modal
+    $('#assignUserModal').on('shown.bs.modal', function() {
+        if (!$('#localAssignUserSelect').hasClass('select2-hidden-accessible')) {
+            $('#localAssignUserSelect').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: '{% trans "Select user" %}',
+                allowClear: true,
+                language: {
+                    noResults: function() {
+                        return '{% trans "No users found" %}';
+                    },
+                    searching: function() {
+                        return '{% trans "Searching..." %}';
+                    }
+                }
+            });
+        }
+    });
+    
+    // Clean up Select2 when modal is closed
+    $('#assignUserModal').on('hidden.bs.modal', function() {
+        if ($('#localAssignUserSelect').hasClass('select2-hidden-accessible')) {
+            $('#localAssignUserSelect').select2('destroy');
+        }
+    });
+    
+    // Initialize Select2 for Set Responsible modal
+    $('#setResponsibleModal').on('shown.bs.modal', function() {
+        if (!$('#localSetResponsibleSelect').hasClass('select2-hidden-accessible')) {
+            $('#localSetResponsibleSelect').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: '{% trans "Not assigned" %}',
+                allowClear: true,
+                language: {
+                    noResults: function() {
+                        return '{% trans "No users found" %}';
+                    },
+                    searching: function() {
+                        return '{% trans "Searching..." %}';
+                    }
+                }
+            });
+        }
+    });
+    
+    // Clean up Select2 when Set Responsible modal is closed
+    $('#setResponsibleModal').on('hidden.bs.modal', function() {
+        if ($('#localSetResponsibleSelect').hasClass('select2-hidden-accessible')) {
+            $('#localSetResponsibleSelect').select2('destroy');
+        }
+    });
+    
+    // Handle mandatory process selection for Local Control (Add form)
+    $('#localMandatoryProcessSelect').on('change', function() {
+        var selectedOption = $(this).find('option:selected');
+        var description = selectedOption.data('description');
+        var frequency = selectedOption.data('frequency');
+        var priority = selectedOption.data('priority');
+        var company = selectedOption.data('company');
+        
+        if (description) {
+            var infoText = description;
+            if (frequency) {
+                infoText += ' | {% trans "Frequency" %}: ' + frequency;
+            }
+            if (priority) {
+                infoText += ' | {% trans "Priority" %}: ' + priority;
+            }
+            $('#localProcessDescription').text(infoText);
+        } else {
+            $('#localProcessDescription').text('');
+        }
+    });
+    
+    // Handle mandatory process selection for Local Control (Edit form)
+    $('#editLocalMandatoryProcessSelect').on('change', function() {
+        var selectedOption = $(this).find('option:selected');
+        var description = selectedOption.data('description');
+        var frequency = selectedOption.data('frequency');
+        var priority = selectedOption.data('priority');
+        var company = selectedOption.data('company');
+        
+        if (description) {
+            var infoText = description;
+            if (frequency) {
+                infoText += ' | {% trans "Frequency" %}: ' + frequency;
+            }
+            if (priority) {
+                infoText += ' | {% trans "Priority" %}: ' + priority;
+            }
+            $('#editLocalProcessDescription').text(infoText);
+        } else {
+            $('#editLocalProcessDescription').text('');
+        }
+    });
+});
+
+document.getElementById('localComplianceGuideModal').addEventListener('show.bs.modal', function() {
+    var body = document.getElementById('localComplianceGuideModalBody');
+    var url = this.getAttribute('data-guide-url');
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+    fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+        })
+        .catch(function() {
+            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+        });
+});
+</script>
+{% endblock %}
+

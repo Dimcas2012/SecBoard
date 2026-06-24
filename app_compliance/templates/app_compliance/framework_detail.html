@@ -1,0 +1,1703 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load tz %}
+{% load custom_filters %}
+
+{% block title %}{{ framework.name }} {{ framework.version }}{% endblock %}
+
+{% block extra_css %}
+{% include "includes/sb_compact_css.html" %}
+<style>
+.category-section {
+    border: 1px solid #dee2e6;
+    border-radius: 3px;  /* 4px * 0.75 */
+    margin-bottom: 7.5px;  /* 10px * 0.75 */
+    background: #fff;
+}
+.category-header {
+    background: #f8f9fa;
+    padding: 6px;  /* 8px * 0.75 */
+    border-bottom: 1px solid #dee2e6;
+    cursor: pointer;
+    border-radius: 3px 3px 0 0;  /* 4px * 0.75 */
+}
+.category-header:hover {
+    background: #e9ecef;
+}
+.category-body {
+    padding: 6px;  /* 8px * 0.75 */
+}
+.control-row {
+    border-left: 2px solid #dee2e6;
+    padding-left: 3.75px;  /* 5px * 0.75 */
+    margin-bottom: 3px;  /* 4px * 0.75 */
+}
+.control-row.status-completed {
+    border-left-color: #28a745;
+}
+.control-row.status-in_progress {
+    border-left-color: #17a2b8;
+}
+.control-row.status-ready_for_review {
+    border-left-color: #ffc107;
+}
+.control-row.status-failed {
+    border-left-color: #dc3545;
+}
+.control-row.status-not_started {
+    border-left-color: #6c757d;
+}
+.stats-box {
+    background: #f8f9fa;
+    padding: 7.5px;  /* 10px * 0.75 */
+    border-radius: 3px;  /* 4px * 0.75 */
+    margin-bottom: 7.5px;  /* 10px * 0.75 */
+}
+.progress-large {
+    height: 15px;  /* sb-compact progress bar */
+    border-radius: 3px;
+}
+.progress-large .progress-bar {
+    line-height: 15px;
+    font-weight: bold;
+    font-size: 0.5625rem;  /* 0.75rem * 0.75 */
+}
+/* CSS GRID Layout - Simple and Reliable */
+.framework-container {
+    display: grid !important;
+    grid-template-columns: 250px 1fr !important;
+    grid-gap: 20px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 80vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Sidebar with vertical scroll */
+.requirements-sidebar {
+    grid-column: 1 !important;
+    width: 250px !important;
+    height: 80vh !important;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
+    background: #f8f9fa !important;
+    border-radius: 8px !important;
+    padding: 15px !important;
+    border: 1px solid #dee2e6 !important;
+    position: relative !important;
+}
+
+/* Content area with vertical scroll */
+.content-area-scroll {
+    grid-column: 2 !important;
+    width: 100% !important;
+    height: 80vh !important;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
+    padding-right: 10px !important;
+    position: relative !important;
+}
+.requirements-sidebar h5 {
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+    color: #495057;
+    font-weight: bold;
+    text-transform: uppercase;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 5px;
+}
+.requirements-sidebar .nav-link {
+    font-size: 0.7rem;
+    padding: 8px 10px;
+    color: #495057;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+    display: block;
+}
+.requirements-sidebar .nav-link:hover {
+    background: #e9ecef;
+    color: #007bff;
+    border-left-color: #007bff;
+    text-decoration: none;
+}
+.requirements-sidebar .nav-link:hover .d-flex > div > div:nth-child(2) {
+    color: #495057;
+}
+.requirements-sidebar .nav-link.active {
+    background: #007bff;
+    color: white;
+    border-left-color: #0056b3;
+}
+.requirements-sidebar .nav-link.active .d-flex > div > div:nth-child(2) {
+    color: rgba(255, 255, 255, 0.8);
+}
+.requirements-sidebar .badge {
+    font-size: 0.55rem;
+    padding: 2px 6px;
+}
+/* Custom scrollbar for sidebar */
+.requirements-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+.requirements-sidebar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+.requirements-sidebar::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+.requirements-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+/* Custom scrollbar for content area */
+.content-area-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+.content-area-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+.content-area-scroll::-webkit-scrollbar-thumb {
+    background: #007bff;
+    border-radius: 4px;
+}
+.content-area-scroll::-webkit-scrollbar-thumb:hover {
+    background: #0056b3;
+}
+/* Table rows compact one-line display */
+.full-width-table .table-sm-font td,
+.full-width-table .table-sm-font th {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.full-width-table .table-sm-font td.name-col {
+    white-space: normal;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 sb-compact">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            {% if framework.is_template %}
+            <div class="alert alert-info mb-2" role="alert">
+                <i class="fas fa-layer-group"></i> <strong>{% trans "Framework Template Detail" %}</strong>
+            </div>
+            {% else %}
+            <div class="alert alert-success mb-2" role="alert">
+                <i class="fas fa-building"></i> <strong>{% trans "Framework Company Requirement Detail" %}</strong>
+                {% if framework.template %}
+                - {% trans "Based on" %}: <a href="{% url 'compliance:framework_detail' framework.template.id %}" class="alert-link">{{ framework.template.name }} v{{ framework.template.version }}</a>
+                {% endif %}
+            </div>
+            {% endif %}
+            <h1>
+                <i class="fas fa-shield-alt"></i> {{ framework.name }} 
+                <span class="badge badge-primary" style="background-color: #007bff; color: white; font-size: 0.55em; padding: 4px 8px;">
+                    v{{ framework.version }}
+                </span>
+                {% if framework.company %}
+                <span class="badge {% if framework.is_mandatory %}badge-danger{% else %}badge-info{% endif %} ml-2" style="{% if framework.is_mandatory %}background-color: #dc3545;{% else %}background-color: #17a2b8;{% endif %} color: white; font-size: 0.5em; padding: 4px 8px;">
+                    <i class="fas fa-building"></i> {% trans "Applied to" %} {{ framework.company.name }} ({% if framework.is_mandatory %}{% trans "Mandatory" %}{% else %}{% trans "Optional" %}{% endif %})
+                </span>
+                {% endif %}
+                <span class="badge badge-lg
+                    {% if framework.status == 'active' %}badge-success
+                    {% elif framework.status == 'draft' %}badge-warning
+                    {% else %}badge-secondary{% endif %}" 
+                    style="{% if framework.status == 'active' %}background-color: #28a745; color: white;
+                    {% elif framework.status == 'draft' %}background-color: #ffc107; color: #212529;
+                    {% else %}background-color: #6c757d; color: white;{% endif %} font-size: 0.55em; padding: 4px 8px; font-weight: bold;">
+                    {% if framework.status == 'active' %}<i class="fas fa-check-circle"></i>
+                    {% elif framework.status == 'draft' %}<i class="fas fa-edit"></i>
+                    {% else %}<i class="fas fa-archive"></i>{% endif %}
+                    {{ framework.get_status_display }}
+                </span>
+            </h1>
+            {% if framework.description %}
+            <p class="text-muted">{{ framework.description }}</p>
+            {% endif %}
+            <p>
+                <strong>{% trans "Created" %}:</strong> {{ framework.created_date|date:"d.m.Y" }}
+                {% if framework.created_by %}by {{ framework.created_by.username }}{% endif %} |
+                <strong>{% trans "Categories" %}:</strong> {{ categories.count }} |
+                <strong>{% trans "Controls" %}:</strong> {{ stats.total }}
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-toolbar justify-content-end flex-wrap" role="toolbar" style="gap: 0.25rem; row-gap: 0.25rem;">
+                <a href="{% url 'compliance:control_mapping' %}" class="btn btn-sm btn-outline-info">
+                    <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#frameworkComplianceGuideModal">
+                    <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+                </button>
+                {% if permissions.can_edit_frameworks %}
+                <a href="{% url 'compliance:framework_edit_form' framework.id %}" class="btn btn-sm btn-warning">
+                    <i class="fas fa-edit"></i> {% trans "Edit Framework" %}
+                </a>
+                {% endif %}
+                {% if framework.is_template %}
+                <a href="{% url 'compliance:framework_list' %}" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-arrow-left"></i> {% trans "Back" %}
+                </a>
+                {% else %}
+                <a href="{% url 'compliance:framework_instances_list' %}" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-arrow-left"></i> {% trans "Back to Company Requirements" %}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics (Compact) -->
+    <div class="row mb-2">
+        <div class="col-md-12">
+            <div class="stats-box" style="padding: 0.75rem;">
+                {% if framework.is_template %}
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <h6 class="mb-2" style="font-size: 0.875rem;">
+                            <i class="fas fa-tasks"></i> {% trans "Controls" %}
+                        </h6>
+                        <div class="d-flex flex-wrap" style="gap: 0.75rem; font-size: 0.875rem;">
+                            <span style="color: #17a2b8; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-list"></i> {{ stats.total }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <h6 class="mb-2" style="font-size: 0.875rem;">
+                            <i class="fas fa-chart-line"></i> {% trans "Completion Progress" %}
+                        </h6>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ completion }}%; font-size: 0.875rem; font-weight: bold;" 
+                                 aria-valuenow="{{ completion }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                {{ completion }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <h6 class="mb-2" style="font-size: 0.875rem;">
+                            <i class="fas fa-tasks"></i> {% trans "Controls Status" %}
+                        </h6>
+                        <div class="d-flex flex-wrap" style="gap: 0.75rem; font-size: 0.875rem;">
+                            <span style="color: #28a745; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-check-circle"></i> {{ stats.completed }}
+                            </span>
+                            <span style="color: #17a2b8; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-spinner"></i> {{ stats.in_progress }}
+                            </span>
+                            <span style="color: #ffc107; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-clock"></i> {{ stats.ready_for_review }}
+                            </span>
+                            <span style="color: #6c757d; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-circle"></i> {{ stats.not_started }}
+                            </span>
+                            <span style="color: #dc3545; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-times-circle"></i> {{ stats.failed }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Lifecycle Management (Compact) -->
+    <div class="row mb-2">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0" style="font-size: 0.85rem;">
+                            <i class="fas fa-sync-alt"></i> {% trans "Lifecycle" %}
+                        </h6>
+                        {% if permissions.can_edit_frameworks %}
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#scheduleReviewModal" style="font-size: 0.65rem; padding: 0.2rem 0.5rem;">
+                                <i class="fas fa-calendar-plus"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#markReviewedModal" style="font-size: 0.65rem; padding: 0.2rem 0.5rem;">
+                                <i class="fas fa-check"></i>
+                            </button>
+                            {% if framework.status == 'active' %}
+                            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#archiveFrameworkModal" style="font-size: 0.65rem; padding: 0.2rem 0.5rem;">
+                                <i class="fas fa-archive"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body p-2">
+                    <div class="row align-items-center">
+                        <!-- Lifecycle Stages (Compact) -->
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center" style="gap: 0.5rem;">
+                                <!-- Draft -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if framework.status == 'draft' %}#ffc107{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-edit" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <div style="width: 30px; height: 2px; background-color: {% if framework.status == 'active' or framework.status == 'archived' %}#28a745{% else %}#e0e0e0{% endif %};"></div>
+                                <!-- Active -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if framework.status == 'active' %}#28a745{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-check-circle" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <div style="width: 30px; height: 2px; background-color: {% if framework.status == 'archived' %}#6c757d{% else %}#e0e0e0{% endif %};"></div>
+                                <!-- Archived -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if framework.status == 'archived' %}#6c757d{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-archive" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <span class="ms-2" style="font-size: 0.75rem; font-weight: bold; 
+                                      color: {% if framework.status == 'draft' %}#ffc107{% elif framework.status == 'active' %}#28a745{% else %}#6c757d{% endif %};">
+                                    {{ framework.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Review Info (Compact) -->
+                        <div class="col-md-8">
+                            <div class="row">
+                                <div class="col-3">
+                                    <small class="text-muted" style="font-size: 0.65rem;">
+                                        <i class="fas fa-calendar-check"></i> {% trans "Next Review" %}
+                                    </small>
+                                    <div>
+                                        {% if framework.next_review_date %}
+                                        <strong style="color: {{ framework.get_review_status_color }}; font-size: 0.8rem;">
+                                            {{ framework.next_review_date|date:"M d" }}
+                                            {% with days=framework.get_days_until_review %}
+                                            {% if days is not None %}
+                                            <small style="font-size: 0.65rem;">
+                                                {% if days < 0 %}({{ days|abs_value }}d ⚠️)
+                                                {% elif days == 0 %}(🔔)
+                                                {% else %}({{ days }}d){% endif %}
+                                            </small>
+                                            {% endif %}
+                                            {% endwith %}
+                                        </strong>
+                                        {% else %}
+                                        <span class="text-muted" style="font-size: 0.7rem;">-</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="col-3">
+                                    <small class="text-muted" style="font-size: 0.65rem;">
+                                        <i class="fas fa-history"></i> {% trans "Last Review" %}
+                                    </small>
+                                    <div>
+                                        {% if framework.last_review_date %}
+                                        <strong style="color: #17a2b8; font-size: 0.8rem;">
+                                            {{ framework.last_review_date|date:"M d, Y" }}
+                                        </strong>
+                                        {% else %}
+                                        <span class="text-muted" style="font-size: 0.7rem;">-</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="col-3">
+                                    <small class="text-muted" style="font-size: 0.65rem;">
+                                        <i class="fas fa-user-shield"></i> {% trans "Owner" %}
+                                    </small>
+                                    <div>
+                                        {% if framework.review_owner %}
+                                        <strong style="color: #28a745; font-size: 0.75rem;" 
+                                                title="{{ framework.review_owner.get_full_name|default:framework.review_owner.username }}{% if framework.review_owner.cabinet %}{% if framework.review_owner.cabinet.position %} - {{ framework.review_owner.cabinet.position }}{% endif %}{% if framework.review_owner.cabinet.department %}, {{ framework.review_owner.cabinet.department }}{% endif %}{% endif %}">
+                                            {{ framework.review_owner.get_full_name|default:framework.review_owner.username|truncatewords:2 }}
+                                            {% if framework.review_owner.cabinet and framework.review_owner.cabinet.position %}
+                                            <br><small class="text-muted" style="font-size: 0.6rem;">{{ framework.review_owner.cabinet.position|truncatewords:2 }}</small>
+                                            {% endif %}
+                                        </strong>
+                                        {% else %}
+                                        <span class="text-muted" style="font-size: 0.7rem;">-</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="col-3">
+                                    <small class="text-muted" style="font-size: 0.65rem;">
+                                        <i class="fas fa-redo"></i> {% trans "Frequency" %}
+                                    </small>
+                                    <div>
+                                        <strong style="color: #6c757d; font-size: 0.75rem;">
+                                            {{ framework.get_review_frequency_display }}
+                                        </strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if not framework.is_template %}
+        <!-- Framework Notes (for company instances) -->
+        <div class="col-md-4 mt-3 mt-md-0">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0" style="font-size: 0.85rem;">
+                        <i class="fas fa-sticky-note"></i> {% trans "Notes" %}{% if framework_notes %} ({{ framework_notes|length }}){% endif %}
+                    </h6>
+                    {% if permissions.can_edit_frameworks %}
+                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#frameworkAddNoteModal">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body p-2">
+                    {% if framework_notes %}
+                    <div class="notes-list">
+                        {% for note in framework_notes %}
+                        <div class="note-item border rounded p-2 mb-2">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong style="font-size: 0.8rem;">
+                                        {{ note.created_by.get_full_name|default:note.created_by.username }}
+                                    </strong>
+                                    <small class="text-muted ms-2" style="font-size: 0.7rem;">
+                                        {{ note.created_date|date:"Y-m-d H:i" }}
+                                        {% if note.updated_date and note.updated_date != note.created_date %}
+                                            ({% trans "updated" %}: {{ note.updated_date|date:"Y-m-d H:i" }})
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                {% if permissions.can_edit_frameworks %}
+                                <form method="post" action="{% url 'compliance:framework_note_delete' note.id %}" onsubmit="return confirm('{% trans "Delete this note?" %}')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+
+                            {% if permissions.can_edit_frameworks %}
+                            <form method="post" action="{% url 'compliance:framework_note_update' note.id %}" enctype="multipart/form-data" class="mt-2">
+                                {% csrf_token %}
+                                <div class="mb-2">
+                                    <textarea name="note" class="form-control form-control-sm" rows="3">{{ note.note }}</textarea>
+                                </div>
+                                <div class="mb-2">
+                                    {% if note.attachment %}
+                                    <div class="mb-1 d-flex align-items-center justify-content-between">
+                                        <small class="text-muted me-2">
+                                            {% trans "Existing file" %}:
+                                            <a href="{{ note.attachment.url }}" target="_blank">{{ note.attachment_filename }}</a>
+                                        </small>
+                                        <div class="form-check form-check-sm">
+                                            <input class="form-check-input" type="checkbox" name="clear_attachment" value="1" id="clearFrameworkNoteAttachment{{ note.id }}">
+                                            <label class="form-check-label small text-danger" for="clearFrameworkNoteAttachment{{ note.id }}">
+                                                {% trans "Remove" %}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if note.attachments.all %}
+                                    <div class="mb-1">
+                                        <small class="text-muted d-block">{% trans "Attachments" %}:</small>
+                                        {% for att in note.attachments.all %}
+                                        <div class="d-flex align-items-center justify-content-between small mb-1">
+                                            <a href="{{ att.file.url }}" target="_blank">
+                                                <i class="fas fa-paperclip"></i> {{ att.filename }}
+                                            </a>
+                                            <form method="post" action="{% url 'compliance:framework_note_attachment_delete' att.id %}" style="display:inline;" onsubmit="return confirm('{% trans "Delete this attachment?" %}')">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="{% trans 'Delete attachment' %}">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    <input type="file" name="attachments" class="form-control form-control-sm" multiple>
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-save"></i> {% trans "Save" %}
+                                    </button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <div class="mt-2" style="white-space: pre-wrap; font-size: 0.85rem;">
+                                {{ note.note }}
+                            </div>
+                            <div class="mt-2">
+                                {% if note.attachment %}
+                                <a href="{{ note.attachment.url }}" class="btn btn-sm btn-outline-primary me-2" target="_blank">
+                                    <i class="fas fa-paperclip"></i> {{ note.attachment_filename }}
+                                </a>
+                                {% endif %}
+                                {% if note.attachments.all %}
+                                {% for att in note.attachments.all %}
+                                <a href="{{ att.file.url }}" class="btn btn-sm btn-outline-primary me-1" target="_blank">
+                                    <i class="fas fa-paperclip"></i> {{ att.filename }}
+                                </a>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0" style="font-size: 0.8rem;">{% trans "No notes yet" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filters (Hidden by default) -->
+    <div class="row mb-2">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#frameworkFiltersCollapse" aria-expanded="false" aria-controls="frameworkFiltersCollapse">
+                    <i class="fas fa-filter"></i> {% trans "Show/Hide Filters" %}
+                </button>
+            </div>
+            <div class="collapse" id="frameworkFiltersCollapse">
+                <div class="card" style="border: 1px solid #dee2e6;">
+                    <div class="card-body" style="padding: 0.5rem;">
+                        <form method="get" class="d-flex align-items-center flex-wrap" style="gap: 0.5rem;">
+                        <input type="text" name="search" class="form-control" style="flex: 1; min-width: 150px;"
+                               placeholder="{% trans 'Search controls...' %}"
+                               value="{{ search }}">
+                        
+                        {% if not framework.is_template %}
+                        <select name="control_status" class="form-control" style="flex: 0 0 auto; min-width: 120px;">
+                            <option value="">{% trans "All Statuses" %}</option>
+                            {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% endif %}
+                        
+                        <select name="priority" class="form-control" style="flex: 0 0 auto; min-width: 120px;">
+                            <option value="">{% trans "All Priorities" %}</option>
+                            {% for value, label in priority_choices %}
+                            <option value="{{ value }}" {% if priority_filter == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        
+                        {% if framework.is_template %}
+                        <select name="domain" class="form-control" style="flex: 0 0 auto; min-width: 140px;">
+                            <option value="">{% trans "All Domains" %}</option>
+                            <option value="NETWORK_SECURITY" {% if domain_filter == 'NETWORK_SECURITY' %}selected{% endif %}>NETWORK_SECURITY</option>
+                            <option value="CONFIGURATION_MANAGEMENT" {% if domain_filter == 'CONFIGURATION_MANAGEMENT' %}selected{% endif %}>CONFIGURATION_MANAGEMENT</option>
+                            <option value="CRYPTOGRAPHIC_PROTECTIONS" {% if domain_filter == 'CRYPTOGRAPHIC_PROTECTIONS' %}selected{% endif %}>CRYPTOGRAPHIC_PROTECTIONS</option>
+                            <option value="ENDPOINT_SECURITY" {% if domain_filter == 'ENDPOINT_SECURITY' %}selected{% endif %}>ENDPOINT_SECURITY</option>
+                            <option value="TECHNOLOGY_DEVELOPMENT_ACQUISITION" {% if domain_filter == 'TECHNOLOGY_DEVELOPMENT_ACQUISITION' %}selected{% endif %}>TECHNOLOGY_DEVELOPMENT</option>
+                            <option value="IDENTIFICATION_AUTHENTICATION" {% if domain_filter == 'IDENTIFICATION_AUTHENTICATION' %}selected{% endif %}>IDENTIFICATION_AUTH</option>
+                            <option value="PHYSICAL_ENVIRONMENTAL_SECURITY" {% if domain_filter == 'PHYSICAL_ENVIRONMENTAL_SECURITY' %}selected{% endif %}>PHYSICAL_ENV_SECURITY</option>
+                            <option value="CONTINUOUS_MONITORING" {% if domain_filter == 'CONTINUOUS_MONITORING' %}selected{% endif %}>CONTINUOUS_MONITORING</option>
+                            <option value="INFORMATION_ASSURANCE" {% if domain_filter == 'INFORMATION_ASSURANCE' %}selected{% endif %}>INFORMATION_ASSURANCE</option>
+                            <option value="SECURITY_PRIVACY_GOVERNANCE" {% if domain_filter == 'SECURITY_PRIVACY_GOVERNANCE' %}selected{% endif %}>SECURITY_GOVERNANCE</option>
+                            <option value="ASSET_MANAGEMENT" {% if domain_filter == 'ASSET_MANAGEMENT' %}selected{% endif %}>ASSET_MANAGEMENT</option>
+                            <option value="SECURE_ENGINEERING_ARCHITECTURE" {% if domain_filter == 'SECURE_ENGINEERING_ARCHITECTURE' %}selected{% endif %}>ENGINEERING_ARCH</option>
+                            <option value="INCIDENT_RESPONSE" {% if domain_filter == 'INCIDENT_RESPONSE' %}selected{% endif %}>INCIDENT_RESPONSE</option>
+                        </select>
+                        {% endif %}
+                        
+                        <button type="submit" class="btn btn-sm btn-primary" style="flex: 0 0 auto;">
+                            <i class="fas fa-search"></i> {% trans "Filter" %}
+                        </button>
+                        <a href="{% url 'compliance:framework_detail' framework.id %}" class="btn btn-sm btn-secondary" style="flex: 0 0 auto;">
+                            <i class="fas fa-times"></i> {% trans "Clear" %}
+                        </a>
+                    </form>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content with Sidebar - Works for BOTH Template and Application -->
+    <div class="framework-container" style="display: grid !important; grid-template-columns: 250px 1fr !important; grid-gap: 20px !important; height: 80vh !important; width: 100% !important;">
+        <!-- Sidebar: Requirements Navigation -->
+        <div class="requirements-sidebar" style="grid-column: 1 !important; width: 250px !important; height: 80vh !important; overflow-y: scroll !important; overflow-x: hidden !important; background: #f8f9fa !important; border: 1px solid #dee2e6 !important; border-radius: 8px !important; padding: 15px !important;">
+            <h5><i class="fas fa-list"></i> {% trans "Requirements" %}</h5>
+            {% if framework.is_template and permissions.can_add_controls %}
+            <div class="mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                    <i class="fas fa-layer-group"></i> {% trans "Add Category" %}
+                </button>
+            </div>
+            {% endif %}
+            <nav class="nav flex-column">
+                {% for category in categories %}
+                <a class="nav-link sidebar-link" data-category-id="{{ category.id }}" href="#category-{{ category.id }}" title="{{ category.description|default:category.name }}">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div style="flex: 1; min-width: 0;">
+                            <div>
+                                <i class="fas fa-folder"></i> 
+                                <strong>{{ category.code }}</strong>
+                            </div>
+                            <div style="font-size: 0.65rem; color: #6c757d; margin-top: 2px; line-height: 1.2; white-space: normal;">
+                                {{ category.name|truncatewords:8 }}
+                            </div>
+                        </div>
+                        <span class="badge bg-secondary" style="font-size: 0.55rem; margin-left: 5px;">{{ category.controls.count }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </nav>
+        </div>
+        
+        <!-- Main Content: Categories and Controls -->
+        <div class="content-area-scroll" id="contentArea" style="grid-column: 2 !important; width: 100% !important; height: 80vh !important; overflow-y: scroll !important; overflow-x: hidden !important; padding-right: 10px !important;">
+
+    <!-- Categories and Controls -->
+    {% for category in categories %}
+    <div class="category-section" id="category-{{ category.id }}">
+        <div class="category-header d-flex justify-content-between align-items-start" data-bs-toggle="collapse" data-bs-target="#category-body-{{ category.id }}" style="cursor: pointer;">
+            <div>
+                <div class="fw-bold">{{ category.code }} - {{ category.name }}</div>
+                {% if category.description %}
+                <div class="text-muted small">{{ category.description }}</div>
+                {% endif %}
+            </div>
+            <div class="d-flex align-items-center" style="gap: .4rem;">
+                <span class="badge bg-info">{{ category.total_controls }} {% trans "controls" %}</span>
+                <span class="badge bg-success">{{ category.get_completion_percentage }}%</span>
+                {% if framework.is_template %}
+                    {% if permissions.can_add_controls %}
+                    <button type="button" class="btn btn-sm btn-primary add-control-btn"
+                            onclick="event.stopPropagation();"
+                            data-category-id="{{ category.id }}"
+                            data-category-name="{{ category.code }} - {{ category.name|escapejs }}"
+                            data-action-url="{% url 'compliance:control_create' category.id %}"
+                            data-controls='[{% for ctrl in category.controls.all %}{"id":{{ ctrl.id }},"label":"{{ ctrl.code|escapejs }} - {{ ctrl.name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                            data-bs-toggle="modal" data-bs-target="#addControlModal"
+                            title="{% trans 'Add Control' %}">
+                        <i class="fas fa-plus"></i> {% trans "Add Control" %}
+                    </button>
+                    {% endif %}
+                    {% if permissions.can_edit_controls %}
+                    <button type="button" class="btn btn-sm btn-outline-warning"
+                            onclick="event.stopPropagation(); openEditCategoryModal({{ category.id }}, '{{ category.code|escapejs }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', {{ category.order }});"
+                            title="{% trans 'Edit category' %}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    {% endif %}
+                    {% if permissions.can_delete_controls %}
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            onclick="event.stopPropagation(); openDeleteCategoryModal({{ category.id }}, '{{ category.code|escapejs }}', '{{ category.name|escapejs }}');"
+                            title="{% trans 'Delete category' %}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    {% endif %}
+                {% endif %}
+                <i class="fas fa-chevron-down ms-1"></i>
+            </div>
+        </div>
+        
+        <div id="category-body-{{ category.id }}" class="collapse show">
+            <div class="category-body">
+                {% if category.description %}
+                <p class="text-muted">{{ category.description }}</p>
+                {% endif %}
+                
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font sb-data-table">
+                        <thead>
+                            <tr>
+                                {% if framework.is_template %}
+                                <th style="width: 8%;">{% trans "Code" %}</th>
+                                <th style="width: 10%;">{% trans "Title" %}</th>
+                                <th style="width: 45%;">{% trans "Name" %}</th>
+                                <th style="width: 12%;">{% trans "Priority" %}</th>
+                                <th style="width: 12%;">{% trans "Domain" %}</th>
+                                <th style="width: 13%;">{% trans "Actions" %}</th>
+                                {% else %}
+                                <th style="width: 6%;">{% trans "Code" %}</th>
+                                <th style="width: 8%;">{% trans "Title" %}</th>
+                                <th style="width: 50%;">{% trans "Name" %}</th>
+                                <th style="width: 8%;">{% trans "Status" %}</th>
+                                <th style="width: 6%;">{% trans "Priority" %}</th>
+                                <th style="width: 8%;">{% trans "Responsible" %}</th>
+                                <th style="width: 5%;">{% trans "Evidence" %}</th>
+                                <th style="width: 7%;">{% trans "Date" %}</th>
+                                <th style="width: 12%;">{% trans "Actions" %}</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for control in category.controls.all %}
+                            <tr class="control-row status-{{ control.status }}">
+                                <td>
+                                    <a href="{% url 'compliance:control_detail' control.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> {{ control.framework_code|default:control.code }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ control.title }}</span>
+                                </td>
+                                <td class="name-col">
+                                    {{ control.name }}
+                                    {% if control.is_verified %}
+                                    <i class="fas fa-check-circle text-success" title="{% trans 'Verified' %}"></i>
+                                    {% endif %}
+                                </td>
+                                {% if not framework.is_template %}
+                                <td>
+                                    <span style="{% if control.status == 'completed' %}color: #28a745;
+                                        {% elif control.status == 'in_progress' %}color: #17a2b8;
+                                        {% elif control.status == 'ready_for_review' %}color: #ffc107;
+                                        {% elif control.status == 'failed' %}color: #dc3545;
+                                        {% elif control.status == 'not_applicable' %}color: #6c757d;
+                                        {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                        {% if control.status == 'completed' %}<i class="fas fa-check-circle"></i>
+                                        {% elif control.status == 'in_progress' %}<i class="fas fa-spinner"></i>
+                                        {% elif control.status == 'ready_for_review' %}<i class="fas fa-clock"></i>
+                                        {% elif control.status == 'failed' %}<i class="fas fa-times-circle"></i>
+                                        {% elif control.status == 'not_applicable' %}<i class="fas fa-ban"></i>
+                                        {% else %}<i class="fas fa-circle"></i>{% endif %}
+                                        {{ control.get_status_display }}
+                                    </span>
+                                </td>
+                                {% endif %}
+                                <td>
+                                    <span style="{% if control.priority == 'critical' %}color: #dc3545;
+                                        {% elif control.priority == 'high' %}color: #fd7e14;
+                                        {% elif control.priority == 'medium' %}color: #ffc107;
+                                        {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                        {% if control.priority == 'critical' %}<i class="fas fa-exclamation-triangle"></i>
+                                        {% elif control.priority == 'high' %}<i class="fas fa-arrow-up"></i>
+                                        {% elif control.priority == 'medium' %}<i class="fas fa-minus"></i>
+                                        {% else %}<i class="fas fa-arrow-down"></i>{% endif %}
+                                        {{ control.get_priority_display }}
+                                    </span>
+                                </td>
+                                {% if framework.is_template %}
+                                <td>
+                                    {% if control.domain %}
+                                        <span class="badge bg-info" style="font-size: 0.5rem;">{{ control.domain.code }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'compliance:control_detail' control.id %}" 
+                                           class="btn btn-outline-primary" title="{% trans 'Edit control' %}">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if permissions.can_edit_controls %}
+                                        <a href="{% url 'compliance:control_detail' control.id %}" 
+                                           class="btn btn-outline-warning" title="{% trans 'Edit control' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if permissions.can_delete_controls %}
+                                        <form method="post" action="{% url 'compliance:control_delete' control.id %}" 
+                                              onsubmit="return confirm('{% trans "Delete this control?" %}');"
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger" 
+                                                    title="{% trans 'Delete control' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% else %}
+                                <td>
+                                    {% if control.responsible %}
+                                    <span style="color: #17a2b8; font-weight: bold;" 
+                                          title="{% if control.responsible.cabinet.department %}{{ control.responsible.cabinet.department }}{% endif %}{% if control.responsible.cabinet.department and control.responsible.cabinet.position %} / {% endif %}{% if control.responsible.cabinet.position %}{{ control.responsible.cabinet.position }}{% endif %}">
+                                        <i class="fas fa-user"></i> {{ control.responsible.get_full_name|default:control.responsible.username }}
+                                    </span>
+                                    {% else %}
+                                    <span style="color: #6c757d;">
+                                        <i class="fas fa-user-slash"></i> -
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span style="{% if control.has_sufficient_evidence %}color: #28a745;{% else %}color: #ffc107;{% endif %} font-weight: bold;">
+                                        {% if control.has_sufficient_evidence %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-exclamation-circle"></i>{% endif %}
+                                        {{ control.evidence_count }}/{{ control.required_evidence_count }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if control.actual_completion_date %}
+                                        <span style="color: #28a745; font-weight: bold;" title="{% trans 'Completed' %}">
+                                            <i class="fas fa-check-circle"></i> {{ control.actual_completion_date|date:"d.m.Y" }}
+                                        </span>
+                                    {% elif control.target_completion_date %}
+                                        <span style="color: #17a2b8;" title="{% trans 'Target' %}">
+                                            <i class="fas fa-calendar"></i> {{ control.target_completion_date|date:"d.m.Y" }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'compliance:control_detail' control.id %}" class="btn btn-outline-primary" title="{% trans 'Details' %}">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if permissions.can_delete_controls %}
+                                        <form method="post" action="{% url 'compliance:control_delete' control.id %}"
+                                              onsubmit="return confirm('{% trans "Delete this control?" %}');"
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger" title="{% trans 'Delete control' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            
+                            <!-- Sub-controls (if any) -->
+                            {% for sub_control in control.sub_controls.all %}
+                            <tr class="control-row status-{{ sub_control.status }}" style="background-color: #f8f9fa;">
+                                <td style="padding-left: 30px;">
+                                    <a href="{% url 'compliance:control_detail' sub_control.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-level-up-alt fa-rotate-90"></i> <i class="fas fa-eye"></i> {{ sub_control.framework_code|default:sub_control.code }}
+                                    </a>
+                                </td>
+                                <td class="name-col">{{ sub_control.name }}</td>
+                                {% if not framework.is_template %}
+                                <td>
+                                    <span style="{% if sub_control.status == 'completed' %}color: #28a745;
+                                        {% elif sub_control.status == 'in_progress' %}color: #17a2b8;
+                                        {% elif sub_control.status == 'ready_for_review' %}color: #ffc107;
+                                        {% elif sub_control.status == 'failed' %}color: #dc3545;
+                                        {% elif sub_control.status == 'not_applicable' %}color: #6c757d;
+                                        {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                        {% if sub_control.status == 'completed' %}<i class="fas fa-check-circle"></i>
+                                        {% elif sub_control.status == 'in_progress' %}<i class="fas fa-spinner"></i>
+                                        {% elif sub_control.status == 'ready_for_review' %}<i class="fas fa-clock"></i>
+                                        {% elif sub_control.status == 'failed' %}<i class="fas fa-times-circle"></i>
+                                        {% elif sub_control.status == 'not_applicable' %}<i class="fas fa-ban"></i>
+                                        {% else %}<i class="fas fa-circle"></i>{% endif %}
+                                        {{ sub_control.get_status_display }}
+                                    </span>
+                                </td>
+                                {% endif %}
+                                <td>
+                                    <span style="{% if sub_control.priority == 'critical' %}color: #dc3545;
+                                        {% elif sub_control.priority == 'high' %}color: #fd7e14;
+                                        {% elif sub_control.priority == 'medium' %}color: #ffc107;
+                                        {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                        {% if sub_control.priority == 'critical' %}<i class="fas fa-exclamation-triangle"></i>
+                                        {% elif sub_control.priority == 'high' %}<i class="fas fa-arrow-up"></i>
+                                        {% elif sub_control.priority == 'medium' %}<i class="fas fa-minus"></i>
+                                        {% else %}<i class="fas fa-arrow-down"></i>{% endif %}
+                                        {{ sub_control.get_priority_display }}
+                                    </span>
+                                </td>
+                                {% if not framework.is_template %}
+                                <td>
+                                    {% if sub_control.responsible %}
+                                    <span style="color: #17a2b8; font-weight: bold;" 
+                                          title="{% if sub_control.responsible.cabinet.department %}{{ sub_control.responsible.cabinet.department }}{% endif %}{% if sub_control.responsible.cabinet.department and sub_control.responsible.cabinet.position %} / {% endif %}{% if sub_control.responsible.cabinet.position %}{{ sub_control.responsible.cabinet.position }}{% endif %}">
+                                        <i class="fas fa-user"></i> {{ sub_control.responsible.get_full_name|default:sub_control.responsible.username }}
+                                    </span>
+                                    {% else %}
+                                    <span style="color: #6c757d;">
+                                        <i class="fas fa-user-slash"></i> -
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                                <td class="text-center">
+                                    <span style="{% if sub_control.has_sufficient_evidence %}color: #28a745;{% else %}color: #ffc107;{% endif %} font-weight: bold;">
+                                        {% if sub_control.has_sufficient_evidence %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-exclamation-circle"></i>{% endif %}
+                                        {{ sub_control.get_evidence_count }}/{{ sub_control.required_evidence_count }}
+                                    </span>
+                                </td>
+                                {% if not framework.is_template %}
+                                <td>
+                                    {% if sub_control.actual_completion_date %}
+                                        <span style="color: #28a745; font-weight: bold;" title="{% trans 'Completed' %}">
+                                            <i class="fas fa-check-circle"></i> {{ sub_control.actual_completion_date|date:"d.m.Y" }}
+                                        </span>
+                                    {% elif sub_control.target_completion_date %}
+                                        <span style="color: #17a2b8;" title="{% trans 'Target' %}">
+                                            <i class="fas fa-calendar"></i> {{ sub_control.target_completion_date|date:"d.m.Y" }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                                {% if not framework.is_template %}
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'compliance:control_detail' sub_control.id %}" class="btn btn-outline-primary" title="{% trans 'Details' %}">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if permissions.can_delete_controls %}
+                                        <form method="post" action="{% url 'compliance:control_delete' sub_control.id %}"
+                                              onsubmit="return confirm('{% trans "Delete this control?" %}');"
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger" title="{% trans 'Delete control' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                            {% empty %}
+                            <tr>
+                                <td colspan="{% if framework.is_template %}5{% else %}8{% endif %}" class="text-center text-muted">
+                                    {% trans "No controls in this category" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> {% trans "No categories found. Click 'Add Category' to create one." %}
+    </div>
+    {% endfor %}
+        </div><!-- End content-area-scroll -->
+    </div><!-- End framework-container -->
+
+    <!-- Recent Activity -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-history"></i> {% trans "Recent Activity" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 12%;">{% trans "User" %}</th>
+                                    <th style="width: 10%;">{% trans "Action" %}</th>
+                                    <th style="width: 10%;">{% trans "Type" %}</th>
+                                    <th style="width: 30%;">{% trans "Object" %}</th>
+                                    <th style="width: 25%;">{% trans "Changes" %}</th>
+                                    <th style="width: 13%;">{% trans "Timestamp" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_logs %}
+                                <tr>
+                                    <td>
+                                        <span style="color: #17a2b8; font-weight: bold;">
+                                            <i class="fas fa-user"></i> {{ log.user.get_full_name|default:log.user.username }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if log.action == 'create' %}badge-success
+                                            {% elif log.action == 'update' %}badge-info
+                                            {% elif log.action == 'delete' %}badge-danger
+                                            {% elif log.action == 'verify' %}badge-primary
+                                            {% elif log.action == 'approve' %}badge-success
+                                            {% else %}badge-secondary{% endif %}"
+                                            style="{% if log.action == 'create' %}background-color: #28a745;
+                                            {% elif log.action == 'update' %}background-color: #17a2b8;
+                                            {% elif log.action == 'delete' %}background-color: #dc3545;
+                                            {% elif log.action == 'verify' %}background-color: #007bff;
+                                            {% elif log.action == 'approve' %}background-color: #28a745;
+                                            {% else %}background-color: #6c757d;{% endif %} color: white;">
+                                            {{ log.get_action_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ log.get_object_type_display }}</td>
+                                    <td>
+                                        {{ log.object_repr|truncatewords:8 }}
+                                        {% if log.notes %}
+                                        <br><small class="text-muted"><i class="fas fa-comment"></i> {{ log.notes }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.changes %}
+                                            {% with changes_dict=log.get_changes_dict %}
+                                                {% if changes_dict.field == 'status' %}
+                                                    <div style="font-size: 0.65rem;">
+                                                        <span style="color: #dc3545;">{{ changes_dict.old_status|upper }}</span>
+                                                        <i class="fas fa-arrow-right" style="color: #6c757d;"></i>
+                                                        <span style="color: #28a745; font-weight: bold;">{{ changes_dict.new_status|upper }}</span>
+                                                        {% if changes_dict.changed_date %}
+                                                        <br><small class="text-muted"><i class="far fa-calendar-alt"></i> {{ changes_dict.changed_date }}</small>
+                                                        {% endif %}
+                                                    </div>
+                                                {% elif changes_dict.old %}
+                                                    <small class="text-muted">{{ changes_dict.old.status|default:"-" }} → {{ changes_dict.new.status|default:"-" }}</small>
+                                                {% else %}
+                                                    <small class="text-muted">-</small>
+                                                {% endif %}
+                                            {% endwith %}
+                                        {% else %}
+                                            <small class="text-muted">-</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span style="color: #6c757d;">
+                                            <i class="far fa-clock"></i> {{ log.timestamp|date:"d.m.Y H:i" }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        {% trans "No activity yet" %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+{% if framework.is_template %}
+<div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:category_create' framework.id %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addCategoryModalLabel">{% trans "Add Category" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Code" %} *</label>
+                        <input type="text" name="code" class="form-control" required placeholder="{% trans 'e.g., 1.1, 2.1' %}">
+                        <small class="form-text text-muted">{% trans "Category code (e.g., 1.1, 2.1, 12.10)" %}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Name" %} *</label>
+                        <input type="text" name="name" class="form-control" required placeholder="{% trans 'e.g., Network Security Controls' %}">
+                        <small class="form-text text-muted">{% trans "Category name" %}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="{% trans 'Optional description...' %}"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Display Order" %}</label>
+                        <input type="number" name="order" class="form-control" value="0">
+                        <small class="form-text text-muted">{% trans "Lower numbers appear first" %}</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> {% trans "Add Category" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Control Modal -->
+<div class="modal fade" id="addControlModal" tabindex="-1" aria-labelledby="addControlModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" id="addControlForm" action="">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'compliance:framework_detail' framework.id %}">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="addControlModalLabel">
+                        <i class="fas fa-plus"></i> {% trans "Add Control" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-1 mb-3" id="addControlCategoryInfo" style="font-size: 0.8rem;"></div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Code" %} *</label>
+                            <input type="text" name="code" class="form-control form-control-sm" required
+                                   placeholder="{% trans 'e.g., 1.1, 1.1.1' %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Title" %}</label>
+                            <input type="text" name="title" class="form-control form-control-sm"
+                                   placeholder="{% trans 'e.g., 1.1.1.a' %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Parent Control" %}</label>
+                            <select name="parent_control" id="addControlParentSelect" class="form-control form-control-sm">
+                                <option value="">{% trans "None (top-level)" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">{% trans "Name" %} *</label>
+                        <input type="text" name="name" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control form-control-sm" rows="3"></textarea>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Domain" %}</label>
+                            <select name="domain" class="form-control form-control-sm">
+                                <option value="">{% trans "Select domain..." %}</option>
+                                {% for domain in domains %}
+                                <option value="{{ domain.id }}">{{ domain.code }} - {{ domain.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Priority" %}</label>
+                            <select name="priority" class="form-control form-control-sm">
+                                <option value="low">{% trans "Low" %}</option>
+                                <option value="medium" selected>{% trans "Medium" %}</option>
+                                <option value="high">{% trans "High" %}</option>
+                                <option value="critical">{% trans "Critical" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Required Evidence" %}</label>
+                            <input type="number" name="required_evidence_count" class="form-control form-control-sm" value="1" min="0">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">{% trans "Implementation Guidance" %}</label>
+                        <textarea name="implementation_guidance" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-success btn-sm">
+                        <i class="fas fa-plus"></i> {% trans "Create Control" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1" aria-labelledby="editCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="editCategoryForm">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editCategoryModalLabel">{% trans "Edit Category" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Code" %} *</label>
+                        <input type="text" name="code" id="edit_category_code" class="form-control" required>
+                        <small class="form-text text-muted">{% trans "Category code (e.g., 1.1, 2.1, 12.10)" %}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Name" %} *</label>
+                        <input type="text" name="name" id="edit_category_name" class="form-control" required>
+                        <small class="form-text text-muted">{% trans "Category name" %}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" id="edit_category_description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Display Order" %}</label>
+                        <input type="number" name="order" id="edit_category_order" class="form-control">
+                        <small class="form-text text-muted">{% trans "Lower numbers appear first" %}</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> {% trans "Save Changes" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Category Modal -->
+<div class="modal fade" id="deleteCategoryModal" tabindex="-1" aria-labelledby="deleteCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="deleteCategoryForm">
+                {% csrf_token %}
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteCategoryModalLabel">
+                        <i class="fas fa-exclamation-triangle"></i> {% trans "Delete Category" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">{% trans "Are you sure you want to delete this category?" %}</p>
+                    <div class="alert alert-warning">
+                        <strong id="delete_category_info"></strong>
+                    </div>
+                    <p class="text-danger mb-0">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>{% trans "Warning:" %}</strong>
+                        {% trans "This will also delete all controls in this category. This action cannot be undone!" %}
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> {% trans "Delete Category" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Add Control Modal — populate per-category
+document.addEventListener('DOMContentLoaded', function () {
+    const addControlModal = document.getElementById('addControlModal');
+    if (!addControlModal) return;
+    addControlModal.addEventListener('show.bs.modal', function (event) {
+        const btn = event.relatedTarget;
+        if (!btn || !btn.classList.contains('add-control-btn')) return;
+
+        const actionUrl    = btn.dataset.actionUrl;
+        const categoryName = btn.dataset.categoryName;
+        const controls     = JSON.parse(btn.dataset.controls || '[]');
+
+        // Set form action
+        document.getElementById('addControlForm').action = actionUrl;
+
+        // Update category info label
+        document.getElementById('addControlCategoryInfo').textContent =
+            '{% trans "Category" %}: ' + categoryName;
+
+        // Populate parent control select
+        const sel = document.getElementById('addControlParentSelect');
+        sel.innerHTML = '<option value="">{% trans "None (top-level)" %}</option>';
+        controls.forEach(function (ctrl) {
+            const opt = document.createElement('option');
+            opt.value = ctrl.id;
+            opt.textContent = ctrl.label;
+            sel.appendChild(opt);
+        });
+
+        // Reset form fields
+        const form = document.getElementById('addControlForm');
+        form.querySelectorAll('input:not([name="csrfmiddlewaretoken"]):not([name="next"]), textarea, select:not(#addControlParentSelect)')
+            .forEach(function (el) {
+                if (el.tagName === 'SELECT') {
+                    el.selectedIndex = 0;
+                    // restore default "medium" for priority
+                    if (el.name === 'priority') {
+                        el.value = 'medium';
+                    }
+                } else if (el.type === 'number' && el.name === 'required_evidence_count') {
+                    el.value = '1';
+                } else {
+                    el.value = '';
+                }
+            });
+    });
+});
+
+// Open Edit Category Modal
+function openEditCategoryModal(categoryId, code, name, description, order) {
+    document.getElementById('edit_category_code').value = code;
+    document.getElementById('edit_category_name').value = name;
+    document.getElementById('edit_category_description').value = description;
+    document.getElementById('edit_category_order').value = order;
+    
+    const form = document.getElementById('editCategoryForm');
+    form.action = "{% url 'compliance:category_update' 0 %}".replace('0', categoryId);
+    
+    const modal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+    modal.show();
+}
+
+// Open Delete Category Modal
+function openDeleteCategoryModal(categoryId, code, name) {
+    document.getElementById('delete_category_info').textContent = code + ' - ' + name;
+    
+    const form = document.getElementById('deleteCategoryForm');
+    form.action = "{% url 'compliance:category_delete' 0 %}".replace('0', categoryId);
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteCategoryModal'));
+    modal.show();
+}
+
+// Modern smooth scrolling with auto-highlight
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebarLinks = document.querySelectorAll('.sidebar-link');
+    const contentArea = document.getElementById('contentArea');
+    
+    if (!contentArea) return; // Exit if not template framework
+    
+    // Smooth scroll on sidebar click
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const categoryId = this.getAttribute('data-category-id');
+            const targetElement = document.getElementById('category-' + categoryId);
+            
+            if (targetElement) {
+                // Remove active class from all links
+                sidebarLinks.forEach(l => l.classList.remove('active'));
+                // Add active class to clicked link
+                this.classList.add('active');
+                
+                // Calculate scroll position
+                const containerTop = contentArea.offsetTop;
+                const elementTop = targetElement.offsetTop;
+                const scrollPosition = elementTop - containerTop - 20;
+                
+                // Smooth scroll
+                contentArea.scrollTo({
+                    top: scrollPosition,
+                    behavior: 'smooth'
+                });
+                
+                console.log('Scrolling to category:', categoryId, 'position:', scrollPosition);
+            }
+        });
+    });
+    
+    // Auto-highlight on scroll (with debounce for performance)
+    let scrollTimeout;
+    contentArea.addEventListener('scroll', function() {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            const sections = document.querySelectorAll('.category-section');
+            const scrollPosition = contentArea.scrollTop;
+            
+            let activeSection = null;
+            let minDistance = Infinity;
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - contentArea.offsetTop;
+                const distance = Math.abs(scrollPosition - sectionTop + 20);
+                
+                if (distance < minDistance && scrollPosition >= sectionTop - 100) {
+                    minDistance = distance;
+                    activeSection = section;
+                }
+            });
+            
+            if (activeSection) {
+                const categoryId = activeSection.id.replace('category-', '');
+                sidebarLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('data-category-id') === categoryId) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+        }, 100);
+    });
+    
+    // Set first link as active on load
+    if (sidebarLinks.length > 0) {
+        sidebarLinks[0].classList.add('active');
+    }
+});
+</script>
+
+<!-- Framework Compliance Guide Modal -->
+<div class="modal fade" id="frameworkComplianceGuideModal" tabindex="-1" aria-labelledby="frameworkComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:framework_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="frameworkComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Framework Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="frameworkComplianceGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('frameworkComplianceGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('frameworkComplianceGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl).done(function(data) {
+                body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+            }).fail(function() {
+                body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+            });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+
+<!-- Schedule Review Modal -->
+<div class="modal fade" id="scheduleReviewModal" tabindex="-1" aria-labelledby="scheduleReviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:schedule_review' framework.id %}">
+                {% csrf_token %}
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="scheduleReviewModalLabel">
+                        <i class="fas fa-calendar-plus"></i> {% trans "Schedule Review" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "Next Review Date" %} *</label>
+                        <input type="date" name="next_review_date" class="form-control" 
+                               value="{{ framework.next_review_date|date:'Y-m-d' }}" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "Review Frequency" %}</label>
+                        <select name="review_frequency" class="form-control">
+                            <option value="quarterly" {% if framework.review_frequency == 'quarterly' %}selected{% endif %}>{% trans "Quarterly" %}</option>
+                            <option value="semi_annual" {% if framework.review_frequency == 'semi_annual' %}selected{% endif %}>{% trans "Semi-Annual" %}</option>
+                            <option value="annual" {% if framework.review_frequency == 'annual' %}selected{% endif %}>{% trans "Annual" %}</option>
+                            <option value="biennial" {% if framework.review_frequency == 'biennial' %}selected{% endif %}>{% trans "Biennial" %}</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "Review Owner" %}</label>
+                        <select name="review_owner_id" class="form-control" style="font-size: 0.85rem;">
+                            <option value="">{% trans "Not assigned" %}</option>
+                            {% if users %}
+                                {% for user_data in users %}
+                                <option value="{{ user_data.id }}" {% if framework.review_owner and framework.review_owner.id == user_data.id %}selected{% endif %}>
+                                    {{ user_data.full_name|default:user_data.username }}
+                                    {% if user_data.position and user_data.department %}
+                                     - {{ user_data.position }}, {{ user_data.department }}
+                                    {% elif user_data.position %}
+                                     - {{ user_data.position }}
+                                    {% elif user_data.department %}
+                                     - {{ user_data.department }}
+                                    {% endif %}
+                                </option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                        <small class="form-text text-muted" style="font-size: 0.65rem;">
+                            <i class="fas fa-info-circle"></i> {% trans "Select the person responsible for framework reviews" %}
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {% trans "Schedule" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Mark Reviewed Modal -->
+<div class="modal fade" id="markReviewedModal" tabindex="-1" aria-labelledby="markReviewedModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:mark_reviewed' framework.id %}">
+                {% csrf_token %}
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="markReviewedModalLabel">
+                        <i class="fas fa-check"></i> {% trans "Mark Framework as Reviewed" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info" style="font-size: 0.75rem;">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "This will mark the framework as reviewed and automatically schedule the next review based on the review frequency." %}
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "Review Date" %} *</label>
+                        <input type="date" name="review_date" class="form-control" 
+                               value="{{ today|date:'Y-m-d' }}" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "Review Notes" %}</label>
+                        <textarea name="review_notes" class="form-control" rows="4" 
+                                  placeholder="{% trans 'Optional notes about this review...' %}"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check"></i> {% trans "Mark Reviewed" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Archive Framework Modal -->
+<div class="modal fade" id="archiveFrameworkModal" tabindex="-1" aria-labelledby="archiveFrameworkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:archive_framework' framework.id %}">
+                {% csrf_token %}
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title" id="archiveFrameworkModalLabel">
+                        <i class="fas fa-archive"></i> {% trans "Archive Framework" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>{% trans "Warning:" %}</strong>
+                        {% trans "Archiving this framework will change its status to Archived. It will still be accessible but marked as inactive." %}
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "Archive Reason" %}</label>
+                        <textarea name="archive_reason" class="form-control" rows="3" 
+                                  placeholder="{% trans 'Why is this framework being archived?' %}"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-secondary">
+                        <i class="fas fa-archive"></i> {% trans "Archive" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Framework Note Modal -->
+{% if not framework.is_template and permissions.can_edit_frameworks %}
+<div class="modal fade" id="frameworkAddNoteModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:framework_note_create' framework.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Add Note" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Note" %} *</label>
+                        <textarea name="note" class="form-control" rows="4" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Attachments" %}</label>
+                        <input type="file" name="attachments" class="form-control" multiple>
+                        <small class="form-text text-muted">
+                            {% trans "You can select multiple files" %}
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> {% trans "Add Note" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+

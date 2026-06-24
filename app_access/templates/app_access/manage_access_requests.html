@@ -1,0 +1,3210 @@
+<!-- SecBoard\templates\app_access\manage_access_requests.html -->
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load access_filters %}
+
+{% block styles %}
+{{ block.super }}
+{% include "app_access/includes/access_styles.html" %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'app_access/css/access-request.css' %}">
+<link rel="stylesheet" href="{% static 'app_access/css/access-manage-requests.css' %}">
+
+<script>
+// Приховати history кнопки та додаткові статуси для всіх типів запитів через JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Знайти і приховати всі history toggle кнопки та admin-status-history div
+    const historyElements = document.querySelectorAll('.history-toggle, button.history-toggle, .admin-status-history');
+    historyElements.forEach(function(element) {
+        element.style.display = 'none';
+    });
+    
+    // Приховати всі додаткові елементи в admin status колонці
+    const adminStatusCells = document.querySelectorAll('.col-admin-status');
+    adminStatusCells.forEach(function(cell) {
+        // Знайти admin-status-badge та очистити дублювання тексту
+        const adminBadges = cell.querySelectorAll('.admin-status-badge');
+        adminBadges.forEach(function(badge) {
+            // Для revoke запитів замінити текст на простий "Access Revoked" без іконки
+            const row = badge.closest('tr');
+            if (row && row.getAttribute('data-request-type') === 'revoke') {
+                // Приховати іконку замка
+                const lockIcon = badge.querySelector('i.bi-lock-fill');
+                if (lockIcon) {
+                    lockIcon.style.display = 'none';
+                }
+                
+                // Очистити весь текстовий контент і встановити простий текст
+                const walker = document.createTreeWalker(
+                    badge,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+                
+                let textNode;
+                while (textNode = walker.nextNode()) {
+                    textNode.nodeValue = '';
+                }
+                
+                // Встановити простий текст, але зберегти title атрибут
+                const originalTitle = badge.getAttribute('title');
+                badge.textContent = 'Access Revoked';
+                if (originalTitle) {
+                    badge.setAttribute('title', originalTitle);
+                }
+            }
+        });
+        
+        // Видалити всі текстові вузли поза admin-status-badge які містять "> Access" або подібний текст
+        const walker = document.createTreeWalker(
+            cell,
+            NodeFilter.SHOW_TEXT,
+            function(node) {
+                // Пропустити текстові вузли всередині admin-status-badge
+                if (node.parentElement && node.parentElement.closest('.admin-status-badge')) {
+                    return NodeFilter.FILTER_SKIP;
+                }
+                
+                // Перевірити чи текстовий вузол містить "> Access" або подібний текст
+                if (node.nodeValue.trim().includes('> Access') || 
+                    node.nodeValue.trim().includes('>') || 
+                    node.nodeValue.trim().match(/^\s*>\s*\w+/) ||
+                    node.nodeValue.trim().includes('Access Revoked')) {
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+                return NodeFilter.FILTER_SKIP;
+            },
+            false
+        );
+        
+        let textNode;
+        while (textNode = walker.nextNode()) {
+            textNode.nodeValue = '';
+        }
+        
+        // Приховати всі елементи які не є admin-status-badge
+        const allElements = cell.querySelectorAll('*');
+        allElements.forEach(function(element) {
+            if (!element.classList.contains('admin-status-badge') && 
+                !element.classList.contains('badge') &&
+                !element.classList.contains('d-flex') &&
+                !element.classList.contains('d-flex-column')) {
+                element.style.display = 'none';
+            }
+        });
+    });
+    
+    // Перезавантажити Bootstrap tooltip'и після змін
+    setTimeout(function() {
+        // Знищити існуючі tooltip'и
+        const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltips.forEach(function(element) {
+            const tooltip = bootstrap.Tooltip.getInstance(element);
+            if (tooltip) {
+                tooltip.dispose();
+            }
+        });
+        
+        // Створити нові tooltip'и
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        const tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }, 100);
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid access-page px-2 py-1">
+    {% csrf_token %}
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">{% trans "Manage Access Requests" %}</h5>
+        <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#manageAccessRequestsGuideModal">
+            <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+        </button>
+    </div>
+
+    <!-- Filters Section (collapsed by default) -->
+    <div class="card mb-2 filter-section access-request-filters manage-access-request-filters">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <span class="small fw-bold mb-0">
+                <i class="bi bi-funnel me-1"></i>{% trans "Filters" %}
+            </span>
+            <div class="d-flex gap-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="resetFilters" title="{% trans 'Clear all filters' %}">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleManageAccessFilters" aria-expanded="{% if request.GET.company or request.GET.system or request.GET.search or request.GET.environment or request.GET.object or request.GET.role or request.GET.requested_by or request.GET.requested_for or request.GET.owner or request.GET.administrator or request.GET.approving_status or request.GET.admin_status or request.GET.user_period %}true{% else %}false{% endif %}" aria-controls="manageAccessFiltersCollapse" title="{% trans 'Show or hide filters' %}">
+                    <i class="bi bi-chevron-{% if request.GET.company or request.GET.system or request.GET.search or request.GET.environment or request.GET.object or request.GET.role or request.GET.requested_by or request.GET.requested_for or request.GET.owner or request.GET.administrator or request.GET.approving_status or request.GET.admin_status or request.GET.user_period %}up{% else %}down{% endif %}" id="manageAccessFiltersToggleIcon"></i>
+                </button>
+            </div>
+        </div>
+        <div class="collapse{% if request.GET.company or request.GET.system or request.GET.search or request.GET.environment or request.GET.object or request.GET.role or request.GET.requested_by or request.GET.requested_for or request.GET.owner or request.GET.administrator or request.GET.approving_status or request.GET.admin_status or request.GET.user_period %} show{% endif %}" id="manageAccessFiltersCollapse">
+        <div class="card-body py-2">
+        <div class="row g-1 align-items-end">
+            <div class="col-md-2">
+                <label for="companyFilter" class="form-label">{% trans "Company" %}</label>
+                <select id="companyFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Companies" %}</option>
+                    {% for company in companies %}
+                        <option value="{{ company.id }}" {% if request.GET.company|stringformat:'s' == company.id|stringformat:'s' %}selected{% endif %}>{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="systemFilter" class="form-label">{% trans "System" %}</label>
+                <select id="systemFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Systems" %}</option>
+                    {% for sys in systems %}
+                        <option value="{{ sys.id }}" {% if request.GET.system|stringformat:'s' == sys.id|stringformat:'s' %}selected{% endif %}>{{ sys.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="environmentFilter" class="form-label">{% trans "Environment" %}</label>
+                <select id="environmentFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Environments" %}</option>
+                    {% for value,label in environment_choices %}
+                        <option value="{{ value }}" {% if request.GET.environment == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="objectFilter" class="form-label">{% trans "Object" %}</label>
+                <select id="objectFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Objects" %}</option>
+                    {% for obj in objects %}
+                        {% if current_language == 'uk' %}
+                            {% with obj_name=obj.name %}
+                                <option value="{{ obj.id }}" {% if request.GET.object|stringformat:'s' == obj.id|stringformat:'s' %}selected{% endif %}>{{ obj_name }}</option>
+                            {% endwith %}
+                        {% else %}
+                            <option value="{{ obj.id }}" {% if request.GET.object|stringformat:'s' == obj.id|stringformat:'s' %}selected{% endif %}>{{ obj.name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="roleFilter" class="form-label">{% trans "Role" %}</label>
+                <select id="roleFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Roles" %}</option>
+                    {% for opt in role_options %}
+                        <option value="{{ opt.value }}" {% if request.GET.role == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="userPeriodFilter" class="form-label">{% trans "User Access Period" %}</label>
+                <select id="userPeriodFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Periods" %}</option>
+                    <option value="active" {% if request.GET.user_period == 'active' %}selected{% endif %}>{% trans "Active" %}</option>
+                    <option value="expired" {% if request.GET.user_period == 'expired' %}selected{% endif %}>{% trans "Expired" %}</option>
+                    <option value="future" {% if request.GET.user_period == 'future' %}selected{% endif %}>{% trans "Future" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="requestedByFilter" class="form-label">{% trans "Requested By" %}</label>
+                <select id="requestedByFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Users" %}</option>
+                    {% for u in requested_by_users %}
+                        <option value="{{ u.id }}" {% if request.GET.requested_by|stringformat:'s' == u.id|stringformat:'s' %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="requestedForFilter" class="form-label">{% trans "Requested For" %}</label>
+                <select id="requestedForFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Users" %}</option>
+                    {% for u in requested_for_users %}
+                        <option value="{{ u.id }}" {% if request.GET.requested_for|stringformat:'s' == u.id|stringformat:'s' %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                    {% endfor %}
+                    {% if third_party_requested_for_options %}
+                        <optgroup label="{% trans 'Third Party Users' %}">
+                            {% for name in third_party_requested_for_options %}
+                                {% if name %}
+                                    <option value="tp:{{ name }}" {% if request.GET.requested_for == 'tp:'|add:name %}selected{% endif %}>{{ name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </optgroup>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="ownerFilter" class="form-label">{% trans "Owner" %}</label>
+                <select id="ownerFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Owners" %}</option>
+                    {% for u in owners %}
+                        <option value="{{ u.id }}" {% if request.GET.owner|stringformat:'s' == u.id|stringformat:'s' %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="administratorFilter" class="form-label">{% trans "Administrator" %}</label>
+                <select id="administratorFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Administrators" %}</option>
+                    {% for u in administrators %}
+                        <option value="{{ u.id }}" {% if request.GET.administrator|stringformat:'s' == u.id|stringformat:'s' %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="approvingStatusFilter" class="form-label">{% trans "Approving Status" %}</label>
+                <select id="approvingStatusFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Statuses" %}</option>
+                    <option value="pending" {% if request.GET.approving_status == 'pending' %}selected{% endif %}>{% trans "Pending" %}</option>
+                    <option value="approved" {% if request.GET.approving_status == 'approved' %}selected{% endif %}>{% trans "Approved" %}</option>
+                    <option value="rejected" {% if request.GET.approving_status == 'rejected' %}selected{% endif %}>{% trans "Rejected" %}</option>
+                    <option value="cancelled" {% if request.GET.approving_status == 'cancelled' %}selected{% endif %}>{% trans "Cancelled" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="adminStatusFilter" class="form-label">{% trans "Admin Status" %}</label>
+                <select id="adminStatusFilter" class="form-select form-select-sm">
+                    <option value="">{% trans "All Statuses" %}</option>
+                    {% for value,label in admin_status_choices %}
+                        <option value="{{ value }}" {% if request.GET.admin_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="row g-1 mt-1">
+            <div class="col-md-4">
+                <label class="form-label" for="searchInput">{% trans "Search" %}</label>
+                <input type="text"
+                       id="searchInput"
+                       class="form-control form-control-sm"
+                       placeholder="{% trans 'Search by ID, Company, System, User...' %}"
+                       value="{{ request.GET.search }}">
+            </div>
+        </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Список запитів -->
+    <div class="card mb-4" id="requestsList">
+        <div class="card-header py-2">
+            <h6 class="mb-0">{% trans "Access Requests" %}</h6>
+        </div>
+        <div class="card-body py-2">
+            <div class="export-controls mb-2">
+                <div class="row align-items-center">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            <button type="button" class="btn btn-success btn-sm btn-icon-action" id="exportSelectedAdmin" disabled
+                                    data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Export Selected' %}">
+                                <i class="bi bi-file-earmark-excel"></i>
+                            </button>
+                            <button type="button" class="btn btn-primary btn-sm btn-icon-action" id="exportAllAdmin"
+                                    data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Export All' %}">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <div class="table-responsive full-width-table">
+            <table class="table table-hover table-sm table-sm-font sb-data-table my-access-requests-table" id="manageRequestsTable" style="font-size: 0.8rem;">
+                <thead>
+                    <tr>
+                        <th style="width:30px;">
+                            <input type="checkbox" class="form-check-input" id="selectAllAdmin">
+                        </th>
+                        <th class="col-id" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Unique identifier of the access request' %}">
+                            {% trans "ID" %}
+                        </th>
+
+                        <th class="col-company"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Company and information system for which access is requested' %}">
+                            {% trans "IS" %}
+                        </th>
+                        <th class="col-requested-by"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'User who submitted the access request' %}">
+                            {% trans "Requested By" %}
+                        </th>
+                        <th class="col-requested-for"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'User for whom access is requested' %}">
+                            {% trans "Requested For" %}
+                        </th>
+                        <th class="col-access-type"></th>
+                        <th class="col-roles"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Object roles and rights requested for the user and period of access' %}">
+                            {% trans "Object Roles" %}
+                            <span id="rolesCountHeaderBadge" class="badge bg-secondary ms-2" style="vertical-align: middle;">0</span>
+                        </th>
+                        <th class="col-period"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Period of access validity or revocation timing' %}">
+                            {% trans "Period" %}
+                        </th>
+
+                        <th class="col-info"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Business justification, technical requirements and additional notes' %}">
+                            {% trans "Info" %}
+                        </th>
+                        <th class="col-attachments"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Files attached to the access request' %}">
+                            <i class="bi bi-paperclip"></i>
+                        </th>
+
+                        <th class="col-approvers"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Approving persons responsible for reviewing and approving access requests' %}">
+                            {% trans "Approving Persons" %}
+                        </th>
+                        <th class="col-request-status"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Overall status of the access request (Pending, Approved, Rejected, Cancelled)' %}">
+                            {% trans "Request Status" %}
+                        </th>
+
+
+                        <th class="col-admin-status"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Administrative status with change history' %}">
+                            {% trans "Admin Status" %}
+                        </th>
+
+                        <th class="col-created"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="{% trans 'Date and time when the request was created' %}">
+                            {% trans "Created" %}
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+        {% for request in requests %}
+                    <tr data-request-type="{{ request.request_type }}" data-request-id="{{ request.id }}">
+                        <td>
+                            <input type="checkbox" class="form-check-input select-row-admin" data-id="{{ request.id }}">
+                        </td>
+                        <td>{{ request.id }}</td>
+                        <td class="company-system-object-cell"
+                            data-bs-toggle="tooltip" 
+                            data-bs-html="true" 
+                            data-bs-placement="top"
+                            title="<div class='user-tooltip'>
+                                <div style='font-weight: bold; margin-bottom: 0.8rem; color: #0d6efd; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 0.5rem;'>{% trans 'System Information' %}</div>
+                                <div style='margin-bottom: 0.5rem;'>
+                                    <strong>{% trans 'Company' %}:</strong> {{ request.company.name }}<br>
+                                    <strong>{% trans 'System' %}:</strong> {{ request.system.name }}
+                                </div>
+                                {% if request.system.owners.all or request.system.administrators.all %}
+                                    <div style='border-top: 1px solid rgba(255,255,255,0.2); padding-top: 0.5rem; margin-top: 0.5rem;'>
+                                        {% if request.system.owners.all %}
+                                            <div style='margin-bottom: 0.5rem;'>
+                                                <strong style='color: #28a745;'>{% trans 'Owners' %}:</strong><br>
+                                                {% for owner in request.system.owners.all %}
+                                                    <div style='margin-left: 0.5rem; margin-bottom: 0.25rem;'>
+                                                        • {{ owner.cabinet_user.user.get_full_name|default:owner.cabinet_user.user.username }}
+                                                        {% if owner.cabinet_user.user.email %}<br>&nbsp;&nbsp;<small style='color: #ccc;'>{{ owner.cabinet_user.user.email }}</small>{% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        {% if request.system.administrators.all %}
+                                            <div>
+                                                <strong style='color: #17a2b8;'>{% trans 'Administrators' %}:</strong><br>
+                                                {% for admin in request.system.administrators.all %}
+                                                    <div style='margin-left: 0.5rem; margin-bottom: 0.25rem;'>
+                                                        • {{ admin.cabinet_user.user.get_full_name|default:admin.cabinet_user.user.username }}
+                                                        {% if admin.cabinet_user.user.email %}<br>&nbsp;&nbsp;<small style='color: #ccc;'>{{ admin.cabinet_user.user.email }}</small>{% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <div style='border-top: 1px solid rgba(255,255,255,0.2); padding-top: 0.5rem; margin-top: 0.5rem; color: #999; font-style: italic;'>
+                                        {% trans 'No owners or administrators assigned' %}
+                                    </div>
+                                {% endif %}
+                            </div>"
+                            style="cursor: help;">
+                            <div class="d-flex flex-column">
+                                <div class="company-name">{{ request.company.name }}</div>
+                                <div class="system-name">{{ request.system.name }}</div>
+                                <div class="environment-badge mt-1">
+                                        {% if request.environment == 'production' %}
+                                        <span class="badge" style="color: #dc3545; background-color: transparent;">{% trans "Production" %}</span>
+                                        {% elif request.environment == 'test' %}
+                                        <span class="badge" style="color: #ffc107; background-color: transparent;">{% trans "Test" %}</span>
+                                        {% elif request.environment == 'development' %}
+                                        <span class="badge" style="color: #0dcaf0; background-color: transparent;">{% trans "Development" %}</span>
+                                    {% else %}
+                                        <span class="badge" style="color: #6c757d; background-color: transparent;">{{ request.environment }}</span>
+                                        {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="multi-user-cell">
+                            <div class="multi-user-list">
+                                <div class="multi-user-item">
+                                    <div class="approver-info" style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                        <!-- Перший ряд: Name only (icons removed) -->
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <span class="multi-user-name" 
+                                                  style="flex: 1; word-wrap: break-word; cursor: pointer;"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-html="true"
+                                                  data-bs-placement="top"
+                                                  title="<div class='user-tooltip'>
+                                                      <b>{% trans 'Requested By' %}</b><br>
+                                                      <b>{{ request.requested_by.get_full_name }}</b><br>
+                                                      {{ request.requested_by.cabinet.department.get_name }}<br>
+                                                      {{ request.requested_by.cabinet.position.get_name }}<br>
+                                                      {{ request.requested_by.email }}
+                                                  </div>">{{ request.requested_by.get_full_name }}</span>
+                                        </div>
+                                        <!-- Другий ряд: Department and Position -->
+                                        <div style="display: flex; align-items: flex-start; gap: 0.4rem; margin-left: 0; max-width: 100%; text-align: left;">
+                                            <small class="text-muted" style="font-size: 0.7rem; text-align: left;">
+                                                {{ request.requested_by.cabinet.department.get_name }}<br>
+                                                {{ request.requested_by.cabinet.position.get_name }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="multi-user-cell col-requested-for">
+                            <div class="multi-user-list">
+                                <div class="multi-user-item">
+                                    <div class="approver-info" style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                        <!-- Перший ряд: Name only (icons removed) -->
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    {% if request.third_party_users_list and request.third_party_users_list|length > 0 %}
+                                        <!-- Third-party organization users (multiple) -->
+                                        <span class="multi-user-name"
+                                              style="flex: 1; word-wrap: break-word; cursor: pointer;"
+                                              data-bs-toggle="tooltip"
+                                              data-bs-html="true"
+                                              data-bs-placement="top"
+                                              title="<div class='user-tooltip'>
+                                                  <div style='font-weight: bold; margin-bottom: 0.8rem; color: #dc3545; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 0.5rem;'>{% trans 'Third Party' %}</div>
+                                                  {% if request.third_party_organization %}<div><small>{% trans 'Organization' %}: {{ request.third_party_organization }}</small></div>{% endif %}
+                                                  <div style='margin-top: 0.4rem;'>
+                                                      {% for tp_name in request.third_party_users_list %}
+                                                          <div><small>- {{ tp_name }}</small></div>
+                                                      {% endfor %}
+                                                  </div>
+                                              </div>">
+                                            {# Show primary user name, not organization #}
+                                            <i class="bi bi-people me-1" title="{% trans 'Third Party Users' %}"></i>
+                                            <b>{{ request.third_party_users_list.0 }}</b>
+                                            {% if request.third_party_users_list|length > 1 %}
+                                                ({{ request.third_party_users_list|length }})
+                                            {% endif %}
+                                        </span>
+                                    {% elif request.third_party_first_name or request.third_party_last_name %}
+                                        <!-- Single third-party user -->
+                                        <span class="multi-user-name" 
+                                              style="flex: 1; word-wrap: break-word; cursor: pointer;"
+                                              data-bs-toggle="tooltip"
+                                              data-bs-html="true"
+                                              data-bs-placement="top"
+                                              title="<div class='user-tooltip'>
+                                                  <div style='font-weight: bold; margin-bottom: 0.8rem; color: #dc3545; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 0.5rem;'>{% trans 'Third Party' %}</div>
+                                                  <b>{{ request.third_party_first_name }} {{ request.third_party_last_name }}</b><br>
+                                                  {% if request.third_party_email %}<small>{% trans 'Email' %}: {{ request.third_party_email }}</small><br>{% endif %}
+                                                  {% if request.third_party_phone %}<small>{% trans 'Phone' %}: {{ request.third_party_phone }}</small><br>{% endif %}
+                                                  {% if request.third_party_organization %}<small>{% trans 'Organization' %}: {{ request.third_party_organization }}</small><br>{% endif %}
+                                                  {% if request.third_party_description %}<small>{% trans 'Description' %}: {{ request.third_party_description }}</small>{% endif %}
+                                              </div>"><i class="bi bi-person me-1" title="{% trans 'Third Party User' %}"></i><b>{{ request.third_party_first_name }} {{ request.third_party_last_name }}</b></span>
+                                    {% else %}
+                                        <!-- Internal user -->
+                                        <span class="multi-user-name" 
+                                              style="flex: 1; word-wrap: break-word; cursor: pointer;"
+                                              data-bs-toggle="tooltip"
+                                              data-bs-html="true"
+                                              data-bs-placement="top"
+                                              title="<div class='user-tooltip'>
+                                                  <b>{% trans 'Requested For' %}</b><br>
+                                                  <b>{{ request.requested_for.get_full_name }}</b><br>
+                                                  {{ request.requested_for.cabinet.department.get_name }}<br>
+                                                  {{ request.requested_for.cabinet.position.get_name }}<br>
+                                                  {{ request.requested_for.email }}
+                                              </div>"><i class="bi bi-person me-1"></i><b>{{ request.requested_for.get_full_name }}</b></span>
+                                    {% endif %}
+                                </div>
+                                <!-- Другий ряд: Department and Position або Organization -->
+                                        <div style="display: flex; align-items: flex-start; gap: 0.4rem; margin-left: 0; max-width: 100%; text-align: left;">
+                                    {% if request.third_party_users_list and request.third_party_users_list|length > 0 %}
+                                        <small class="text-muted" style="font-size: 0.7rem;">
+                                            {% if request.third_party_organization %}
+                                                {{ request.third_party_organization }}
+                                            {% else %}
+                                                {% trans "Third party" %}
+                                            {% endif %}
+                                        </small>
+                                    {% elif request.third_party_first_name or request.third_party_last_name %}
+                                        <small class="text-muted" style="font-size: 0.7rem;">
+                                            {% if request.third_party_organization %}
+                                                {{ request.third_party_organization }}
+                                            {% else %}
+                                                {% trans "Third party" %}
+                                            {% endif %}
+                                        </small>
+                                    {% else %}
+                                                <small class="text-muted" style="font-size: 0.7rem; text-align: left;">
+                                            {{ request.requested_for.cabinet.department.get_name }}<br>
+                                            {{ request.requested_for.cabinet.position.get_name }}
+                                        </small>
+                                    {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="col-access-type"></td>
+                        <td class="roles-cell" 
+                            onmouseover="(function(t){var el=t.closest('table') && t.closest('table').querySelector('#rolesCountHeaderBadge'); if(el){el.textContent='{{ request.access_records_data|length }}';}})(this)" 
+                            onmouseout="(function(t){var el=t.closest('table') && t.closest('table').querySelector('#rolesCountHeaderBadge'); if(el){el.textContent='0';}})(this)">
+                            <div class="d-flex flex-column">
+                                <div class="roles-section mb-2">
+                                    {% if request.access_records_data %}
+                                        {% if request.access_records_data %}
+                                            <div class="access-records-count">
+                            {% if request.request_type == 'grant' %}
+                                                    <small class="badge bg-success text-white">
+                                                        <i class="bi bi-layers me-1"></i>
+                                                        {{ request.access_records_data|length }} {% trans "Grant access records" %}
+                                                    </small>
+                            {% elif request.request_type == 'revoke' %}
+                                                    <small class="badge bg-danger text-white">
+                                                        <i class="bi bi-layers me-1"></i>
+                                                        {{ request.access_records_data|length }} {% trans "Revoke access records" %}
+                                                    </small>
+                                    {% else %}
+                                                    <small class="badge bg-secondary text-white">
+                                                        <i class="bi bi-layers me-1"></i>
+                                                        {{ request.access_records_data|length }} {% trans "Access records" %}
+                                                    </small>
+                                    {% endif %}
+                                </div>
+                                        {% endif %}
+                                        <div class="access-records-container" data-request-id="{{ request.id }}">
+                                            {% for access_record in request.access_records_data %}
+                                                <div class="access-record-group mb-1 {% if request.access_records_data|length > 1 %}border-start border-2 border-primary ps-2{% endif %} {% if forloop.counter > 5 %}access-record-hidden d-none{% endif %} {% if request.request_type == 'grant' and access_record.is_revoked %}revoked-line{% endif %}" data-record-index="{{ forloop.counter }}">
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        {% if access_record.object_name %}
+                                                            <div class="object-name-inline">
+                                                                <i class="bi bi-cube me-1"></i>
+                                                                <strong class="text-color-dynamic" data-color="{{ access_record.object_color|default:'#495057' }}">{{ access_record.object_name }}</strong>:
+                                                                {% if request.request_type == 'revoke' %}
+                                                                    {% if access_record.grant_access_record_id %}
+                                                                        <i class="bi bi-info-circle ms-1 text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="Grant Access Record ID: {{ access_record.grant_access_record_id_full|default:access_record.grant_access_record_id }}" style="cursor: help; font-size: 0.9rem;"></i>
+                                                                    {% else %}
+                                                                        <i class="bi bi-info-circle ms-1 text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Grant Access Record ID was not resolved for this line. This may happen if the original grant sequence cannot be matched.' %}" style="cursor: help; font-size: 0.9rem;"></i>
+                                                                    {% endif %}
+                                                                {% endif %}
+                                </div>
+                            {% endif %}
+                                                        {% if request.request_type == 'grant' and access_record.is_revoked %}
+                                                            <span class="revoke-icon text-danger" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="<div class='revoke-tooltip'><strong>{% trans 'Access Revoked' %}</strong><br><small>{% trans 'Revoked at' %}: {{ access_record.revoke_info.revoked_at|date:'d.m.Y H:i' }}</small><br><small>{% trans 'Revoked by' %}: {{ access_record.revoke_info.revoked_by }}</small><br><small>{% trans 'Revoked for' %}: {{ access_record.revoke_info.revoked_for }}</small><br>{% if access_record.grant_access_record_id %}<small>{% trans 'Grant Access Record ID' %}: {{ access_record.grant_access_record_id_full|default:access_record.grant_access_record_id }}</small><br>{% endif %}{% if access_record.revoke_info.revoke_request_id %}<small>{% trans 'Request' %} #{{ access_record.revoke_info.revoke_request_id }}</small><br>{% endif %}</div>">
+                                                                <i class="bi bi-x-circle-fill"></i>
+                                                            </span>
+                                                        {% endif %}
+                                                        <div class="roles-inline gap-1">
+                                                            {% if access_record.requested_role %}
+                                                                <span class="role-label text-color-dynamic fw-semibold" data-color="{{ access_record.requested_role.color|default:'#6c757d' }}" style="background: transparent; padding: 0;">{{ access_record.requested_role.name }}</span>
+                                                            {% else %}
+                                                                {% for role in access_record.roles %}
+                                                                    <span class="role-label text-color-dynamic" data-color="{{ role.color }}" style="background: transparent; padding: 0;">{{ role.name }}</span>
+                                                                {% endfor %}
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% elif request.access_records.all %}
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% for access_record in request.access_records.all %}
+                                                {% for role in access_record.roles.all %}
+                                                    <span class="role-label text-color-dynamic" data-color="{{ role.color }}" style="background: transparent; padding: 0;">
+                                                            {% if LANGUAGE_CODE == 'uk' %}
+                                                                {{ role.name }}
+                                                            {% elif LANGUAGE_CODE == 'en' %}
+                                                                {{ role.name }}
+                                                            {% else %}
+                                                                {{ role.name }}
+                                                            {% endif %}
+                                                    </span>
+                                                {% endfor %}
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">{% trans "No roles specified" %}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="col-period">
+                                <div class="period-section mb-2"
+                                     data-bs-toggle="tooltip" 
+                                     data-bs-placement="top" 
+                                     title="{% if request.request_type == 'revoke' %}{% trans 'Revocation timing' %}{% else %}{% trans 'Period of access validity' %}{% endif %}">
+                                    {% if request.request_type == 'revoke' %}
+                                        <div class="small text-muted">
+                                            {% trans "Revocation" %}: 
+                                            {% if request.revocation_timing %}
+                                                {{ request.revocation_timing }}
+                                            {% else %}
+                                                {% trans "Immediately" %}
+                                            {% endif %}
+                                        </div>
+                                    {% else %}
+                                        <div class="small text-muted">
+                                            {% trans "Request" %}: {{ request.start_date|date:"d.m.Y H:i" }} - 
+                                            {% if request.end_date %}
+                                                {{ request.end_date|date:"d.m.Y H:i" }}
+                                            {% else %}
+                                                {% trans "Indefinite" %}
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                    {% if request.request_type != 'revoke' and request.start_date and request.end_date %}
+                                        <div class="progress mt-1" style="height: 5px;">
+                                            {% now "Y-m-d" as today %}
+                                            {% if request.end_date|date:"Y-m-d" < today %}
+                                                <!-- Expired -->
+                                                <div class="progress-bar progress-bar-expired" 
+                                                     role="progressbar" 
+                                                     style="width: 100%" 
+                                                     aria-valuenow="100" 
+                                                     aria-valuemin="0" 
+                                                     aria-valuemax="100"
+                                                     data-bs-toggle="tooltip"
+                                                     title="{% trans 'Expired' %}"></div>
+                                            {% elif request.start_date|date:"Y-m-d" > today %>
+                                                <!-- Future -->
+                                                <div class="progress-bar progress-bar-future" 
+                                                     role="progressbar" 
+                                                     style="width: 0%" 
+                                                     aria-valuenow="0" 
+                                                     aria-valuemin="0" 
+                                                     aria-valuemax="100"
+                                                     data-bs-toggle="tooltip"
+                                                     title="{% trans 'Future' %}"></div>
+                                            {% else %}
+                                                <!-- Active -->
+                                                <div class="progress-bar progress-bar-active" 
+                                                     role="progressbar" 
+                                                     style="width: 60%" 
+                                                     aria-valuenow="60" 
+                                                     aria-valuemin="0" 
+                                                     aria-valuemax="100"
+                                                     data-bs-toggle="tooltip"
+                                                     title="{% trans 'Active' %}"></div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                            </div>
+                        </td>
+                        <td class="col-info">
+                            {% comment %}Обґрунтування, вимоги та нотатки{% endcomment %}
+                            <div class="multi-content-list">
+                                {% if request.justification %}
+                                    <div class="multi-content-item">
+                                        <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                                            <div style="font-size: 0.7rem; font-weight: 600; color: #495057;">{% trans "Justification" %}:</div>
+                                            <div class="text-truncate" style="max-width: 180px;" 
+                                                 data-bs-toggle="tooltip" 
+                                                 data-bs-html="true" 
+                                                 title="{{ request.justification }}">
+                                                {{ request.justification|truncatechars:25 }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% if request.requirements %}
+                                    <div class="multi-content-item">
+                                        <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                                            <div style="font-size: 0.7rem; font-weight: 600; color: #495057;">{% trans "Requirements" %}:</div>
+                                            <div class="text-truncate" style="max-width: 180px;" 
+                                                 data-bs-toggle="tooltip" 
+                                                 data-bs-html="true" 
+                                                 title="{{ request.requirements }}">
+                                                {{ request.requirements|truncatechars:25 }}
+                    </div>
+                                        </div>
+                                    </div>
+                        {% endif %}
+                            {% if request.notes %}
+                                    <div class="multi-content-item">
+                                        <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                                            <div style="font-size: 0.7rem; font-weight: 600; color: #495057;">{% trans "Notes" %}:</div>
+                                            <div class="text-truncate" style="max-width: 180px;" 
+                                                 data-bs-toggle="tooltip" 
+                                                 data-bs-html="true" 
+                                                 title="{{ request.notes }}">
+                                                {{ request.notes|truncatechars:25 }}
+                </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                                {% if not request.justification and not request.requirements and not request.notes %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                            </div>
+                        </td>
+                        <td class="col-attachments">
+                            {% if request.attachments.all %}
+                                <div class="d-flex flex-wrap gap-2">
+                                    {% for attachment in request.attachments.all %}
+                                            <a href="{{ attachment.file.url }}" target="_blank" 
+                                           class="text-decoration-none"
+                                               data-bs-toggle="tooltip" 
+                                           data-bs-placement="top"
+                                               title="{{ attachment.original_filename }} ({{ attachment.get_file_size_display }})">
+                                            <i class="{{ attachment.get_file_icon_class }} fs-5"></i>
+                                            </a>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="multi-user-cell">
+                            <div class="multi-user-list">
+                                <!-- Approvers -->
+                                {% if request.request_approvers.all %}
+                                    {% regroup request.request_approvers.all by order as approver_levels %}
+                                    {% for level in approver_levels %}
+                                        {% for approver in level.list %}
+                                            <div class="multi-user-item">
+                                                <div class="approver-info" style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                                    <!-- Перший ряд: Level Badge, Name та Status -->
+                                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                        <!-- Level Badge -->
+                                                        <div class="approver-level" 
+                                                             style="background-color: #6c757d"
+                                                             data-bs-toggle="tooltip"
+                                                             data-bs-html="true"
+                                                             title="<div class='user-tooltip'>
+                                                                 <b>{% trans 'Approver' %} ({% trans 'Level' %} {{ level.grouper }})</b><br>
+                                                                 <b>{{ approver.cabinet_user.user.get_full_name }}</b><br>
+                                                                 {{ approver.cabinet_user.department.get_name }}<br>
+                                                                 {{ approver.cabinet_user.position.get_name }}<br>
+                                                                 {{ approver.cabinet_user.user.email }}
+                                                             </div>">
+                                                            {{ level.grouper }}
+                                                        </div>
+                                                        <span class="multi-user-name" 
+                                                              style="flex: 1; word-wrap: break-word; cursor: pointer;"
+                                                              data-bs-toggle="tooltip"
+                                                              data-bs-html="true"
+                                                              data-bs-placement="top"
+                                                              title="<div class='user-tooltip'>
+                                                                  <b>{% trans 'Approver' %} ({% trans 'Level' %} {{ level.grouper }})</b><br>
+                                                                  <b>{{ approver.cabinet_user.user.get_full_name }}</b><br>
+                                                                  {{ approver.cabinet_user.department.get_name }}<br>
+                                                                  {{ approver.cabinet_user.position.get_name }}<br>
+                                                                  {{ approver.cabinet_user.user.email }}
+                                                              </div>">{{ approver.cabinet_user.user.get_full_name }}</span>
+                                                        <!-- Status Badge в тому ж рядку -->
+                                                        {% if approver.current_status == 'pending' %}
+                                                            <span class="badge access-status-text access-status-text--pending approver-status-badge {% if user.cabinet == approver.cabinet_user %}clickable-badge{% endif %}" 
+                                                                  style="white-space: nowrap; flex-shrink: 0;"
+                                                                  data-bs-toggle="tooltip" 
+                                                                  data-bs-html="true"
+                                                                  data-bs-placement="top"
+                                                                  data-approver-id="{{ approver.id }}" data-current-status="{{ approver.current_status }}" data-approver-name="{{ approver.cabinet_user.user.get_full_name }}" data-request-id="{{ request.id }}" data-can-approve="{{ approver.can_approve|yesno:'true,false' }}"
+                                                                  title="<div class='status-tooltip'>
+                                                                      <div style='font-weight: bold; margin-bottom: 0.5rem; color: #ffc107;'>{% trans 'Current Status: Pending' %}{% if user.cabinet == approver.cabinet_user %} - {% trans 'Click to change' %}{% endif %}</div>
+                                                                      {% with last_history=approver.status_history.all|first %}
+                                                                          {% if last_history %}
+                                                                              <div style='font-size: 0.75rem; color: #ccc;'>{{ last_history.changed_at|date:'d.m.Y H:i' }} by {{ last_history.changed_by.get_full_name }}</div>
+                                                                              {% if last_history.comment %}<div style='font-size: 0.75rem; font-style: italic; margin-top: 0.2rem; color: #ddd;'>{{ last_history.comment }}</div>{% endif %}
+                                                                          {% endif %}
+                                                                      {% endwith %}
+                                                                  </div>">Pending</span>
+                                                        {% elif approver.current_status == 'approved' %}
+                                                            <span class="badge access-status-text access-status-text--approved approver-status-badge {% if user.cabinet == approver.cabinet_user %}clickable-badge{% endif %}" 
+                                                                  style="white-space: nowrap; flex-shrink: 0;"
+                                                                  data-bs-toggle="tooltip" 
+                                                                  data-bs-html="true"
+                                                                  data-bs-placement="top"
+                                                                  data-approver-id="{{ approver.id }}" data-current-status="{{ approver.current_status }}" data-approver-name="{{ approver.cabinet_user.user.get_full_name }}" data-request-id="{{ request.id }}" data-can-approve="{{ approver.can_approve|yesno:'true,false' }}"
+                                                                  title="<div class='status-tooltip'>
+                                                                      <div style='font-weight: bold; margin-bottom: 0.5rem; color: #198754;'>{% trans 'Current Status: Approved' %}{% if user.cabinet == approver.cabinet_user %} - {% trans 'Click to change' %}{% endif %}</div>
+                                                                      {% with last_history=approver.status_history.all|first %}
+                                                                          {% if last_history %}
+                                                                              <div style='font-size: 0.75rem; color: #ccc;'>{{ last_history.changed_at|date:'d.m.Y H:i' }} by {{ last_history.changed_by.get_full_name }}</div>
+                                                                              {% if last_history.comment %}<div style='font-size: 0.75rem; font-style: italic; margin-top: 0.2rem; color: #ddd;'>{{ last_history.comment }}</div>{% endif %}
+                                                                          {% endif %}
+                                                                      {% endwith %}
+                                                                  </div>">Approved</span>
+                                                        {% elif approver.current_status == 'rejected' %}
+                                                            <span class="badge access-status-text access-status-text--rejected approver-status-badge {% if user.cabinet == approver.cabinet_user %}clickable-badge{% endif %}" 
+                                                                  style="white-space: nowrap; flex-shrink: 0;"
+                                                                  data-bs-toggle="tooltip" 
+                                                                  data-bs-html="true"
+                                                                  data-bs-placement="top"
+                                                                  data-approver-id="{{ approver.id }}" data-current-status="{{ approver.current_status }}" data-approver-name="{{ approver.cabinet_user.user.get_full_name }}" data-request-id="{{ request.id }}" data-can-approve="{{ approver.can_approve|yesno:'true,false' }}"
+                                                                  title="<div class='status-tooltip'>
+                                                                      <div style='font-weight: bold; margin-bottom: 0.5rem; color: #dc3545;'>{% trans 'Current Status: Rejected' %}{% if user.cabinet == approver.cabinet_user %} - {% trans 'Click to change' %}{% endif %}</div>
+                                                                      {% with last_history=approver.status_history.all|first %}
+                                                                          {% if last_history %}
+                                                                              <div style='font-size: 0.75rem; color: #ccc;'>{{ last_history.changed_at|date:'d.m.Y H:i' }} by {{ last_history.changed_by.get_full_name }}</div>
+                                                                              {% if last_history.comment %}<div style='font-size: 0.75rem; font-style: italic; margin-top: 0.2rem; color: #ddd;'>{{ last_history.comment }}</div>{% endif %}
+                                                                          {% endif %}
+                                                                      {% endwith %}
+                                                                  </div>">Rejected</span>
+                                                        {% elif approver.current_status == 'cancelled' %}
+                                                            <span class="badge access-status-text access-status-text--cancelled approver-status-badge {% if user.cabinet == approver.cabinet_user %}clickable-badge{% endif %}" 
+                                                                  style="white-space: nowrap; flex-shrink: 0;"
+                                                                  data-bs-toggle="tooltip" 
+                                                                  data-bs-html="true"
+                                                                  data-bs-placement="top"
+                                                                  data-approver-id="{{ approver.id }}" data-current-status="{{ approver.current_status }}" data-approver-name="{{ approver.cabinet_user.user.get_full_name }}" data-request-id="{{ request.id }}" data-can-approve="{{ approver.can_approve|yesno:'true,false' }}"
+                                                                  title="<div class='status-tooltip'>
+                                                                      <div style='font-weight: bold; margin-bottom: 0.5rem; color: #6c757d;'>{% trans 'Current Status: Cancelled' %}{% if user.cabinet == approver.cabinet_user %} - {% trans 'Click to change' %}{% endif %}</div>
+                                                                      {% with last_history=approver.status_history.all|first %}
+                                                                          {% if last_history %}
+                                                                              <div style='font-size: 0.75rem; color: #ccc;'>{{ last_history.changed_at|date:'d.m.Y H:i' }} by {{ last_history.changed_by.get_full_name }}</div>
+                                                                              {% if last_history.comment %}<div style='font-size: 0.75rem; font-style: italic; margin-top: 0.2rem; color: #ddd;'>{{ last_history.comment }}</div>{% endif %}
+                                                                          {% endif %}
+                                                                      {% endwith %}
+                                                                  </div>">Cancelled</span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                        {% endfor %}
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-center text-muted p-2">
+                                        <small>{% trans "No approvers assigned" %}</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="col-request-status">
+                            {% if request.status == 'pending' %}
+                                <span class="badge access-status-text access-status-text--pending"
+                                      data-bs-toggle="tooltip"
+                                      data-bs-html="true"
+                                      data-bs-placement="top"
+                                      title="<div class='status-tooltip'>
+                                          <div style='font-weight: bold; margin-bottom: 0.5rem;'>{% trans 'Approval History' %}</div>
+                                          {% if request.approval_history_text %}
+                                              <div style='font-size: 0.8rem;'>{{ request.approval_history_text }}</div>
+                                          {% else %}
+                                              <div style='font-size: 0.8rem; font-style: italic;'>{% trans 'No approvers assigned' %}</div>
+                                          {% endif %}
+                                      </div>">
+                                    {% trans "Pending" %}
+                                </span>
+                            {% elif request.status == 'approved' %}
+                                <span class="badge access-status-text access-status-text--approved"
+                                      data-bs-toggle="tooltip"
+                                      data-bs-html="true"
+                                      data-bs-placement="top"
+                                      title="<div class='status-tooltip'>
+                                          <div style='font-weight: bold; margin-bottom: 0.5rem;'>{% trans 'Approval History' %}</div>
+                                          {% if request.approval_history_text %}
+                                              <div style='font-size: 0.8rem;'>{{ request.approval_history_text }}</div>
+                                          {% else %}
+                                              <div style='font-size: 0.8rem; font-style: italic;'>{% trans 'No approvers assigned' %}</div>
+                                          {% endif %}
+                                      </div>">
+                                    {% trans "Approved" %}
+                                </span>
+                            {% elif request.status == 'rejected' %}
+                                <span class="badge access-status-text access-status-text--rejected"
+                                      data-bs-toggle="tooltip"
+                                      data-bs-html="true"
+                                      data-bs-placement="top"
+                                      title="<div class='status-tooltip'>
+                                          <div style='font-weight: bold; margin-bottom: 0.5rem;'>{% trans 'Approval History' %}</div>
+                                          {% if request.approval_history_text %}
+                                              <div style='font-size: 0.8rem;'>{{ request.approval_history_text }}</div>
+                                          {% else %}
+                                              <div style='font-size: 0.8rem; font-style: italic;'>{% trans 'No approvers assigned' %}</div>
+                                          {% endif %}
+                                      </div>">
+                                    {% trans "Rejected" %}
+                                </span>
+                            {% elif request.status == 'cancelled' %}
+                                <span class="badge access-status-text access-status-text--cancelled" 
+                                      data-bs-toggle="tooltip" 
+                                      data-bs-html="true" 
+                                      data-bs-placement="top"
+                                      title="<div class='user-tooltip'>
+                                          <b>{% trans 'Request Cancelled' %}</b><br>
+                                          {% if request.cancelled_at %}<small><strong>{% trans 'Date' %}:</strong> {{ request.cancelled_at|date:'d.m.Y H:i' }}</small><br>{% endif %}
+                                          {% if request.cancelled_by %}<small><strong>{% trans 'Cancelled by' %}:</strong> {{ request.cancelled_by.get_full_name }}</small><br>{% endif %}
+                                          {% if request.cancellation_reason %}<small><strong>{% trans 'Reason' %}:</strong> {{ request.cancellation_reason }}</small>{% endif %}
+                                          {% if not request.cancelled_at and not request.cancelled_by and not request.cancellation_reason %}<small>{% trans 'No additional details available' %}</small>{% endif %}
+                                      </div>"
+                                      style="cursor: help;">{% trans "Cancelled" %}</span>
+                                {% if request.cancelled_at %}
+                                    <br><small class="text-muted">{{ request.cancelled_at|date:"d.m.Y H:i" }}</small>
+                                {% endif %}
+                                {% if request.cancelled_by %}
+                                    <br><small class="text-muted">by {{ request.cancelled_by.get_full_name }}</small>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge access-status-text access-status-text--cancelled">{{ request.status }}</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="col-admin-status">
+                            {% if request.status == 'approved' %}
+                                {% comment %}Показуємо клікабельні badges для адміністраторів системи{% endcomment %}
+                                {% if can_edit_manage_ar %}
+                                    <div class="d-flex flex-column">
+                                        <span class="badge access-status-text admin-status-badge
+                                            {% if request.admin_status == 'pending' %}access-status-text--pending
+                                            {% elif request.admin_status == 'granted' %}access-status-text--granted
+                                            {% elif request.admin_status == 'denied' %}access-status-text--denied
+                                            {% elif request.admin_status == 'in_progress' %}access-status-text--in-progress
+                                            {% else %}access-status-text--cancelled{% endif %}"
+
+                                            {% if request.admin_status != 'denied' %}{% if request.request_type != 'revoke' or request.admin_status != 'granted' %}
+                                            style="cursor: pointer;"
+                                            data-request-id="{{ request.id }}"
+                                            data-admin-status="{{ request.admin_status }}"
+                                            data-request-type="{{ request.request_type }}"
+                                            data-is-period-expired="{{ request.is_period_expired|yesno:'true,false' }}"
+                                            {% endif %}{% endif %}
+                                            data-bs-toggle="tooltip"
+                                            data-bs-html="true"
+                                            data-bs-placement="top"
+                                            title="<div class='status-tooltip'>
+                                                <div style='font-weight: bold; margin-bottom: 0.8rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 0.5rem;'>{% trans 'Admin Status History' %}{% if request.admin_status != 'denied' %}{% if request.request_type != 'revoke' or request.admin_status != 'granted' %} - {% trans 'Click to change' %}{% endif %}{% endif %}{% if request.admin_status == 'denied' %}{% trans ' - Final status' %}{% elif request.request_type == 'revoke' and request.admin_status == 'granted' %}{% trans ' - Final status' %}{% endif %}</div>
+                                                <div style='font-weight: bold; margin-bottom: 0.5rem;'>{% trans 'Current Status' %}: 
+                                                    {% if request.admin_status == 'pending' %}{% trans 'Pending' %}
+                                                    {% elif request.admin_status == 'granted' %}{% if request.request_type == 'revoke' %}{% trans 'Access Revoked' %}{% else %}{% trans 'Access Granted' %}{% endif %}
+                                                    {% elif request.admin_status == 'denied' %}{% trans 'Access Denied' %}
+                                                    {% elif request.admin_status == 'in_progress' %}{% trans 'In Progress' %}
+                                                    {% endif %}
+                                                </div>
+                                                <div style='font-size: 0.7rem; color: #aaa; margin-bottom: 0.5rem;'>
+                                                    {% trans 'History entries' %}: {{ request.admin_status_history.count }}<br/>
+                                                    Request ID: {{ request.id }}<br/>
+                                                    Request Type: {{ request.request_type }}<br/>
+                                                    Admin Status: {{ request.admin_status }}
+                                                </div>
+                                                {% for history in request.admin_status_history.all %}
+                                                        <div style='background: rgba(255,255,255,0.1); padding: 0.5rem; margin: 0.3rem 0; border-radius: 4px; border-left: 3px solid 
+                                                            {% if history.new_status == "granted" %}#198754
+                                                            {% elif history.new_status == "denied" %}#dc3545
+                                                            {% elif history.new_status == "pending" %}#ffc107
+                                                            {% elif history.new_status == "in_progress" %}#0dcaf0
+                                                            {% else %}#6c757d{% endif %};'>
+                                                            <div style='font-weight: bold; font-size: 0.8rem;'>
+                                                                {% if history.old_status == 'pending' %}{% trans "Pending" %}
+                                                                {% elif history.old_status == 'granted' %}
+                                                                    {% if request.request_type == 'revoke' %}{% trans "Revoked" %}{% else %}{% trans "Granted" %}{% endif %}
+                                                                {% elif history.old_status == 'denied' %}{% trans "Denied" %}
+                                                                {% elif history.old_status == 'in_progress' %}{% trans "In Progress" %}
+                                                                {% else %}{{ history.old_status|title }}{% endif %}
+                                                                → 
+                                                                {% if history.new_status == 'pending' %}{% trans "Pending" %}
+                                                                {% elif history.new_status == 'granted' %}
+                                                                    {% if request.request_type == 'revoke' %}{% trans "Revoked" %}{% else %}{% trans "Granted" %}{% endif %}
+                                                                {% elif history.new_status == 'denied' %}{% trans "Denied" %}
+                                                                {% elif history.new_status == 'in_progress' %}{% trans "In Progress" %}
+                                                                {% else %}{{ history.new_status|title }}{% endif %}
+                                                            </div>
+                                                            <div style='font-size: 0.75rem; color: #ccc;'>{{ history.changed_at|date:'d.m.Y H:i' }} by {{ history.changed_by.get_full_name }}</div>
+                                                            {% if history.comment %}<div style='font-size: 0.75rem; font-style: italic; margin-top: 0.2rem; color: #ddd;'>{{ history.comment }}</div>{% endif %}
+                                                        </div>
+                                                    {% empty %}
+                                                        <div style='font-size: 0.8rem; color: #ccc; font-style: italic;'>{% trans 'No status changes recorded' %}</div>
+                                                    {% endfor %}
+                                            </div>">
+                                            {% if request.admin_status == 'pending' %}{% trans "Pending" %}
+                                            {% elif request.admin_status == 'granted' %}
+                                                {% if request.request_type == 'revoke' %}
+                                                    <i class='bi bi-lock-fill me-1' title='{% trans 'Final status - cannot be changed' %}'></i>{% trans "Access Revoked" %}
+                                                {% else %}{% trans "Access Granted" %}
+                                                {% endif %}
+                                            {% elif request.admin_status == 'denied' %}<i class='bi bi-lock-fill me-1' title='{% trans 'Final status - cannot be changed' %}'></i>{% trans "Access Denied" %}
+                                            {% elif request.admin_status == 'in_progress' %}{% trans "In Progress" %}
+                                            {% else %}{{ request.admin_status|title }}{% endif %}
+                                        </span>
+                                        
+                                        {% if request.is_period_expired %}
+                                            <span class="badge bg-warning text-dark" 
+                                                  data-bs-toggle="tooltip" 
+                                                  data-bs-placement="top" 
+                                                  title="{% trans 'Access period has expired. Only denial is possible.' %}">
+                                                <i class="bi bi-exclamation-triangle me-1"></i>{% trans "Period Expired" %}
+                                            </span>
+                                        {% endif %}
+                                        
+                                        {% if false %}
+                                            <div class="admin-status-history">
+                                                <button type="button" 
+                                                        class="btn btn-link btn-sm p-0 text-muted history-toggle" 
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-html="true"
+                                                        data-bs-placement="left"
+                                                        title="<div class='status-tooltip'>
+                                                            <div style='font-weight: bold; margin-bottom: 0.8rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 0.5rem;'>{% trans 'Admin Status History' %}</div>
+                                                            {% for history in request.admin_status_history.all %}
+                                                                <div style='background: rgba(255,255,255,0.1); padding: 0.5rem; margin: 0.3rem 0; border-radius: 4px; border-left: 3px solid 
+                                                                    {% if history.new_status == "granted" %}#198754
+                                                                    {% elif history.new_status == "denied" %}#dc3545
+                                                                    {% elif history.new_status == "pending" %}#ffc107
+                                                                    {% elif history.new_status == "in_progress" %}#0dcaf0
+                                                                    {% else %}#6c757d{% endif %};'>
+                                                                    <div style='font-weight: bold; font-size: 0.8rem;'>
+                                                                {% if history.old_status == 'pending' %}{% trans "Pending" %}
+                                                                {% elif history.old_status == 'granted' %}
+                                                                    {% if request.request_type == 'revoke' %}{% trans "Revoked" %}{% else %}{% trans "Granted" %}{% endif %}
+                                                                {% elif history.old_status == 'denied' %}{% trans "Denied" %}
+                                                                {% elif history.old_status == 'in_progress' %}{% trans "In Progress" %}
+                                                                {% else %}{{ history.old_status|title }}{% endif %}
+                                                                → 
+                                                                {% if history.new_status == 'pending' %}{% trans "Pending" %}
+                                                                {% elif history.new_status == 'granted' %}
+                                                                    {% if request.request_type == 'revoke' %}{% trans "Revoked" %}{% else %}{% trans "Granted" %}{% endif %}
+                                                                {% elif history.new_status == 'denied' %}{% trans "Denied" %}
+                                                                {% elif history.new_status == 'in_progress' %}{% trans "In Progress" %}
+                                                                {% else %}{{ history.new_status|title }}{% endif %}
+                                                            </div>
+                                                                    <div style='font-size: 0.75rem; color: #ccc;'>{{ history.changed_at|date:'d.m.Y H:i' }} by {{ history.changed_by.get_full_name }}</div>
+                                                                    {% if history.comment %}<div style='font-size: 0.75rem; font-style: italic; margin-top: 0.2rem; color: #ddd;'>{{ history.comment }}</div>{% endif %}
+                                                                </div>
+                                                            {% empty %}
+                                                                <div style='font-size: 0.8rem; color: #ccc; font-style: italic;'>{% trans 'No status changes recorded' %}</div>
+                                                            {% endfor %}
+
+                                                        </div>">
+                                                    <i class="bi bi-clock-history me-1"></i>{% trans "History" %}
+                                                </button>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    {% comment %}Показуємо тільки статус для не-адміністраторів{% endcomment %}
+                                    <div class="d-flex flex-column align-items-start">
+                                        <span class="badge access-status-text admin-status-badge
+                                            {% if request.admin_status == 'pending' %}access-status-text--pending
+                                            {% elif request.admin_status == 'granted' %}access-status-text--granted
+                                            {% elif request.admin_status == 'denied' %}access-status-text--denied
+                                            {% elif request.admin_status == 'in_progress' %}access-status-text--in-progress
+                                            {% else %}access-status-text--cancelled{% endif %}"
+
+                                            data-bs-toggle="tooltip"
+                                            data-bs-html="true"
+                                            data-bs-placement="top"
+                                            title="<div class='status-tooltip'>
+                                                <div style='font-weight: bold; margin-bottom: 0.8rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 0.5rem;'>{% trans 'Admin Status History' %}</div>
+                                                <div style='font-weight: bold; margin-bottom: 0.5rem;'>{% trans 'Current Status' %}: 
+                                                    {% if request.admin_status == 'pending' %}{% trans 'Pending' %}
+                                                    {% elif request.admin_status == 'granted' %}{% if request.request_type == 'revoke' %}{% trans 'Access Revoked' %}{% else %}{% trans 'Access Granted' %}{% endif %}
+                                                    {% elif request.admin_status == 'denied' %}{% trans 'Access Denied' %}
+                                                    {% elif request.admin_status == 'in_progress' %}{% trans 'In Progress' %}
+                                                    {% endif %}
+                                                </div>
+                                                <div style='font-size: 0.7rem; color: #aaa; margin-bottom: 0.5rem;'>
+                                                    {% trans 'History entries' %}: {{ request.admin_status_history.count }}<br/>
+                                                    Request ID: {{ request.id }}<br/>
+                                                    Request Type: {{ request.request_type }}<br/>
+                                                    Admin Status: {{ request.admin_status }}
+                                                </div>
+                                                {% for history in request.admin_status_history.all %}
+                                                        <div style='background: rgba(255,255,255,0.1); padding: 0.5rem; margin: 0.3rem 0; border-radius: 4px; border-left: 3px solid 
+                                                            {% if history.new_status == "granted" %}#198754
+                                                            {% elif history.new_status == "denied" %}#dc3545
+                                                            {% elif history.new_status == "pending" %}#ffc107
+                                                            {% elif history.new_status == "in_progress" %}#0dcaf0
+                                                            {% else %}#6c757d{% endif %};'>
+                                                            <div style='font-weight: bold; font-size: 0.8rem;'>
+                                                                {% if history.old_status == 'pending' %}{% trans "Pending" %}
+                                                                {% elif history.old_status == 'granted' %}
+                                                                    {% if request.request_type == 'revoke' %}{% trans "Revoked" %}{% else %}{% trans "Granted" %}{% endif %}
+                                                                {% elif history.old_status == 'denied' %}{% trans "Denied" %}
+                                                                {% elif history.old_status == 'in_progress' %}{% trans "In Progress" %}
+                                                                {% else %}{{ history.old_status|title }}{% endif %}
+                                                                → 
+                                                                {% if history.new_status == 'pending' %}{% trans "Pending" %}
+                                                                {% elif history.new_status == 'granted' %}
+                                                                    {% if request.request_type == 'revoke' %}{% trans "Revoked" %}{% else %}{% trans "Granted" %}{% endif %}
+                                                                {% elif history.new_status == 'denied' %}{% trans "Denied" %}
+                                                                {% elif history.new_status == 'in_progress' %}{% trans "In Progress" %}
+                                                                {% else %}{{ history.new_status|title }}{% endif %}
+                                                            </div>
+                                                            <div style='font-size: 0.75rem; color: #ccc;'>{{ history.changed_at|date:'d.m.Y H:i' }} by {{ history.changed_by.get_full_name }}</div>
+                                                            {% if history.comment %}<div style='font-size: 0.75rem; font-style: italic; margin-top: 0.2rem; color: #ddd;'>{{ history.comment }}</div>{% endif %}
+                                                        </div>
+                                                    {% empty %}
+                                                        <div style='font-size: 0.8rem; color: #ccc; font-style: italic;'>{% trans 'No status changes recorded' %}</div>
+                                                    {% endfor %}
+                                            </div>">
+                                            {% if request.admin_status == 'pending' %}{% trans "Pending" %}
+                                            {% elif request.admin_status == 'granted' %}
+                                                {% if request.request_type == 'revoke' %}
+                                                    <i class='bi bi-lock-fill me-1' title='{% trans 'Final status - cannot be changed' %}'></i>{% trans "Access Revoked" %}
+                                                {% else %}{% trans "Access Granted" %}
+                                                {% endif %}
+                                            {% elif request.admin_status == 'denied' %}<i class='bi bi-lock-fill me-1' title='{% trans 'Final status - cannot be changed' %}'></i>{% trans "Access Denied" %}
+                                            {% elif request.admin_status == 'in_progress' %}{% trans "In Progress" %}
+                                            {% else %}{{ request.admin_status|title }}{% endif %}
+                                        </span>
+                                        
+                                        {% if request.is_period_expired %}
+                                            <div class="mt-1">
+                                                <span class="badge bg-danger" 
+                                                      data-bs-toggle="tooltip" 
+                                                      data-bs-placement="top" 
+                                                      title="{% trans 'Access period has expired. Approval is not possible.' %}">
+                                                    <i class="bi bi-exclamation-triangle me-1"></i>{% trans "Period Expired" %}
+                                                </span>
+                                            </div>
+                                        {% endif %}
+                                        <div class="mt-1">
+                                            <small class="text-muted" style="font-size: 0.7rem;">
+                                                <i class="bi bi-info-circle me-1"></i>{% trans "No edit permission" %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="col-created">
+                            <div class="d-flex flex-column align-items-start">
+                                <div>{{ request.created_at|date:"d.m.Y H:i" }}</div>
+                                {% if request.email_notifications and request.email_notifications|length > 0 %}
+                                    <button type="button" class="btn btn-link p-0 mt-1 email-log-link"
+                                            data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="left"
+                                            title="<div class='status-tooltip'>
+                                                <div style='font-weight: bold; margin-bottom: 0.5rem; color: #fff;'>{% trans 'Email Notifications' %}</div>
+                                                {% with last_notification=request.email_notifications|first %}
+                                                    {% if last_notification %}
+                                                        <div style='font-size: 0.75rem; color: #ccc;'>
+                                                            {% trans 'Last notification' %}: {{ last_notification.created_at|date:'d.m.Y H:i' }}<br>
+                                                            {% trans 'Status' %}: <span class='badge' style='background-color: 
+                                                                {% if last_notification.status == "sent" %}#198754
+                                                                {% elif last_notification.status == "failed" %}#dc3545
+                                                                {% elif last_notification.status == "pending" %}#ffc107
+                                                                {% elif last_notification.status == "retrying" %}#0dcaf0
+                                                                {% else %}#6c757d{% endif %}; color: white; font-size: 0.65rem; padding: 0.1em 0.4em;'>
+                                                                {% if last_notification.status == 'sent' %}{% trans 'Sent' %}
+                                                                {% elif last_notification.status == 'failed' %}{% trans 'Failed' %}
+                                                                {% elif last_notification.status == 'pending' %}{% trans 'Pending' %}
+                                                                {% elif last_notification.status == 'retrying' %}{% trans 'Retrying' %}
+                                                                {% else %}{{ last_notification.status|title }}{% endif %}
+                                                            </span>
+                                                        </div>
+                                                    {% endif %}
+                                                {% endwith %}
+                                            </div>">
+                                        <i class="bi bi-envelope me-1"></i>
+                                        {% trans "Email Log" %} ({{ request.email_notifications|length }})
+                                    </button>
+                                {% else %}
+                                    <small class="text-muted mt-1" style="font-size: 0.7rem;">{% trans "No emails sent" %}</small>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+        {% empty %}
+                    <tr>
+                        <td colspan="14" class="text-center py-4">
+                            <i class="bi bi-inbox mb-3 fs-1 d-block"></i>
+            <h5>{% trans "No access requests found" %}</h5>
+            <p class="text-muted">{% trans "There are no access requests matching your filters" %}</p>
+                        </td>
+                    </tr>
+        {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% include "app_access/includes/access_table_pagination.html" with pagination_item_label=_("requests") pagination_aria_label=_("Requests pagination") %}
+        </div>
+    </div>
+</div>
+
+<!-- Додамо обидва модальних вікна -->
+{% include 'app_access/modals/role_matrix_modal.html' %}
+{% include 'app_access/modals/edit_request_status_modal.html' %}
+
+<!-- Manage Access Requests Guide Modal -->
+<div class="modal fade" id="manageAccessRequestsGuideModal" tabindex="-1" aria-labelledby="manageAccessRequestsGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'manage_access_requests_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="manageAccessRequestsGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Manage Access Requests Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="manageAccessRequestsGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('manageAccessRequestsGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('manageAccessRequestsGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+// Визначаємо шлях для запитів
+const currentPath = '{{ request.path|slice:"1:3" }}';
+
+$(document).ready(function() {
+    // Ініціалізуємо тултіпи
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true
+        });
+    });
+
+    (function initManageFiltersCollapse() {
+        const collapseEl = document.getElementById('manageAccessFiltersCollapse');
+        const toggleBtn = document.getElementById('toggleManageAccessFilters');
+        const icon = document.getElementById('manageAccessFiltersToggleIcon');
+        if (!collapseEl || !toggleBtn || !window.bootstrap) {
+            return;
+        }
+        const collapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+
+        function syncToggleState(expanded) {
+            toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            if (icon) {
+                icon.classList.toggle('bi-chevron-down', !expanded);
+                icon.classList.toggle('bi-chevron-up', expanded);
+            }
+        }
+
+        collapseEl.addEventListener('show.bs.collapse', function() {
+            syncToggleState(true);
+        });
+        collapseEl.addEventListener('hide.bs.collapse', function() {
+            syncToggleState(false);
+        });
+        toggleBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            collapse.toggle();
+        });
+        syncToggleState(collapseEl.classList.contains('show'));
+    })();
+
+    // Select2 for filter dropdowns (compact, same as My Access Requests)
+    $('#manageAccessFiltersCollapse select.form-select-sm').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        allowClear: true,
+        containerCssClass: 'select2-selection--sm'
+    });
+
+    // Завантаження систем при зміні компанії
+    $('#companyFilter').on('change', function() {
+        const companyId = $(this).val();
+        
+        // Очищаємо поточний список систем
+        $('#systemFilter').empty().append('<option value="">{% trans "All Systems" %}</option>');
+        
+        if (companyId) {
+            $.get(`/${currentPath}/app_access/company-systems/${companyId}/`, function(response) {
+                if (response.success) {
+                    response.systems.forEach(system => {
+                        $('#systemFilter').append(`<option value="${system.id}">${system.name}</option>`);
+                    });
+                    $('#systemFilter').trigger('change.select2');
+                }
+                applyFilters();
+            });
+        } else {
+            applyFilters();
+        }
+    });
+    
+    // Функція для застосування фільтрів
+    function applyFilters() {
+        const filters = {
+            search: $('#searchInput').val() || '',
+            company: $('#companyFilter').val() || '',
+            system: $('#systemFilter').val() || '',
+            environment: $('#environmentFilter').val() || '',
+                object: $('#objectFilter').val() || '',
+            requested_by: $('#requestedByFilter').val() || '',
+            requested_for: $('#requestedForFilter').val() || '',
+            owner: $('#ownerFilter').val() || '',
+            administrator: $('#administratorFilter').val() || '',
+                role: $('#roleFilter').val() || '',
+            user_period: $('#userPeriodFilter').val() || '',
+            approving_status: $('#approvingStatusFilter').val() || '',
+                admin_status: $('#adminStatusFilter').val() || '',
+            page_size: '{{ current_page_size }}',  // Зберігаємо поточний розмір сторінки
+        };
+
+        // Видаляємо пусті параметри
+        Object.keys(filters).forEach(key => {
+            if (!filters[key] || filters[key] === 'undefined') {
+                delete filters[key];
+            }
+        });
+
+        // Формуємо URL з параметрами фільтрів (скидаємо page до 1)
+        const searchParams = new URLSearchParams(filters);
+        window.location.href = `${window.location.pathname}?${searchParams.toString()}`;
+    }
+    
+    // Обробка фільтрів
+    $('#systemFilter, #requestedByFilter, #requestedForFilter, #ownerFilter, #administratorFilter, #roleFilter, #userPeriodFilter, #environmentFilter, #objectFilter, #approvingStatusFilter, #adminStatusFilter').on('change', function() {
+        applyFilters();
+    });
+
+    // Пошук з короткою затримкою (миттєва фільтрація на сервері)
+    let searchTimeout;
+    $('#searchInput').on('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+            applyFilters();
+        }, 300);
+    });
+
+    // Обробник для кнопки скидання фільтрів
+    $('#resetFilters').on('click', function() {
+        window.location.href = window.location.pathname;
+    });
+
+    // Export: Manage Access Requests
+    const table = document.getElementById('manageRequestsTable');
+    const selectAllAdmin = document.getElementById('selectAllAdmin');
+    const exportSelectedAdmin = document.getElementById('exportSelectedAdmin');
+    const exportAllAdmin = document.getElementById('exportAllAdmin');
+    function updateExportState() {
+        if (!table || !exportSelectedAdmin) return;
+        const anyChecked = table.querySelectorAll('.select-row-admin:checked').length > 0;
+        exportSelectedAdmin.disabled = !anyChecked;
+    }
+    if (table) {
+        table.addEventListener('change', function(e) {
+            if (e.target.classList.contains('select-row-admin')) updateExportState();
+        });
+    }
+    if (selectAllAdmin && table) {
+        selectAllAdmin.addEventListener('change', function() {
+            table.querySelectorAll('.select-row-admin').forEach(cb => cb.checked = selectAllAdmin.checked);
+            updateExportState();
+        });
+    }
+    if (exportSelectedAdmin && table) {
+        exportSelectedAdmin.addEventListener('click', function() {
+            const ids = Array.from(table.querySelectorAll('.select-row-admin:checked')).map(cb => cb.getAttribute('data-id'));
+            if (ids.length === 0) return;
+            const formData = new FormData();
+            formData.append('export_type', 'selected');
+            ids.forEach(id => formData.append('selected_ids[]', id));
+            fetch('{% url "export_access_requests_excel" %}', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() }
+            }).then(r => r.blob()).then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'manage_access_requests_selected.xlsx'; a.click();
+                window.URL.revokeObjectURL(url);
+            });
+        });
+    }
+    if (exportAllAdmin) {
+        exportAllAdmin.addEventListener('click', function() {
+            const formData = new FormData();
+            formData.append('export_type', 'all');
+            fetch('{% url "export_access_requests_excel" %}', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() }
+            }).then(r => r.blob()).then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'manage_access_requests_all.xlsx'; a.click();
+                window.URL.revokeObjectURL(url);
+            });
+        });
+    }
+
+    // Оновлення статусу запиту
+    $('.update-status').on('click', function() {
+        const requestId = $(this).data('request-id');
+        const statusSelect = $(`.status-select[data-request-id="${requestId}"]`);
+        const newStatus = statusSelect.val();
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        Swal.fire({
+            title: '{% trans "Update Status" %}',
+            text: '{% trans "Add a comment (optional)" %}',
+            input: 'textarea',
+            showCancelButton: true,
+            confirmButtonText: '{% trans "Update" %}',
+            cancelButtonText: '{% trans "Cancel" %}',
+            showLoaderOnConfirm: true,
+            preConfirm: (comment) => {
+                return fetch(`/${currentPath}/app_access/update-request-status/${requestId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        status: newStatus,
+                        comment: comment || ''
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => {
+                            throw new Error(err.message || 'Network response was not ok');
+                        });
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    Swal.showValidationMessage(`{% trans "Request failed" %}: ${error.message}`);
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value && result.value.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '{% trans "Success" %}',
+                        text: result.value.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => {
+                        location.reload();
+                    });
+            } else if (result.isConfirmed) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '{% trans "Error" %}',
+                    text: (result.value && result.value.message) || '{% trans "An error occurred" %}'
+                    });
+            }
+        });
+    });
+
+    // Обробник кнопки перегляду деталей
+    $('.view-details').on('click', function() {
+        const requestId = $(this).data('request-id');
+        
+        $.get(`/${currentPath}/app_access/get-request-details/${requestId}/`, function(data) {
+            Swal.fire({
+                title: '{% trans "Request Details" %}',
+                html: `
+                    <div class="text-start">
+                        <h6>{% trans "Roles" %}</h6>
+                        <div class="mb-3">
+                            ${data.access_record.roles.map(role => 
+                                `<span class="badge bg-secondary me-1">${role.name}</span>`
+                            ).join('')}
+                        </div>
+                        <h6>{% trans "Justification" %}</h6>
+                        <p>${data.justification}</p>
+                        ${data.requirements ? `
+                            <h6>{% trans "Requirements" %}</h6>
+                            <p>${data.requirements}</p>
+                        ` : ''}
+                        ${data.notes ? `
+                            <h6>{% trans "Notes" %}</h6>
+                            <p>${data.notes}</p>
+                        ` : ''}
+                    </div>
+                `,
+                width: '600px'
+            });
+        });
+    });
+
+    // Ініціалізація tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true,
+            sanitize: false,
+            placement: 'auto',
+            delay: { show: 300, hide: 100 }
+        })
+    });
+
+    // Оновлений обробник кліку на ролях
+    $(document).on('click', '.show-role-matrix', function() {
+        const roleId = $(this).data('role-id');
+        const systemId = $(this).data('system-id');
+        const objectId = $(this).data('object-id');
+        
+        // Визначаємо URL залежно від наявності objectId
+        let requestUrl;
+        if (objectId) {
+            // Для об'єктних ролей використовуємо Object Access Rights Matrix
+            requestUrl = `/app_access/matrix/${systemId}/?object_id=${objectId}`;
+        } else {
+            // Для системних ролей використовуємо існуючий ендпоінт
+            requestUrl = `/${currentPath}/app_access/role-matrix/${roleId}/${systemId}/`;
+        }
+        
+        // Завантажуємо дані матриці ролей
+        $.get(requestUrl, function(response) {
+            if (response.status === 'success') {
+                let data;
+                let roleName, roleColor, roleDescription, functions;
+                
+                if (objectId) {
+                    // Object Access Rights Matrix response
+                    const selectedRole = response.data.roles ? response.data.roles.find(role => role.id == roleId) : null;
+                    
+                    if (selectedRole) {
+                        roleName = response.data.is_object_matrix && response.data.object_name ? 
+                            `${selectedRole.name} - ${response.data.object_name}` : 
+                            selectedRole.name;
+                        roleColor = selectedRole.color;
+                        roleDescription = selectedRole.description;
+                        
+                                                 // Збираємо всі функції з усіх рівнів та дедуплікуємо їх
+                         const functionMap = new Map();
+                         if (selectedRole.columns) {
+                             [...(selectedRole.columns.functions || []),
+                              ...(selectedRole.columns.subfunctions || []),
+                              ...(selectedRole.columns.subsubfunctions || [])].forEach(func => {
+                                 if (!functionMap.has(func.id)) {
+                                     functionMap.set(func.id, func);
+                                 }
+                             });
+                         }
+                         functions = Array.from(functionMap.values());
+                         
+                         // Додаємо права доступу до кожної функції на основі маппінгів
+                         functions.forEach(func => {
+                             const accessRightsSet = new Set();
+                             if (response.mappings) {
+                                 response.mappings.forEach(mapping => {
+                                     if (mapping.function_id === func.id) {
+                                         const right = response.data.access_rights.find(r => r.id === mapping.right_id);
+                                         if (right) {
+                                             accessRightsSet.add(JSON.stringify(right));
+                                         }
+                                     }
+                                 });
+                             }
+                             func.access_rights = Array.from(accessRightsSet).map(rightStr => JSON.parse(rightStr));
+                         });
+                    } else {
+                        roleName = 'Role not found';
+                        roleColor = '#6c757d';
+                        roleDescription = '';
+                        functions = [];
+                    }
+                } else {
+                    // System role matrix response (existing format)
+                    data = response.data;
+                    roleName = data.role.name;
+                    roleColor = data.role.color;
+                    roleDescription = data.role.description;
+                    functions = data.functions;
+                }
+                
+                // Оновлюємо заголовок
+                $('.role-name')
+                    .text(roleName)
+                    .css('color', roleColor);
+                $('.role-description').text(roleDescription || '');
+                
+                // Очищаємо та заповнюємо таблицю
+                const $tbody = $('#roleMatrixBody');
+                $tbody.empty();
+                
+                if (functions && functions.length > 0) {
+                    renderFunctions(functions);
+                } else {
+                    $tbody.html(`
+                        <tr>
+                            <td colspan="2" class="text-center py-3">
+                                <div class="text-muted small">
+                                    <i class="bi bi-info-circle mb-1"></i>
+                                    <p class="mb-0">{% trans "No functions assigned to this role" %}</p>
+                                </div>
+                            </td>
+                        </tr>
+                    `);
+                }
+                
+                // Показуємо модальне вікно
+                const roleMatrixModal = new bootstrap.Modal(document.getElementById('roleMatrixModal'));
+                roleMatrixModal.show();
+            }
+        });
+    });
+});
+
+function showEditStatusModal(requestId, currentStatus) {
+    // Отримуємо модальне вікно
+    const modal = new bootstrap.Modal(document.getElementById('editStatusModal'));
+    
+    // Встановлюємо значення в модальному вікні
+    $('#editStatusModal').data('request-id', requestId);
+    $('#statusSelect').val(currentStatus);
+    $('#statusComment').val('');
+    
+    // Показуємо модальне вікно
+    modal.show();
+}
+
+// Обробник підтвердження зміни статусу
+$('#confirmStatusChange').on('click', function() {
+    const requestId = $('#editStatusModal').data('request-id');
+    const newStatus = $('#statusSelect').val();
+    const comment = $('#statusComment').val();
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    // Відправляємо запит на оновлення статусу
+    fetch(`/${currentPath}/app_access/update-request-status/${requestId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            status: newStatus,
+            comment: comment
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Закриваємо модальне вікно
+            bootstrap.Modal.getInstance(document.getElementById('editStatusModal')).hide();
+            
+            // Показуємо повідомлення про успіх
+            Swal.fire({
+                icon: 'success',
+                title: '{% trans "Success" %}',
+                text: data.message,
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                location.reload();
+            });
+        } else {
+            throw new Error(data.message);
+        }
+    })
+    .catch(error => {
+        Swal.fire({
+            icon: 'error',
+            title: '{% trans "Error" %}',
+            text: error.message
+        });
+    });
+});
+
+
+
+// Функція для відображення функцій у матриці ролей
+function renderFunctions(functions, level = 0) {
+    functions.forEach(function(func) {
+        const $row = $('<tr>').addClass('function-row');
+        
+        // Функція з кольором
+        const functionName = $('<div>')
+            .addClass('function-cell')
+            .css('padding-left', `${level * 20}px`);
+
+        if (level > 0) {
+            functionName.addClass('nested-function')
+                .css('--tree-color', func.color);
+            
+            // Додаємо стиль для псевдоелемента
+            const style = document.createElement('style');
+            style.textContent = `
+                .nested-function[style*="--tree-color: ${func.color}"]::before {
+                    color: ${func.color};
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const nameSpan = $('<span>')
+            .addClass('function-text')
+            .css('color', func.color)
+            .text(func.name)
+            .attr('title', func.description || func.name);
+
+        functionName.append(nameSpan);
+        
+        const $functionCell = $('<td>').append(functionName);
+        $row.append($functionCell);
+        
+        // Права доступу
+        const $rightsCell = $('<td>');
+        const $rightsContainer = $('<div>').addClass('access-rights-container');
+        
+        if (func.access_rights && func.access_rights.length > 0) {
+            func.access_rights.forEach(right => {
+                $rightsContainer.append(
+                    $('<span>')
+                        .addClass('access-right-badge')
+                        .css('background-color', right.color)
+                        .text(right.name)
+                        .attr('title', right.description || right.name)
+                );
+            });
+        } else {
+            $rightsContainer.append(
+                $('<span>')
+                    .addClass('text-muted fst-italic')
+                    .text('{% trans "No access rights assigned" %}')
+                
+            );
+        }
+        
+        $rightsCell.append($rightsContainer);
+        $row.append($rightsCell);
+        
+        $('#roleMatrixBody').append($row);
+        
+        // Рекурсивно відображаємо дочірні функції
+        if (func.children && func.children.length > 0) {
+            renderFunctions(func.children, level + 1);
+        }
+    });
+}
+
+// Функція для зміни статусу approver'а
+function changeApproverStatus(approverId, newStatus, requestId) {
+    console.log('Changing approver status:', {approverId, newStatus, requestId});
+    const selectElement = document.getElementById(`approver-${approverId}-request-${requestId}`);
+    console.log('Select element found:', selectElement);
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+    
+    // Показуємо модальне вікно для додавання коментаря
+    Swal.fire({
+        title: '{% trans "Change Approver Status" %}',
+        html: '<p><strong>{% trans "Warning:" %}</strong> {% trans "This will affect ALL requests using the same access record!" %}</p><br>{% trans "Add a comment (optional)" %}:',
+        input: 'textarea',
+        inputAttributes: {
+            'aria-label': '{% trans "Comment" %}',
+            'placeholder': '{% trans "Enter your comment here..." %}'
+        },
+        showCancelButton: true,
+        confirmButtonText: '{% trans "Update Status" %}',
+        cancelButtonText: '{% trans "Cancel" %}',
+        showLoaderOnConfirm: true,
+        preConfirm: (comment) => {
+            return fetch(`/${languagePrefix}/app_access/set-approver-status/${approverId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    status: newStatus,
+                    comment: comment || ''
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.message || 'Network response was not ok');
+                    });
+                }
+                return response.json();
+            })
+            .catch(error => {
+                Swal.showValidationMessage(`{% trans "Request failed" %}: ${error.message}`);
+            });
+        },
+        allowOutsideClick: () => !Swal.isLoading()
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: '{% trans "Success!" %}',
+                text: result.value.message,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                // Перезавантажуємо сторінку для оновлення даних
+                location.reload();
+            });
+        } else {
+            // Якщо користувач скасував, повертаємо попереднє значення
+            const selectElement = document.getElementById(`approver-${approverId}-request-${requestId}`);
+            if (selectElement) {
+                // Знаходимо поточний статус з selected option
+                const selectedOption = selectElement.querySelector('option[selected]');
+                if (selectedOption) {
+                    selectElement.value = selectedOption.value;
+                } else {
+                    selectElement.value = 'pending'; // fallback
+                }
+            }
+        }
+    });
+}
+
+// Функція для відображення історії статусу approver'а
+function showApproverStatusHistory(approverId) {
+    const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+    
+    fetch(`/${languagePrefix}/app_access/approver-history/${approverId}/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to load approver status history');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Створюємо модальне вікно для історії approver'а
+                const modalHtml = `
+                    <div class="modal fade" id="approverHistoryModal" tabindex="-1" aria-labelledby="approverHistoryModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="approverHistoryModalLabel">{% trans "Approver Status History" %}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="approverHistoryContent" class="approver-history"></div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Видаляємо попереднє модальне вікно якщо існує
+                const existingModal = document.getElementById('approverHistoryModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+                
+                // Додаємо нове модальне вікно
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                                // Заповнюємо історію
+                const historyContent = document.getElementById('approverHistoryContent');
+                historyContent.innerHTML = '';
+                
+                if (data.history && data.history.length > 0) {
+                    data.history.forEach(record => {
+                        const historyItem = document.createElement('div');
+                        historyItem.className = 'approver-history-item mb-3 p-3 border rounded';
+                        
+                        const statusClass = record.status === 'approved' ? 'success' : 
+                                          record.status === 'rejected' ? 'danger' : 
+                                          record.status === 'pending' ? 'warning' : 
+                                          record.status === 'assigned' ? 'info' : 'secondary';
+                         
+                         // Відображаємо статус на правильній мові
+                         let statusDisplay = '';
+                         switch(record.status) {
+                             case 'approved':
+                                 statusDisplay = '{% trans "Approved" %}';
+                                 break;
+                             case 'rejected':
+                                 statusDisplay = '{% trans "Rejected" %}';
+                                 break;
+                             case 'pending':
+                                 statusDisplay = '{% trans "Pending" %}';
+                                 break;
+                             case 'assigned':
+                                 statusDisplay = '{% trans "Assigned" %}';
+                                 break;
+                             default:
+                                 statusDisplay = record.status;
+                         }
+                         
+                         historyItem.innerHTML = `
+                             <div class="d-flex justify-content-between align-items-center mb-2">
+                                 <span class="badge bg-${statusClass}">${statusDisplay}</span>
+                                 <small class="text-muted">${new Date(record.timestamp).toLocaleString()}</small>
+                             </div>
+                             <div class="mb-1">
+                                 <strong>{% trans "User" %}:</strong> ${record.user}
+                             </div>
+                             ${record.comment ? `<div><strong>{% trans "Comment" %}:</strong> ${record.comment}</div>` : ''}
+                         `;
+                        
+                        historyContent.appendChild(historyItem);
+                    });
+                } else {
+                    // Показуємо повідомлення для approvers які ще не мали дій
+                    historyContent.innerHTML = `
+                        <div class="text-center text-muted p-4">
+                            <i class="bi bi-clock-history fs-2 d-block mb-2"></i>
+                            <p class="mb-0">{% trans "No actions taken yet" %}</p>
+                            <small>{% trans "This approver is awaiting their turn in the approval process" %}</small>
+                        </div>
+                    `;
+                }
+                
+                // Показуємо модальне вікно
+                const modal = new bootstrap.Modal(document.getElementById('approverHistoryModal'));
+                modal.show();
+            } else {
+                throw new Error(data.message || 'Unknown error');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading approver status history:', error);
+            Swal.fire({
+                icon: 'error',
+                title: '{% trans "Error" %}',
+                text: error.message || '{% trans "Failed to load approver history" %}'
+            });
+        });
+}
+
+// Функція для встановлення статусу approver'а
+function setApproverStatus(approverId, status, approverName, level) {
+    // Показуємо підтвердження
+    const statusText = status === 'approved' ? '{% trans "approve" %}' : '{% trans "reject" %}';
+    const confirmText = `{% trans "Are you sure you want to" %} ${statusText} {% trans "this request for" %} ${approverName} ({% trans "Level" %} ${level})?`;
+    
+    Swal.fire({
+        title: '{% trans "Confirm Action" %}',
+        text: confirmText,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: status === 'approved' ? '{% trans "Yes, Approve" %}' : '{% trans "Yes, Reject" %}',
+        cancelButtonText: '{% trans "Cancel" %}',
+        confirmButtonColor: status === 'approved' ? '#28a745' : '#dc3545',
+        input: 'textarea',
+        inputPlaceholder: '{% trans "Optional comment..." %}',
+        inputAttributes: {
+            'aria-label': '{% trans "Comment" %}'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const comment = result.value || '';
+            
+            // Отримуємо поточний мовний префікс з URL
+            const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+            
+            // Відправляємо запит на сервер
+            fetch(`/${languagePrefix}/app_access/set-approver-status/${approverId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    status: status,
+                    comment: comment
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '{% trans "Success" %}',
+                        text: data.message,
+                        timer: 2000,
+                        showConfirmButton: false
+                    }).then(() => {
+                        // Перезавантажуємо сторінку для оновлення статусів
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '{% trans "Error" %}',
+                        text: data.message
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error setting approver status:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: '{% trans "Error" %}',
+                    text: '{% trans "Failed to update approver status" %}'
+                });
+            });
+        }
+    });
+}
+
+// Нова функція для відкриття модального вікна зміни статусу
+function openChangeStatusModal(approverId, currentStatus, approverName, requestId, canApprove) {
+    // Перевіряємо, чи може користувач змінювати статус
+    if (!canApprove) {
+        Swal.fire({
+            icon: 'warning',
+            title: '{% trans "Cannot Change Status" %}',
+            text: '{% trans "You cannot change the status at this time. Previous approval levels must be completed first." %}'
+        });
+        return;
+    }
+
+    // Перевіряємо чи це фінальний статус
+    const finalStatuses = ['approved', 'rejected', 'cancelled'];
+    if (finalStatuses.includes(currentStatus)) {
+        Swal.fire({
+            icon: 'info',
+            title: '{% trans "Status Cannot Be Changed" %}',
+            text: '{% trans "This status is final and cannot be modified. Approved, Rejected, and Cancelled statuses are permanent." %}',
+            confirmButtonText: '{% trans "OK" %}'
+        });
+        return;
+    }
+
+    // Створюємо модальне вікно
+    const modal = new bootstrap.Modal(document.getElementById('changeStatusModal'));
+    
+    // Заповнюємо дані в модальному вікні
+    document.getElementById('modal-approver-name').textContent = approverName;
+    document.getElementById('modal-current-status').textContent = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1);
+    document.getElementById('modal-current-status').className = `badge ${getStatusBadgeClass(currentStatus)}`;
+    
+    // Встановлюємо поточний статус в радіо кнопках
+    document.querySelectorAll('input[name="new_status"]').forEach(radio => {
+        radio.checked = radio.value === currentStatus;
+        
+        // Додаємо обробник зміни статусу для валідації коментаря
+        radio.addEventListener('change', function() {
+            updateCommentRequirement(this.value);
+        });
+    });
+    
+    // Очищуємо коментар
+    document.getElementById('status-comment').value = '';
+    
+    // Встановлюємо початковий стан коментаря
+    updateCommentRequirement(currentStatus);
+    
+    // Зберігаємо ідентифікатори для відправки
+    window.currentApproverId = approverId;
+    window.currentRequestId = requestId;
+    
+    modal.show();
+}
+
+function getStatusBadgeClass(status) {
+    switch(status) {
+        case 'pending': return 'bg-warning text-dark';
+        case 'approved': return 'bg-success';
+        case 'rejected': return 'bg-danger';
+        case 'cancelled': return 'bg-secondary';
+        default: return 'bg-light text-dark';
+    }
+}
+
+// Функція для оновлення вимог до коментаря
+function updateCommentRequirement(selectedStatus) {
+    const commentIndicator = document.getElementById('comment-required-indicator');
+    const commentTextarea = document.getElementById('status-comment');
+    const commentHelpText = document.getElementById('comment-help-text');
+    const statusesRequiringComment = ['rejected', 'cancelled'];
+    
+    if (statusesRequiringComment.includes(selectedStatus)) {
+        // Коментар обов'язковий
+        commentIndicator.innerHTML = '<span class="text-danger">*{% trans "required" %}</span>';
+        commentIndicator.className = 'text-danger fw-bold';
+        commentTextarea.classList.add('border-warning');
+        commentTextarea.setAttribute('required', 'required');
+        commentTextarea.placeholder = '{% trans "Please provide a reason for this decision (required)" %}';
+        commentHelpText.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-1"></i>{% trans "A comment explaining your decision is required for this status" %}';
+        commentHelpText.className = 'form-text text-warning fw-bold';
+    } else {
+        // Коментар опціональний
+        commentIndicator.innerHTML = '({% trans "optional" %})';
+        commentIndicator.className = 'text-muted';
+        commentTextarea.classList.remove('border-warning');
+        commentTextarea.removeAttribute('required');
+        commentTextarea.placeholder = '{% trans "Enter your comment about this status change..." %}';
+        commentHelpText.innerHTML = '{% trans "Add any additional information about your decision" %}';
+        commentHelpText.className = 'form-text text-muted';
+    }
+}
+
+// Функція для підтвердження зміни статусу
+function confirmStatusChange() {
+    const selectedStatus = document.querySelector('input[name="new_status"]:checked').value;
+    const comment = document.getElementById('status-comment').value.trim();
+    const approverId = window.currentApproverId;
+    const requestId = window.currentRequestId;
+    
+    // Перевіряємо обов'язковість коментаря для rejected та cancelled
+    const statusesRequiringComment = ['rejected', 'cancelled'];
+    if (statusesRequiringComment.includes(selectedStatus) && !comment) {
+        Swal.fire({
+            icon: 'warning',
+            title: '{% trans "Comment Required" %}',
+            text: '{% trans "A comment is required when rejecting or cancelling a request. Please provide a reason for this decision." %}',
+            confirmButtonText: '{% trans "OK" %}'
+        });
+        return;
+    }
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+    
+    // Показуємо індикатор завантаження
+    const confirmBtn = document.getElementById('confirm-status-change');
+    const originalBtnText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>{% trans "Updating..." %}';
+    confirmBtn.disabled = true;
+    
+    fetch(`/${languagePrefix}/app_access/set-approver-status/${approverId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            status: selectedStatus,
+            comment: comment || ''
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.message || 'Network response was not ok');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Закриваємо модальне вікно
+        bootstrap.Modal.getInstance(document.getElementById('changeStatusModal')).hide();
+        
+        // Показуємо повідомлення про успіх
+        Swal.fire({
+            title: '{% trans "Success!" %}',
+            text: data.message,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        }).then(() => {
+            // Перезавантажуємо сторінку для оновлення даних
+            location.reload();
+        });
+    })
+    .catch(error => {
+        console.error('Error updating status:', error);
+        
+        // Відновлюємо кнопку
+        confirmBtn.innerHTML = originalBtnText;
+        confirmBtn.disabled = false;
+        
+        Swal.fire({
+            icon: 'error',
+            title: '{% trans "Error" %}',
+            text: error.message || '{% trans "Failed to update status" %}'
+        });
+    });
+}
+
+// Функція для відкриття модального вікна зміни адміністративного статусу
+function openAdminStatusModal(requestId, currentStatus, requestType, isPeriodExpired) {
+    // Перевіряємо чи це фінальний статус
+    if (currentStatus === 'denied') {
+        Swal.fire({
+            icon: 'info',
+            title: '{% trans "Status Cannot Be Changed" %}',
+            text: '{% trans "Access Denied status is final and cannot be modified." %}',
+            confirmButtonText: '{% trans "OK" %}'
+        });
+        return;
+    }
+    
+    // Перевіряємо чи це revoke запит зі статусом 'granted' (Access Revoked)
+    if (requestType === 'revoke' && currentStatus === 'granted') {
+        Swal.fire({
+            icon: 'info',
+            title: '{% trans "Status Cannot Be Changed" %}',
+            text: '{% trans "Access Revoked status is final and cannot be modified. The revocation process is irreversible." %}',
+            confirmButtonText: '{% trans "OK" %}'
+        });
+        return;
+    }
+
+    // Створюємо модальне вікно
+    const modal = new bootstrap.Modal(document.getElementById('adminStatusModal'));
+    
+    // Заповнюємо дані в модальному вікні
+    document.getElementById('admin-modal-current-status').textContent = getAdminStatusText(currentStatus, requestType);
+    document.getElementById('admin-modal-current-status').className = `badge ${getAdminStatusBadgeClass(currentStatus)}`;
+    
+    // Оновлюємо текст в badges та описи залежно від типу запиту
+    const grantedBadge = document.getElementById('admin-status-granted-badge');
+    const grantedLabel = document.querySelector('label[for="admin_status_granted"]');
+    const deniedBadge = document.querySelector('label[for="admin_status_denied"] .badge');
+    const deniedLabel = document.querySelector('label[for="admin_status_denied"]');
+    
+    if (requestType === 'revoke') {
+        // Для revoke запитів змінюємо тексти
+        if (grantedBadge) {
+            grantedBadge.textContent = '{% trans "Access Revoked" %}';
+        }
+        if (grantedLabel) {
+            const textNode = grantedLabel.childNodes[grantedLabel.childNodes.length - 1];
+            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                textNode.textContent = '{% trans "Approve revoke request and mark access as revoked" %}';
+            }
+        }
+        if (deniedBadge) {
+            deniedBadge.textContent = '{% trans "Reject Request" %}';
+        }
+        if (deniedLabel) {
+            const textNode = deniedLabel.childNodes[deniedLabel.childNodes.length - 1];
+            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                textNode.textContent = '{% trans "Reject revoke request (Comment required)" %}';
+            }
+        }
+    } else {
+        // Для grant запитів відновлюємо оригінальні тексти
+        if (grantedBadge) {
+            grantedBadge.textContent = '{% trans "Access Granted" %}';
+        }
+        if (grantedLabel) {
+            const textNode = grantedLabel.childNodes[grantedLabel.childNodes.length - 1];
+            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                textNode.textContent = '{% trans "Grant access to the user" %}';
+            }
+        }
+        if (deniedBadge) {
+            deniedBadge.textContent = '{% trans "Access Denied" %}';
+        }
+        if (deniedLabel) {
+            const textNode = deniedLabel.childNodes[deniedLabel.childNodes.length - 1];
+            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                textNode.textContent = '{% trans "Deny access to the user" %}';
+            }
+        }
+    }
+    
+    // Встановлюємо поточний статус в радіо кнопках і показуємо/приховуємо опції залежно від типу запиту
+    const statusOptions = document.querySelectorAll('input[name="new_admin_status"]');
+    statusOptions.forEach(radio => {
+        radio.checked = radio.value === currentStatus;
+        
+        // Показуємо/приховуємо опції залежно від типу запиту
+        const optionDiv = radio.closest('.form-check');
+        if (requestType === 'revoke') {
+            // Для Revoke запитів показуємо: Access Revoked, Pending, In Progress, Reject Request
+            if (['granted', 'pending', 'in_progress', 'denied'].includes(radio.value)) {
+                optionDiv.style.display = 'block';
+            } else {
+                optionDiv.style.display = 'none';
+            }
+        } else {
+            // Для Grant запитів показуємо всі опції
+            optionDiv.style.display = 'block';
+        }
+        
+        // Приховуємо granted та in_progress для закінчених періодів
+        if (isPeriodExpired && ['granted', 'in_progress'].includes(radio.value)) {
+            optionDiv.style.display = 'none';
+        }
+        
+        // Додаємо обробник зміни статусу для валідації коментаря
+        radio.addEventListener('change', function() {
+            updateAdminCommentRequirement(this.value);
+        });
+    });
+    
+    // Очищуємо коментар
+    document.getElementById('admin-status-comment').value = '';
+    
+    // Встановлюємо початковий стан коментаря
+    updateAdminCommentRequirement(currentStatus);
+    
+    // Зберігаємо ідентифікатори для відправки
+    window.currentAdminRequestId = requestId;
+    
+    modal.show();
+}
+
+function getAdminStatusText(status, requestType) {
+    switch(status) {
+        case 'pending': return '{% trans "Pending" %}';
+        case 'granted': 
+            if (requestType === 'revoke') {
+                return '{% trans "Access Revoked" %}';
+            } else {
+                return '{% trans "Access Granted" %}';
+            }
+        case 'denied': return '{% trans "Access Denied" %}';
+        case 'in_progress': return '{% trans "In Progress" %}';
+        default: return status;
+    }
+}
+
+function getAdminStatusBadgeClass(status) {
+    switch(status) {
+        case 'pending': return 'bg-warning text-dark';
+        case 'granted': return 'bg-success';
+        case 'denied': return 'bg-danger';
+        case 'in_progress': return 'bg-info';
+        default: return 'bg-light text-dark';
+    }
+}
+
+// Функція для оновлення вимог до коментаря для admin статусу
+function updateAdminCommentRequirement(selectedStatus) {
+    const commentIndicator = document.getElementById('admin-comment-required-indicator');
+    const commentTextarea = document.getElementById('admin-status-comment');
+    const commentHelpText = document.getElementById('admin-comment-help-text');
+    const statusesRequiringComment = ['denied'];
+    
+    if (statusesRequiringComment.includes(selectedStatus)) {
+        // Коментар обов'язковий
+        commentIndicator.innerHTML = '<span class="text-danger">*{% trans "required" %}</span>';
+        commentIndicator.className = 'text-danger fw-bold';
+        commentTextarea.classList.add('border-warning');
+        commentTextarea.setAttribute('required', 'required');
+        commentTextarea.placeholder = '{% trans "Please provide a reason for denial (required)" %}';
+        commentHelpText.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-1"></i>{% trans "A comment explaining your decision is required for denial" %}';
+        commentHelpText.className = 'form-text text-warning fw-bold';
+    } else {
+        // Коментар опціональний
+        commentIndicator.innerHTML = '({% trans "optional" %})';
+        commentIndicator.className = 'text-muted';
+        commentTextarea.classList.remove('border-warning');
+        commentTextarea.removeAttribute('required');
+        commentTextarea.placeholder = '{% trans "Enter your comment about this status change..." %}';
+        commentHelpText.innerHTML = '{% trans "Add any additional information about your decision" %}';
+        commentHelpText.className = 'form-text text-muted';
+    }
+}
+
+// Функція для підтвердження зміни адміністративного статусу
+function confirmAdminStatusChange() {
+    const selectedStatus = document.querySelector('input[name="new_admin_status"]:checked').value;
+    const comment = document.getElementById('admin-status-comment').value.trim();
+    const requestId = window.currentAdminRequestId;
+    
+    // Перевіряємо обов'язковість коментаря для denied
+    if (selectedStatus === 'denied' && !comment) {
+        Swal.fire({
+            icon: 'warning',
+            title: '{% trans "Comment Required" %}',
+            text: '{% trans "A comment is required when denying access. Please provide a reason for this decision." %}',
+            confirmButtonText: '{% trans "OK" %}'
+        });
+        return;
+    }
+
+    // Спеціальне попередження для статусу "Access Denied"
+    if (selectedStatus === 'denied') {
+        Swal.fire({
+            title: '{% trans "Confirm Access Denial" %}',
+            text: '{% trans "Are you sure you want to deny access? This action cannot be undone." %}',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '{% trans "Yes, Deny Access" %}',
+            cancelButtonText: '{% trans "Cancel" %}'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                executeAdminStatusChange(requestId, selectedStatus, comment);
+            }
+        });
+        return;
+    }
+    
+    executeAdminStatusChange(requestId, selectedStatus, comment);
+}
+
+function executeAdminStatusChange(requestId, selectedStatus, comment) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+    
+    // Показуємо індикатор завантаження
+    const confirmBtn = document.getElementById('confirm-admin-status-change');
+    const originalBtnText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>{% trans "Updating..." %}';
+    confirmBtn.disabled = true;
+    
+    fetch(`/${languagePrefix}/app_access/set-admin-status/${requestId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            admin_status: selectedStatus,
+            comment: comment || ''
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.message || 'Network response was not ok');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Закриваємо модальне вікно
+        bootstrap.Modal.getInstance(document.getElementById('adminStatusModal')).hide();
+        
+        // Показуємо повідомлення про успіх
+        Swal.fire({
+            title: '{% trans "Success!" %}',
+            text: data.message,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        }).then(() => {
+            // Перезавантажуємо сторінку для оновлення даних
+            location.reload();
+        });
+    })
+    .catch(error => {
+        console.error('Error updating admin status:', error);
+        
+        // Відновлюємо кнопку
+        confirmBtn.innerHTML = originalBtnText;
+        confirmBtn.disabled = false;
+        
+        Swal.fire({
+            icon: 'error',
+            title: '{% trans "Error" %}',
+            text: error.message || '{% trans "Failed to update admin status" %}'
+        });
+    });
+}
+
+// Функція для показу деталей оригінального Grant запиту
+async function showOriginalGrantDetails(originalRequestId) {
+    try {
+        // Додаємо невелику затримку для завантаження DOM
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Перевіряємо наявність модального вікна
+        const modalElement = document.getElementById('originalGrantModal');
+        const modalBody = document.getElementById('originalGrantModalBody');
+        
+        if (!modalElement || !modalBody) {
+            console.error('Modal elements not found:', {
+                modalElement: !!modalElement,
+                modalBody: !!modalBody,
+                allModals: document.querySelectorAll('.modal').length,
+                originalRequestId: originalRequestId
+            });
+            alert('{% trans "Error: Modal window not found" %}');
+            return;
+        }
+        
+        // Показуємо індикатор завантаження
+        modalBody.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">{% trans "Loading..." %}</span>
+                </div>
+                <p class="mt-2 text-muted">{% trans "Loading original request details..." %}</p>
+            </div>
+        `;
+        
+        // Показуємо модальне вікно
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+        
+        // Отримуємо деталі оригінального запиту
+        const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+        const response = await fetch(`/${languagePrefix}/app_access/get-request-details/${originalRequestId}/`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const request = data.request;
+            
+            // Формуємо HTML для деталей запиту
+            const detailsHtml = `
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="bi bi-info-circle me-1"></i>{% trans "Request Information" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <strong>{% trans "Request ID" %}:</strong> 
+                                        <span class="badge bg-primary">#${request.id}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "Company" %}:</strong> ${request.company_name}
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "System" %}:</strong> ${request.system_name}
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "Object" %}:</strong> ${request.object_name}
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "Environment" %}:</strong> 
+                                        <span class="badge ${
+                                            request.environment === 'production' ? 'bg-danger' :
+                                            request.environment === 'test' ? 'bg-warning text-dark' :
+                                            request.environment === 'development' ? 'bg-info' : 'bg-secondary'
+                                        }">${request.environment}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "Status" %}:</strong> 
+                                        <span class="badge bg-success">${request.status}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "Admin Status" %}:</strong> 
+                                        <span class="badge ${
+                                            request.admin_status === 'granted' ? 'bg-success' :
+                                            request.admin_status === 'denied' ? 'bg-danger' :
+                                            request.admin_status === 'pending' ? 'bg-warning text-dark' :
+                                            request.admin_status === 'in_progress' ? 'bg-info' : 'bg-secondary'
+                                        }">${request.admin_status}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "Created" %}:</strong> 
+                                        ${new Date(request.created_at).toLocaleString()}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="bi bi-people me-1"></i>{% trans "Users Information" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <strong>{% trans "Requested By" %}:</strong> 
+                                        ${request.requested_by.first_name} ${request.requested_by.last_name}
+                                        <br><small class="text-muted">${request.requested_by.email}</small>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "Requested For" %}:</strong> 
+                                        ${request.requested_for.first_name} ${request.requested_for.last_name}
+                                        <br><small class="text-muted">${request.requested_for.email}</small>
+                                    </div>
+                                    ${request.third_party_first_name ? `
+                                    <div class="mb-2">
+                                        <strong>{% trans "Third Party" %}:</strong> 
+                                        ${request.third_party_first_name} ${request.third_party_last_name || ''}
+                                        ${request.third_party_email ? `<br><small class="text-muted">${request.third_party_email}</small>` : ''}
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="bi bi-shield-check me-1"></i>{% trans "Access Roles" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex flex-wrap gap-2">
+                                        ${request.roles.map(role => `
+                                            <span class="role-badge" 
+                                                  style="background-color: ${role.color}; color: white; padding: 0.5em 0.75em; border-radius: 0.375rem; font-size: 0.875rem;">
+                                                ${role.name}
+                                            </span>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="bi bi-calendar me-1"></i>{% trans "Access Period" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <strong>{% trans "Start Date" %}:</strong> 
+                                        ${request.record_start_date ? new Date(request.record_start_date).toLocaleDateString() : '{% trans "Not specified" %}'}
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>{% trans "End Date" %}:</strong> 
+                                        ${request.record_end_date ? new Date(request.record_end_date).toLocaleDateString() : '{% trans "Indefinite" %}'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="bi bi-file-text me-1"></i>{% trans "Additional Information" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    ${request.justification ? `
+                                    <div class="mb-2">
+                                        <strong>{% trans "Justification" %}:</strong>
+                                        <p class="mb-1 small">${request.justification}</p>
+                                    </div>
+                                    ` : ''}
+                                    ${request.requirements ? `
+                                    <div class="mb-2">
+                                        <strong>{% trans "Requirements" %}:</strong>
+                                        <p class="mb-1 small">${request.requirements}</p>
+                                    </div>
+                                    ` : ''}
+                                    ${request.notes ? `
+                                    <div class="mb-2">
+                                        <strong>{% trans "Notes" %}:</strong>
+                                        <p class="mb-1 small">${request.notes}</p>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modalBody.innerHTML = detailsHtml;
+        } else {
+            modalBody.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    {% trans "Error loading request details" %}: ${data.message || '{% trans "Unknown error" %}'}
+                </div>
+            `;
+        }
+        
+    } catch (error) {
+        console.error('Error loading original grant details:', error);
+        const modalBody = document.getElementById('originalGrantModalBody');
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    {% trans "Error loading request details" %}: ${error.message}
+                </div>
+            `;
+        } else {
+            alert('{% trans "Error loading request details" %}: ' + error.message);
+        }
+    }
+}
+
+// Функція для завантаження послідовності Access Records
+async function loadAccessSequence(requestId) {
+    try {
+        const response = await fetch(`/app_access/access-sequence/${requestId}/`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            displayAccessSequence(data.data);
+        } else {
+            throw new Error(data.message || '{% trans "Error loading access sequence" %}');
+        }
+        
+    } catch (error) {
+        console.error('Error loading access sequence:', error);
+        toastr.error(error.message || '{% trans "Error loading access sequence" %}');
+    }
+}
+
+// Функція для відображення послідовності Access Records
+function displayAccessSequence(data) {
+    const modal = new bootstrap.Modal(document.getElementById('accessSequenceModal'));
+    const modalBody = document.getElementById('accessSequenceModalBody');
+    
+    if (!modalBody) return;
+    
+    const { target_user, access_sequence, main_request } = data;
+    
+    let html = `
+        <div class="access-sequence-container">
+            <div class="mb-3">
+                <h6 class="fw-bold">
+                    <i class="bi bi-person me-2"></i>
+                    {% trans "Requested For" %}:
+                </h6>
+                <div class="user-info-card p-3 bg-light rounded">
+                    <div class="d-flex align-items-center">
+                        <div class="user-avatar me-3">
+                            <i class="bi bi-person-circle fs-2"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-1">${target_user.name}</h6>
+                            ${target_user.email ? `<small class="text-muted">${target_user.email}</small><br>` : ''}
+                            ${target_user.organization ? `<small class="text-muted">${target_user.organization}</small><br>` : ''}
+                            ${target_user.department ? `<small class="text-muted">${target_user.department}</small><br>` : ''}
+                            ${target_user.position ? `<small class="text-muted">${target_user.position}</small>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <h6 class="fw-bold">
+                    <i class="bi bi-clock-history me-2"></i>
+                    {% trans "Access Sequence" %}:
+                </h6>
+                <div class="access-sequence-timeline">
+    `;
+    
+    if (access_sequence.length === 0) {
+        html += `
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-inbox fs-3"></i>
+                        <p class="mb-0">{% trans "No access records found" %}</p>
+                    </div>
+        `;
+    } else {
+        // Групуємо за ролями та сортуємо за часом
+        const roleGroups = {};
+        access_sequence.forEach(item => {
+            if (!roleGroups[item.role_id]) {
+                roleGroups[item.role_id] = [];
+            }
+            roleGroups[item.role_id].push(item);
+        });
+        
+        // Сортуємо групи за часом останньої дії
+        Object.values(roleGroups).forEach(group => {
+            group.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        });
+        
+        // Відображаємо кожну роль з її послідовністю
+        Object.entries(roleGroups).forEach(([roleId, items]) => {
+            const latestItem = items[items.length - 1];
+            
+            html += `
+                <div class="access-sequence-item ${latestItem.state}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">
+                                <span class="badge" style="background-color: ${latestItem.role_color}; color: white;">
+                                    ${latestItem.role_name}
+                                </span>
+                            </h6>
+                            <small class="text-muted">
+                                ${latestItem.object_name ? `${latestItem.object_name} - ` : ''}
+                                ${latestItem.environment}
+                            </small>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge ${getStateBadgeClass(latestItem.state)}">
+                                ${getStateText(latestItem.state)}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <i class="bi bi-calendar me-1"></i>
+                            ${new Date(latestItem.created_at).toLocaleDateString()}
+                            ${latestItem.revoked_at ? `
+                                <br><i class="bi bi-dash-circle me-1"></i>
+                                {% trans "Revoked" %}: ${new Date(latestItem.revoked_at).toLocaleDateString()}
+                            ` : ''}
+                        </small>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    html += `
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modalBody.innerHTML = html;
+    modal.show();
+}
+
+// Допоміжні функції
+function getStateBadgeClass(state) {
+    const classes = {
+        'granted': 'bg-success',
+        'revoked': 'bg-danger',
+        'pending': 'bg-warning text-dark',
+        'denied': 'bg-secondary'
+    };
+    return classes[state] || 'bg-secondary';
+}
+
+function getStateText(state) {
+    const texts = {
+        'granted': '{% trans "Granted" %}',
+        'revoked': '{% trans "Revoked" %}',
+        'pending': '{% trans "Pending" %}',
+        'denied': '{% trans "Denied" %}'
+    };
+    return texts[state] || state;
+}
+
+// Додаємо обробник для кліків по ролях
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.role-badge-container')) {
+        const container = e.target.closest('.role-badge-container');
+        const requestId = container.dataset.requestId;
+        
+        if (requestId) {
+            loadAccessSequence(requestId);
+        }
+    }
+});
+</script>
+
+<!-- Модальне вікно для зміни статусу -->
+<div class="modal fade" id="changeStatusModal" tabindex="-1" aria-labelledby="changeStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changeStatusModalLabel">
+                    <i class="bi bi-person-check me-2"></i>
+                    {% trans "Change Approver Status" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Інформація про апрувера -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2">
+                        <i class="bi bi-person me-1"></i>
+                        {% trans "Approver" %}: <span id="modal-approver-name"></span>
+                    </h6>
+                    <div>
+                        <strong>{% trans "Current Status" %}:</strong> 
+                        <span id="modal-current-status" class="badge"></span>
+                    </div>
+                </div>
+                
+                <!-- Вибір нового статусу -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-check-circle me-1"></i>
+                        {% trans "New Status" %}:
+                    </label>
+                    <div class="d-flex flex-column gap-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="new_status" id="status_pending" value="pending">
+                            <label class="form-check-label" for="status_pending">
+                                <span class="badge bg-warning text-dark me-2">{% trans "Pending" %}</span>
+                                {% trans "Set as pending (waiting for approval)" %}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="new_status" id="status_approved" value="approved">
+                            <label class="form-check-label" for="status_approved">
+                                <span class="badge bg-success me-2">{% trans "Approved" %}</span>
+                                {% trans "Approve this request" %}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="new_status" id="status_rejected" value="rejected">
+                            <label class="form-check-label" for="status_rejected">
+                                <span class="badge bg-danger me-2">{% trans "Rejected" %}</span>
+                                {% trans "Reject this request" %}
+                                <small class="text-muted d-block ms-4">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    {% trans "Comment required" %}
+                                </small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="new_status" id="status_cancelled" value="cancelled">
+                            <label class="form-check-label" for="status_cancelled">
+                                <span class="badge bg-secondary me-2">{% trans "Cancelled" %}</span>
+                                {% trans "Cancel approval process" %}
+                                <small class="text-muted d-block ms-4">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    {% trans "Comment required" %}
+                                </small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Коментар -->
+                <div class="mb-3">
+                    <label for="status-comment" class="form-label fw-bold">
+                        <i class="bi bi-chat-left-text me-1"></i>
+                        {% trans "Comment" %} <small class="text-muted" id="comment-required-indicator">({% trans "optional" %})</small>:
+                    </label>
+                    <textarea class="form-control" id="status-comment" rows="3" 
+                              placeholder="{% trans 'Enter your comment about this status change...' %}"></textarea>
+                    <div class="form-text text-muted" id="comment-help-text">
+                        {% trans "Add any additional information about your decision" %}
+                    </div>
+                </div>
+                
+                <!-- Попередження -->
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>{% trans "Important" %}:</strong> 
+                    {% trans "This action will update the approval status for this specific request and may affect the overall request workflow." %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="confirm-status-change" onclick="confirmStatusChange()">
+                    <i class="bi bi-check-circle me-1"></i>
+                    {% trans "Update Status" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальне вікно для зміни адміністративного статусу -->
+<div class="modal fade" id="adminStatusModal" tabindex="-1" aria-labelledby="adminStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="adminStatusModalLabel">
+                    <i class="bi bi-shield-check me-2"></i>
+                    {% trans "Change Admin Status" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Інформація про поточний статус -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        {% trans "Administrative Status Management" %}
+                    </h6>
+                    <div>
+                        <strong>{% trans "Current Status" %}:</strong> 
+                        <span id="admin-modal-current-status" class="badge"></span>
+                    </div>
+                </div>
+                
+                <!-- Вибір нового статусу -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-check-circle me-1"></i>
+                        {% trans "New Status" %}:
+                    </label>
+                    <div class="d-flex flex-column gap-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="new_admin_status" id="admin_status_pending" value="pending">
+                            <label class="form-check-label" for="admin_status_pending">
+                                <span class="badge bg-warning text-dark me-2">{% trans "Pending" %}</span>
+                                {% trans "Set as pending (waiting for admin action)" %}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="new_admin_status" id="admin_status_granted" value="granted">
+                            <label class="form-check-label" for="admin_status_granted">
+                                <span id="admin-status-granted-badge" class="badge bg-success me-2">{% trans "Access Granted" %}</span>
+                                {% trans "Grant access to the user" %}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="new_admin_status" id="admin_status_denied" value="denied">
+                            <label class="form-check-label" for="admin_status_denied">
+                                <span class="badge bg-danger me-2">{% trans "Access Denied" %}</span>
+                                {% trans "Deny access to the user" %}
+                                <small class="text-muted d-block ms-4">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    {% trans "Comment required" %}
+                                </small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="new_admin_status" id="admin_status_in_progress" value="in_progress">
+                            <label class="form-check-label" for="admin_status_in_progress">
+                                <span class="badge bg-info me-2">{% trans "In Progress" %}</span>
+                                {% trans "Mark as work in progress" %}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Коментар -->
+                <div class="mb-3">
+                    <label for="admin-status-comment" class="form-label fw-bold">
+                        <i class="bi bi-chat-left-text me-1"></i>
+                        {% trans "Comment" %} <small class="text-muted" id="admin-comment-required-indicator">({% trans "optional" %})</small>:
+                    </label>
+                    <textarea class="form-control" id="admin-status-comment" rows="3" 
+                              placeholder="{% trans 'Enter your comment about this status change...' %}"></textarea>
+                    <div class="form-text text-muted" id="admin-comment-help-text">
+                        {% trans "Add any additional information about your decision" %}
+                    </div>
+                </div>
+                
+                <!-- Попередження -->
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>{% trans "Important" %}:</strong> 
+                    {% trans "This action will update the administrative status and may affect user access permissions." %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="confirm-admin-status-change" onclick="confirmAdminStatusChange()">
+                    <i class="bi bi-check-circle me-1"></i>
+                    {% trans "Update Status" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальне вікно для відображення деталей оригінального Grant запиту -->
+<div class="modal fade" id="originalGrantModal" tabindex="-1" aria-labelledby="originalGrantModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="originalGrantModalLabel">
+                    <i class="bi bi-plus-circle me-2"></i>
+                    {% trans "Original Grant Request Details" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="originalGrantModalBody">
+                <!-- Контент буде додано динамічно через JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>
+                    {% trans "Close" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальне вікно для відображення послідовності Access Records -->
+<div class="modal fade" id="accessSequenceModal" tabindex="-1" aria-labelledby="accessSequenceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="accessSequenceModalLabel">
+                    <i class="bi bi-clock-history me-2"></i>
+                    {% trans "Access Records Sequence" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="accessSequenceModalBody">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>
+                    {% trans "Close" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

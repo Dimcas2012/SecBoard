@@ -1,0 +1,385 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n static %}
+
+{% block title %}{{ campaign.name }} - {% trans "Campaign Details" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'app_gophish/css/gophish-campaign-detail-page.css' %}">
+    <link rel="stylesheet" href="{% static 'app_gophish/css/gophish-events-page.css' %}">
+{% endblock %}
+
+{% block gophish_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0">{{ campaign.name }}</h1>
+                <p class="text-muted mb-0">{{ campaign.server.name }}</p>
+            </div>
+            <div class="btn-group sb-toolbar" role="group">
+                <a href="{% url 'app_gophish:campaign_list' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                   title="{% trans 'Back to List' %}">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Campaign Status and Statistics -->
+<div class="row mb-4 campaign-detail-stats">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Status" %}</h5>
+                <span class="campaign-status status-{{ campaign.status }} fs-6">
+                    {{ campaign.get_status_display }}
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Total Targets" %}</h5>
+                <h3 class="mb-0 text-primary">{{ stats.total_targets }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Emails Sent" %}</h5>
+                <h3 class="mb-0 text-info">{{ stats.emails_sent }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Emails Opened" %}</h5>
+                <h3 class="mb-0 text-success">{{ stats.emails_opened }}</h3>
+                {% if stats.emails_sent > 0 %}
+                <small class="text-muted">
+                    {% if stats.emails_sent > 0 %}
+                        {% widthratio stats.emails_opened stats.emails_sent 100 %}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Links Clicked" %}</h5>
+                <h3 class="mb-0 text-warning">{{ stats.links_clicked }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Credentials Submitted" %}</h5>
+                <h3 class="mb-0 text-danger">{{ stats.credentials_submitted }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Data Submitted" %}</h5>
+                <h3 class="mb-0 text-secondary">{{ stats.data_submitted }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Success Rate" %}</h5>
+                <h3 class="mb-0 text-success">
+                    {% if stats.total_targets > 0 %}
+                        {% widthratio stats.credentials_submitted stats.total_targets 100 %}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Campaign Details -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Campaign Details" %}</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>{% trans "Name" %}</strong></td>
+                        <td>{{ campaign.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{% trans "Server" %}</strong></td>
+                        <td>{{ campaign.server.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{% trans "Template" %}</strong></td>
+                        <td>{{ campaign.template.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{% trans "Landing Page" %}</strong></td>
+                        <td>{{ campaign.landing_page.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{% trans "Sending Profile" %}</strong></td>
+                        <td>{{ campaign.sending_profile.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{% trans "Target Groups" %}</strong></td>
+                        <td>
+                            {% for group in campaign.groups.all %}
+                            <span class="badge badge-secondary me-1">{{ group.name }}</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% if campaign.launch_date %}
+                    <tr>
+                        <td><strong>{% trans "Launch Date" %}</strong></td>
+                        <td>{{ campaign.launch_date|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if campaign.send_by_date %}
+                    <tr>
+                        <td><strong>{% trans "Send By Date" %}</strong></td>
+                        <td>{{ campaign.send_by_date|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if campaign.url %}
+                    <tr>
+                        <td><strong>{% trans "Campaign URL" %}</strong></td>
+                        <td>
+                            <a href="{{ campaign.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-external-link-alt"></i> {% trans "Open" %}
+                            </a>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td><strong>{% trans "Created" %}</strong></td>
+                        <td>{{ campaign.created_at|date:"M d, Y H:i" }} {% trans "by" %} {{ campaign.created_by.get_full_name|default:campaign.created_by.username }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{% trans "Last Sync" %}</strong></td>
+                        <td>{{ campaign.last_sync|date:"M d, Y H:i" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Template Preview" %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="border p-3 bg-light" style="max-height: 400px; overflow-y: auto;">
+                    <h6>{{ campaign.template.subject }}</h6>
+                    <hr>
+                    {{ campaign.template.html_content|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Events -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{% trans "Recent Events" %}</h5>
+                <div class="btn-group sb-toolbar" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-icon-action" onclick="refreshEvents()"
+                            title="{% trans 'Refresh' %}">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                    <a href="{% url 'app_gophish:campaign_events_export_excel' campaign.id %}" class="btn btn-sm btn-success btn-icon-action"
+                       title="{% trans 'Export to Excel' %}">
+                        <i class="bi bi-file-earmark-excel"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive full-width-table">
+                    <table id="events-table-main" class="table table-hover table-sm table-sm-font sb-data-table gophish-data-table campaign-metrics-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Event Type" %}</th>
+                                <th>{% trans "Target" %}</th>
+                                <th>{% trans "Target Name" %}</th>
+                                <th>{% trans "Timestamp" %}</th>
+                                <th>{% trans "IP Address" %}</th>
+                                <th>{% trans "Details" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-table">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="fas fa-spinner fa-spin"></i> {% trans "Loading events..." %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Load events automatically when page loads (only once)
+    if (!eventsLoaded) {
+        refreshEvents();
+    }
+});
+
+var isRefreshingEvents = false;
+var eventsLoaded = false;
+
+function refreshEvents() {
+    console.log('refreshEvents called - isRefreshingEvents:', isRefreshingEvents, 'eventsLoaded:', eventsLoaded);
+    
+    if (isRefreshingEvents) {
+        console.log('Events refresh already in progress, skipping');
+        return;
+    }
+    
+    console.log('Starting events refresh, loaded before:', eventsLoaded);
+    isRefreshingEvents = true;
+    
+    $.ajax({
+        url: '{% url "app_gophish:campaign_events_api" campaign.id %}',
+        method: 'GET',
+        success: function(response) {
+            console.log('AJAX success - events count:', response.events.length);
+            // Update events table - clear existing content first
+            var tbody = $('#events-table');
+            console.log('Clearing tbody, current rows:', tbody.find('tr').length);
+            tbody.empty();
+            
+            if (response.events.length > 0) {
+                // Filter out duplicates based on timestamp, target_email, and event_type (case insensitive)
+                var seenEvents = {};
+                var uniqueEvents = [];
+                
+                response.events.forEach(function(event) {
+                    var key = event.timestamp + '|' + event.target_email + '|' + event.event_type.toLowerCase();
+                    
+                    if (!seenEvents[key]) {
+                        seenEvents[key] = true;
+                        uniqueEvents.push(event);
+                    } else {
+                        console.log('Duplicate event filtered out:', event);
+                    }
+                });
+                
+                console.log('Original events:', response.events.length, 'Unique events:', uniqueEvents.length);
+                
+                uniqueEvents.forEach(function(event) {
+                    var eventDisplay = getEventTypeDisplay(event.event_type);
+                    var badgeColor = getEventBadgeColor(event.event_type);
+                    var detailsButton = '';
+                    if (event.details && Object.keys(event.details).length > 0) {
+                        detailsButton = '<button class="btn btn-sm btn-outline-info" onclick="showEventDetails(' + event.id + ')"><i class="fas fa-info-circle"></i></button>';
+                    }
+                    
+                    var row = '<tr>' +
+                        '<td><span class="badge event-type-badge" style="background-color: ' + badgeColor + '; color: #000 !important; font-weight: 600; border: none !important;">' + eventDisplay + '</span></td>' +
+                        '<td>' + event.target_email + '</td>' +
+                        '<td>' + (event.target_name || '-') + '</td>' +
+                        '<td>' + new Date(event.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + '</td>' +
+                        '<td>' + (event.ip_address || '-') + '</td>' +
+                        '<td>' + detailsButton + '</td>' +
+                        '</tr>';
+                    tbody.append(row);
+                });
+            } else {
+                tbody.append('<tr><td colspan="6" class="text-center text-muted py-4">{% trans "No events found" %}</td></tr>');
+            }
+            eventsLoaded = true;
+            isRefreshingEvents = false;
+        },
+        error: function() {
+            alert('{% trans "Error refreshing events" %}');
+            isRefreshingEvents = false;
+        }
+    });
+}
+
+function getEventBadgeClass(eventType) {
+    switch(eventType) {
+        case 'email_sent': return 'primary';
+        case 'email_opened': return 'info';
+        case 'link_clicked': return 'warning';
+        case 'credentials_submitted': return 'danger';
+        default: return 'secondary';
+    }
+}
+
+function getEventBadgeColor(eventType) {
+    // Normalize event type to lowercase for consistent handling
+    var normalizedType = eventType.toLowerCase();
+    
+    switch(normalizedType) {
+        case 'email_sent': return '#007bff';
+        case 'email_opened': return '#17a2b8';
+        case 'link_clicked': return '#ffc107';
+        case 'credentials_submitted': return '#dc3545';
+        case 'campaign_created': return '#6c757d';
+        default: return '#6c757d';
+    }
+}
+
+function getEventTypeDisplay(eventType) {
+    // Normalize event type to lowercase for consistent handling
+    var normalizedType = eventType.toLowerCase();
+    
+    switch(normalizedType) {
+        case 'email_sent': return '{% trans "Email Sent" %}';
+        case 'email_opened': return '{% trans "Email Opened" %}';
+        case 'link_clicked': return '{% trans "Link Clicked" %}';
+        case 'credentials_submitted': return '{% trans "Credentials Submitted" %}';
+        case 'data_submitted': return '{% trans "Data Submitted" %}';
+        case 'campaign_created': return '{% trans "Campaign Created" %}';
+        case 'error': return '{% trans "Error" %}';
+        default: return eventType; // Return original if not recognized
+    }
+}
+
+function showEventDetails(eventId) {
+    // Simple alert for now - you can implement a modal later
+    alert('Event details for ID: ' + eventId + ' - Details feature coming soon');
+}
+</script>
+{% endblock %}

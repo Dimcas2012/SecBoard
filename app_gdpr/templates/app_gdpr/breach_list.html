@@ -1,0 +1,254 @@
+﻿{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Data Breaches" %}{% endblock %}
+
+{% block gdpr_content %}
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2 class="mb-0"><i class="fas fa-exclamation-triangle text-danger me-2"></i>{% trans "Data Breach Incidents" %}</h2>
+        <p class="text-muted mb-0">{% trans "Track and manage data breach incidents (GDPR Article 33 & 34)" %}</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="sb-toolbar d-flex flex-wrap gap-1 justify-content-end">
+            <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-tachometer-alt me-1"></i>{% trans "Dashboard" %}
+            </a>
+            {% if can_edit_breaches %}
+            <a href="{% url 'app_gdpr:breach_create' %}" class="btn btn-danger btn-sm">
+                <i class="fas fa-exclamation-triangle me-1"></i>{% trans "Report Breach" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% url 'app_gdpr:breach_list' as breach_list_clear_url %}
+{% filters_expanded 'search' 'severity' 'status' 'company' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="breachFiltersCollapse" toggle_id="toggleBreachFilters" icon_id="breachFiltersToggleIcon" filter_clear_url=breach_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="breachFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" id="filterForm" class="row g-1 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" name="search" id="filterSearch" class="form-control form-control-sm"
+                       placeholder="{% trans 'Search by incident #, title...' %}" value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterSeverity">{% trans "Severity" %}</label>
+                <select name="severity" id="filterSeverity" class="form-select form-select-sm">
+                    <option value="">{% trans "All Severities" %}</option>
+                    <option value="low" {% if request.GET.severity == 'low' %}selected{% endif %}>{% trans "Low" %}</option>
+                    <option value="medium" {% if request.GET.severity == 'medium' %}selected{% endif %}>{% trans "Medium" %}</option>
+                    <option value="high" {% if request.GET.severity == 'high' %}selected{% endif %}>{% trans "High" %}</option>
+                    <option value="critical" {% if request.GET.severity == 'critical' %}selected{% endif %}>{% trans "Critical" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                <select name="status" id="filterStatus" class="form-select form-select-sm">
+                    <option value="">{% trans "All Statuses" %}</option>
+                    <option value="detected" {% if request.GET.status == 'detected' %}selected{% endif %}>{% trans "Detected" %}</option>
+                    <option value="investigating" {% if request.GET.status == 'investigating' %}selected{% endif %}>{% trans "Investigating" %}</option>
+                    <option value="contained" {% if request.GET.status == 'contained' %}selected{% endif %}>{% trans "Contained" %}</option>
+                    <option value="resolved" {% if request.GET.status == 'resolved' %}selected{% endif %}>{% trans "Resolved" %}</option>
+                    <option value="reported" {% if request.GET.status == 'reported' %}selected{% endif %}>{% trans "Reported" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                <select name="company" id="filterCompany" class="form-select form-select-sm">
+                    <option value="">{% trans "All Companies" %}</option>
+                    {% for company in accessible_companies %}
+                    <option value="{{ company.id }}" {% if request.GET.company == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterSort">{% trans "Sort By" %}</label>
+                <select name="sort" id="filterSort" class="form-select form-select-sm">
+                    <option value="-incident_date" {% if request.GET.sort == '-incident_date' or not request.GET.sort %}selected{% endif %}>{% trans "Newest" %}</option>
+                    <option value="incident_date" {% if request.GET.sort == 'incident_date' %}selected{% endif %}>{% trans "Oldest" %}</option>
+                    <option value="-severity" {% if request.GET.sort == '-severity' %}selected{% endif %}>{% trans "Severity ↓" %}</option>
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+    <!-- Breach Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "Data Breach Incidents" %} ({{ page_obj.paginator.count }})</h4>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Incident #" %}</th>
+                            <th>{% trans "Title" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "Severity" %}</th>
+                            <th>{% trans "Status" %}</th>
+                            <th>{% trans "Affected" %}</th>
+                            <th>{% trans "Incident Date" %}</th>
+                            <th>{% trans "72h Deadline" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for breach in breaches %}
+                        <tr {% if breach.severity == 'critical' %}class="critical-row"{% elif breach.is_notification_overdue %}class="overdue-row"{% endif %}>
+                            <td>
+                                <strong>{{ breach.incident_number }}</strong>
+                            </td>
+                            <td>
+                                <div>
+                                    <strong>{{ breach.title|truncatewords:5 }}</strong>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    <i class="fas fa-building"></i> {{ breach.company.name }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if breach.severity == 'low' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> {{ breach.get_severity_display }}
+                                    </span>
+                                {% elif breach.severity == 'medium' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-exclamation"></i> {{ breach.get_severity_display }}
+                                    </span>
+                                {% elif breach.severity == 'high' %}
+                                    <span class="badge" style="background-color: #fd7e14; color: white;">
+                                        <i class="fas fa-exclamation-triangle"></i> {{ breach.get_severity_display }}
+                                    </span>
+                                {% elif breach.severity == 'critical' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-skull-crossbones"></i> {{ breach.get_severity_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ breach.get_severity_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if breach.status == 'detected' %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-eye"></i> {{ breach.get_status_display }}
+                                    </span>
+                                {% elif breach.status == 'investigating' %}
+                                    <span class="badge bg-primary">
+                                        <i class="fas fa-search"></i> {{ breach.get_status_display }}
+                                    </span>
+                                {% elif breach.status == 'contained' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-shield-alt"></i> {{ breach.get_status_display }}
+                                    </span>
+                                {% elif breach.status == 'resolved' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> {{ breach.get_status_display }}
+                                    </span>
+                                {% elif breach.status == 'reported' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-flag"></i> {{ breach.get_status_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ breach.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-dark">
+                                    <i class="fas fa-users"></i> {{ breach.affected_subjects_count }}
+                                </span>
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    {{ breach.incident_date|date:"d.m.Y H:i" }}
+                                </small>
+                            </td>
+                            <td>
+                                {% if breach.notification_deadline %}
+                                    <small {% if breach.is_notification_overdue %}class="text-danger fw-bold"{% else %}class="text-muted"{% endif %}>
+                                        <i class="fas fa-clock"></i>
+                                        {{ breach.notification_deadline|date:"d.m.Y H:i" }}
+                                        {% if breach.is_notification_overdue and not breach.reported_to_authority %}
+                                            <br><span class="badge bg-danger">{% trans "OVERDUE!" %}</span>
+                                        {% elif breach.reported_to_authority %}
+                                            <br><span class="badge bg-success">{% trans "Reported" %}</span>
+                                        {% endif %}
+                                    </small>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'app_gdpr:breach_detail' breach.pk %}" 
+                                       class="btn btn-sm btn-info"
+                                       title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_edit_breaches and breach.status != 'resolved' %}
+                                    <a href="{% url 'app_gdpr:breach_update' breach.pk %}" 
+                                       class="btn btn-sm btn-warning"
+                                       title="{% trans 'Edit' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% if not breach.reported_to_authority %}
+                                    <a href="{% url 'app_gdpr:breach_report' breach.pk %}" 
+                                       class="btn btn-sm btn-danger"
+                                       title="{% trans 'Report to Authority' %}">
+                                        <i class="fas fa-flag"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                {% trans "No data breaches found" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% include 'app_gdpr/includes/gdpr_table_pagination.html' with pagination_item_label=_("breaches") pagination_aria_label=_("Data breaches pagination") %}
+        </div>
+    </div>
+    
+    <!-- About Data Breach (collapsible) -->
+    <div class="card mt-4">
+        <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#aboutBreach">
+            <h4 class="mb-0">
+                <i class="fas fa-info-circle text-danger"></i> 
+                {% trans "About Data Breach Incidents" %}
+                <i class="fas fa-chevron-down float-end"></i>
+            </h4>
+        </div>
+        <div id="aboutBreach" class="collapse">
+            <div class="card-body">
+                <p style="font-size: 0.75rem;">
+                    {% trans "A data breach is a security incident that results in the accidental or unlawful destruction, loss, alteration, unauthorized disclosure of, or access to personal data. Under GDPR Article 33, organizations must notify the supervisory authority within 72 hours of becoming aware of a breach." %}
+                </p>
+                <div class="alert alert-danger" style="font-size: 0.7rem;">
+                    <strong><i class="fas fa-clock"></i> {% trans "72-Hour Rule" %}:</strong>
+                    {% trans "Must notify supervisory authority within 72 hours of becoming aware of the breach" %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

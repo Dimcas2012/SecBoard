@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_tprm/includes/tprm_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_tprm/css/template_edit-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 tprm-page">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1><i class="fas fa-edit"></i> {{ title }}: {{ template.name }}</h1>
+                <div>
+                    <a href="{% url 'app_tprm:template_duplicate' template.pk %}" class="btn btn-info">
+                        <i class="fas fa-copy"></i> {% trans "Duplicate" %}
+                    </a>
+                    <a href="{% url 'app_tprm:template_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> {% trans "Back" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" id="templateForm">
+        {% csrf_token %}
+        
+        <!-- Template Info -->
+        <div class="row mb-4">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> {% trans "Template Information" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "Template Name" %} *</label>
+                            {{ form.name }}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "Description" %}</label>
+                            {{ form.description }}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label">{% trans "Category" %} *</label>
+                                {{ form.category }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-check-label d-block mb-2">{% trans "Status" %}</label>
+                                <div class="form-check form-switch">
+                                    {{ form.is_active }}
+                                    <label class="form-check-label ms-2">{% trans "Active" %}</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-bar"></i> {% trans "Statistics" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-6">{% trans "Total Questions" %}:</dt>
+                            <dd class="col-sm-6"><strong>{{ template.questions.count }}</strong></dd>
+                            
+                            <dt class="col-sm-6">{% trans "Root Questions" %}:</dt>
+                            <dd class="col-sm-6">{{ root_questions_count }}</dd>
+                            
+                            <dt class="col-sm-6">{% trans "Conditional Questions" %}:</dt>
+                            <dd class="col-sm-6">
+                                {% if conditional_questions_count > 0 %}
+                                    <span class="text-info">🔀 {{ conditional_questions_count }}</span>
+                                {% else %}
+                                    0
+                                {% endif %}
+                            </dd>
+                            
+                            <dt class="col-sm-6">{% trans "Max Score" %}:</dt>
+                            <dd class="col-sm-6"><strong>{{ max_score }}</strong></dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Questions Management -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-list-ol"></i> {% trans "Questions" %}</h5>
+                        <span class="badge bg-info">{{ formset.total_form_count }} {% trans "questions" %}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-lightbulb"></i>
+                            <strong>{% trans "Creating Branching Logic:" %}</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>{% trans "Leave 'Parent Question' empty for root questions" %}</li>
+                                <li>{% trans "Select parent and set condition (yes/no/1-3) for branching" %}</li>
+                                <li>{% trans "Check 'DELETE' box to remove a question" %}</li>
+                            </ul>
+                        </div>
+
+                        {{ formset.management_form }}
+                        
+                        <div id="questionsContainer">
+                            {% for form in formset %}
+                            <div class="formset-row {% if form.instance.parent_question %}conditional-question{% endif %}" id="question-{{ forloop.counter0 }}">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div>
+                                        <span class="badge bg-primary">Q{{ forloop.counter }}</span>
+                                        {% if form.instance.parent_question %}
+                                            <span class="badge bg-warning"><i class="fas fa-code-branch"></i></span>
+                                        {% endif %}
+                                    </div>
+                                    {% if form.instance.pk %}
+                                    <div class="form-check mb-0">
+                                        {{ form.DELETE }}
+                                        <label class="form-check-label text-danger small">
+                                            <i class="fas fa-trash"></i>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                {{ form.id }}
+                                
+                                <div class="row g-2">
+                                    <div class="col-md-12 mb-1">
+                                        <label class="form-label">{% trans "Question" %} *</label>
+                                        {{ form.question_text }}
+                                    </div>
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-md-2">
+                                        <label class="form-label">{% trans "Type" %}</label>
+                                        {{ form.question_type }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">{% trans "Parent" %}</label>
+                                        {{ form.parent_question }}
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">{% trans "If" %}</label>
+                                        {{ form.show_if_answer }}
+                                    </div>
+                                    <div class="col-md-1">
+                                        <label class="form-label">#</label>
+                                        {{ form.order }}
+                                    </div>
+                                    <div class="col-md-1">
+                                        <label class="form-label">⚖</label>
+                                        {{ form.weight }}
+                                    </div>
+                                    <div class="col-md-3 d-flex align-items-end">
+                                        <div class="form-check mb-2">
+                                            {{ form.is_required }}
+                                            <label class="form-check-label small">{% trans "Required" %}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="mt-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% trans "Save All Changes" %}
+                            </button>
+                            <a href="{% url 'app_tprm:template_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "Cancel" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle DELETE checkboxes
+    document.querySelectorAll('input[name$="-DELETE"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const row = this.closest('.formset-row');
+            if (this.checked) {
+                row.classList.add('to-delete');
+            } else {
+                row.classList.remove('to-delete');
+            }
+        });
+    });
+    
+    // Highlight conditional questions
+    document.querySelectorAll('select[name$="-parent_question"]').forEach(select => {
+        select.addEventListener('change', function() {
+            const row = this.closest('.formset-row');
+            if (this.value) {
+                row.classList.add('conditional-question');
+            } else {
+                row.classList.remove('conditional-question');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,511 @@
+<!-- app_cabinet/roles.html - Manage roles -->
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load cabinet_permissions %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_cabinet/includes/cabinet_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_cabinet/css/roles-page.css' %}">
+{% endblock %}
+
+{% block title %}{% trans "Manage Roles" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 cabinet-page">
+    <div class="d-flex justify-content-between align-items-center my-4">
+        <h1 class="mb-0">
+            <i class="fas fa-user-tag me-2"></i>
+            {% trans "Manage Roles" %}
+        </h1>
+    </div>
+
+    <!-- Filters (collapsed by default) -->
+    <div class="card mb-2 filter-section access-request-filters cabinet-filters-card">
+        {% url 'roles' as roles_clear_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="rolesFiltersCollapse" toggle_id="toggleRolesFilters" icon_id="rolesFiltersToggleIcon" filter_clear_url=roles_clear_url %}
+        <div class="collapse{% if active_filters.search or active_filters.company %} show{% endif %}" id="rolesFiltersCollapse">
+        <div class="card-body py-2">
+            <form id="roleFilterForm" method="get" class="row g-1 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="search">{% trans "Search" %}</label>
+                    <input type="text" class="form-control form-control-sm" id="search" name="search"
+                           value="{{ active_filters.search|default:'' }}"
+                           placeholder="{% trans 'Search by name, slug or description...' %}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="filter_company">{% trans "Company" %}</label>
+                    <select class="form-select form-select-sm" id="filter_company" name="company">
+                        <option value="">{% trans "All Companies" %}</option>
+                        {% for c in companies %}
+                        <option value="{{ c.id }}" {% if active_filters.company|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+
+    <!-- Roles Table -->
+    <div class="card mb-4">
+        <div class="card-header py-2 d-flex align-items-center flex-wrap gap-2">
+            <i class="bi bi-person-badge"></i>
+            <h6 class="mb-0">{% trans "Platform Roles" %}</h6>
+            <span class="badge bg-secondary">{{ page_obj.paginator.count }} {% trans "total" %}</span>
+        </div>
+        <div class="card-body py-2">
+            <div class="export-controls mb-2">
+                <div class="row align-items-center">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            <a href="{% url 'users' %}" class="btn btn-outline-secondary btn-sm btn-icon-action" title="{% trans 'Back to Users' %}">
+                                <i class="bi bi-arrow-left"></i>
+                            </a>
+                            {% if user_permissions.roles.add %}
+                            <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#createRoleModal" title="{% trans 'Create Role' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive full-width-table"><table class="table table-hover table-sm table-sm-font sb-data-table w-100">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "Name" %}</th>
+                            <th>{% trans "Slug" %}</th>
+                            <th>{% trans "Companies" %}</th>
+                            <th>{% trans "Description" %}</th>
+                            <th>{% trans "Access Groups" %}</th>
+                            <th>{% trans "Active" %}</th>
+                            <th>{% trans "Order" %}</th>
+                            {% if user_permissions.roles.edit or user_permissions.roles.delete %}
+                            <th class="text-center">{% trans "Actions" %}</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for role in roles %}
+                        <tr data-role-id="{{ role.id }}">
+                            <td>
+                                <span class="badge" style="background-color: {{ role.color|default:'#6c757d' }};">
+                                    {{ role.name }}
+                                </span>
+                            </td>
+                            <td><code>{{ role.slug|default:"-" }}</code></td>
+                            <td>
+                                {% if role.companies.exists %}
+                                {% for c in role.companies.all %}<span class="badge bg-secondary me-1">{{ c.name }}</span>{% endfor %}
+                                {% else %}
+                                <span class="text-muted">{% trans "All" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ role.description|truncatechars:60|default:"-" }}</td>
+                            <td>
+                                <span class="badge bg-info role-groups-badge" data-tooltip-content-id="role-groups-tt-{{ role.id }}">{{ role.groups.count }}</span>
+                                <div id="role-groups-tt-{{ role.id }}" class="d-none role-groups-tt">
+                                    {% for g in role.groups.all %}
+                                    <div class="group-line">
+                                        <span class="group-color" style="background-color: {% if g.cabinet_details %}{{ g.cabinet_details.color|default:'#6c757d' }}{% else %}#6c757d{% endif %};"></span>
+                                        <div>
+                                            <div>{% if g.cabinet_details %}{{ g.cabinet_details.name }}{% else %}{{ g.name }}{% endif %}</div>
+                                            {% if g.cabinet_details and g.cabinet_details.description %}
+                                            <div class="group-desc">{{ g.cabinet_details.description|truncatewords:15 }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if role.is_active %}
+                                <span class="badge bg-success">{% trans "Yes" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{% trans "No" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ role.order }}</td>
+                            {% if user_permissions.roles.edit or user_permissions.roles.delete or user_permissions.roles.view %}
+                            <td class="text-center table-actions">
+                                {% if user_permissions.roles.view %}
+                                <a href="{% url 'role_dashboard_config' role.id %}" class="btn btn-sm btn-outline-secondary" title="{% trans 'Dashboard display settings' %}">
+                                    <i class="fas fa-th-large"></i>
+                                </a>
+                                {% endif %}
+                                {% if user_permissions.roles.edit %}
+                                <button type="button" class="btn btn-sm btn-outline-primary edit-role" data-role-id="{{ role.id }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                {% endif %}
+                                {% if user_permissions.roles.delete %}
+                                <button type="button" class="btn btn-sm btn-danger delete-role" data-role-id="{{ role.id }}" data-role-name="{{ role.name }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if user_permissions.roles.edit or user_permissions.roles.delete or user_permissions.roles.view %}8{% else %}7{% endif %}" class="text-center">{% trans "No roles found" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% include 'app_cabinet/includes/cabinet_table_pagination.html' %}
+        </div>
+    </div>
+</div>
+
+{% if user_permissions.roles.add %}
+{% include 'app_cabinet/modals/add_role_modal.html' %}
+{% endif %}
+{% if user_permissions.roles.edit %}
+{% include 'app_cabinet/modals/edit_role_modal.html' %}
+{% endif %}
+{% if user_permissions.roles.delete %}
+{% include 'app_cabinet/modals/delete_role_modal.html' %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function getRoleGroupsApiUrl() {
+        var path = window.location.pathname || '';
+        var base = path.split('/users/roles')[0] || '';
+        return base + '/users/roles/api/groups-by-companies/';
+    }
+    var roleFilterForm = document.getElementById('roleFilterForm');
+    if (roleFilterForm) {
+        function applyRoleFilters() {
+            var q = new URLSearchParams(new FormData(roleFilterForm));
+            q.delete('page');
+            window.location.search = q.toString();
+        }
+        roleFilterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            applyRoleFilters();
+        });
+        roleFilterForm.querySelectorAll('select').forEach(function(el) {
+            el.addEventListener('change', applyRoleFilters);
+        });
+        var roleSearch = roleFilterForm.querySelector('#search');
+        if (roleSearch) {
+            var roleSearchTimer;
+            roleSearch.addEventListener('input', function() {
+                clearTimeout(roleSearchTimer);
+                roleSearchTimer = setTimeout(applyRoleFilters, 400);
+            });
+        }
+    }
+    document.querySelectorAll('.role-groups-badge[data-tooltip-content-id]').forEach(function(el) {
+        var contentId = el.getAttribute('data-tooltip-content-id');
+        var contentEl = contentId ? document.getElementById(contentId) : null;
+        if (contentEl && contentEl.innerHTML.trim()) {
+            var tt = new bootstrap.Tooltip(el, { title: '<div class="role-groups-tt">' + contentEl.innerHTML + '</div>', html: true, placement: 'top', sanitize: false });
+            el.addEventListener('inserted.bs.tooltip', function() {
+                var instance = bootstrap.Tooltip.getInstance(this);
+                var tipEl = instance && instance.getTipElement ? instance.getTipElement() : document.querySelector('.tooltip');
+                if (tipEl) {
+                    tipEl.classList.add('role-groups-tooltip-popup');
+                    var inner = tipEl.querySelector('.tooltip-inner');
+                    if (inner) {
+                        inner.style.setProperty('width', '880px', 'important');
+                        inner.style.setProperty('min-width', '880px', 'important');
+                        inner.style.setProperty('max-width', '1280px', 'important');
+                        inner.style.setProperty('text-align', 'left', 'important');
+                    }
+                }
+            });
+            el.addEventListener('hidden.bs.tooltip', function() {
+                var tip = document.querySelector('.tooltip.role-groups-tooltip-popup');
+                if (tip) tip.classList.remove('role-groups-tooltip-popup');
+            });
+        }
+    });
+
+    {% if user_permissions.roles.add %}
+    window.loadCreateRoleGroups = function(companyIds) {
+        var container = document.getElementById('createRoleGroupsContainer');
+        var placeholder = document.getElementById('createRoleGroupsPlaceholder');
+        if (!container) return;
+        if (!companyIds || companyIds.length === 0) {
+            if (placeholder) { placeholder.textContent = '{% trans "Select one or more companies to see access groups." %}'; placeholder.style.display = ''; }
+            container.innerHTML = '';
+            return;
+        }
+        if (placeholder) placeholder.style.display = 'none';
+        container.innerHTML = '<span class="text-muted">{% trans "Loading..." %}</span>';
+        var apiUrl = getRoleGroupsApiUrl() + '?companies=' + encodeURIComponent(companyIds.join(','));
+        fetch(apiUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                var groups = res.groups || [];
+                container.innerHTML = '';
+                if (placeholder) placeholder.style.display = 'none';
+                groups.forEach(function(g) {
+                    var div = document.createElement('div');
+                    div.className = 'form-check';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.className = 'form-check-input';
+                    cb.name = 'groups';
+                    cb.value = g.id;
+                    cb.id = 'add_grp_' + g.id;
+                    var label = document.createElement('label');
+                    label.className = 'form-check-label';
+                    label.htmlFor = cb.id;
+                    label.textContent = g.name + (g.company_name ? ' (' + g.company_name + ')' : '');
+                    div.appendChild(cb);
+                    div.appendChild(label);
+                    container.appendChild(div);
+                });
+                if (groups.length === 0 && placeholder) {
+                    placeholder.textContent = '{% trans "No access groups for selected companies." %}';
+                    placeholder.style.display = '';
+                }
+            })
+            .catch(function() {
+                container.innerHTML = '';
+                if (placeholder) { placeholder.textContent = '{% trans "Error loading groups." %}'; placeholder.style.display = ''; }
+            });
+    };
+    document.getElementById('createRoleModal') && document.getElementById('createRoleModal').addEventListener('change', function(e) {
+        if (e.target && e.target.classList.contains('add-role-company-cb')) {
+            var companyIds = [];
+            document.querySelectorAll('#createRoleModal .add-role-company-cb:checked').forEach(function(cb) { companyIds.push(cb.value); });
+            window.loadCreateRoleGroups(companyIds);
+        }
+    });
+    var createRoleModal = document.getElementById('createRoleModal');
+    if (createRoleModal) {
+        createRoleModal.addEventListener('hidden.bs.modal', function() {
+            var f = document.getElementById('createRoleForm');
+            if (f) {
+                f.reset();
+                var colorInput = document.getElementById('add_role_color');
+                if (colorInput) colorInput.value = '#6c757d';
+                f.querySelectorAll('.is-invalid').forEach(function(el) { el.classList.remove('is-invalid'); });
+            }
+            var errEl = document.getElementById('createRoleFormErrors');
+            if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
+            document.getElementById('createRoleGroupsContainer').innerHTML = '';
+            var ph = document.getElementById('createRoleGroupsPlaceholder');
+            if (ph) { ph.textContent = '{% trans "Select one or more companies to see access groups." %}'; ph.style.display = ''; }
+        });
+    }
+    var createRoleForm = document.getElementById('createRoleForm');
+    if (createRoleForm) {
+        createRoleForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var errEl = document.getElementById('createRoleFormErrors');
+            errEl.classList.add('d-none');
+            createRoleForm.querySelectorAll('.is-invalid').forEach(function(el) { el.classList.remove('is-invalid'); });
+            var fd = new FormData(createRoleForm);
+            var allowed = (document.getElementById('add_allowed_modules') && document.getElementById('add_allowed_modules').value) || '';
+            if (allowed) fd.set('allowed_metrics_modules', JSON.stringify(allowed.split(',').map(function(x) { return x.trim(); }).filter(Boolean)));
+            fetch("{% url 'create_role' %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': fd.get('csrfmiddlewaretoken'), 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.status === 'success') {
+                    bootstrap.Modal.getInstance(document.getElementById('createRoleModal')).hide();
+                    createRoleForm.reset();
+                    document.getElementById('add_role_color').value = '#6c757d';
+                    window.location.reload();
+                } else {
+                    var msg = data.message || '';
+                    if (data.errors) {
+                        Object.keys(data.errors).forEach(function(key) {
+                            var input = createRoleForm.querySelector('[name="' + key + '"]');
+                            if (input) { input.classList.add('is-invalid'); }
+                            msg += (msg ? ' ' : '') + (Array.isArray(data.errors[key]) ? data.errors[key].join(' ') : data.errors[key]);
+                        });
+                    }
+                    errEl.textContent = msg || 'Error';
+                    errEl.classList.remove('d-none');
+                }
+            }).catch(function() {
+                errEl.textContent = 'Request failed';
+                errEl.classList.remove('d-none');
+            });
+        });
+    }
+    {% endif %}
+
+    {% if user_permissions.roles.edit %}
+    window.loadEditRoleGroups = function(companyIds, selectedGroupIds) {
+        var container = document.getElementById('editRoleGroupsContainer');
+        var placeholder = document.getElementById('editRoleGroupsPlaceholder');
+        if (!container) return;
+        if (!companyIds || companyIds.length === 0) {
+            if (placeholder) { placeholder.textContent = '{% trans "Select one or more companies to see access groups." %}'; placeholder.style.display = ''; }
+            container.querySelectorAll('.edit-role-group-cb').forEach(function(el) { el.closest('.form-check').remove(); });
+            return;
+        }
+        if (placeholder) placeholder.style.display = 'none';
+        container.querySelectorAll('.form-check').forEach(function(el) { el.remove(); });
+        var apiUrl = getRoleGroupsApiUrl() + '?companies=' + encodeURIComponent(companyIds.join(','));
+        fetch(apiUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                var groups = res.groups || [];
+                container.querySelectorAll('.form-check').forEach(function(el) { el.remove(); });
+                if (placeholder) { placeholder.style.display = 'none'; }
+                var selSet = (selectedGroupIds || []).reduce(function(s, id) { s[parseInt(id, 10)] = true; return s; }, {});
+                groups.forEach(function(g) {
+                    var div = document.createElement('div');
+                    div.className = 'form-check';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.className = 'form-check-input edit-role-group-cb';
+                    cb.name = 'groups';
+                    cb.value = g.id;
+                    cb.id = 'edit_grp_' + g.id;
+                    if (selSet[g.id]) cb.checked = true;
+                    var label = document.createElement('label');
+                    label.className = 'form-check-label';
+                    label.htmlFor = cb.id;
+                    label.textContent = g.name + (g.company_name ? ' (' + g.company_name + ')' : '');
+                    div.appendChild(cb);
+                    div.appendChild(label);
+                    container.appendChild(div);
+                });
+                if (groups.length === 0 && placeholder) {
+                    placeholder.textContent = '{% trans "No access groups for selected companies." %}';
+                    placeholder.style.display = '';
+                }
+            })
+            .catch(function() {
+                if (placeholder) { placeholder.textContent = '{% trans "Error loading groups." %}'; placeholder.style.display = ''; }
+            });
+    };
+    window.loadRoleIntoEditModal = function(data) {
+        document.getElementById('edit_role_id').value = data.id;
+        document.getElementById('edit_role_name').value = data.name || '';
+        document.getElementById('edit_role_slug').value = data.slug || '';
+        document.getElementById('edit_role_description').value = data.description || '';
+        document.getElementById('edit_role_color').value = data.color || '#6c757d';
+        document.getElementById('edit_role_order').value = data.order || 0;
+        document.getElementById('edit_role_is_active').checked = !!data.is_active;
+        document.querySelectorAll('#editRoleModal .edit-role-company-cb').forEach(function(cb) {
+            cb.checked = (data.company_ids || []).indexOf(parseInt(cb.value, 10)) !== -1;
+        });
+        document.getElementById('edit_allowed_modules').value = Array.isArray(data.allowed_metrics_modules) ? data.allowed_metrics_modules.join(', ') : (data.allowed_metrics_modules || '');
+        var companyIds = (data.company_ids || []).map(Number);
+        window.loadEditRoleGroups(companyIds, data.group_ids || []);
+    };
+    document.querySelectorAll('.edit-role').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var roleId = this.dataset.roleId;
+            var errEl = document.getElementById('editRoleFormErrors');
+            if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
+            document.getElementById('editRoleForm').querySelectorAll('.is-invalid').forEach(function(el) { el.classList.remove('is-invalid'); });
+            var url = "{% url 'get_role' 0 %}".replace('0', roleId);
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.status === 'success') {
+                        window.loadRoleIntoEditModal(data.data);
+                        var modal = new bootstrap.Modal(document.getElementById('editRoleModal'));
+                        modal.show();
+                    } else {
+                        alert(data.message || 'Error loading role');
+                    }
+                })
+                .catch(function() { alert('Request failed'); });
+        });
+    });
+    document.getElementById('editRoleModal') && document.getElementById('editRoleModal').addEventListener('change', function(e) {
+        if (e.target && e.target.classList.contains('edit-role-company-cb')) {
+            var companyIds = [];
+            document.querySelectorAll('#editRoleModal .edit-role-company-cb:checked').forEach(function(cb) { companyIds.push(cb.value); });
+            var selectedGroupIds = [];
+            document.querySelectorAll('#editRoleModal .edit-role-group-cb:checked').forEach(function(cb) { selectedGroupIds.push(cb.value); });
+            window.loadEditRoleGroups(companyIds, selectedGroupIds);
+        }
+    });
+    var editRoleForm = document.getElementById('editRoleForm');
+    if (editRoleForm) {
+        editRoleForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var errEl = document.getElementById('editRoleFormErrors');
+            errEl.classList.add('d-none');
+            editRoleForm.querySelectorAll('.is-invalid').forEach(function(el) { el.classList.remove('is-invalid'); });
+            var fd = new FormData(editRoleForm);
+            var allowed = (document.getElementById('edit_allowed_modules') && document.getElementById('edit_allowed_modules').value) || '';
+            if (allowed) fd.set('allowed_metrics_modules', JSON.stringify(allowed.split(',').map(function(x) { return x.trim(); }).filter(Boolean)));
+            var roleId = document.getElementById('edit_role_id').value;
+            var editUrl = "{% url 'edit_role' 0 %}".replace('0', roleId);
+            fetch(editUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': fd.get('csrfmiddlewaretoken'), 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.status === 'success') {
+                    bootstrap.Modal.getInstance(document.getElementById('editRoleModal')).hide();
+                    window.location.reload();
+                } else {
+                    var msg = data.message || '';
+                    if (data.errors) {
+                        Object.keys(data.errors).forEach(function(key) {
+                            var input = editRoleForm.querySelector('[name="' + key + '"]');
+                            if (input) { input.classList.add('is-invalid'); }
+                            msg += (msg ? ' ' : '') + (Array.isArray(data.errors[key]) ? data.errors[key].join(' ') : data.errors[key]);
+                        });
+                    }
+                    errEl.textContent = msg || 'Error';
+                    errEl.classList.remove('d-none');
+                }
+            }).catch(function() {
+                errEl.textContent = 'Request failed';
+                errEl.classList.remove('d-none');
+            });
+        });
+    }
+    {% endif %}
+
+    {% if user_permissions.roles.delete %}
+    window.handleDeleteRole = function(roleId, roleName) {
+        document.getElementById('delete_role_id').value = roleId;
+        document.getElementById('deleteRoleName').textContent = roleName || roleId;
+        var modal = new bootstrap.Modal(document.getElementById('deleteRoleModal'));
+        modal.show();
+    };
+    var confirmDeleteRoleBtn = document.getElementById('confirmDeleteRoleBtn');
+    if (confirmDeleteRoleBtn) {
+        confirmDeleteRoleBtn.addEventListener('click', function() {
+            var roleId = document.getElementById('delete_role_id').value;
+            if (!roleId) return;
+            var deleteUrl = "{% url 'delete_role' 0 %}".replace('0', roleId);
+            var csrf = document.querySelector('#deleteRoleModal [name=csrfmiddlewaretoken]') || document.querySelector('[name=csrfmiddlewaretoken]');
+            confirmDeleteRoleBtn.disabled = true;
+            fetch(deleteUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf ? csrf.value : '', 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.status === 'success') {
+                    bootstrap.Modal.getInstance(document.getElementById('deleteRoleModal')).hide();
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Error');
+                }
+            }).catch(function() { alert('Request failed'); }).finally(function() {
+                confirmDeleteRoleBtn.disabled = false;
+            });
+        });
+    }
+    {% endif %}
+});
+</script>
+{% endblock %}

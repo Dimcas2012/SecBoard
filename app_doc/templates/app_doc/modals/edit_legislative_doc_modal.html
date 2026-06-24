@@ -1,0 +1,142 @@
+{% load i18n %}
+<!-- Edit Legislative Document Modal -->
+<div class="modal fade" id="editLegislativeDocModal" tabindex="-1" aria-labelledby="editLegislativeDocModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editLegislativeDocModalLabel">{% trans "Edit Legislative Document" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editLegislativeDocForm" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" id="editDocId" name="doc_id">
+                    <input type="hidden" id="removeFile" name="remove_file" value="false">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="editTitle" class="form-label">{% trans "Title" %} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="editTitle" name="title" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="editDocNumber" class="form-label">{% trans "Document Number" %}</label>
+                            <input type="text" class="form-control" id="editDocNumber" name="doc_number">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editDocType" class="form-label">{% trans "Document Type" %} <span class="text-danger">*</span></label>
+                            <select class="form-select doc-type-select" id="editDocType" name="doc_type" required>
+                                <option value=""></option>
+                                {% for doc_type in doc_types %}
+                                <option value="{{ doc_type.id }}" data-color="{{ doc_type.color }}">{{ doc_type.get_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="editIssuingAuthority" class="form-label">{% trans "Issuing Authority" %}</label>
+                            <input type="text" class="form-control" id="editIssuingAuthority" name="issuing_authority">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="editRegulator" class="form-label">{% trans "Regulator" %}</label>
+                            <select class="form-select regulator-select" id="editRegulator" name="regulator">
+                                <option value="">{% trans "Select Regulator" %}</option>
+                                {% for regulator in regulators %}
+                                <option value="{{ regulator.id }}" data-color="{{ regulator.color }}">{{ regulator.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">{% trans "Select the regulatory body responsible for this document" %}</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editOriginalUrl" class="form-label">{% trans "Original Document URL" %}</label>
+                            <input type="url" class="form-control" id="editOriginalUrl" name="original_url">
+                            <small class="text-muted">{% trans "URL to the original document source" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="editIssueDate" class="form-label">{% trans "Issue Date" %}</label>
+                            <input type="date" class="form-control" id="editIssueDate" name="issue_date">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editEffectiveDate" class="form-label">{% trans "Effective Date" %}</label>
+                            <input type="date" class="form-control" id="editEffectiveDate" name="effective_date">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editExpirationDate" class="form-label">{% trans "Expiration Date" %}</label>
+                            <input type="date" class="form-control" id="editExpirationDate" name="expiration_date">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="editDescription" class="form-label">{% trans "Description" %} <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="editDescription" name="description" rows="3" required></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="editCompany" class="form-label">{% trans "Companies" %}</label>
+                            <select class="form-select company-select" id="editCompany" name="company[]" multiple>
+                                {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">{% trans "Select one or more companies" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="editGroups" class="form-label">{% trans "Groups" %} <span class="text-danger">*</span></label>
+                            <select class="form-select groups-select" id="editGroups" name="groups[]" multiple required>
+                                {% for group in groups %}
+                                <option value="{{ group.group.id }}">{{ group.group.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">{% trans "Select groups that will have access to this document" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">{% trans "Current PDF File" %}</label>
+                            <div id="editFileContainer" class="p-2 border rounded" style="display: none;">
+                                <!-- File information will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="editPdfFile" class="form-label">{% trans "Replace PDF Document" %}</label>
+                            <input type="file" class="form-control" id="editPdfFile" name="pdf_file" accept=".pdf">
+                            <small class="text-muted">{% trans "Upload a new PDF document to replace the current one (max 10MB)" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="editHtmlContent" class="form-label">{% trans "HTML Content" %}</label>
+                            <textarea class="form-control" id="editHtmlContent" name="html_content" rows="5"></textarea>
+                            <small class="text-muted">{% trans "Edit HTML content manually or use the document parser" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Save Changes" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div> 

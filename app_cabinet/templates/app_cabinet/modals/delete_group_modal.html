@@ -1,0 +1,110 @@
+{# templates/app_cabinet/modals/delete_group_modal.html #}
+{% load i18n %}
+
+<!-- Delete Group Confirmation Modal -->
+<div class="modal fade" id="deleteGroupModal" tabindex="-1" aria-labelledby="deleteGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteGroupModalLabel">{% trans "Delete Group" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Are you sure you want to delete this group?" %}</p>
+                <p class="text-danger">{% trans "This action cannot be undone." %}</p>
+                <input type="hidden" id="delete_group_id">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteButton">{% trans "Delete" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block delete_group_modal_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteGroupModal = document.getElementById('deleteGroupModal');
+    const deleteGroupIdInput = document.getElementById('delete_group_id');
+    const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+
+    // Initialize the delete handler
+    window.handleDeleteGroup = function(groupId) {
+        if (deleteGroupModal && deleteGroupIdInput) {
+            deleteGroupIdInput.value = groupId;
+            const modal = new bootstrap.Modal(deleteGroupModal);
+            modal.show();
+        }
+    };
+
+    // Handle delete confirmation
+    if (confirmDeleteButton) {
+        confirmDeleteButton.addEventListener('click', function() {
+            const groupId = deleteGroupIdInput.value;
+            if (!groupId) return;
+
+            // Disable the button while processing
+            confirmDeleteButton.disabled = true;
+            confirmDeleteButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {% trans "Deleting..." %}';
+
+            // Send delete request
+            fetch(`/en/groups/${groupId}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Show success message
+                    alert(data.message);
+
+                    // Close modal
+                    const modalInstance = bootstrap.Modal.getInstance(deleteGroupModal);
+                    if (modalInstance) {
+                        modalInstance.hide();
+                    }
+
+                    // Remove the row from the table or refresh the page
+                    const row = document.querySelector(`tr[data-group-id="${groupId}"]`);
+                    if (row) {
+                        row.remove();
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    // Show error message
+                    alert(data.message || '{% trans "Error deleting group" %}');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('{% trans "An unexpected error occurred" %}');
+            })
+            .finally(() => {
+                // Reset button state
+                confirmDeleteButton.disabled = false;
+                confirmDeleteButton.innerHTML = '{% trans "Delete" %}';
+            });
+        });
+    }
+
+    // Reset modal when hidden
+    if (deleteGroupModal) {
+        deleteGroupModal.addEventListener('hidden.bs.modal', function () {
+            deleteGroupIdInput.value = '';
+            confirmDeleteButton.disabled = false;
+            confirmDeleteButton.innerHTML = '{% trans "Delete" %}';
+        });
+    }
+});
+</script>
+{% endblock %}

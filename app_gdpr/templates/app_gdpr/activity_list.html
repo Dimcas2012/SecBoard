@@ -1,0 +1,228 @@
+{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Processing Activities" %}{% endblock %}
+
+{% block gdpr_content %}
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2 class="mb-0"><i class="fas fa-tasks me-2"></i>{% trans "Data Processing Activities" %}</h2>
+        <p class="text-muted mb-0">{% trans "Record of Processing Activities (GDPR Article 30)" %}</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="sb-toolbar d-flex flex-wrap gap-1 justify-content-end">
+            <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-tachometer-alt me-1"></i>{% trans "Dashboard" %}
+            </a>
+            {% if can_edit_activities %}
+            <a href="{% url 'app_gdpr:activity_create' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-plus me-1"></i>{% trans "New Activity" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% url 'app_gdpr:activity_list' as activity_list_clear_url %}
+{% filters_expanded 'search' 'legal_basis' 'company' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="activityFiltersCollapse" toggle_id="toggleActivityFilters" icon_id="activityFiltersToggleIcon" filter_clear_url=activity_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="activityFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" id="filterForm" class="row g-1 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" name="search" id="filterSearch" class="form-control form-control-sm"
+                       placeholder="{% trans 'Search by name, description...' %}" value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filterLegalBasis">{% trans "Legal Basis" %}</label>
+                <select name="legal_basis" id="filterLegalBasis" class="form-select form-select-sm">
+                    <option value="">{% trans "All Legal Bases" %}</option>
+                    <option value="consent" {% if request.GET.legal_basis == 'consent' %}selected{% endif %}>{% trans "Consent" %}</option>
+                    <option value="contract" {% if request.GET.legal_basis == 'contract' %}selected{% endif %}>{% trans "Contract" %}</option>
+                    <option value="legal_obligation" {% if request.GET.legal_basis == 'legal_obligation' %}selected{% endif %}>{% trans "Legal Obligation" %}</option>
+                    <option value="vital_interests" {% if request.GET.legal_basis == 'vital_interests' %}selected{% endif %}>{% trans "Vital Interests" %}</option>
+                    <option value="public_task" {% if request.GET.legal_basis == 'public_task' %}selected{% endif %}>{% trans "Public Task" %}</option>
+                    <option value="legitimate_interests" {% if request.GET.legal_basis == 'legitimate_interests' %}selected{% endif %}>{% trans "Legitimate Interests" %}</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                <select name="company" id="filterCompany" class="form-select form-select-sm">
+                    <option value="">{% trans "All Companies" %}</option>
+                    {% for company in accessible_companies %}
+                    <option value="{{ company.id }}" {% if request.GET.company == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterSort">{% trans "Sort By" %}</label>
+                <select name="sort" id="filterSort" class="form-select form-select-sm">
+                    <option value="name" {% if request.GET.sort == 'name' %}selected{% endif %}>{% trans "Name A-Z" %}</option>
+                    <option value="-name" {% if request.GET.sort == '-name' %}selected{% endif %}>{% trans "Name Z-A" %}</option>
+                    <option value="-updated_date" {% if request.GET.sort == '-updated_date' %}selected{% endif %}>{% trans "Recently Updated" %}</option>
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+    <!-- Activities Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "Processing Activities" %} ({{ page_obj.paginator.count }})</h4>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "ID" %}</th>
+                            <th>{% trans "Activity Name" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "Legal Basis" %}</th>
+                            <th>{% trans "Retention" %}</th>
+                            <th>{% trans "International Transfer" %}</th>
+                            <th>{% trans "Responsible" %}</th>
+                            <th>{% trans "Updated" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in activities %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-light text-dark border">{{ activity.id }}</span>
+                            </td>
+                            <td>
+                                <div>
+                                    <strong>{{ activity.get_name|default:activity.name }}</strong>
+                                    {% if not activity.is_active %}
+                                        <br><span class="badge bg-secondary" style="font-size: 0.6rem;">
+                                            <i class="fas fa-archive"></i> {% trans "Inactive" %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    <i class="fas fa-building"></i> {{ activity.company.name }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if activity.legal_basis == 'consent' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-handshake"></i> {{ activity.get_legal_basis_display }}
+                                    </span>
+                                {% elif activity.legal_basis == 'contract' %}
+                                    <span class="badge bg-primary">
+                                        <i class="fas fa-file-contract"></i> {{ activity.get_legal_basis_display }}
+                                    </span>
+                                {% elif activity.legal_basis == 'legal_obligation' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-gavel"></i> {{ activity.get_legal_basis_display }}
+                                    </span>
+                                {% elif activity.legal_basis == 'vital_interests' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-heart"></i> {{ activity.get_legal_basis_display }}
+                                    </span>
+                                {% elif activity.legal_basis == 'public_task' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-building"></i> {{ activity.get_legal_basis_display }}
+                                    </span>
+                                {% elif activity.legal_basis == 'legitimate_interests' %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-chart-line"></i> {{ activity.get_legal_basis_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ activity.get_legal_basis_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-dark">
+                                    <i class="fas fa-hourglass-half"></i> {{ activity.retention_period_days }} {% trans "days" %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if activity.international_transfers %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-globe"></i> {% trans "Yes" %}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-home"></i> {% trans "No" %}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if activity.responsible_person %}
+                                    <small>
+                                        <i class="fas fa-user"></i>
+                                        {{ activity.responsible_person.get_full_name|default:activity.responsible_person.username }}
+                                    </small>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    {{ activity.updated_date|date:"d.m.Y" }}
+                                </small>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'app_gdpr:activity_detail' activity.pk %}" 
+                                       class="btn btn-sm btn-info"
+                                       title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_edit_activities %}
+                                    <a href="{% url 'app_gdpr:activity_update' activity.pk %}" 
+                                       class="btn btn-sm btn-warning"
+                                       title="{% trans 'Edit' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                {% trans "No processing activities found" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% include 'app_gdpr/includes/gdpr_table_pagination.html' with pagination_item_label=_("activities") pagination_aria_label=_("Processing activities pagination") %}
+        </div>
+    </div>
+    
+    <!-- About Processing Activities (collapsible) -->
+    <div class="card mt-4">
+        <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#aboutActivities">
+            <h4 class="mb-0">
+                <i class="fas fa-info-circle text-primary"></i> 
+                {% trans "About Data Processing Activities" %}
+                <i class="fas fa-chevron-down float-end"></i>
+            </h4>
+        </div>
+        <div id="aboutActivities" class="collapse">
+            <div class="card-body">
+                <p style="font-size: 0.75rem;">
+                    {% trans "Under GDPR Article 30, organizations must maintain records of all processing activities, including purposes, categories of data subjects and personal data, recipients, and retention periods." %}
+                </p>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }} — {{ role.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center my-4">
+        <h1 class="mb-0">
+            <i class="fas fa-th-large me-2"></i>
+            {{ page_title }}
+            <span class="badge ms-2" style="background-color: {{ role.color|default:'#6c757d' }};">{{ role.name }}</span>
+        </h1>
+        <a href="{% url 'roles' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>{% trans "Back to Roles" %}
+        </a>
+    </div>
+
+    <p class="text-muted">
+        {% trans "Choose which sections and metrics to show in the Executive View for users with this platform role." %}
+    </p>
+
+    <form id="dashboardConfigForm" method="post" action="">
+        {% csrf_token %}
+        <input type="hidden" name="config" id="configJson" value="">
+        <div class="card mb-4">
+            <div class="card-body">
+                {% for sec in form_sections %}
+                <div class="border rounded p-3 mb-3">
+                    <div class="d-flex align-items-start gap-2 mb-2">
+                        <input type="checkbox" class="form-check-input section-enabled mt-1" id="sec_{{ sec.id }}"
+                               data-section-id="{{ sec.id }}" {% if sec.enabled %}checked{% endif %}
+                               {% if not can_edit %}disabled{% endif %}>
+                        <label class="form-check-label flex-grow-1" for="sec_{{ sec.id }}">
+                            <strong>{{ sec.label }}</strong>
+                        </label>
+                    </div>
+                    {% if sec.description %}
+                    <p class="small text-muted ms-4 mb-2">{{ sec.description }}</p>
+                    {% endif %}
+                    <div class="ms-4">
+                        {% for w in sec.widgets %}
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input widget-cb" id="w_{{ sec.id }}_{{ w.id }}"
+                                   data-section-id="{{ sec.id }}" data-widget-id="{{ w.id }}"
+                                   {% if w.checked %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                            <label class="form-check-label" for="w_{{ sec.id }}_{{ w.id }}">{{ w.label }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% if can_edit %}
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i>{% trans "Save configuration" %}
+                </button>
+                <a href="{% url 'roles' %}" class="btn btn-secondary">{% trans "Cancel" %}</a>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('dashboardConfigForm');
+    if (!form || !document.querySelector('.widget-cb')) return;
+
+    function buildConfig() {
+        var sections = [];
+        {% for sec in form_sections %}
+        (function() {
+            var secEnabled = document.getElementById('sec_{{ sec.id }}');
+            if (!secEnabled) return;
+            var enabled = secEnabled.checked;
+            var widgets = [];
+            {% for w in sec.widgets %}
+            var wCb = document.getElementById('w_{{ sec.id }}_{{ w.id }}');
+            if (wCb && wCb.checked) widgets.push('{{ w.id }}');
+            {% endfor %}
+            sections.push({ id: '{{ sec.id }}', enabled: enabled, widgets: widgets });
+        })();
+        {% endfor %}
+        return { sections: sections };
+    }
+
+    form.addEventListener('submit', function(e) {
+        document.getElementById('configJson').value = JSON.stringify(buildConfig());
+    });
+});
+</script>
+{% endblock %}

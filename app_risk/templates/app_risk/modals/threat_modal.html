@@ -1,0 +1,446 @@
+<!-- SecBoard\SecBoard\templates\app_risk\modals\threat_modal.html-->
+{% load i18n %}
+
+<!-- Language configuration for JavaScript -->
+<script>
+  window.currentLanguage = '{{ LANGUAGE_CODE }}';
+  window.currentLanguageShort = '{{ LANGUAGE_CODE|slice:":2" }}';
+  console.log('ThreatModal: Language configured -', window.currentLanguage, window.currentLanguageShort);
+</script>
+
+<div class="modal fade" id="threatModal" tabindex="-1" aria-labelledby="threatModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="threatModalLabel">
+          <i class="fas fa-shield-alt me-2"></i>{% trans "Add/Edit Threat" %}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="threatForm">
+          {% csrf_token %}
+          <input type="hidden" id="threat-id" name="id">
+          
+          <!-- Navigation tabs for form sections -->
+          <ul class="nav nav-tabs mb-3" id="threatFormTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab" aria-controls="general" aria-selected="true">
+                <i class="fas fa-info-circle me-1"></i>{% trans "General" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="description-tab" data-bs-toggle="tab" data-bs-target="#description" type="button" role="tab" aria-controls="description" aria-selected="false">
+                <i class="fas fa-align-left me-1"></i>{% trans "Description" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="risks-tab" data-bs-toggle="tab" data-bs-target="#risks" type="button" role="tab" aria-controls="risks" aria-selected="false">
+                <i class="fas fa-exclamation-triangle me-1"></i>{% trans "Risks" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="probability-tab" data-bs-toggle="tab" data-bs-target="#probability" type="button" role="tab" aria-controls="probability" aria-selected="false">
+                <i class="fas fa-chart-line me-1"></i>{% trans "Probability" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="impact-assessment-tab" data-bs-toggle="tab" data-bs-target="#impact-assessment" type="button" role="tab" aria-controls="impact-assessment" aria-selected="false">
+                <i class="fas fa-balance-scale me-1"></i>{% trans "Impact Assessment" %}
+              </button>
+            </li>
+          </ul>
+          
+          <!-- Tab content -->
+          <div class="tab-content p-2" id="threatFormTabContent">
+            <!-- General tab -->
+            <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+              <div class="card border shadow-sm">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0">{% trans "Threat Name" %}</h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label for="threat-name-en" class="form-label fw-bold">{% trans "Threat" %} ({% trans "Default: English (En)" %}) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="threat-name-en" name="name_en" data-lang="en" required>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Description tab -->
+            <div class="tab-pane fade" id="description" role="tabpanel" aria-labelledby="description-tab">
+              <div class="card border shadow-sm">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0">{% trans "Threat Description" %}</h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label for="threat-description-en" class="form-label fw-bold">{% trans "Description" %} ({% trans "Default: English (En)" %})</label>
+                    <textarea class="form-control" id="threat-description-en" name="description_en" rows="3" data-lang="en"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Risks tab -->
+            <div class="tab-pane fade" id="risks" role="tabpanel" aria-labelledby="risks-tab">
+              <div class="card border shadow-sm">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0">{% trans "Associated Risks" %}</h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label for="threat-risks-en" class="form-label fw-bold">{% trans "Risks" %} ({% trans "Default: English (En)" %})</label>
+                    <textarea class="form-control" id="threat-risks-en" name="risks_en" rows="3" data-lang="en"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Probability tab -->
+            <div class="tab-pane fade" id="probability" role="tabpanel" aria-labelledby="probability-tab">
+              <div class="card border shadow-sm">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0">{% trans "Probability & Impact Assessment" %}</h6>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <label for="threat-probability-scenario" class="form-label fw-bold">{% trans "Probability Scenario" %} <span class="text-danger">*</span></label>
+                        <select class="form-select" id="threat-probability-scenario" name="probability_scenario" required>
+                          <option value="" selected disabled>{% trans "Select a scenario" %}</option>
+                          <option value="manual">{% trans "Manual input" %}</option>
+                          <option value="daily">{% trans "Daily" %}</option>
+                          <option value="m_in_n_days">{% trans "M times in N days" %}</option>
+                          <option value="once_in_n_years">{% trans "Once in N years" %}</option>
+                          <option value="m_in_n_years">{% trans "M times in N years" %}</option>
+                        </select>
+                      </div>
+                      
+                      <!-- Scenario Parameters -->
+                      <div class="scenario-params d-none">
+                        <div class="card border-info">
+                          <div class="card-header bg-info text-white">
+                            <h6 class="mb-0">
+                              <i class="fas fa-cog me-1"></i>{% trans "Scenario Parameters" %}
+                            </h6>
+                          </div>
+                          <div class="card-body">
+                            <div class="row">
+                              <div class="col-md-6 mb-3">
+                                <label for="threat-scenario-m" class="form-label fw-bold">
+                                  <i class="fas fa-hashtag text-primary me-1"></i>{% trans "M" %}
+                                </label>
+                                <input type="number" class="form-control" id="threat-scenario-m" name="scenario_m" min="1" placeholder="1">
+                                <small class="form-text text-muted" id="m-help-text">
+                                  {% trans "Number of occurrences" %}
+                                </small>
+                              </div>
+                              <div class="col-md-6 mb-3">
+                                <label for="threat-scenario-n" class="form-label fw-bold">
+                                  <i class="fas fa-clock text-warning me-1"></i>{% trans "N" %}
+                                </label>
+                                <input type="number" class="form-control" id="threat-scenario-n" name="scenario_n" min="1" placeholder="1">
+                                <small class="form-text text-muted" id="n-help-text">
+                                  {% trans "Time period" %}
+                                </small>
+                              </div>
+                            </div>
+                                                         <div class="alert alert-info mb-0">
+                               <i class="fas fa-info-circle me-1"></i>
+                               <small id="scenario-description">
+                                 {% trans "Enter the parameters to calculate probability automatically" %}
+                               </small>
+                               <div class="mt-2">
+                                 <button type="button" class="btn btn-sm btn-outline-info" id="calculate-probability-btn">
+                                   <i class="fas fa-calculator me-1"></i>{% trans "Calculate Probability" %}
+                                 </button>
+                               </div>
+                             </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <!-- Manual Input Section -->
+                      <div class="manual-input-section d-none">
+                        <div class="card border-success">
+                          <div class="card-header bg-success text-white">
+                            <h6 class="mb-0">
+                              <i class="fas fa-edit me-1"></i>{% trans "Manual Probability Input" %}
+                            </h6>
+                          </div>
+                          <div class="card-body">
+                            <div class="alert alert-success mb-0">
+                              <i class="fas fa-hand-pointer me-1"></i>
+                              <small>{% trans "You can manually enter the probability value below" %}</small>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <label for="threat-impact" class="form-label fw-bold">
+                          {% trans "Impact" %} <span class="text-danger">*</span>
+                          <span class="badge bg-info ms-2">{% trans "Auto-calculated" %}</span>
+                        </label>
+                        <div class="input-group">
+                          <input type="number" class="form-control" id="threat-impact" name="impact" step="0.01" min="0" required readonly>
+                          <span class="input-group-text"><i class="fas fa-calculator"></i></span>
+                        </div>
+                        <small class="form-text text-muted">
+                          <i class="fas fa-info-circle text-info me-1"></i>
+                          {% trans "Automatically calculated based on Financial, Operational, and Reputational impacts" %}
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label for="threat-probability" class="form-label fw-bold">{% trans "Probability" %} <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                      <input type="number" class="form-control probability-input" id="threat-probability" name="probability" step="0.000001" min="0" max="1" required>
+                      <span class="input-group-text">%</span>
+                    </div>
+                    <div class="probability-container mt-2">
+                      <div class="probability-bar rounded shadow-sm">
+                        <div class="probability-visual rounded-start"></div>
+                      </div>
+                      <div class="d-flex justify-content-between mt-1">
+                        <small>0%</small>
+                        <small>50%</small>
+                        <small>100%</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Impact Assessment tab -->
+            <div class="tab-pane fade" id="impact-assessment" role="tabpanel" aria-labelledby="impact-assessment-tab">
+              <div class="card border shadow-sm">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0">{% trans "Detailed Impact Assessment" %}</h6>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <!-- Financial Impact -->
+                    <div class="col-md-4">
+                      <div class="mb-3">
+                        <label for="threat-financial-impact" class="form-label fw-bold">
+                          <i class="fas fa-money-bill-wave text-success me-1"></i>{% trans "Financial Impact" %}
+                        </label>
+                        <select class="form-select" id="threat-financial-impact" name="financial_impact">
+                          <option value="">{% trans "Select financial impact level" %}</option>
+                        </select>
+                        <div id="financial-impact-details" class="mt-2 p-2 bg-light rounded" style="display: none;">
+                          <small class="text-muted" id="financial-impact-description"></small>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Operational Impact -->
+                    <div class="col-md-4">
+                      <div class="mb-3">
+                        <label for="threat-operational-impact" class="form-label fw-bold">
+                          <i class="fas fa-cogs text-warning me-1"></i>{% trans "Operational Impact" %}
+                        </label>
+                        <select class="form-select" id="threat-operational-impact" name="operational_impact">
+                          <option value="">{% trans "Select operational impact level" %}</option>
+                        </select>
+                        <div id="operational-impact-details" class="mt-2 p-2 bg-light rounded" style="display: none;">
+                          <small class="text-muted" id="operational-impact-description"></small>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Reputational Impact -->
+                    <div class="col-md-4">
+                      <div class="mb-3">
+                        <label for="threat-reputational-impact" class="form-label fw-bold">
+                          <i class="fas fa-star text-info me-1"></i>{% trans "Reputational Impact" %}
+                        </label>
+                        <select class="form-select" id="threat-reputational-impact" name="reputational_impact">
+                          <option value="">{% trans "Select reputational impact level" %}</option>
+                        </select>
+                        <div id="reputational-impact-details" class="mt-2 p-2 bg-light rounded" style="display: none;">
+                          <small class="text-muted" id="reputational-impact-description"></small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Overall Impact Summary -->
+                  <div class="row mt-3">
+                    <div class="col-12">
+                      <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                          <h6 class="mb-0">
+                            <i class="fas fa-calculator me-1"></i>{% trans "Overall Impact Summary" %}
+                          </h6>
+                        </div>
+                        <div class="card-body">
+                          <div class="row">
+                            <div class="col-md-6">
+                              <div class="mb-2">
+                                <strong>{% trans "Calculated Overall Impact:" %}</strong>
+                                <span id="overall-impact-value" class="badge bg-secondary ms-2">0.00</span>
+                              </div>
+                              <div class="progress mb-2" style="height: 20px;">
+                                <div id="overall-impact-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                              </div>
+                            </div>
+                            <div class="col-md-6">
+                              <div class="mb-2">
+                                <strong>{% trans "Impact Level:" %}</strong>
+                                <span id="overall-impact-level" class="badge bg-secondary ms-2">{% trans "Not specified" %}</span>
+                              </div>
+                              <div class="mb-2">
+                                <strong>{% trans "Risk Calculation:" %}</strong>
+                                <span id="risk-calculation" class="text-muted">{% trans "Threat Impact = Probability × Overall Impact × 100" %}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <div class="d-flex justify-content-between w-100">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-1"></i>{% trans "Close" %}
+          </button>
+          <div>
+            <button type="button" class="btn btn-info me-2 d-none" id="translateBtn" aria-hidden="true">
+              <i class="fas fa-language me-1"></i>{% trans "Translate" %}
+            </button>
+            <button type="button" class="btn btn-primary" id="saveThreatBtn">
+              <i class="fas fa-save me-1"></i>{% trans "Save" %}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- View / Edit Threat Translation Modal -->
+<div class="modal fade" id="viewThreatTranslationModal" tabindex="-1" aria-labelledby="viewThreatTranslationModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-info bg-opacity-25">
+        <h5 class="modal-title" id="viewThreatTranslationModalLabel">
+          <i class="fas fa-language me-2"></i>{% trans "Threat Translation" %} — <span id="viewThreatTranslationCountryName"></span> <span id="viewThreatTranslationCountryCode" class="badge bg-secondary ms-1"></span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="viewThreatTranslationError" class="alert alert-danger mb-3" style="display: none;"></div>
+        <div id="viewThreatTranslationContent">
+          <div class="mb-2"><label class="form-label small text-muted mb-0">{% trans "Local Name" %}</label><textarea class="form-control form-control-sm" id="viewThreatTranslationNameLocal" rows="2" {% if not user_permissions.can_edit_config %}readonly{% endif %}></textarea></div>
+          <div class="mb-2"><label class="form-label small text-muted mb-0">{% trans "Description" %}</label><textarea class="form-control form-control-sm" id="viewThreatTranslationDescription" rows="4" {% if not user_permissions.can_edit_config %}readonly{% endif %}></textarea></div>
+          <div class="mb-2"><label class="form-label small text-muted mb-0">{% trans "Risks" %}</label><textarea class="form-control form-control-sm" id="viewThreatTranslationRisks" rows="3" {% if not user_permissions.can_edit_config %}readonly{% endif %}></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+        {% if user_permissions.can_edit_config %}
+        <button type="button" class="btn btn-primary" id="viewThreatTranslationSaveBtn"><i class="fas fa-save me-1"></i>{% trans "Save" %}</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Translate Threat Modal: Country, method (Google/AI), preview, save -->
+<div class="modal fade" id="translateThreatModal" tabindex="-1" aria-labelledby="translateThreatModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-info bg-opacity-25">
+        <h5 class="modal-title" id="translateThreatModalLabel"><i class="fas fa-language me-2"></i>{% trans "Translate (Threat Translations)" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">{% trans "Translation method" %}</label>
+          <div class="d-flex gap-4">
+            <div class="form-check"><input class="form-check-input" type="radio" name="translateThreatMethod" id="translateThreatMethodGoogle" value="google" checked><label class="form-check-label" for="translateThreatMethodGoogle">{% trans "Google Translate" %}</label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="translateThreatMethod" id="translateThreatMethodAi" value="ai"><label class="form-check-label" for="translateThreatMethodAi">{% trans "AI" %} ({% trans "default AI provider" %})</label></div>
+          </div>
+        </div>
+        <div id="translateThreatErrorContainer" class="alert alert-danger mb-3" style="display: none;"><span id="translateThreatErrorMessage"></span></div>
+        <div class="row mb-3">
+          <div class="col-md-4"><label for="translateThreatThreat" class="form-label">{% trans "Threat" %}</label><select class="form-select" id="translateThreatThreat"><option value="">{% trans "Select threat" %}</option></select></div>
+          <div class="col-md-4"><label for="translateThreatCountry" class="form-label">{% trans "Country" %}</label><select class="form-select" id="translateThreatCountry"><option value="">{% trans "Select country" %}</option></select></div>
+          <div class="col-md-4 d-flex align-items-end"><button type="button" class="btn btn-primary w-100" id="translateThreatGenerateBtn"><i class="fas fa-magic me-1"></i>{% trans "Generate translation" %}</button></div>
+        </div>
+        <div id="translateThreatPreviewSection" class="border rounded p-3 bg-light" style="display: none;">
+          <h6 class="mb-3">{% trans "Preview — edit if needed, then Save" %}</h6>
+          <div class="mb-2"><label class="form-label small mb-0">{% trans "Local Name" %}</label><textarea class="form-control form-control-sm" id="translateThreatPreviewNameLocal" rows="2"></textarea></div>
+          <div class="mb-2"><label class="form-label small mb-0">{% trans "Description" %}</label><textarea class="form-control form-control-sm" id="translateThreatPreviewDescription" rows="3"></textarea></div>
+          <div class="mb-2"><label class="form-label small mb-0">{% trans "Risks" %}</label><textarea class="form-control form-control-sm" id="translateThreatPreviewRisks" rows="3"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+        <button type="button" class="btn btn-primary" id="translateThreatSaveBtn" style="display: none;"><i class="fas fa-save me-1"></i>{% trans "Save translation" %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .scenario-params .card {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .manual-input-section .card {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .btn-outline-info:hover {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+  }
+  
+  .form-control:focus {
+    border-color: #17a2b8;
+    box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.25);
+  }
+  
+  .input-group-text {
+    background-color: #f8f9fa;
+    border-color: #ced4da;
+  }
+  
+  .probability-container {
+    margin-top: 10px;
+  }
+  
+  .probability-bar {
+    height: 20px;
+    background-color: #e9ecef;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .probability-visual {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745, #ffc107, #dc3545);
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+</style>

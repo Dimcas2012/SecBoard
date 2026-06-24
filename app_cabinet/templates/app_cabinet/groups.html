@@ -1,0 +1,793 @@
+<!--SecBoard/templates/app_cabinet/groups.html-->
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load cabinet_permissions %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_cabinet/includes/cabinet_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_cabinet/css/groups-page.css' %}">
+{% endblock %}
+
+{% block title %}{% trans "Groups Management" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 cabinet-page">
+    <div class="my-3">
+        <h1 class="mb-0"><i class="bi bi-people me-2"></i>{% trans "Groups Management" %}</h1>
+    </div>
+
+    <!-- Filters (collapsed by default) -->
+    <div class="card mb-2 filter-section access-request-filters cabinet-filters-card">
+        {% url 'groups' as groups_clear_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="groupsFiltersCollapse" toggle_id="toggleGroupsFilters" icon_id="groupsFiltersToggleIcon" filter_clear_url=groups_clear_url %}
+        <div class="collapse{% if request.GET.search or request.GET.company %} show{% endif %}" id="groupsFiltersCollapse">
+        <div class="card-body py-2">
+            <form id="groupFilterForm" method="get" class="row g-1 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="search">{% trans "Search" %}</label>
+                    <input type="text" class="form-control form-control-sm" id="search" name="search"
+                           value="{{ request.GET.search }}"
+                           placeholder="{% trans 'Search by name or description...' %}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="company">{% trans "Company" %}</label>
+                    <select class="form-select form-select-sm" id="company" name="company">
+                        <option value="">{% trans "All Companies" %}</option>
+                        {% for company in companies %}
+                        <option value="{{ company.id }}" {% if request.GET.company|stringformat:"s" == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+
+    <!-- Groups Table -->
+    <div class="card mb-4">
+        <div class="card-header py-2 d-flex align-items-center flex-wrap gap-2">
+            <i class="bi bi-list-ul"></i>
+            <h6 class="mb-0">{% trans "Groups List" %}</h6>
+            <span class="badge bg-secondary">{{ page_obj.paginator.count }} {% trans "total" %}</span>
+        </div>
+        <div class="card-body py-2">
+            <div class="export-controls mb-2">
+                <div class="row align-items-center">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if user_permissions.groups.add %}
+                            <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="createGroupBtn" data-bs-toggle="modal" data-bs-target="#createGroupModal" title="{% trans 'Create New Group' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" data-bs-toggle="modal" data-bs-target="#cabinetGroupsGuideModal" title="{% trans 'Guide' %}">
+                                <i class="bi bi-book"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive full-width-table"><table class="table table-hover table-sm table-sm-font sb-data-table w-100">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "Name" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "System Group" %}</th>
+                            <th>{% trans "System Group Name" %}</th>
+                            <th>{% trans "Description" %}</th>
+                            <th>{% trans "Users" %}</th>
+                            {% if user_permissions.groups.edit or user_permissions.groups.delete %}
+                            <th class="text-center">{% trans "Actions" %}</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for group in cabinet_groups %}
+                        <tr>
+                            <td>
+                                <span class="badge" style="background-color: {{ group.color }}">
+                                    {{ group.name }}
+                                </span>
+                            </td>
+                            <td>{{ group.company.name|default:"-" }}</td>
+                            <td>{{ group.group.name }}</td>
+                            <td>{{ group.group.name }}</td>
+                            <td>{{ group.description|truncatechars:100 }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info view-group-users" 
+                                        data-group-id="{{ group.group.id }}"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#groupUsersModal"
+                                        title="{% trans 'View Users' %}">
+                                    <i class="fas fa-users"></i>
+                                    <span class="badge bg-light text-dark ms-1">{{ group.group.user_set.count }}</span>
+                                </button>
+                            </td>
+                            {% if user_permissions.groups.edit or user_permissions.groups.delete %}
+                            <td class="text-center table-actions">
+                                {% if user_permissions.groups.edit %}
+                                <button class="btn btn-sm btn-outline-primary edit-group"
+                                        data-cabinet-group-id="{{ group.id }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                {% endif %}
+                                {% if user_permissions.groups.delete %}
+                                <button class="btn btn-sm btn-danger delete-group"
+                                        data-cabinet-group-id="{{ group.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if user_permissions.groups.edit or user_permissions.groups.delete %}7{% else %}6{% endif %}" class="text-center">{% trans "No groups found" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% include 'app_cabinet/includes/cabinet_table_pagination.html' %}
+        </div>
+    </div>
+</div>
+
+<!-- Create Group Modal -->
+{% if user_permissions.groups.add %}
+{% include 'app_cabinet/modals/add_group_modal.html' %}
+{% endif %}
+
+<!-- Edit Group Modal -->
+{% if user_permissions.groups.edit %}
+{% include 'app_cabinet/modals/edit_group_modal.html' %}
+{% endif %}
+
+<!-- Delete Confirmation Modal -->
+{% if user_permissions.groups.delete %}
+{% include 'app_cabinet/modals/delete_group_modal.html' %}
+{% endif %}
+
+<!-- Cabinet Groups Guide Modal -->
+<div class="modal fade" id="cabinetGroupsGuideModal" tabindex="-1" aria-labelledby="cabinetGroupsGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'cabinet_groups_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cabinetGroupsGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Cabinet Groups Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="cabinetGroupsGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Group Users Modal -->
+<div class="modal fade" id="groupUsersModal" tabindex="-1" aria-labelledby="groupUsersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="groupUsersModalLabel">
+                    <i class="fas fa-users me-2"></i>
+                    <span id="groupModalTitle">{% trans "Group Users" %}</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="groupUsersLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                </div>
+                <div id="groupUsersContent" style="display: none;">
+                    <div class="mb-3">
+                        <input type="text" id="searchGroupUsers" class="form-control" placeholder="{% trans 'Search users...' %}">
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "Full Name" %}</th>
+                                    <th>{% trans "Email" %}</th>
+                                    <th>{% trans "Company" %}</th>
+                                    <th>{% trans "Department" %}</th>
+                                    <th>{% trans "Position" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    {% if user_permissions.groups.edit %}
+                                    <th class="text-center">{% trans "Actions" %}</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody id="groupUsersTableBody">
+                                <!-- Users will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noUsersMessage" class="text-center text-muted py-3" style="display: none;">
+                        {% trans "No users in this group" %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+
+{% block extra_js %}
+<script>
+(function() {
+    var modal = document.getElementById('cabinetGroupsGuideModal');
+    if (modal) {
+        var guideUrl = modal.getAttribute('data-guide-url');
+        if (guideUrl) {
+            modal.addEventListener('show.bs.modal', function() {
+                var body = document.getElementById('cabinetGroupsGuideModalBody');
+                if (!body) return;
+                body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+                $.getJSON(guideUrl)
+                    .done(function(data) {
+                        if (data && data.content) {
+                            body.innerHTML = data.content;
+                        } else {
+                            body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                        }
+                    })
+                    .fail(function() {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    });
+            });
+        }
+    }
+})();
+</script>
+<script>
+$(document).ready(function() {
+    // Initialize Bootstrap modals properly
+    {% if user_permissions.groups.add %}
+    const createGroupModal = document.getElementById('createGroupModal');
+    if (createGroupModal) {
+        // Clean up any existing backdrop when modal is hidden
+        createGroupModal.addEventListener('hidden.bs.modal', function () {
+            // Remove any lingering backdrop
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            // Restore body scroll
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        });
+
+        // Clean up when modal is shown
+        createGroupModal.addEventListener('shown.bs.modal', function () {
+            // Ensure only one backdrop exists
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length > 1) {
+                for (let i = 1; i < backdrops.length; i++) {
+                    backdrops[i].remove();
+                }
+            }
+        });
+    }
+    {% endif %}
+
+    // Initialize edit group modal
+    {% if user_permissions.groups.edit %}
+    const editGroupModal = document.getElementById('editGroupModal');
+    if (editGroupModal) {
+        // Clean up any existing backdrop when modal is hidden
+        editGroupModal.addEventListener('hidden.bs.modal', function () {
+            // Remove any lingering backdrop
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            // Restore body scroll
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        });
+
+        // Clean up when modal is shown
+        editGroupModal.addEventListener('shown.bs.modal', function () {
+            // Ensure only one backdrop exists
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length > 1) {
+                for (let i = 1; i < backdrops.length; i++) {
+                    backdrops[i].remove();
+                }
+            }
+        });
+    }
+    {% endif %}
+
+    // Initialize delete group modal
+    {% if user_permissions.groups.delete %}
+    const deleteGroupModal = document.getElementById('deleteGroupModal');
+    if (deleteGroupModal) {
+        // Clean up any existing backdrop when modal is hidden
+        deleteGroupModal.addEventListener('hidden.bs.modal', function () {
+            // Remove any lingering backdrop
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            // Restore body scroll
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        });
+
+        // Clean up when modal is shown
+        deleteGroupModal.addEventListener('shown.bs.modal', function () {
+            // Ensure only one backdrop exists
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length > 1) {
+                for (let i = 1; i < backdrops.length; i++) {
+                    backdrops[i].remove();
+                }
+            }
+        });
+    }
+    {% endif %}
+
+    // Initialize group management
+    initializeGroupManagement();
+
+    // Filter form: submit on change
+    const searchForm = document.getElementById('groupFilterForm');
+    if (searchForm) {
+        function applyGroupFilters() {
+            const searchParams = new URLSearchParams(new FormData(searchForm));
+            searchParams.delete('page');
+            window.location.search = searchParams.toString();
+        }
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            applyGroupFilters();
+        });
+        searchForm.querySelectorAll('select').forEach(function(el) {
+            el.addEventListener('change', applyGroupFilters);
+        });
+        const searchInput = searchForm.querySelector('#search');
+        if (searchInput) {
+            let t;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(t);
+                t = setTimeout(applyGroupFilters, 400);
+            });
+        }
+    }
+});
+
+function initializeGroupManagement() {
+    // Group creation handling
+    {% if user_permissions.groups.add %}
+    const createGroupForm = document.getElementById('createGroupForm');
+    if (createGroupForm) {
+        createGroupForm.addEventListener('submit', handleCreateGroup);
+    }
+    {% endif %}
+
+    // Group editing handling
+    {% if user_permissions.groups.edit %}
+    const editButtons = document.querySelectorAll('.edit-group');
+    if (editButtons.length) {
+        editButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const cabinetGroupId = this.dataset.cabinetGroupId;
+                
+                if (typeof window.loadGroupData === 'function') {
+                    window.loadGroupData(cabinetGroupId);
+                } else {
+                    console.error('loadGroupData is not a function!');
+                    alert('Error: Unable to load group data');
+                }
+            });
+        });
+    }
+    {% endif %}
+
+    // Group deletion handling
+    {% if user_permissions.groups.delete %}
+    const deleteButtons = document.querySelectorAll('.delete-group');
+    if (deleteButtons.length) {
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const groupId = this.dataset.groupId;
+                handleDeleteGroup(groupId);
+            });
+        });
+    }
+    {% endif %}
+}
+
+{% if user_permissions.groups.add %}
+function handleCreateGroup(e) {
+    e.preventDefault();
+
+    // Get form data
+    const form = e.target;
+    const formData = new FormData(form);
+
+    // Send AJAX request
+    fetch('{% url "create_group" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Close modal and clean up backdrop
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createGroupModal'));
+            if (modal) {
+                modal.hide();
+            }
+            cleanupModalBackdrop();
+            
+            // Show success message and reload page
+            alert(data.message);
+            window.location.reload();
+        } else {
+            // Show error message
+            alert(data.message || 'Error creating group');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        
+        // Close modal and clean up backdrop
+        const modal = bootstrap.Modal.getInstance(document.getElementById('createGroupModal'));
+        if (modal) {
+            modal.hide();
+        }
+        cleanupModalBackdrop();
+        
+        alert('An unexpected error occurred');
+    });
+}
+{% endif %}
+
+// Prevent double submission
+function handleFormSubmission(form) {
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {% trans "Processing..." %}';
+    }
+}
+
+// Universal function to clean up modal backdrop
+function cleanupModalBackdrop() {
+    // Remove any lingering backdrop
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+    
+    // Restore body scroll
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+}
+
+// Add global event listener for all modals
+document.addEventListener('DOMContentLoaded', function() {
+    // Clean up on any modal hide
+    document.addEventListener('hidden.bs.modal', cleanupModalBackdrop);
+    
+    // Clean up on page visibility change (when user switches tabs)
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            cleanupModalBackdrop();
+        }
+    });
+    
+    // Handle view group users
+    $(document).on('click', '.view-group-users', function() {
+        const groupId = $(this).data('group-id');
+        loadGroupUsers(groupId);
+    });
+    
+    // Handle search in group users modal
+    $(document).on('keyup', '#searchGroupUsers', function() {
+        const searchTerm = $(this).val().toLowerCase();
+        $('#groupUsersTableBody tr').each(function() {
+            const text = $(this).text().toLowerCase();
+            $(this).toggle(text.indexOf(searchTerm) > -1);
+        });
+    });
+    
+    // Handle remove user from group (use off to prevent double binding)
+    $(document).off('click', '.remove-user-from-group').on('click', '.remove-user-from-group', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const userId = $(this).data('user-id');
+        const groupId = $(this).data('group-id');
+        const userName = $(this).data('user-name');
+        
+        if (confirm('{% trans "Are you sure you want to remove" %} "' + userName + '" {% trans "from this group" %}?')) {
+            removeUserFromGroup(groupId, userId);
+        }
+    });
+});
+
+// Function to load group data for editing (must be global)
+window.loadGroupData = function(cabinetGroupId) {
+    const currentLang = window.location.pathname.split('/')[1];
+    
+    fetch(`/${currentLang}/app_cabinet/groups/${cabinetGroupId}/`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const group = data.data;
+            
+            // Populate form fields
+            document.getElementById('edit_group_id').value = cabinetGroupId;
+            document.getElementById('edit_system_group_name').value = group.system_group_name || '';
+            document.getElementById('edit_company').value = group.company_id || '';
+            document.getElementById('edit_group_name').value = group.name || '';
+            document.getElementById('edit_description').value = group.description || '';
+            document.getElementById('edit_color').value = group.color || '#000000';
+            document.getElementById('edit_color_hex').value = group.color || '#000000';
+            
+            // Load users for the selected company and then check the ones in the group
+            if (group.company_id) {
+                const editUsersList = document.getElementById('editCompanyUsersList');
+                const editUsersCount = document.getElementById('editCompanyUsersCount');
+                const currentLang = window.location.pathname.split('/')[1];
+                const url = `/${currentLang}/app_cabinet/api/company/${group.company_id}/users/`;
+                
+                fetch(url, {
+                    method: 'GET',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(r => r.json())
+                .then(usersData => {
+                    const allUsers = usersData.users || usersData || [];
+                    const users = allUsers.filter(u => u.is_active);
+                    editUsersCount.textContent = users.length;
+                    
+                    if (users.length > 0) {
+                        const items = users.map(u => {
+                            const deptPos = [];
+                            if (u.department_name) deptPos.push(u.department_name);
+                            if (u.position_name) deptPos.push(u.position_name);
+                            const deptPosText = deptPos.length > 0 ? deptPos.join(' / ') : '-';
+                            
+                            // Check if this user is in the group
+                            const isChecked = group.user_ids && group.user_ids.includes(u.id) ? 'checked' : '';
+                            
+                            return `
+                            <div class="edit-user-row d-flex justify-content-between align-items-center py-1 border-bottom" data-user-id="${u.id}">
+                                <div class="form-check d-flex align-items-center">
+                                    <input class="form-check-input me-2" type="checkbox" name="users" value="${u.id}" id="edit_user_${u.id}" ${isChecked}>
+                                    <label class="form-check-label" for="edit_user_${u.id}" style="cursor: pointer;">
+                                        <strong>${u.full_name || u.username || '-'}</strong>
+                                        <div class="text-muted" style="font-size: 0.875rem;">${u.email || ''}</div>
+                                        <div class="text-muted" style="font-size: 0.8rem;"><i class="fas fa-briefcase me-1"></i>${deptPosText}</div>
+                                    </label>
+                                </div>
+                                <span class="badge bg-success">{% trans "Active" %}</span>
+                            </div>
+                        `}).join('');
+                        
+                        editUsersList.innerHTML = items;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading users for edit:', error);
+                });
+            }
+            
+            // Show the modal
+            const editModal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+            editModal.show();
+        } else {
+            alert(data.message || '{% trans "Error loading group data" %}');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading group:', error);
+        alert('{% trans "Error loading group data" %}');
+    });
+};
+
+// Function to load group users
+function loadGroupUsers(groupId) {
+    // Get current language from URL
+    const currentLang = window.location.pathname.split('/')[1];
+    
+    // Show loading, hide content
+    $('#groupUsersLoading').show();
+    $('#groupUsersContent').hide();
+    
+    $.ajax({
+        url: `/${currentLang}/app_cabinet/groups/${groupId}/users/`,
+        method: 'GET',
+        dataType: 'json',
+        success: function(response) {
+            if (response.status === 'success') {
+                const group = response.data;
+                
+                // Update modal title
+                $('#groupModalTitle').text('{% trans "Users in Group" %}: ' + group.name);
+                
+                // Clear and populate table
+                const tbody = $('#groupUsersTableBody');
+                tbody.empty();
+                
+                if (group.users && group.users.length > 0) {
+                    group.users.forEach(function(user) {
+                        const statusBadge = user.is_active 
+                            ? '<span class="badge bg-success">{% trans "Active" %}</span>'
+                            : '<span class="badge bg-secondary">{% trans "Inactive" %}</span>';
+                        
+                        {% if user_permissions.groups.edit %}
+                        const actionsHtml = `
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-danger remove-user-from-group" 
+                                        data-user-id="${user.id}" 
+                                        data-group-id="${group.id}"
+                                        data-user-name="${user.full_name || user.username}"
+                                        title="{% trans 'Remove from Group' %}">
+                                    <i class="fas fa-user-minus"></i>
+                                </button>
+                            </td>
+                        `;
+                        {% else %}
+                        const actionsHtml = '';
+                        {% endif %}
+                        
+                        const row = `
+                            <tr data-user-id="${user.id}">
+                                <td>
+                                    <i class="fas fa-user me-1"></i>
+                                    ${user.full_name || user.username}
+                                </td>
+                                <td>${user.email}</td>
+                                <td>${user.company || '-'}</td>
+                                <td>${user.department || '-'}</td>
+                                <td>${user.position || '-'}</td>
+                                <td>${statusBadge}</td>
+                                ${actionsHtml}
+                            </tr>
+                        `;
+                        tbody.append(row);
+                    });
+                    $('#noUsersMessage').hide();
+                } else {
+                    $('#noUsersMessage').show();
+                }
+                
+                // Hide loading, show content
+                $('#groupUsersLoading').hide();
+                $('#groupUsersContent').show();
+            } else {
+                alert('{% trans "Error loading group users" %}');
+                $('#groupUsersModal').modal('hide');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error loading group users:', error);
+            alert('{% trans "Error loading group users" %}');
+            $('#groupUsersModal').modal('hide');
+        }
+    });
+}
+
+// Function to remove user from group
+function removeUserFromGroup(groupId, userId) {
+    // Prevent double execution using function property
+    if (removeUserFromGroup.inProgress) {
+        console.log('Already processing a removal request, skipping...');
+        return;
+    }
+    
+    removeUserFromGroup.inProgress = true;
+    
+    // Get current language from URL
+    const currentLang = window.location.pathname.split('/')[1];
+    const csrfToken = $('[name=csrfmiddlewaretoken]').val();
+    
+    console.log('Removing user from group:', {
+        groupId: groupId,
+        userId: userId,
+        csrfToken: csrfToken ? 'Found' : 'NOT FOUND',
+        url: `/${currentLang}/app_cabinet/groups/${groupId}/remove-user/`
+    });
+    
+    $.ajax({
+        url: `/${currentLang}/app_cabinet/groups/${groupId}/remove-user/`,
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: {
+            'user_id': userId
+        },
+        dataType: 'json',
+        success: function(response) {
+            removeUserFromGroup.inProgress = false;
+            console.log('Server response:', response);
+            if (response.status === 'success') {
+                // Show success message
+                alert(response.message || '{% trans "User removed from group successfully" %}');
+                
+                // Remove the row from the table
+                $(`#groupUsersTableBody tr[data-user-id="${userId}"]`).fadeOut(300, function() {
+                    $(this).remove();
+                    
+                    // Check if there are no more users
+                    if ($('#groupUsersTableBody tr').length === 0) {
+                        $('#noUsersMessage').show();
+                    }
+                });
+                
+                // Update the badge count on the main page
+                const button = $(`.view-group-users[data-group-id="${groupId}"]`);
+                const badge = button.find('.badge');
+                const currentCount = parseInt(badge.text()) || 0;
+                if (currentCount > 0) {
+                    badge.text(currentCount - 1);
+                }
+            } else {
+                console.error('Error response from server:', response);
+                alert(response.message || '{% trans "Error removing user from group" %}');
+            }
+        },
+        error: function(xhr, status, error) {
+            removeUserFromGroup.inProgress = false;
+            console.error('AJAX error:', {xhr: xhr, status: status, error: error});
+            console.error('Response text:', xhr.responseText);
+            console.error('Response JSON:', xhr.responseJSON);
+            
+            let errorMsg = '{% trans "Error removing user from group" %}';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            } else if (xhr.responseText) {
+                try {
+                    const resp = JSON.parse(xhr.responseText);
+                    errorMsg = resp.message || errorMsg;
+                } catch (e) {
+                    console.error('Failed to parse error response');
+                }
+            }
+            alert(errorMsg);
+        }
+    });
+}
+</script>
+{% endblock %}
+
+{% endblock %}

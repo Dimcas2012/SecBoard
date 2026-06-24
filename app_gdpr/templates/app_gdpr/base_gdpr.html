@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load i18n static %}
+
+{% block styles %}
+{{ block.super }}
+{% include "app_gdpr/includes/gdpr_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 gdpr-page">
+    <div id="gdprGuideBanner" class="alert gdpr-guide-banner alert-dismissible fade show mb-3" role="alert" style="display: none;">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <i class="fas fa-graduation-cap fa-2x me-2 text-info"></i>
+            <div class="flex-grow-1">
+                <h6 class="alert-heading mb-1">{% trans "GDPR Implementation Guide" %}</h6>
+                <p class="mb-0 small text-muted">{% trans "Need help with GDPR compliance? Check our comprehensive step-by-step guide with examples, templates, and interactive tools." %}</p>
+            </div>
+            <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#gdprGuideModal">
+                <i class="fas fa-book-open me-1"></i>{% trans "Open Guide" %}
+            </button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" onclick="dismissGdprBanner()"></button>
+        </div>
+    </div>
+
+    {% block gdpr_content %}{% endblock %}
+
+    <div class="modal fade" id="gdprGuideModal" tabindex="-1" aria-labelledby="gdprGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'app_gdpr:gdpr_guide' %}">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="gdprGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "GDPR Guide" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="gdprGuideModalBody">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                        <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var modal = document.getElementById('gdprGuideModal');
+        if (!modal) return;
+        var guideUrl = modal.getAttribute('data-guide-url');
+        if (!guideUrl) return;
+        function onGuideShow() {
+            var body = document.getElementById('gdprGuideModalBody');
+            if (!body) return;
+            body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+            if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+                jQuery.getJSON(guideUrl)
+                    .done(function(data) {
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    })
+                    .fail(function() {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    });
+            } else {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', guideUrl, true);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                        } catch (e) {
+                            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                        }
+                    } else {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                };
+                xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+                xhr.send();
+            }
+        }
+        modal.addEventListener('show.bs.modal', onGuideShow);
+    })();
+    </script>
+</div>
+
+<script>
+(function() {
+    const banner = document.getElementById('gdprGuideBanner');
+    const bannerKey = 'gdprGuideBannerDismissed';
+    if (!banner || window.location.pathname.includes('/guide/')) return;
+    if (!localStorage.getItem(bannerKey)) {
+        banner.style.display = 'block';
+    }
+})();
+function dismissGdprBanner() {
+    localStorage.setItem('gdprGuideBannerDismissed', 'true');
+}
+</script>
+{% endblock %}

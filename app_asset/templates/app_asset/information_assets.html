@@ -1,0 +1,2668 @@
+<!-- SecBoard\SecBoard\templates\app_asset\information_assets.html-->
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+{% load asset_custom_filters %}
+
+{% block title %}{% trans "Information Assets" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_asset/includes/asset_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_asset/css/information_assets-page.css' %}">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.1.4/css/dataTables.dataTables.min.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid asset-page px-2 py-1">
+    <div class="loading-spinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">{% trans "Loading..." %}</span>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <div>
+            <h2 class="mb-1">{% trans "Assets Register" %}</h2>
+            <p class="text-muted mb-0">{% trans "Manage and track your organization's information assets" %}</p>
+        </div>
+    </div>
+    {% if hasAccess %}
+        <div class="card">
+            <div class="card-body">
+                <div class="card mb-2 filter-section access-request-filters asset-filters-card">
+                    {% include "includes/sb_access_request_filters_header.html" with collapse_id="assetFiltersCollapse" toggle_id="toggleAssetFilters" icon_id="assetFiltersToggleIcon" clear_btn_id="clearAllAssetFilters" %}
+                    <div class="collapse" id="assetFiltersCollapse">
+                    <div class="card-body py-2">
+                        <div class="row g-1">
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                                <select class="form-select form-select-sm column-filter" data-column="3" id="filterCompany">
+                                    <option value="">{% trans "All Companies" %}</option>
+                                    {% for company in allowed_companies %}
+                                    <option value="{{ company.name }}">{{ company.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterGroupType">{% trans "Group/Type" %}</label>
+                                <select class="form-select form-select-sm column-filter" data-column="4" id="filterGroupType">
+                                    <option value="">{% trans "All Groups/Types" %}</option>
+                                    {% for group in groups %}
+                                    <option value="{{ group.display_name }}">{{ group.display_name }}</option>
+                                    {% for at in group.asset_types.all %}
+                                    <option value="{{ group.display_name }}/{{ at.display_name }}">{{ group.display_name }} / {{ at.display_name }}</option>
+                                    {% endfor %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterCia">{% trans "CIA" %}</label>
+                                <select class="form-select form-select-sm column-filter" data-column="8" id="filterCia">
+                                    <option value="">{% trans "All" %}</option>
+                                    {% for level in criticality_levels %}
+                                    <option value="{{ level.display_name }}">{{ level.display_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterSoftware">{% trans "Software" %}</label>
+                                <select class="form-select form-select-sm column-filter" data-column="7" id="filterSoftware">
+                                    <option value="">{% trans "All" %}</option>
+                                    {% for sw in software_register_entries %}
+                                    <option value="{{ sw.name }}">{{ sw.name }}{% if sw.version_pattern %} ({{ sw.version_pattern }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterAccess">{% trans "Access Manage" %}</label>
+                                <select class="form-select form-select-sm column-filter" data-column="11" id="filterAccess">
+                                    <option value="">{% trans "All" %}</option>
+                                    <option value="yes">{% trans "Yes" %}</option>
+                                    <option value="no">{% trans "No" %}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterActual">{% trans "Actual" %}</label>
+                                <select class="form-select form-select-sm column-filter" data-column="12" id="filterActual">
+                                    <option value="">{% trans "All" %}</option>
+                                    <option value="actualized">{% trans "Actualized" %}</option>
+                                    <option value="not actualized">{% trans "Not actualized" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-1 mt-1">
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterAssetId">{% trans "Asset ID" %}</label>
+                                <input type="text" class="form-control form-control-sm column-filter" data-column="1" id="filterAssetId" placeholder="{% trans 'Asset ID' %}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterName">{% trans "Name" %}</label>
+                                <input type="text" class="form-control form-control-sm column-filter" data-column="2" id="filterName" placeholder="{% trans 'Name' %}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterDescription">{% trans "Description" %}</label>
+                                <input type="text" class="form-control form-control-sm column-filter" data-column="5" id="filterDescription" placeholder="{% trans 'Description' %}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterLocation">{% trans "Location" %}</label>
+                                <input type="text" class="form-control form-control-sm column-filter" data-column="6" id="filterLocation" placeholder="{% trans 'Location' %}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterDate">{% trans "Date" %}</label>
+                                <input type="text" class="form-control form-control-sm column-filter" data-column="9" id="filterDate" placeholder="{% trans 'YYYY-MM-DD' %}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterNotes">{% trans "Notes" %}</label>
+                                <input type="text" class="form-control form-control-sm column-filter" data-column="10" id="filterNotes" placeholder="{% trans 'Notes' %}">
+                            </div>
+                        </div>
+                        <div class="row g-1 mt-1">
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterOwners">{% trans "Owners" %}</label>
+                                <select class="form-select form-select-sm column-filter" data-column="13" id="filterOwners">
+                                    <option value="">{% trans "All" %}</option>
+                                    {% for owner in asset_owners %}
+                                    {% ifchanged owner.name %}
+                                    <option value="{{ owner.name }}">{{ owner.name }}</option>
+                                    {% endifchanged %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="filterAdmins">{% trans "Administrators" %}</label>
+                                <select class="form-select form-select-sm column-filter" data-column="14" id="filterAdmins">
+                                    <option value="">{% trans "All" %}</option>
+                                    {% for admin in asset_administrators %}
+                                    {% ifchanged admin.name %}
+                                    <option value="{{ admin.name }}">{{ admin.name }}</option>
+                                    {% endifchanged %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-auto d-flex align-items-end">
+                                <div class="form-check filter-option-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="showDeletedAssets">
+                                    <label class="form-check-label" for="showDeletedAssets">{% trans "Show Inactive Assets" %}</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+                <div class="export-controls mb-2">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <span class="badge bg-danger" id="filterCount" style="display: none;">0</span>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group sb-toolbar" role="group">
+                                {% if can_edit %}
+                                <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="addAssetBtn"
+                                        title="{% trans 'Add Asset' %}">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                                {% endif %}
+                                {% if manage_adm_own %}
+                                <button type="button" class="btn btn-outline-primary btn-sm btn-icon-action" id="manageAdmOwnBtn"
+                                        title="{% trans 'Manage Admins/Owners' %}">
+                                    <i class="bi bi-people"></i>
+                                </button>
+                                {% endif %}
+                                {% if manage_types %}
+                                <button type="button" class="btn btn-outline-warning btn-sm btn-icon-action" id="btnManageGroupsTypes"
+                                        title="{% trans 'Groups & Types' %}">
+                                    <i class="bi bi-tags"></i>
+                                </button>
+                                {% endif %}
+                                <button type="button" class="btn btn-success btn-sm btn-icon-action" id="exportExcelBtn"
+                                        title="{% trans 'Export to Excel' %}">
+                                    <i class="bi bi-file-earmark-excel"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="guideBtn"
+                                        data-bs-toggle="modal" data-bs-target="#assetGuideModal"
+                                        title="{% trans 'Guide' %}">
+                                    <i class="bi bi-book"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bulk Actions Toolbar -->
+                <div id="bulkActionsToolbar" class="alert alert-info mb-3" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-check-square me-2"></i>
+                            <span id="selectedAssetsCount">0</span> {% trans "assets selected" %}
+                        </div>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-success" id="bulkActualizeBtn">
+                                <i class="fas fa-sync-alt me-1"></i>
+                                {% trans "Bulk Actualize" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" id="clearSelectionBtn">
+                                <i class="fas fa-times me-1"></i>
+                                {% trans "Clear Selection" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive full-width-table">
+                    <table id="assetTable" class="table table-hover table-sm table-sm-font sb-data-table w-100">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;">
+                                    <input type="checkbox" id="selectAllAssets" title="{% trans 'Select all assets' %}">
+                                </th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Unique identifier for the asset' %}">{% trans "Asset ID" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Descriptive name of the asset' %}">{% trans "Name" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Company that owns the asset' %}">{% trans "Company" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'General category or type of the asset' %}">{% trans "Group/Type" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Detailed description of the asset' %}">{% trans "Description" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Physical or logical location of the asset' %}">{% trans "Location" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Linked software from Software Register' %}">{% trans "Software" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Confidentiality / Integrity / Availability' %}">{% trans "CIA" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Registration date and inactive date (if applicable)' %}">{% trans "Date" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Additional notes' %}">{% trans "Notes" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Indicates if this asset can be used in access management' %}">{% trans "Access Manage" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Asset actualization by owner' %}">{% trans "Actual" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Asset owners' %}">{% trans "Owners" %}</th>
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Asset administrators' %}">{% trans "Administrators" %}</th>
+                                {% if can_edit %}
+                                <th data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="{% trans 'Available actions' %}">{% trans "Actions" %}</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+
+                {% include "app_asset/includes/asset_table_pagination_client.html" with pagination_id="assetTablePagination" pagination_aria_label=_("Asset register pagination") %}
+            </div>
+        </div>
+    {% else %}
+        <p>{% trans "You do not have access to view information assets." %}</p>
+    {% endif %}
+
+    {% if can_edit %}
+        {% include 'app_asset/modals/edit_asset_modal.html' %}
+        {% include 'app_asset/modals/add_asset_modal.html' %}
+    {% endif %}
+    
+    {% if hasAccess %}
+        {% include 'app_asset/modals/asset_history_modal.html' %}
+    {% endif %}
+
+    {% if manage_adm_own %}
+        {% include 'app_asset/modals/asset_adm_own_modal.html' %}
+    {% endif %}
+
+    {% if manage_types %}
+         {% include 'app_asset/modals/asset_type_modal.html' %}
+    {% endif %}
+
+    <!-- Asset Guide Modal -->
+    <div class="modal fade" id="assetGuideModal" tabindex="-1" aria-labelledby="assetGuideModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="assetGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Information Assets Guide" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="assetGuideModalBody">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                        <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+   {{ block.super }}
+
+   <!-- DataTables -->
+   <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.css"/>
+   <script type="text/javascript" src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+
+   <!-- Select2 -->
+   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+   <!-- Datepicker -->
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/locales/bootstrap-datepicker.uk.min.js"></script>
+
+   <!-- Toastr -->
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/js/toastr.min.js"></script>
+
+   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.10.2/dist/umd/popper.min.js"></script>
+   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.min.js"></script>
+
+   <!-- Django i18n -->
+   <script type="text/javascript" src="{% url 'javascript-catalog' %}"></script>
+   
+   <!-- Config -->
+   <script id="pageConfig" type="application/json">
+     {
+       "canEdit": {% if can_edit %}true{% else %}false{% endif %}
+     }
+   </script>
+
+    <script type="text/javascript">
+    // Global variables
+    window.selectedEditOwners = new Set();
+    window.selectedAssetIds = new Set(); // For bulk selection
+    
+    // Translation strings for time ago
+    const translations = {
+        'year': '{% trans "year" %}',
+        'years': '{% trans "years" %}',
+        'month': '{% trans "month" %}',
+        'months': '{% trans "months" %}',
+        'day': '{% trans "day" %}',
+        'days': '{% trans "days" %}',
+        'hour': '{% trans "hour" %}',
+        'hours': '{% trans "hours" %}',
+        'minute': '{% trans "minute" %}',
+        'minutes': '{% trans "minutes" %}',
+        'ago': '{% trans "ago" %}',
+        'Just now': '{% trans "Just now" %}',
+        'Actualized': '{% trans "Actualized" %}',
+        'By': '{% trans "By" %}',
+        'Click to actualize again': '{% trans "Click to actualize again" %}',
+        'Click to actualize again or mark as no longer actual': '{% trans "Click to actualize again or mark as no longer actual" %}'
+    };
+    window.selectedEditAdmins = new Set();
+    window.criticalityState = {
+        confidentiality: null,
+        integrity: null,
+        availability: null
+    };
+
+    // Додаємо функцію initializeModalHandlers перед document.ready
+    function initializeModalHandlers() {
+        $('#addAssetModal, #editAssetModal').on('show.bs.modal', function() {
+            // Знищуємо існуючі tooltips перед показом модального вікна
+            $(this).find('[data-bs-toggle="tooltip"]').tooltip('dispose');
+        });
+
+        $('#addAssetModal, #editAssetModal').on('shown.bs.modal', function() {
+            // Створюємо нові Bootstrap tooltips в модальному вікні
+            const tooltipTriggerList = [].slice.call(this.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                new bootstrap.Tooltip(tooltipTriggerEl, {
+                    container: 'body'
+                });
+            });
+        });
+
+        $('#addAssetModal, #editAssetModal').on('hidden.bs.modal', function() {
+            // Знищуємо tooltips при закритті модального вікна
+            const tooltips = this.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltips.forEach(function(element) {
+                const tooltip = bootstrap.Tooltip.getInstance(element);
+                if (tooltip) {
+                    tooltip.dispose();
+                }
+            });
+        });
+    }
+
+    // Document ready function
+    $(document).ready(function() {
+        // Toastr configuration
+        toastr.options = {
+            closeButton: true,
+            progressBar: true,
+            positionClass: "toast-top-right",
+            timeOut: 3000
+        };
+
+        // Get config values from pageConfig
+        const config = JSON.parse(document.getElementById('pageConfig').textContent);
+        const canEdit = config.canEdit;
+
+        // Initialize all components
+        initializeComponents();
+        attachEventHandlers();
+        initializeDataTable(canEdit);
+        initializeModalHandlers();
+    });
+
+    // Component initialization
+    function initializeComponents() {
+        // Select2 only in modals (not filter panel — hidden collapse breaks Select2 options)
+        $('.select2').select2({
+            width: '100%',
+            theme: 'bootstrap-5',
+            language: '{{ LANGUAGE_CODE }}'
+        });
+
+        // Datepicker initialization
+        $('.datepicker').datepicker({
+            format: 'dd.mm.yyyy',
+            autoclose: true,
+            todayHighlight: true,
+            language: '{{ LANGUAGE_CODE }}',
+            clearBtn: true
+        });
+
+        // Initialize criticality tracking
+        initializeCriticalityTracking();
+    }
+
+    function initializeCriticalityTracking() {
+        window.criticalityState = {
+            confidentiality: null,
+            integrity: null,
+            availability: null
+        };
+    }
+
+    // Event handlers setup
+    function attachEventHandlers() {
+        // Table refresh on inactive assets toggle
+        $('#showDeletedAssets').change(function() {
+            $('#assetTable').DataTable().ajax.reload();
+        });
+
+        // Clear all column filters
+        $('#clearAllAssetFilters').click(function() {
+            const table = $.fn.dataTable.isDataTable('#assetTable') ? $('#assetTable').DataTable() : null;
+
+            $('#assetFiltersCollapse .column-filter').val('').removeClass('has-value');
+            if (table) {
+                table.columns().search('').draw();
+            }
+            $('#filterCount').hide();
+            toastr.success("{% trans 'All filters cleared' %}");
+        });
+
+
+        // Add asset button
+        $('#addAssetBtn').click(function() {
+            $('#addAssetModal').modal('show');
+        });
+
+        // Export button
+        $('#exportExcelBtn').click(function() {
+            window.location.href = "{% url 'export_assets_to_excel' %}";
+        });
+
+        // Guide modal: load content when shown
+        $('#assetGuideModal').on('show.bs.modal', function() {
+            const $body = $('#assetGuideModalBody');
+            $body.html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>');
+            fetch("{% url 'asset_guide' %}")
+                .then(r => r.json())
+                .then(data => {
+                    if (data.content) {
+                        $body.html(data.content);
+                    } else {
+                        $body.html('<p class="text-muted">{% trans "No guide available." %}</p>');
+                    }
+                })
+                .catch(() => {
+                    $body.html('<p class="text-danger">{% trans "Failed to load guide." %}</p>');
+                });
+        });
+
+        // Manage admins/owners button
+
+
+        // Groups & Types (same pattern as External Media Register / Software Register)
+        $('#btnManageGroupsTypes').on('click', function() {
+            const typeModal = $('#assetTypeModal');
+            typeModal.find('[data-bs-toggle="tooltip"]').tooltip();
+            typeModal.modal('show');
+        });
+
+        // Modal handlers
+        attachModalEventHandlers();
+
+        // Criticality level click handler
+        $(document).on('click', '.criticality-level', function() {
+            const grid = $(this).closest('.criticality-grid');
+            const levelId = $(this).data('level-id');
+            const gridId = grid.attr('id');
+            const criticalityType = gridId.replace('edit', '').replace('Grid', '').toLowerCase();
+
+            // Remove existing selection
+            grid.find('.criticality-level').removeClass('selected');
+            // Add new selection
+            $(this).addClass('selected');
+
+            // Update hidden input
+            $(`#edit${criticalityType}`).val(levelId);
+
+            // Update state
+            window.criticalityState[criticalityType] = levelId;
+
+            console.log(`Updated ${gridId} value to:`, levelId);
+            console.log('Current criticality state:', window.criticalityState);
+        });
+
+        // Search input handlers
+        $('#editOwnerSearchInput, #editAdminSearchInput').on('input', function() {
+            const query = $(this).val().trim();
+            if (this.id === 'editOwnerSearchInput') {
+                searchEditOwners(query);
+            } else {
+                searchEditAdministrators(query);
+            }
+        });
+
+        // Company change handler
+        $('#editCompany').change(function() {
+            window.selectedEditOwners.clear();
+            window.selectedEditAdmins.clear();
+            updateEditSelectedOwners();
+            updateEditSelectedAdmins();
+            filterEditSoftwareEntriesByCompany($(this).val());
+            syncEditSoftwareEntries();
+            searchEditOwners();
+            searchEditAdministrators();
+        });
+    }
+
+    // Modal event handlers
+    function attachModalEventHandlers() {
+        // Edit asset handler
+        $(document).on('click', '.edit-asset', function() {
+            const assetId = $(this).data('id');
+            if (!assetId) {
+                toastr.error("{% trans 'Invalid asset ID' %}");
+                return;
+            }
+
+            $('.loading-spinner').show();
+
+            $.get("{% url 'get_asset' '0' %}".replace('0', assetId))
+                .done(function(data) {
+                    const form = $('#editAssetForm');
+                    form[0].reset();
+                    form.removeClass('was-validated');
+                    $('.is-invalid').removeClass('is-invalid');
+
+                    populateEditForm(data);
+                    updateCriticalityGrids(data);
+                    updateOwnersAndAdmins(data);
+
+                    $('#editAssetModal').modal('show');
+                })
+                .fail(function(xhr) {
+                    toastr.error(xhr.responseJSON?.message || "{% trans 'Error loading asset data' %}");
+                })
+                .always(function() {
+                    $('.loading-spinner').hide();
+                });
+        });
+
+        // Delete asset handler
+        // Actualize / Mark as no longer actual - button click handler
+        $(document).on('click', '.actualize-action', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const assetId = $(this).data('id');
+            const action = $(this).data('action');  // 'actualize' | 'mark_inactive'
+            const button = $(this);
+            const btnGroup = button.closest('.btn-group');
+            const originalHtml = btnGroup.html();
+            
+            const confirmMsg = action === 'mark_inactive'
+                ? '{% trans "Are you sure you want to mark this asset as no longer actual?" %}'
+                : '{% trans "Are you sure you want to actualize this asset?" %}';
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            let comment = '';
+            if (action === 'mark_inactive') {
+                const input = prompt('{% trans "Optional comment (leave empty to skip):" %}', '');
+                comment = (input == null) ? '' : (input || '');
+            }
+            
+            btnGroup.find('button').prop('disabled', true);
+            btnGroup.html('<span class="spinner-border spinner-border-sm" role="status"></span>');
+            
+            const csrftoken = getCookie('csrftoken') || $('[name=csrfmiddlewaretoken]').val() || $('meta[name=csrf-token]').attr('content');
+            
+            if (!csrftoken) {
+                toastr.error('{% trans "CSRF token not found. Please refresh the page." %}');
+                $('#assetTable').DataTable().ajax.reload(null, false);
+                return;
+            }
+            
+            const postData = { action: action };
+            if (action === 'mark_inactive' && comment) postData.comment = comment;
+            
+            $.ajax({
+                url: `{% url 'actualize_asset' 0 %}`.replace('0', assetId),
+                type: 'POST',
+                data: postData,
+                headers: {
+                    'X-CSRFToken': csrftoken
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        toastr.success(response.message || '{% trans "Asset actualized successfully" %}');
+                        $('#assetTable').DataTable().ajax.reload(null, false);
+                    } else {
+                        toastr.error(response.message || '{% trans "Error actualizing asset" %}');
+                        $('#assetTable').DataTable().ajax.reload(null, false);
+                    }
+                },
+                error: function(xhr) {
+                    let errorMsg = '{% trans "Error actualizing asset" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg = xhr.responseJSON.message;
+                    } else if (xhr.status === 403) {
+                        errorMsg = '{% trans "You do not have permission to actualize this asset. Only asset owners can actualize assets." %}';
+                    } else if (xhr.status === 0) {
+                        errorMsg = '{% trans "Network error. Please check your connection." %}';
+                    }
+                    console.error('Actualize error:', xhr.status, xhr.responseJSON || xhr.responseText);
+                    toastr.error(errorMsg);
+                    $('#assetTable').DataTable().ajax.reload(null, false);
+                }
+            });
+        });
+
+        $(document).on('click', '.delete-asset', function(e) {
+            e.preventDefault();
+            const assetId = $(this).data('id');
+            showDeleteConfirmation(assetId);
+        });
+
+        // Modal cleanup
+        $('.modal').on('hidden.bs.modal', function() {
+            $(this).find('form').trigger('reset');
+            $(this).find('select').val(null).trigger('change');
+            clearModalState(this);
+        });
+
+        // Group/Type selection handling
+        $('.group-header').click(function() {
+            const groupSection = $(this).closest('.group-section');
+            const description = $(this).find('.group-description');
+            const types = groupSection.find('.group-types');
+            const chevron = $(this).find('.fa-chevron-down');
+
+            description.toggleClass('d-none');
+            types.toggleClass('d-none');
+            chevron.toggleClass('fa-rotate-180');
+        });
+
+        // Type selection handler
+        $('input[name="group_asset_type"]').change(function() {
+            $('#editGroupAssetType').val($(this).val());
+            $('.type-option').removeClass('selected-type');
+            $(this).closest('.type-option').addClass('selected-type');
+        });
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return null;
+
+        const parts = dateStr.split('.');
+        if (parts.length !== 3) return null;
+
+        // Перетворюємо в формат YYYY-MM-DD
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    // Group → Types lookup for edit software filter
+    const editSwGroupsData = [{% for g in sw_groups %}{"id":"{{ g.id }}","name":"{{ g.display_name|escapejs }}","types":[{% for t in g.asset_types.all %}{"id":"{{ t.id }}","name":"{{ t.display_name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+    let editSoftwareOptionsCache = [];
+    const editSoftwareSelectEl = document.getElementById('editSoftwareEntriesSelect');
+    if (editSoftwareSelectEl) {
+        editSoftwareOptionsCache = Array.from(editSoftwareSelectEl.options).map(function(opt) {
+            return {
+                value: opt.value,
+                name: (opt.getAttribute('data-name') || opt.textContent || '').trim(),
+                statusName: (opt.getAttribute('data-status-name') || '').trim(),
+                statusColor: (opt.getAttribute('data-status-color') || '#aaa').trim(),
+                licenseTypeName: (opt.getAttribute('data-license-type-name') || '').trim(),
+                companyName: (opt.getAttribute('data-company-name') || '').trim(),
+                companyId: (opt.getAttribute('data-company-id') || '').toString(),
+                groupId: (opt.getAttribute('data-group-id') || '').toString(),
+                typeId: (opt.getAttribute('data-type-id') || '').toString(),
+                statusId: (opt.getAttribute('data-status-id') || '').toString(),
+                licenseType: (opt.getAttribute('data-license-type') || '').toString(),
+                version: (opt.getAttribute('data-version') || '').toString(),
+                licenseQty: (opt.getAttribute('data-license-qty') || '').toString(),
+                licenseFree: (opt.getAttribute('data-license-free') || '').toString(),
+                licenseValidUntil: (opt.getAttribute('data-license-valid-until') || '').toString()
+            };
+        });
+    }
+
+    // Remove Group options that have no software entries
+    (function() {
+        const usedGroupIds = new Set(editSoftwareOptionsCache.map(function(i) { return i.groupId; }).filter(Boolean));
+        $('#editSoftwareFilterGroup option').each(function() {
+            if ($(this).val() && !usedGroupIds.has($(this).val())) $(this).remove();
+        });
+    })();
+
+    function _populateEditSwTypeFilter(groupId) {
+        const sel = document.getElementById('editSoftwareFilterType');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">{% trans "Type" %}</option>';
+        if (!groupId) { sel.disabled = true; return; }
+        const group = editSwGroupsData.find(function(g) { return String(g.id) === String(groupId); });
+        if (!group) { sel.disabled = true; return; }
+        const usedTypeIds = new Set(
+            editSoftwareOptionsCache.filter(function(i) { return String(i.groupId) === String(groupId); })
+                .map(function(i) { return i.typeId; }).filter(Boolean)
+        );
+        const visibleTypes = group.types.filter(function(t) { return usedTypeIds.has(String(t.id)); });
+        if (visibleTypes.length) {
+            visibleTypes.forEach(function(t) {
+                const opt = document.createElement('option');
+                opt.value = t.id; opt.textContent = t.name;
+                sel.appendChild(opt);
+            });
+            sel.disabled = false;
+        } else {
+            sel.disabled = true;
+        }
+    }
+
+    function _swEsc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+    function filterEditSoftwareEntriesByCompany(companyId) {
+        const selectEl = document.getElementById('editSoftwareEntriesSelect');
+        if (!selectEl) return;
+        const normalizedCompanyId = (companyId || '').toString();
+        const groupId = ($('#editSoftwareFilterGroup').val() || '').toString();
+        const typeId = ($('#editSoftwareFilterType').val() || '').toString();
+        const statusId = ($('#editSoftwareFilterStatus').val() || '').toString();
+        const licenseType = ($('#editSoftwareFilterLicenseType').val() || '').toString();
+        const search = ($('#editSoftwareSearch').val() || '').toLowerCase().trim();
+        const selectedIds = new Set(Array.from(selectEl.selectedOptions).map(function(o) { return o.value; }));
+        selectEl.innerHTML = '';
+        const filtered = [];
+        editSoftwareOptionsCache.forEach(function(item) {
+            const byCompany = !item.companyId || !normalizedCompanyId || item.companyId === normalizedCompanyId;
+            const byGroup = !groupId || item.groupId === groupId;
+            const byType = !typeId || item.typeId === typeId;
+            const byStatus = !statusId || item.statusId === statusId;
+            const byLicenseType = !licenseType || item.licenseType === licenseType;
+            const bySearch = !search || item.name.toLowerCase().includes(search) || item.version.toLowerCase().includes(search);
+            if (!(byCompany && byGroup && byType && byStatus && byLicenseType && bySearch)) return;
+            filtered.push(item);
+            const option = document.createElement('option');
+            option.value = item.value;
+            ['data-name','data-status-name','data-status-color','data-license-type-name','data-company-name',
+             'data-company-id','data-group-id','data-type-id','data-status-id','data-license-type',
+             'data-version','data-license-qty','data-license-free','data-license-valid-until'].forEach(function(attr) {
+                const camelMap = {'data-name':'name','data-status-name':'statusName','data-status-color':'statusColor',
+                    'data-license-type-name':'licenseTypeName','data-company-name':'companyName',
+                    'data-company-id':'companyId','data-group-id':'groupId','data-type-id':'typeId','data-status-id':'statusId',
+                    'data-license-type':'licenseType','data-version':'version','data-license-qty':'licenseQty',
+                    'data-license-free':'licenseFree','data-license-valid-until':'licenseValidUntil'};
+                const val = item[camelMap[attr]];
+                if (val) option.setAttribute(attr, val);
+            });
+            if (selectedIds.has(item.value)) option.selected = true;
+            selectEl.appendChild(option);
+        });
+        renderEditSoftwareListPanel(filtered, selectedIds);
+        renderEditSoftwareSelections();
+    }
+
+    function renderEditSoftwareListPanel(filtered, selectedIds) {
+        const panel = document.getElementById('editSoftwareListPanel');
+        if (!panel) return;
+        if (!filtered || !filtered.length) { panel.innerHTML = ''; return; }
+        panel.innerHTML = filtered.map(function(item) {
+            const isSel = selectedIds && selectedIds.has(item.value);
+            const ver = item.version ? 'v' + _swEsc(item.version) : '';
+            const lic = item.licenseTypeName ? _swEsc(item.licenseTypeName) + (item.licenseQty ? ' (' + item.licenseQty + ')' : '') : '';
+            const meta = [ver, lic].filter(Boolean).join(' · ');
+            return '<div class="sw-list-item' + (isSel ? ' sw-selected' : '') + '" data-sw-id="' + _swEsc(item.value) + '">' +
+                '<div class="sw-list-check"><i class="fas fa-check"></i></div>' +
+                '<div class="sw-list-body">' +
+                '<div class="sw-list-name"><span class="sw-status-dot" style="background:' + _swEsc(item.statusColor) + '"></span>' + _swEsc(item.name) + '</div>' +
+                (meta ? '<div class="sw-list-meta">' + meta + '</div>' : '') +
+                '</div>' +
+                '<span class="sw-list-company">' + _swEsc(item.companyName) + '</span>' +
+                '</div>';
+        }).join('');
+        panel.querySelectorAll('.sw-list-item').forEach(function(row) {
+            row.addEventListener('click', function() {
+                const swId = row.getAttribute('data-sw-id');
+                const selectEl = document.getElementById('editSoftwareEntriesSelect');
+                if (!selectEl) return;
+                const opt = selectEl.querySelector('option[value="' + swId + '"]');
+                if (opt) opt.selected = !opt.selected;
+                row.classList.toggle('sw-selected', opt ? opt.selected : false);
+                renderEditSoftwareSelections();
+                syncEditSoftwareEntries();
+                updateEditSwCountBadge();
+            });
+        });
+    }
+
+    function updateEditSwCountBadge() {
+        const selectEl = document.getElementById('editSoftwareEntriesSelect');
+        const badge = document.getElementById('editSwCountBadge');
+        if (!badge) return;
+        const count = selectEl ? selectEl.selectedOptions.length : 0;
+        badge.style.display = count > 0 ? '' : 'none';
+        badge.textContent = count;
+    }
+
+    const _swTr = {
+        remove: "{% trans 'Remove' %}",
+        version: "{% trans 'Version' %}",
+        noVersions: "{% trans 'No versions defined' %}",
+        licenseQty: "{% trans 'License Qty' %}",
+        licenseExpired: "{% trans 'License expired' %}",
+        free: "{% trans 'free' %}"
+    };
+
+    function syncEditSoftwareEntries() {
+        const selectEl = document.getElementById('editSoftwareEntriesSelect');
+        const hiddenEl = document.getElementById('editSoftwareEntries');
+        if (!selectEl || !hiddenEl) return;
+        const payload = Array.from(selectEl.selectedOptions).map(function(opt) {
+            const id = parseInt(opt.value, 10);
+            const versionInput = document.querySelector('#editSoftwareSelections [data-sw-id="' + id + '"] .sw-version-input');
+            const qtyInput = document.querySelector('#editSoftwareSelections [data-sw-id="' + id + '"] .sw-license-qty-input');
+            const version = versionInput ? (versionInput.value || '').trim() : '';
+            const qtyRaw = qtyInput ? (qtyInput.value || '').trim() : '';
+            let qty = qtyRaw ? parseInt(qtyRaw, 10) : null;
+            const qtyMaxRaw = opt.getAttribute('data-license-free') || '';
+            const qtyMax = qtyMaxRaw ? parseInt(qtyMaxRaw, 10) : null;
+            const validUntil = opt.getAttribute('data-license-valid-until') || '';
+            const expired = validUntil && (new Date(validUntil + 'T00:00:00') < new Date(new Date().toDateString()));
+            if (expired) qty = null;
+            if (!isNaN(qtyMax) && qty != null && qty > qtyMax) qty = qtyMax;
+            return { id: id, version: version, license_quantity: isNaN(qty) ? null : qty };
+        }).filter(function(x) { return !!x.id; });
+        hiddenEl.value = JSON.stringify(payload);
+    }
+
+    function parseVersionOptions(raw) {
+        const text = (raw || '').trim();
+        if (!text) return [];
+        const tokens = text.split(/[;,|]/).map(function(x) { return x.trim(); }).filter(Boolean);
+        return tokens.length ? Array.from(new Set(tokens)) : [text];
+    }
+
+    function renderEditSoftwareSelections(prefillMap) {
+        const selectEl = document.getElementById('editSoftwareEntriesSelect');
+        const wrap = document.getElementById('editSoftwareSelections');
+        if (!selectEl || !wrap) return;
+        const existing = {};
+        wrap.querySelectorAll('.sw-selection-card[data-sw-id]').forEach(function(row) {
+            const id = row.getAttribute('data-sw-id');
+            existing[id] = {
+                version: (row.querySelector('.sw-version-input') || {}).value || '',
+                license_quantity: (row.querySelector('.sw-license-qty-input') || {}).value || ''
+            };
+        });
+        const selected = Array.from(selectEl.selectedOptions);
+        if (!selected.length) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = selected.map(function(opt) {
+            const id = String(opt.value);
+            const prefill = (prefillMap && prefillMap[id]) ? prefillMap[id] : null;
+            const version = (prefill && prefill.version != null ? prefill.version : null) ?? (existing[id] && existing[id].version) ?? opt.getAttribute('data-version') ?? '';
+            const qty = (prefill && prefill.license_quantity != null ? prefill.license_quantity : null) ?? (existing[id] && existing[id].license_quantity) ?? opt.getAttribute('data-license-qty') ?? '';
+            const swName = _swEsc(opt.getAttribute('data-name') || opt.textContent || id);
+            const statusColor = opt.getAttribute('data-status-color') || '#aaa';
+            const qtyMaxRaw = opt.getAttribute('data-license-free') || '';
+            const validUntil = opt.getAttribute('data-license-valid-until') || '';
+            const expired = validUntil && (new Date(validUntil + 'T00:00:00') < new Date(new Date().toDateString()));
+            const versionOptions = parseVersionOptions(opt.getAttribute('data-version') || '');
+            const versionTagsHtml = versionOptions.map(function(v) {
+                const active = String(v) === String(version) ? ' active btn-primary' : ' btn-outline-secondary';
+                return '<button type="button" class="btn btn-sm sw-version-tag' + active + '" data-version="' + _swEsc(v) + '">' + _swEsc(v) + '</button>';
+            }).join('');
+            const qtyHint = expired
+                ? '<span class="sw-expired-badge ms-1">' + _swTr.licenseExpired + '</span>'
+                : (qtyMaxRaw ? '<span class="sw-qty-hint">' + _swTr.free + ': ' + qtyMaxRaw + '</span>' : '');
+            return '<div class="sw-selection-card" data-sw-id="' + id + '">' +
+                '<div class="sw-selection-header">' +
+                '<div class="sw-selection-header-left">' +
+                '<span class="sw-status-dot" style="background:' + _swEsc(statusColor) + ';flex-shrink:0;"></span>' +
+                '<span class="sw-selection-name">' + swName + '</span>' +
+                '</div>' +
+                '<button type="button" class="sw-remove-btn" title="' + _swTr.remove + '" data-sw-id="' + id + '">&#x2715;</button>' +
+                '</div>' +
+                '<div class="sw-selection-body">' +
+                '<div class="sw-qty-row" style="flex-wrap:wrap;">' +
+                (versionOptions.length
+                    ? '<div class="d-flex flex-wrap gap-1">' + versionTagsHtml + '</div>'
+                    : '<div class="sw-no-versions">' + _swTr.noVersions + '</div>') +
+                '<input type="hidden" class="sw-version-input" value="' + _swEsc(String(version)) + '">' +
+                '<span class="sw-sel-label mb-0" style="margin-left:auto;">' + _swTr.licenseQty + '</span>' +
+                '<input type="number" min="0"' + (qtyMaxRaw ? ' max="' + qtyMaxRaw + '"' : '') + (expired ? ' disabled' : '') +
+                ' class="form-control form-control-sm sw-qty-input sw-license-qty-input" value="' + _swEsc(String(expired ? '' : qty)) + '" style="width:70px;">' +
+                qtyHint +
+                '</div>' +
+                '</div></div>';
+        }).join('');
+        wrap.querySelectorAll('.sw-remove-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const swId = btn.getAttribute('data-sw-id');
+                const selectEl = document.getElementById('editSoftwareEntriesSelect');
+                if (selectEl) {
+                    const opt = selectEl.querySelector('option[value="' + swId + '"]');
+                    if (opt) opt.selected = false;
+                }
+                const panel = document.getElementById('editSoftwareListPanel');
+                if (panel) {
+                    const row = panel.querySelector('[data-sw-id="' + swId + '"]');
+                    if (row) row.classList.remove('sw-selected');
+                }
+                renderEditSoftwareSelections();
+                syncEditSoftwareEntries();
+                updateEditSwCountBadge();
+            });
+        });
+        wrap.querySelectorAll('.sw-version-tag').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const row = btn.closest('[data-sw-id]');
+                if (!row) return;
+                row.querySelectorAll('.sw-version-tag').forEach(function(x) {
+                    x.classList.remove('active', 'btn-primary');
+                    x.classList.add('btn-outline-secondary');
+                });
+                btn.classList.add('active', 'btn-primary');
+                btn.classList.remove('btn-outline-secondary');
+                const hid = row.querySelector('.sw-version-input');
+                if (hid) hid.value = btn.getAttribute('data-version') || '';
+                syncEditSoftwareEntries();
+            });
+        });
+        wrap.querySelectorAll('.sw-license-qty-input').forEach(function(inp) {
+            inp.addEventListener('input', function() {
+                const maxRaw = inp.getAttribute('max');
+                const max = maxRaw ? parseInt(maxRaw, 10) : null;
+                let val = inp.value ? parseInt(inp.value, 10) : null;
+                if (val != null && val < 0) val = 0;
+                if (!isNaN(max) && val != null && val > max) val = max;
+                if (val != null && !isNaN(val)) inp.value = String(val);
+                syncEditSoftwareEntries();
+            });
+        });
+        syncEditSoftwareEntries();
+        updateEditSwCountBadge();
+    }
+
+    // Form submission handler
+    $('#editAssetForm').on('submit', function(e) {
+        e.preventDefault();
+
+        const form = $(this);
+        if (form.data('submitting')) {
+            return false;
+        }
+
+        // Get criticality values from hidden inputs
+        const criticalityValues = {
+            confidentiality: $('#editConfidentiality').val() || window.criticalityState.confidentiality,
+            integrity: $('#editIntegrity').val() || window.criticalityState.integrity,
+            availability: $('#editAvailability').val() || window.criticalityState.availability
+        };
+
+        console.log('Criticality values before submit:', criticalityValues);
+
+        // Create FormData
+        const formData = new FormData(form[0]);
+
+
+        const registrationDate = $('#editRegistrationDate').val();
+        const deletionDate = $('#editDeletionDate').val();
+
+        if (registrationDate) {
+            const formattedRegistrationDate = formatDate(registrationDate);
+            formData.set('registrationDate', formattedRegistrationDate);
+        }
+
+        if (deletionDate) {
+            const formattedDeletionDate = formatDate(deletionDate);
+            formData.set('deletionDate', formattedDeletionDate);
+        }
+
+        // Add criticality values to FormData
+        Object.entries(criticalityValues).forEach(([key, value]) => {
+            if (value) {
+                formData.set(key, value);
+                console.log(`Setting ${key} to`, value);
+            }
+        });
+
+
+        const groupAssetTypeValue = $('#editGroupAssetType').val();
+        if (groupAssetTypeValue) {
+            const [groupId, assetTypeId] = groupAssetTypeValue.split(',');
+            formData.delete('group_asset_type');
+            formData.append('group', groupId);
+            formData.append('asset_type', assetTypeId);
+        }
+
+        // Додаємо власників та адміністраторів
+        try {
+            formData.set('owners', JSON.stringify([...selectedEditOwners].map(owner => owner.id)));
+            formData.set('administrators', JSON.stringify([...selectedEditAdmins].map(admin => admin.id)));
+            syncEditSoftwareEntries();
+            formData.set('software_entries', $('#editSoftwareEntries').val() || '[]');
+        } catch (e) {
+            console.error('Error processing owners/administrators:', e);
+            toastr.error("{% trans 'Error processing owners or administrators' %}");
+            return false;
+        }
+
+        // Логуємо фінальні дані форми
+        const formDataDebug = {};
+        formData.forEach((value, key) => {
+            formDataDebug[key] = value;
+        });
+        console.log('Complete form data:', formDataDebug);
+
+        // Submit form...
+        $.ajax({
+            url: `{% url 'edit_asset' '0' %}`.replace('0', $('#edit_asset_id').val()),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.status === 'success') {
+                    $('#editAssetModal').modal('hide');
+                    $('#assetTable').DataTable().ajax.reload(null, false);
+                    toastr.success(response.message);
+                } else {
+                    toastr.error(response.message);
+                }
+            },
+            error: function(xhr) {
+                console.error('Form submission error:', xhr.responseText);
+                const errorMessage = xhr.responseJSON?.message || "{% trans 'Error updating asset' %}";
+                toastr.error(errorMessage);
+            },
+            complete: function() {
+                form.data('submitting', false);
+                form.find('[type="submit"]')
+                    .prop('disabled', false)
+                    .html("{% trans 'Save Changes' %}");
+                $('.loading-spinner').hide();
+            }
+        });
+
+        return false;
+    });
+
+    // Form validation
+    function validateForm(form) {
+        let isValid = true;
+        const errors = [];
+
+        // Required fields validation
+        const requiredFields = {
+            name: "{% trans 'Name' %}",
+            company: "{% trans 'Company' %}",
+            location: "{% trans 'Location' %}"
+        };
+
+        Object.entries(requiredFields).forEach(([field, label]) => {
+            const value = $(`[name="${field}"]`).val();
+            if (!value) {
+                isValid = false;
+                errors.push(`${label} is required`);
+                $(`[name="${field}"]`).addClass('is-invalid');
+            }
+        });
+
+        // Group/asset type validation
+        const groupAssetTypeValue = $('#editGroupAssetType').val();
+        if (!groupAssetTypeValue) {
+            isValid = false;
+            errors.push("{% trans 'Please select a group and asset type' %}");
+            $('#editGroupAssetType').addClass('is-invalid');
+        }
+
+        if (!isValid) {
+            toastr.error(errors.join('<br>'));
+        }
+
+        return isValid;
+    }
+
+    // Form submission handlers
+    function handleFormSuccess(response) {
+        if (response.status === 'success') {
+            $('#editAssetModal').modal('hide');
+            $('#assetTable').DataTable().ajax.reload(null, false);
+            toastr.success(response.message);
+        } else {
+            toastr.error(response.message);
+        }
+    }
+
+    function handleFormError(xhr) {
+        console.error('Form submission error:', xhr.responseText);
+        const errorMessage = xhr.responseJSON?.message || "{% trans 'Error updating asset' %}";
+        toastr.error(errorMessage);
+    }
+
+    function setFormSubmitting(form, isSubmitting) {
+        form.data('submitting', isSubmitting);
+        const submitButton = form.find('[type="submit"]');
+        submitButton.prop('disabled', isSubmitting);
+        if (isSubmitting) {
+            submitButton.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {% trans "Processing..." %}');
+            $('.loading-spinner').show();
+        } else {
+            submitButton.html("{% trans 'Save Changes' %}");
+            $('.loading-spinner').hide();
+        }
+    }
+
+    // Criticality handling
+    function handleCriticalitySelection(gridId, selectedValue) {
+        const grid = $(`#${gridId}`);
+        // Extract the basic type (confidentiality/integrity/availability) without 'edit' and 'Grid'
+        const criticalityType = gridId.replace('edit', '').replace('Grid', '').toLowerCase();
+
+        // Clear previous selection
+        grid.find('.criticality-level').removeClass('selected');
+
+        if (selectedValue) {
+            // Find and select the new level
+            const selectedLevel = grid.find(`.criticality-level[data-level-id="${selectedValue}"]`);
+            if (selectedLevel.length) {
+                selectedLevel.addClass('selected');
+
+                // Update hidden input
+                $(`#edit${criticalityType}`).val(selectedValue);
+
+                // Update state
+                window.criticalityState[criticalityType] = selectedValue;
+
+                console.log(`Set edit${criticalityType} value to:`, selectedValue);
+                console.log('Current criticality state:', window.criticalityState);
+            }
+        }
+    }
+
+    function updateCriticalityGrids(data) {
+        Promise.all([
+            renderCriticalityLevels('editConfidentialityGrid'),
+            renderCriticalityLevels('editIntegrityGrid'),
+            renderCriticalityLevels('editAvailabilityGrid')
+        ]).then(() => {
+            if (data.confidentiality) {
+                handleCriticalitySelection('editConfidentialityGrid', data.confidentiality);
+            }
+            if (data.integrity) {
+                handleCriticalitySelection('editIntegrityGrid', data.integrity);
+            }
+            if (data.availability) {
+                handleCriticalitySelection('editAvailabilityGrid', data.availability);
+            }
+        });
+    }
+
+    // Modal cleanup
+    function clearModalState(modal) {
+        $(modal).removeAttr('aria-hidden');
+        const form = $(modal).find('form');
+        form.removeClass('was-validated');
+        $('.is-invalid').removeClass('is-invalid');
+        $('.select2-basic').val('').trigger('change');
+
+        if ($(modal).attr('id') === 'editAssetModal') {
+            initializeCriticalityTracking();
+            window.selectedEditOwners.clear();
+            window.selectedEditAdmins.clear();
+            updateEditSelectedOwners();
+            updateEditSelectedAdmins();
+            $('#editOwnerSearchResults, #editAdminSearchResults').empty();
+            $('#editSoftwareSearch').val('');
+            $('#editSoftwareFilterGroup').val('');
+            $('#editSoftwareFilterType').val('').prop('disabled', true);
+            $('#editSoftwareFilterStatus').val('');
+            $('#editSoftwareFilterLicenseType').val('');
+            filterEditSoftwareEntriesByCompany('');
+            $('#editSoftwareEntries').val('[]');
+            $('#editSoftwareSelections').html('');
+            updateEditSwCountBadge();
+
+            $('.criticality-grid').removeClass('is-invalid');
+            $('[id^=edit][id$=Grid]').find('.criticality-level').removeClass('selected');
+            $('[id^=edit][id$=ty]').val('');
+            $('.type-option').removeClass('selected-type');
+            
+            // Hide last modified banner
+            $('#lastModifiedBanner').hide();
+        }
+
+        $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+    }
+
+    // DataTable initialization
+    function initializeDataTable(canEdit) {
+        // Set up columns configuration
+        const baseColumns = [
+            {
+                data: null,
+                orderable: false,
+                searchable: false,
+                render: function(data, type, row) {
+                    return `<input type="checkbox" class="asset-checkbox" value="${row.id}" data-asset-id="${row.asset_id}">`;
+                }
+            },
+            { 
+                data: 'asset_id',
+                render: function(data) {
+                    return `<span class="asset-id-cell">${data || '—'}</span>`;
+                }
+            },
+            { 
+                data: 'name',
+                render: function(data) {
+                    return `<span style="font-weight: 500;">${data || '<span class="text-muted">—</span>'}</span>`;
+                }
+            },
+            { 
+                data: 'company',
+                render: function(data) {
+                    return data || '<span class="text-muted">—</span>';
+                }
+            },
+            { 
+                data: 'group',
+                render: function(data) {
+                    return data || '<span class="text-muted">—</span>';
+                }
+            },
+            { 
+                data: 'description',
+                render: function(data) {
+                    if (!data) return '<span class="text-muted">—</span>';
+                    const maxLength = 40;
+                    if (data.length > maxLength) {
+                        const truncated = data.substring(0, maxLength) + '...';
+                        return `<span data-bs-toggle="tooltip" 
+                                      data-bs-placement="top" 
+                                      title="${data.replace(/"/g, '&quot;')}"
+                                      style="cursor: help; font-size: 0.6rem;">${truncated}</span>`;
+                    }
+                    return `<span style="font-size: 0.6rem;">${data}</span>`;
+                }
+            },
+            { 
+                data: 'location',
+                render: function(data) {
+                    return data || '<span class="text-muted">—</span>';
+                }
+            },
+            {
+                data: 'software',
+                orderable: false,
+                render: function(data) {
+                    if (!data || !data.length) return '<span class="text-muted">—</span>';
+                    const items = data.map(function(sw) {
+                        const ver = sw.version ? `<span style="color:#6b7280;font-size:0.55rem;">v${sw.version}</span>` : '';
+                        return `<div style="display:flex;align-items:baseline;gap:3px;white-space:nowrap;">` +
+                            `<span style="font-size:0.6rem;font-weight:500;">${sw.name}</span>${ver}` +
+                            `</div>`;
+                    });
+                    return `<div style="min-width:80px;">${items.join('')}</div>`;
+                }
+            },
+            {
+                data: null,
+                orderable: false,
+                render: function(data, type, row) {
+                    function ciaItem(label, d) {
+                        if (!d) return '';
+                        const tip = (`<div class='text-left'><div class='mb-1'><strong>${label}: ${d.text}</strong></div>${d.description ? `<div>${d.description}</div>` : ''}</div>`).replace(/"/g, '&quot;');
+                        return `<div style="display:flex;align-items:center;gap:3px;margin-bottom:2px;">` +
+                            `<span style="font-size:0.55rem;font-weight:700;color:#6b7280;width:10px;">${label}</span>` +
+                            `<span class="badge criticality-badge" style="background-color:${d.color};color:#000;font-size:0.6rem;padding:1px 5px;"` +
+                            ` data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="right" title="${tip}">${d.text}</span>` +
+                            `</div>`;
+                    }
+                    const c = ciaItem('C', row.confidentiality);
+                    const i = ciaItem('I', row.integrity);
+                    const a = ciaItem('A', row.availability);
+                    if (!c && !i && !a) return '<span class="text-muted">—</span>';
+                    return `<div style="min-width:70px;">${c}${i}${a}</div>`;
+                }
+            },
+            { 
+                data: null,
+                render: function(data, type, row) {
+                    const regDate = row.registration_date;
+                    const inactiveDate = row.inactive_date;
+                    
+                    let html = '<div style="display: flex; flex-direction: column; gap: 0.19rem;">';
+                    
+                    if (regDate) {
+                        html += `<div class="date-column" style="display: flex; align-items: center;">
+                            <span class="badge bg-success" 
+                                  style="padding: 0.19rem 0.375rem; font-size: 0.525rem; border-radius: 5px; min-width: 22px;"
+                                  data-bs-toggle="tooltip"
+                                  data-bs-placement="left"
+                                  title="{% trans 'Registration Date' %}">
+                                <i class="fas fa-plus"></i>
+                            </span>
+                            <span style="margin-left: 0.375rem; font-family: 'Courier New', monospace; font-size: 0.6rem;">
+                                ${regDate}
+                            </span>
+                        </div>`;
+                    }
+                    
+                    if (inactiveDate) {
+                        html += `<div class="date-column" style="display: flex; align-items: center;">
+                            <span class="badge bg-secondary" 
+                                  style="padding: 0.19rem 0.375rem; font-size: 0.525rem; border-radius: 5px; min-width: 22px;"
+                                  data-bs-toggle="tooltip"
+                                  data-bs-placement="left"
+                                  title="{% trans 'Inactive' %}">
+                                <i class="fas fa-power-off"></i>
+                            </span>
+                            <span style="margin-left: 0.375rem; font-family: 'Courier New', monospace; font-size: 0.6rem;">
+                                ${inactiveDate}
+                            </span>
+                        </div>`;
+                    }
+                    
+                    if (!regDate && !inactiveDate) {
+                        html += '<span class="text-muted">—</span>';
+                    }
+                    
+                    html += '</div>';
+                    return html;
+                }
+            },
+            { 
+                data: 'notes',
+                render: function(data) {
+                    if (!data) return '<span class="text-muted">—</span>';
+                    const maxLength = 30;
+                    if (data.length > maxLength) {
+                        const truncated = data.substring(0, maxLength) + '...';
+                        return `<span data-bs-toggle="tooltip" 
+                                      data-bs-placement="top" 
+                                      title="${data.replace(/"/g, '&quot;')}"
+                                      style="cursor: help; font-size: 0.6rem;">
+                            <i class="fas fa-sticky-note me-1" style="color: #f59e0b; font-size: 0.525rem;"></i>${truncated}
+                        </span>`;
+                    }
+                    return `<span style="font-size: 0.6rem;"><i class="fas fa-sticky-note me-1" style="color: #f59e0b; font-size: 0.525rem;"></i>${data}</span>`;
+                }
+            },
+            {
+                data: 'access_manage',
+                render: function(data) {
+                    const color = data ? '#10b981' : '#6b7280';
+                    const icon = data ? 'fa-check-circle' : 'fa-times-circle';
+                    const text = data ? '{% trans "Yes" %}' : '{% trans "No" %}';
+                    return `<span style="color: ${color}; font-size: 0.656rem; font-weight: 500;">
+                        <i class="fas ${icon} me-1" style="font-size: 0.6rem;"></i>${text}
+                    </span>`;
+                }
+            },
+            {
+                data: 'actual',
+                render: function(data, type, row) {
+                    if (!data) return '<span class="text-muted">—</span>';
+                    
+                    const actualData = typeof data === 'string' ? JSON.parse(data) : data;
+                    const hasActualization = actualData.has_actualization;
+                    const actualDate = actualData.date;
+                    const actualUser = actualData.user;
+                    const markedNoLongerAt = actualData.marked_no_longer_at || null;
+                    const markedNoLongerComment = actualData.marked_no_longer_comment || null;
+                    const isOwner = actualData.is_owner || false;
+                    
+                    // Повертає текст типу "X days ago" для дати (для "no longer actual")
+                    function getDaysAgoText(dateString) {
+                        if (!dateString) return null;
+                        try {
+                            const [datePart, timePart] = dateString.split(' ');
+                            const [day, month, year] = datePart.split('-');
+                            const [hours, minutes, seconds] = (timePart || '00:00:00').split(':');
+                            const date = new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0);
+                            const now = new Date();
+                            const diffDays = Math.floor((now - date) / (24 * 60 * 60 * 1000));
+                            const diffMonths = Math.floor(diffDays / 30);
+                            const diffYears = Math.floor(diffDays / 365);
+                            if (diffYears > 0) return `${diffYears} ${diffYears === 1 ? '{% trans "year" %}' : '{% trans "years" %}'} {% trans "ago" %}`;
+                            if (diffMonths > 0) return `${diffMonths} ${diffMonths === 1 ? '{% trans "month" %}' : '{% trans "months" %}'} {% trans "ago" %}`;
+                            if (diffDays > 0) return `${diffDays} ${diffDays === 1 ? '{% trans "day" %}' : '{% trans "days" %}'} {% trans "ago" %}`;
+                            return '{% trans "Today" %}';
+                        } catch (e) { return null; }
+                    }
+                    
+                    // Функція для обчислення "time ago"
+                    function getTimeAgo(dateString) {
+                        if (!dateString) return null;
+                        
+                        try {
+                            // Парсимо дату з формату 'dd-mm-yyyy HH:MM:SS'
+                            const [datePart, timePart] = dateString.split(' ');
+                            const [day, month, year] = datePart.split('-');
+                            const [hours, minutes, seconds] = timePart.split(':');
+                            const date = new Date(year, month - 1, day, hours, minutes, seconds);
+                            
+                            const now = new Date();
+                            const diffMs = now - date;
+                            const diffSeconds = Math.floor(diffMs / 1000);
+                            const diffMinutes = Math.floor(diffSeconds / 60);
+                            const diffHours = Math.floor(diffMinutes / 60);
+                            const diffDays = Math.floor(diffHours / 24);
+                            const diffMonths = Math.floor(diffDays / 30);
+                            const diffYears = Math.floor(diffDays / 365);
+                            
+                            if (diffYears > 0) {
+                                // Більше 1 року - червоний
+                                return { text: `${diffYears} ${diffYears === 1 ? '{% trans "year" %}' : '{% trans "years" %}'} {% trans "ago" %}`, days: diffDays, months: diffMonths, color: '#dc3545', buttonClass: 'btn-outline-danger' };
+                            } else if (diffMonths >= 8) {
+                                // 8+ місяців - помаранчевий
+                                return { text: `${diffMonths} ${diffMonths === 1 ? '{% trans "month" %}' : '{% trans "months" %}'} {% trans "ago" %}`, days: diffDays, months: diffMonths, color: '#fd7e14', buttonClass: 'btn-outline-warning' };
+                            } else if (diffMonths >= 6) {
+                                // 6-7 місяців - жовтий
+                                return { text: `${diffMonths} ${diffMonths === 1 ? '{% trans "month" %}' : '{% trans "months" %}'} {% trans "ago" %}`, days: diffDays, months: diffMonths, color: '#ffc107', buttonClass: 'btn-warning' };
+                            } else if (diffMonths > 0) {
+                                // Менше 6 місяців - зелений
+                                return { text: `${diffMonths} ${diffMonths === 1 ? '{% trans "month" %}' : '{% trans "months" %}'} {% trans "ago" %}`, days: diffDays, months: diffMonths, color: '#28a745', buttonClass: 'btn-success' };
+                            } else if (diffDays > 0) {
+                                // Дні - зелений
+                                return { text: `${diffDays} ${diffDays === 1 ? '{% trans "day" %}' : '{% trans "days" %}'} {% trans "ago" %}`, days: diffDays, months: 0, color: '#28a745', buttonClass: 'btn-success' };
+                            } else if (diffHours > 0) {
+                                // Години - зелений (сьогодні)
+                                return { text: `${diffHours} ${diffHours === 1 ? '{% trans "hour" %}' : '{% trans "hours" %}'} {% trans "ago" %}`, days: 0, months: 0, color: '#28a745', buttonClass: 'btn-success' };
+                            } else if (diffMinutes > 0) {
+                                // Хвилини - зелений (сьогодні)
+                                return { text: `${diffMinutes} ${diffMinutes === 1 ? '{% trans "minute" %}' : '{% trans "minutes" %}'} {% trans "ago" %}`, days: 0, months: 0, color: '#28a745', buttonClass: 'btn-success' };
+                            } else {
+                                // Тільки що - зелений (сьогодні)
+                                return { text: '{% trans "Just now" %}', days: 0, months: 0, color: '#28a745', buttonClass: 'btn-success' };
+                            }
+                        } catch (e) {
+                            console.error('Error parsing date:', e);
+                            return null;
+                        }
+                    }
+                    
+                    const timeAgo = hasActualization && actualDate ? getTimeAgo(actualDate) : null;
+                    const isNoLongerActual = !!(markedNoLongerAt && !hasActualization);
+                    
+                    let html = '<div style="display: flex; flex-direction: column; gap: 0.19rem; align-items: flex-start;">';
+                    
+                    // Кнопка актуалізації у вигляді годинника - завжди активна для Owner
+                    if (isOwner) {
+                        // Визначаємо колір кнопки на основі часу з моменту актуалізації
+                        let buttonClass = 'btn-outline-secondary'; // Сірий якщо ще не актуалізувався
+                        if (timeAgo && timeAgo.buttonClass) {
+                            buttonClass = timeAgo.buttonClass;
+                        } else if (hasActualization) {
+                            // Якщо є актуалізація, але не вдалося обчислити час - зелений
+                            buttonClass = 'btn-success';
+                        }
+                        
+                        let tooltipActualize = '';
+                        let tooltipMarkInactive = '';
+                        if (hasActualization && actualDate) {
+                            const byText = '{% trans "By" %}';
+                            const timeAgoText = timeAgo ? timeAgo.text : '';
+                            tooltipActualize = '{% trans "Actualized" %}: ' + actualDate + 
+                                (actualUser ? '<br>' + byText + ': ' + actualUser : '') +
+                                (timeAgoText ? '<br><strong>' + timeAgoText + '</strong>' : '') +
+                                '<br>{% trans "Click to actualize again" %}';
+                            tooltipMarkInactive = '{% trans "Mark as no longer actual" %}';
+                        } else {
+                            tooltipActualize = '{% trans "Actualize" %}';
+                            tooltipMarkInactive = '{% trans "Mark as no longer actual" %}';
+                        }
+                        if (isNoLongerActual) {
+                            tooltipMarkInactive = '{% trans "No longer actual" %} — {% trans "Click to actualize again" %}';
+                        }
+                        const markInactiveBtnClass = isNoLongerActual ? 'btn-warning' : 'btn-outline-secondary';
+                        
+                        html += `
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-sm ${buttonClass} actualize-action"
+                                        data-action="actualize" data-id="${row.id}"
+                                        data-actual-date="${actualDate || ''}" data-actual-user="${actualUser || ''}"
+                                        data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top"
+                                        title="${tooltipActualize}">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm ${markInactiveBtnClass} actualize-action"
+                                        data-action="mark_inactive" data-id="${row.id}"
+                                        data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top"
+                                        title="${tooltipMarkInactive}">
+                                    <i class="fas fa-times-circle"></i>
+                                </button>
+                            </div>
+                        `;
+                        if (markedNoLongerAt && !hasActualization) {
+                            const noLongerAgo = getDaysAgoText(markedNoLongerAt);
+                            const noLongerTitle = markedNoLongerComment
+                                ? ('{% trans "Comment" %}: ' + markedNoLongerComment.replace(/"/g, '&quot;').replace(/</g, '&lt;'))
+                                : '';
+                            const tooltipAttrs = noLongerTitle ? ' title="' + noLongerTitle + '" data-bs-toggle="tooltip" data-bs-placement="top"' : '';
+                            html += `<div style="font-size: 0.55rem; color: #6b7280; ${noLongerTitle ? 'cursor: help;' : ''}"${tooltipAttrs}>{% trans "No longer actual" %}${noLongerAgo ? ' (' + noLongerAgo + ')' : ''}${markedNoLongerComment ? ' <i class="fas fa-comment text-muted" style="font-size: 0.5rem;"></i>' : ''}</div>`;
+                        }
+                    } else if (hasActualization) {
+                        // Якщо не власник, але є актуалізація - показуємо іконку годинника з tooltip
+                        const byText = '{% trans "By" %}';
+                        const timeAgoText = timeAgo ? timeAgo.text : '';
+                        const tooltipContent = '{% trans "Actualized" %}: ' + actualDate + 
+                                             (actualUser ? '<br>' + byText + ': ' + actualUser : '') +
+                                             (timeAgoText ? '<br><strong>' + timeAgoText + '</strong>' : '');
+                        html += `
+                            <span class="badge bg-success" 
+                                  style="padding: 0.19rem 0.375rem; font-size: 0.525rem; border-radius: 5px; min-width: 22px; cursor: help;"
+                                  data-bs-toggle="tooltip"
+                                  data-bs-html="true"
+                                  data-bs-placement="top"
+                                  title="${tooltipContent}">
+                                <i class="fas fa-clock"></i>
+                            </span>
+                        `;
+                    } else if (markedNoLongerAt) {
+                        // Позначено як неактуальний — показуємо скільки днів тому та опційно коментар у tooltip
+                        const noLongerAgo = getDaysAgoText(markedNoLongerAt);
+                        const noLongerTitle = markedNoLongerComment
+                            ? ('{% trans "Comment" %}: ' + markedNoLongerComment.replace(/"/g, '&quot;').replace(/</g, '&lt;'))
+                            : '';
+                        const tooltipAttrs = noLongerTitle ? ' title="' + noLongerTitle + '" data-bs-toggle="tooltip" data-bs-placement="top"' : '';
+                        html += `<span style="font-size: 0.6rem; color: #6b7280; ${markedNoLongerComment ? 'cursor: help;' : ''}"${tooltipAttrs}>{% trans "No longer actual" %}${noLongerAgo ? ' (' + noLongerAgo + ')' : ''}${markedNoLongerComment ? ' <i class="fas fa-comment text-muted" style="font-size: 0.5rem;"></i>' : ''}</span>`;
+                    } else {
+                        // Якщо не власник і немає актуалізації
+                        html += '<span class="text-muted">—</span>';
+                    }
+                    
+                    // Timeline з часу останнього оновлення
+                    if (hasActualization && actualDate && timeAgo) {
+                        const byText = '{% trans "By" %}';
+                        const tooltipContent = '{% trans "Actualized" %}: ' + actualDate + 
+                                             (actualUser ? '<br>' + byText + ': ' + actualUser : '') +
+                                             '<br><strong>' + timeAgo.text + '</strong>';
+                        
+                        // Визначаємо колір для timeline на основі часу
+                        let timelineColor = timeAgo.color;
+                        if (timeAgo.months !== undefined) {
+                            if (timeAgo.months >= 12 || (timeAgo.days && timeAgo.days >= 365)) {
+                                timelineColor = '#dc3545'; // Червоний - більше 1 року
+                            } else if (timeAgo.months >= 8) {
+                                timelineColor = '#fd7e14'; // Помаранчевий - 8+ місяців
+                            } else if (timeAgo.months >= 6) {
+                                timelineColor = '#ffc107'; // Жовтий - 6-7 місяців
+                            } else {
+                                timelineColor = '#28a745'; // Зелений - менше 6 місяців
+                            }
+                        }
+                        
+                        html += `
+                            <div style="font-size: 0.55rem; color: ${timelineColor}; font-weight: 500; display: flex; align-items: center; gap: 0.25rem;"
+                                 data-time-ago="${actualDate}"
+                                 data-bs-toggle="tooltip"
+                                 data-bs-html="true"
+                                 data-bs-placement="top"
+                                 title="${tooltipContent}">
+                                <i class="fas fa-circle" style="font-size: 0.4rem; color: ${timelineColor};"></i>
+                                <span>${timeAgo.text}</span>
+                            </div>
+                        `;
+                    } else if (hasActualization && actualDate) {
+                        // Якщо не вдалося обчислити time ago, показуємо просто дату
+                        const byText = '{% trans "By" %}';
+                        const tooltipContent = actualUser ? 
+                            '{% trans "Actualized" %}: ' + actualDate + '<br>' + byText + ': ' + actualUser :
+                            '{% trans "Actualized" %}: ' + actualDate;
+                        
+                        html += `
+                            <div style="font-size: 0.6rem; color: #6b7280; font-family: 'Courier New', monospace;"
+                                 data-bs-toggle="tooltip"
+                                 data-bs-html="true"
+                                 data-bs-placement="top"
+                                 title="${tooltipContent}">
+                                ${actualDate.split(' ')[0]}
+                            </div>
+                        `;
+                    }
+                    
+                    html += '</div>';
+                    return html;
+                }
+            },
+            {
+                data: 'owners',
+                render: function(data) {
+                    try {
+                        const owners = typeof data === 'string' ? JSON.parse(data) : data;
+                        if (!owners || owners.length === 0) return '<span class="text-muted">—</span>';
+                        
+                        return owners.map(owner => {
+                            const details = [
+                                owner.department && `<strong>{% trans "Department" %}:</strong> ${owner.department}`,
+                                owner.position && `<strong>{% trans "Position" %}:</strong> ${owner.position}`,
+                                owner.email && `<strong>{% trans "Email" %}:</strong> ${owner.email}`,
+                                owner.phone && `<strong>{% trans "Phone" %}:</strong> ${owner.phone}`
+                            ].filter(Boolean).join('<br>');
+
+                            return `<span style="color: #374151; font-size: 0.656rem; cursor: help; display: inline-block; margin-bottom: 0.25rem;"
+                                         data-bs-toggle="tooltip"
+                                         data-bs-html="true"
+                                         data-bs-placement="top"
+                                         title="${details}">
+                                <i class="fas fa-user me-1" style="font-size: 0.6rem; color: #6b7280;"></i>${owner.name}
+                            </span>`;
+                        }).join('<br>');
+                    } catch (e) {
+                        return '<span class="text-muted">—</span>';
+                    }
+                }
+            },
+            {
+                data: 'administrators',
+                render: function(data) {
+                    try {
+                        const admins = typeof data === 'string' ? JSON.parse(data) : data;
+                        if (!admins || admins.length === 0) return '<span class="text-muted">—</span>';
+                        
+                        return admins.map(admin => {
+                            const details = [
+                                admin.department && `<strong>{% trans "Department" %}:</strong> ${admin.department}`,
+                                admin.position && `<strong>{% trans "Position" %}:</strong> ${admin.position}`,
+                                admin.email && `<strong>{% trans "Email" %}:</strong> ${admin.email}`,
+                                admin.phone && `<strong>{% trans "Phone" %}:</strong> ${admin.phone}`
+                            ].filter(Boolean).join('<br>');
+
+                            return `<span style="color: #374151; font-size: 0.656rem; cursor: help; display: inline-block; margin-bottom: 0.25rem;"
+                                         data-bs-toggle="tooltip"
+                                         data-bs-html="true"
+                                         data-bs-placement="top"
+                                         title="${details}">
+                                <i class="fas fa-user-shield me-1" style="font-size: 0.6rem; color: #6b7280;"></i>${admin.name}
+                            </span>`;
+                        }).join('<br>');
+                    } catch (e) {
+                        return '<span class="text-muted">—</span>';
+                    }
+                }
+            }
+        ];
+
+        // Add actions column (always visible, but edit/delete buttons only if canEdit)
+        baseColumns.push({
+            data: null,
+            orderable: false,
+            render: function(data) {
+                const editBtn = canEdit ? `
+                    <button class="btn btn-sm btn-outline-primary edit-asset"
+                            data-id="${data.id}"
+                            data-bs-toggle="tooltip"
+                            title="{% trans 'Edit Asset' %}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                ` : '';
+                
+                const deleteBtn = canEdit ? `
+                    <button class="btn btn-sm btn-outline-danger delete-asset"
+                            data-id="${data.id}"
+                            data-bs-toggle="tooltip"
+                            title="{% trans 'Delete Asset' %}"
+                                ${data.is_deleted ? 'disabled' : ''}>
+                                <i class="bi bi-trash"></i>
+                            </button>
+                ` : '';
+                
+                const historyBtn = `
+                    <button class="btn btn-sm btn-info history-asset" 
+                            data-id="${data.id}"
+                            data-bs-toggle="tooltip"
+                            title="{% trans 'View History' %}">
+                                <i class="fas fa-history"></i>
+                            </button>
+                `;
+                
+                const buttons = [editBtn, historyBtn, deleteBtn].filter(Boolean).join('');
+                
+                return `
+                    <div class="actions-column-content">
+                        <div class="btn-group" role="group">
+                            ${buttons}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        const assetTable = $('#assetTable').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: "{% url 'asset_data' %}",
+                type: 'GET',
+                data: function(d) {
+                    d.showDeleted = $('#showDeletedAssets').is(':checked');
+                },
+                error: function(xhr, status, error) {
+                    console.error('DataTables Ajax Error:', {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        responseText: xhr.responseText,
+                        error: error
+                    });
+                    toastr.error(`{% trans "Error loading table data" %}: ${xhr.status} ${xhr.statusText}`);
+                }
+            },
+            columns: baseColumns,
+            order: [[1, 'desc']], // Змінив на колонку 1 (Asset ID), бо колонка 0 - це чекбокс
+            initComplete: function() {
+                // Initialize column filters after table is created
+                const api = this.api();
+
+                if (window.initAssetDataTablePagination) {
+                    window.initAssetDataTablePagination({
+                        api: api,
+                        containerId: 'assetTablePagination',
+                        paginationAriaLabel: '{% trans "Asset register pagination" %}',
+                        labels: {
+                            showing: '{% trans "Showing" %}',
+                            of: '{% trans "of" %}',
+                            items: '{% trans "assets" %}',
+                            perPage: '{% trans "Per page" %}'
+                        }
+                    });
+                }
+
+                function applyColumnFilter($el) {
+                    const columnIndex = $el.data('column');
+                    const searchValue = $el.val() || '';
+                    if (searchValue) {
+                        $el.addClass('has-value');
+                    } else {
+                        $el.removeClass('has-value');
+                    }
+                    if (api.column(columnIndex).search() !== searchValue) {
+                        api.column(columnIndex).search(searchValue).draw();
+                    }
+                }
+
+                $('#assetFiltersCollapse .column-filter').on('keyup change', function() {
+                    applyColumnFilter($(this));
+                });
+                
+                function updateActiveFilterCount() {
+                    const activeFiltersCount = $('#assetFiltersCollapse .column-filter').filter(function() {
+                        return $(this).val() !== '';
+                    }).length;
+                    const filterCountBadge = $('#filterCount');
+                    if (activeFiltersCount > 0) {
+                        filterCountBadge.hide().text(activeFiltersCount).fadeIn(200);
+                    } else {
+                        filterCountBadge.fadeOut(200);
+                    }
+                }
+
+                $('.column-filter').on('input change', function() {
+                    updateActiveFilterCount();
+                });
+            },
+            createdRow: function(row, data) {
+                if (data.is_deleted) {
+                    $(row).addClass('deleted-asset');
+                    $(row).find('td').addClass('deleted-asset-cell');
+                }
+            },
+            drawCallback: function() {
+                // Знищуємо існуючі tooltips перед створенням нових
+                $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+                
+                // Відновлюємо стан чекбоксів після перемальовування
+                if (typeof window.selectedAssetIds !== 'undefined' && window.selectedAssetIds.size > 0) {
+                    window.selectedAssetIds.forEach(function(assetId) {
+                        $(`#assetTable tbody .asset-checkbox[value="${assetId}"]`).prop('checked', true);
+                    });
+                    if (typeof updateBulkActionsToolbar === 'function') {
+                        updateBulkActionsToolbar();
+                    }
+                }
+                
+                // Створюємо нові Bootstrap tooltips
+                const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                    const hasHtml = tooltipTriggerEl.getAttribute('data-bs-html') === 'true';
+                    new bootstrap.Tooltip(tooltipTriggerEl, {
+                        container: 'body',
+                        html: hasHtml
+                    });
+                });
+                
+                $(window).trigger('resize');
+            },
+            language: {
+                processing: "{% trans 'Processing...' %}",
+                search: "{% trans 'Search:' %}",
+                lengthMenu: "{% trans 'Show _MENU_ entries' %}",
+                info: "{% trans 'Showing _START_ to _END_ of _TOTAL_ entries' %}",
+                infoEmpty: "{% trans 'Showing 0 to 0 of 0 entries' %}",
+                infoFiltered: "{% trans '(filtered from _MAX_ total entries)' %}",
+                zeroRecords: "{% trans 'No matching records found' %}",
+                emptyTable: "{% trans 'No data available in table' %}",
+                paginate: {
+                    first: "{% trans 'First' %}",
+                    previous: "{% trans 'Previous' %}",
+                    next: "{% trans 'Next' %}",
+                    last: "{% trans 'Last' %}"
+                }
+            },
+            pageLength: 25,
+            lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+            dom: '<"row"<"col-sm-12 col-md-6"f>>rt',
+            responsive: true,
+            stateSave: true,
+            scrollX: true,
+            autoWidth: false,
+        });
+
+        return assetTable;
+    }
+
+    // Criticality level rendering
+    function renderCriticalityLevels(gridId) {
+        return new Promise((resolve, reject) => {
+            const lang = document.documentElement.lang || '{{ request.LANGUAGE_CODE|default:"en" }}';
+            const companyId = (gridId && gridId.toLowerCase().startsWith('edit'))
+                ? ($('#editCompany').val() || '').toString()
+                : ($('#addCompany').val() || '').toString();
+            $.get("{% url 'get_criticality_levels' %}", { lang: lang, company_id: companyId })
+                .done(function(response) {
+                    const grid = $(`#${gridId}`);
+                    grid.empty();
+
+                    response.levels.forEach(level => {
+                        grid.append(`
+                            <div class="criticality-level" data-level-id="${level.id}">
+                                <div class="criticality-color" style="background-color: ${level.color}"></div>
+                                <div>
+                                    <div class="criticality-name">${level.name}</div>
+                                    <div class="criticality-cost small text-muted">${level.cost || ''}</div>
+                                </div>
+                            </div>
+                        `);
+                    });
+
+                    resolve();
+                })
+                .fail(function(error) {
+                    reject(error);
+                    toastr.error("{% trans 'Error loading criticality levels' %}");
+                });
+        });
+    }
+
+    // Form population
+    function populateEditForm(data) {
+        // Reset form and clear selections
+        $('#editAssetForm')[0].reset();
+        window.selectedEditOwners = new Set();
+        window.selectedEditAdmins = new Set();
+
+        // Display last modified information
+        if (data.last_modified && data.last_modified_by) {
+            $('#lastModifiedDateTime').text(data.last_modified);
+            $('#lastModifiedUser').text(data.last_modified_by);
+            $('#lastModifiedBanner').show();
+        } else {
+            $('#lastModifiedBanner').hide();
+        }
+
+        // Set basic fields
+        $('#edit_asset_id').val(data.id);
+        $('#editName').val(data.name);
+        $('#editDescription').val(data.description);
+        $('#editLocation').val(data.location);
+        $('#editNotes').val(data.notes);
+        $('#editAccessManage').prop('checked', data.access_manage);
+        $('#editIsActive').prop('checked', Object.prototype.hasOwnProperty.call(data, 'is_active') ? !!data.is_active : true);
+
+        // Set company and trigger change event
+        $('#editCompany').val(data.company).trigger('change');
+        filterEditSoftwareEntriesByCompany(data.company);
+
+        // Set group and asset type
+        if (data.group && data.asset_type) {
+            const groupAssetTypeValue = `${data.group},${data.asset_type}`;
+            $(`input[name="group_asset_type"][value="${groupAssetTypeValue}"]`).prop('checked', true);
+            $('#editGroupAssetType').val(groupAssetTypeValue);
+        }
+
+        // Set criticality levels
+        if (data.confidentiality) {
+            $(`#editConfidentialityGrid .criticality-level[data-level-id="${data.confidentiality}"]`).click();
+            $('#editConfidentiality').val(data.confidentiality);
+        }
+        if (data.integrity) {
+            $(`#editIntegrityGrid .criticality-level[data-level-id="${data.integrity}"]`).click();
+            $('#editIntegrity').val(data.integrity);
+        }
+        if (data.availability) {
+            $(`#editAvailabilityGrid .criticality-level[data-level-id="${data.availability}"]`).click();
+            $('#editAvailability').val(data.availability);
+        }
+
+        // Set dates using native JavaScript
+        if (data.registration_date) {
+            const regDate = new Date(data.registration_date);
+            const formattedRegDate = regDate.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            }).split('/').join('.');
+            $('#editRegistrationDate').val(formattedRegDate);
+        }
+
+        if (data.deletion_date) {
+            const delDate = new Date(data.deletion_date);
+            const formattedDelDate = delDate.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            }).split('/').join('.');
+            $('#editDeletionDate').val(formattedDelDate);
+        }
+
+        // Handle owners
+        if (data.owners && Array.isArray(data.owners)) {
+            data.owners.forEach(owner => {
+                window.selectedEditOwners.add({
+                    id: owner.id,
+                    name: owner.name,
+                    department: owner.department,
+                    position: owner.position,
+                    email: owner.email
+                });
+            });
+            updateEditSelectedOwners();
+        }
+
+        // Handle administrators
+        if (data.administrators && Array.isArray(data.administrators)) {
+            data.administrators.forEach(admin => {
+                window.selectedEditAdmins.add({
+                    id: admin.id,
+                    name: admin.name,
+                    department: admin.department,
+                    position: admin.position,
+                    email: admin.email
+                });
+            });
+            updateEditSelectedAdmins();
+        }
+
+        if (document.getElementById('editSoftwareEntriesSelect')) {
+            const selectedSoftwareIds = (data.software_entries || []).map(function(sw) { return String(sw.id); });
+            filterEditSoftwareEntriesByCompany(data.company);
+            Array.from(document.getElementById('editSoftwareEntriesSelect').options).forEach(function(opt) {
+                opt.selected = selectedSoftwareIds.indexOf(String(opt.value)) !== -1;
+            });
+            const prefillMap = {};
+            (data.software_entries || []).forEach(function(sw) {
+                prefillMap[String(sw.id)] = {
+                    version: sw.version || '',
+                    license_quantity: (sw.license_quantity != null ? sw.license_quantity : '')
+                };
+            });
+            renderEditSoftwareSelections(prefillMap);
+            syncEditSoftwareEntries();
+        }
+
+        // Trigger searches for owners and administrators after company is set
+        if (data.company) {
+            searchEditOwners();
+            searchEditAdministrators();
+        }
+
+        // Initialize tooltips
+        $('[data-bs-toggle="tooltip"]').tooltip();
+
+        // Update form validation state
+        $('#editAssetForm').removeClass('was-validated');
+        $('.is-invalid').removeClass('is-invalid');
+
+        // Show group descriptions and types for selected group
+        if (data.group) {
+            const groupHeader = $(`.group-header[data-group-id="${data.group}"]`);
+            const groupSection = groupHeader.closest('.group-section');
+            groupSection.find('.group-description').removeClass('d-none');
+            groupSection.find('.group-types').removeClass('d-none');
+            groupHeader.find('.fa-chevron-down').addClass('fa-rotate-180');
+        }
+
+        // Log the populated data for debugging
+        console.log('Form populated with data:', {
+            assetId: data.id,
+            company: data.company,
+            group: data.group,
+            assetType: data.asset_type,
+            criticalityLevels: {
+                confidentiality: data.confidentiality,
+                integrity: data.integrity,
+                availability: data.availability
+            },
+            selectedOwners: [...window.selectedEditOwners],
+            selectedAdmins: [...window.selectedEditAdmins]
+        });
+    }
+
+    $('.datepicker-input').datepicker({
+        format: 'dd.mm.yyyy',
+        autoclose: true,
+        todayHighlight: true,
+        language: '{{ LANGUAGE_CODE }}',
+        clearBtn: true
+    });
+
+    // Owners and administrators management
+    function updateOwnersAndAdmins(data) {
+        window.selectedEditOwners.clear();
+        window.selectedEditAdmins.clear();
+
+        if (data.owners?.length) {
+            data.owners.forEach(owner => window.selectedEditOwners.add(owner));
+            updateEditSelectedOwners();
+        }
+
+        if (data.administrators?.length) {
+            data.administrators.forEach(admin => window.selectedEditAdmins.add(admin));
+            updateEditSelectedAdmins();
+        }
+
+        searchEditOwners();
+        searchEditAdministrators();
+    }
+
+    $('#editSoftwareFilterGroup').on('change', function() {
+        _populateEditSwTypeFilter($(this).val());
+        $('#editSoftwareFilterType').val('');
+        filterEditSoftwareEntriesByCompany($('#editCompany').val());
+    });
+    $('#editSoftwareFilterType, #editSoftwareFilterStatus, #editSoftwareFilterLicenseType').on('change', function() {
+        filterEditSoftwareEntriesByCompany($('#editCompany').val());
+    });
+    $(document).on('input', '#editSoftwareSearch', function() {
+        filterEditSoftwareEntriesByCompany($('#editCompany').val());
+    });
+
+    function updateEditSelectedOwners() {
+        const container = $('#editSelectedOwners');
+        if (window.selectedEditOwners.size === 0) {
+            container.html('<div class="text-muted text-center p-2">{% trans "No owners selected" %}</div>');
+            return;
+        }
+
+        container.empty();
+        // Convert Set to Array and filter out duplicates by ID
+        const uniqueOwners = [...new Map(
+            [...window.selectedEditOwners].map(owner => [owner.id, owner])
+        ).values()];
+
+        uniqueOwners.forEach(owner => {
+            container.append(`
+                <div class="selected-item d-flex justify-content-between align-items-center p-2 border-bottom">
+                    <div>
+                        <strong>${owner.name}</strong>
+                        <div class="text-muted small">
+                            ${owner.department ? owner.department + ' | ' : ''}${owner.position || ''}
+                        </div>
+                        <div class="text-muted small">${owner.email || ''}</div>
+                        ${owner.phone ? `<div class="text-muted small">${owner.phone}</div>` : ''}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-danger remove-edit-owner" data-id="${owner.id}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `);
+        });
+
+        $('#editOwners').val(JSON.stringify(uniqueOwners.map(owner => owner.id)));
+    }
+
+
+    function updateEditSelectedAdmins() {
+        const container = $('#editSelectedAdmins');
+        if (window.selectedEditAdmins.size === 0) {
+            container.html('<div class="text-muted text-center p-2">{% trans "No administrators selected" %}</div>');
+            return;
+        }
+
+        container.empty();
+        // Convert Set to Array and filter out duplicates by ID
+        const uniqueAdmins = [...new Map(
+            [...window.selectedEditAdmins].map(admin => [admin.id, admin])
+        ).values()];
+
+        uniqueAdmins.forEach(admin => {
+            container.append(`
+                <div class="selected-item d-flex justify-content-between align-items-center p-2 border-bottom">
+                    <div>
+                        <strong>${admin.name}</strong>
+                        <div class="text-muted small">
+                            ${admin.department ? admin.department + ' | ' : ''}${admin.position || ''}
+                        </div>
+                        <div class="text-muted small">${admin.email || ''}</div>
+                        ${admin.phone ? `<div class="text-muted small">${admin.phone}</div>` : ''}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-danger remove-edit-admin" data-id="${admin.id}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `);
+        });
+
+        $('#editAdministrators').val(JSON.stringify(uniqueAdmins.map(admin => admin.id)));
+    }
+
+    // Search functionality
+    function searchEditOwners(query = '') {
+        const companyId = $('#editCompany').val();
+
+        if (!companyId) {
+            console.log('No company selected for owner search');
+            $('#editOwnerSearchResults').empty();
+            return;
+        }
+
+        $.get("{% url 'get_all_asset_owners' %}", {
+            query: query,
+            company_id: companyId
+        })
+        .done(function(data) {
+            $('#editOwnerSearchResults').empty();
+
+            if (data.length === 0) {
+                $('#editOwnerSearchResults').html(`
+                    <div class="text-center p-2 text-muted">
+                        {% trans "No owners found" %}
+                    </div>
+                `);
+                return;
+            }
+
+            data.forEach(user => {
+                const isSelected = [...window.selectedEditOwners].some(selected => selected.id === user.id);
+                const userElement = `
+                    <div class="search-result-item p-2 border-bottom" data-user='${JSON.stringify(user)}'>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${user.name}</strong>
+                                <div class="text-muted small">
+                                    ${user.department ? `${user.department} | ` : ''}
+                                    ${user.position || ''}
+                                </div>
+                                <div class="text-muted small">${user.email || ''}</div>
+                            </div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" ${isSelected ? 'checked' : ''}>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                $('#editOwnerSearchResults').append(userElement);
+            });
+        })
+        .fail(function(xhr) {
+            console.error('Error searching owners:', xhr.responseText);
+            $('#editOwnerSearchResults').html(`
+                <div class="text-center p-2 text-danger">
+                    {% trans "Error loading owners" %}
+                </div>
+            `);
+        });
+    }
+
+    function searchEditAdministrators(query = '') {
+        const companyId = $('#editCompany').val();
+
+        if (!companyId) {
+            console.log('No company selected for administrator search');
+            $('#editAdminSearchResults').empty();
+            return;
+        }
+
+        $.get("{% url 'get_all_asset_administrators' %}", {
+            query: query,
+            company_id: companyId
+        })
+        .done(function(data) {
+            $('#editAdminSearchResults').empty();
+
+            if (data.length === 0) {
+                $('#editAdminSearchResults').html(`
+                    <div class="text-center p-2 text-muted">
+                        {% trans "No administrators found" %}
+                    </div>
+                `);
+                return;
+            }
+
+            data.forEach(user => {
+                const isSelected = [...window.selectedEditAdmins].some(selected => selected.id === user.id);
+                const userElement = `
+                    <div class="search-result-item p-2 border-bottom" data-user='${JSON.stringify(user)}'>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${user.name}</strong>
+                                <div class="text-muted small">
+                                    ${user.department ? `${user.department} | ` : ''}
+                                    ${user.position || ''}
+                                </div>
+                                <div class="text-muted small">${user.email || ''}</div>
+                            </div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" ${isSelected ? 'checked' : ''}>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                $('#editAdminSearchResults').append(userElement);
+            });
+        })
+        .fail(function(xhr) {
+            console.error('Error searching administrators:', xhr.responseText);
+            $('#editAdminSearchResults').html(`
+                <div class="text-center p-2 text-danger">
+                    {% trans "Error loading administrators" %}
+                </div>
+            `);
+        });
+    }
+
+    // Delete confirmation handling
+    function showDeleteConfirmation(assetId) {
+        const confirmModal = $(`
+            <div class="modal fade" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">${gettext('Confirm Deletion')}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>${gettext('The asset will be removed from the active register (deletion date will be set). It will not be erased from the database; use "Show Inactive Assets" to find it and clear the deletion date to restore.')}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                ${gettext('Cancel')}
+                            </button>
+                            <button type="button" class="btn btn-danger confirm-delete">
+                                ${gettext('Delete')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        confirmModal.modal('show');
+        handleDeleteConfirmation(confirmModal, assetId);
+    }
+
+    function handleDeleteConfirmation(confirmModal, assetId) {
+        confirmModal.find('.confirm-delete').on('click', function() {
+            $('.loading-spinner').show();
+            $(this).prop('disabled', true);
+
+            $.ajax({
+                url: `/en/app_asset/delete_asset/${assetId}/`,
+                type: 'GET',
+                data: { csrfmiddlewaretoken: getCookie('csrftoken') },
+                success: function(response) {
+                    confirmModal.modal('hide');
+                    if (response.status === 'success') {
+                        toastr.success(response.message);
+                        $('#assetTable').DataTable().ajax.reload();
+                    } else {
+                        toastr.error(response.message || gettext('Error deleting asset'));
+                    }
+                },
+                error: function(xhr) {
+                    const errorMessage = xhr.status === 403
+                        ? gettext('You do not have permission to delete this asset')
+                        : xhr.responseJSON?.message || gettext('Error deleting asset');
+                    toastr.error(errorMessage);
+                    confirmModal.find('.confirm-delete').prop('disabled', false);
+                },
+                complete: function() {
+                    $('.loading-spinner').hide();
+                }
+            });
+        });
+
+        confirmModal.on('hidden.bs.modal', function() {
+            $(this).remove();
+        });
+    }
+
+    // CSRF token handling
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // AJAX setup for CSRF
+    $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(settings.type.toUpperCase()) && !this.crossDomain) {
+                xhr.setRequestHeader('X-CSRFToken', getCookie('csrftoken'));
+            }
+        }
+    });
+
+
+
+
+
+
+
+
+
+
+    // Remove handlers for selected owners/admins
+    $(document).on('click', '.remove-edit-owner', function() {
+        const ownerId = $(this).data('id');
+        window.selectedEditOwners.delete([...window.selectedEditOwners].find(o => o.id === ownerId));
+        updateEditSelectedOwners();
+        $('#editOwnerSearchResults').find(`[data-user]`).each(function() {
+            const userData = JSON.parse($(this).attr('data-user'));
+            if (userData.id === ownerId) {
+                $(this).find('input[type="checkbox"]').prop('checked', false);
+            }
+        });
+    });
+
+    $(document).on('click', '.remove-edit-admin', function() {
+        const adminId = $(this).data('id');
+        window.selectedEditAdmins.delete([...window.selectedEditAdmins].find(a => a.id === adminId));
+        updateEditSelectedAdmins();
+        $('#editAdminSearchResults').find(`[data-user]`).each(function() {
+            const userData = JSON.parse($(this).attr('data-user'));
+            if (userData.id === adminId) {
+                $(this).find('input[type="checkbox"]').prop('checked', false);
+            }
+        });
+    });
+
+    // Bulk selection functionality
+    // Select all checkbox handler
+    $(document).on('change', '#selectAllAssets', function() {
+        const isChecked = $(this).is(':checked');
+        $('#assetTable tbody .asset-checkbox').prop('checked', isChecked);
+        
+        if (isChecked) {
+            $('#assetTable tbody .asset-checkbox').each(function() {
+                window.selectedAssetIds.add($(this).val());
+            });
+        } else {
+            window.selectedAssetIds.clear();
+        }
+        
+        updateBulkActionsToolbar();
+    });
+
+    // Individual checkbox handler
+    $(document).on('change', '.asset-checkbox', function() {
+        const assetId = $(this).val();
+        if ($(this).is(':checked')) {
+            window.selectedAssetIds.add(assetId);
+        } else {
+            window.selectedAssetIds.delete(assetId);
+            $('#selectAllAssets').prop('checked', false);
+        }
+        
+        updateBulkActionsToolbar();
+    });
+
+    // Update bulk actions toolbar
+    function updateBulkActionsToolbar() {
+        const count = window.selectedAssetIds.size;
+        $('#selectedAssetsCount').text(count);
+        
+        if (count > 0) {
+            $('#bulkActionsToolbar').slideDown();
+        } else {
+            $('#bulkActionsToolbar').slideUp();
+        }
+        
+        // Update select all checkbox state
+        const totalCheckboxes = $('#assetTable tbody .asset-checkbox').length;
+        const checkedCheckboxes = $('#assetTable tbody .asset-checkbox:checked').length;
+        
+        if (checkedCheckboxes === 0) {
+            $('#selectAllAssets').prop('indeterminate', false).prop('checked', false);
+        } else if (checkedCheckboxes === totalCheckboxes && totalCheckboxes > 0) {
+            $('#selectAllAssets').prop('indeterminate', false).prop('checked', true);
+        } else {
+            $('#selectAllAssets').prop('indeterminate', true);
+        }
+    }
+
+    // Clear selection button
+    $(document).on('click', '#clearSelectionBtn', function() {
+        window.selectedAssetIds.clear();
+        $('#assetTable tbody .asset-checkbox').prop('checked', false);
+        $('#selectAllAssets').prop('checked', false).prop('indeterminate', false);
+        updateBulkActionsToolbar();
+    });
+
+    // Bulk actualize button
+    $(document).on('click', '#bulkActualizeBtn', function() {
+        const assetIds = Array.from(window.selectedAssetIds);
+        
+        if (assetIds.length === 0) {
+            toastr.warning('{% trans "Please select at least one asset" %}');
+            return;
+        }
+        
+        if (!confirm(`{% trans "Are you sure you want to actualize" %} ${assetIds.length} {% trans "selected asset(s)" %}?`)) {
+            return;
+        }
+        
+        const button = $(this);
+        button.prop('disabled', true);
+        button.html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Processing..." %}');
+        
+        const csrftoken = getCookie('csrftoken') || $('[name=csrfmiddlewaretoken]').val() || $('meta[name=csrf-token]').attr('content');
+        
+        $.ajax({
+            url: "{% url 'bulk_actualize_assets' %}",
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken
+            },
+            contentType: 'application/json',
+            data: JSON.stringify({
+                asset_ids: assetIds
+            }),
+                success: function(response) {
+                    if (response.status === 'success') {
+                        const actualizedCount = response.actualized_count || assetIds.length;
+                        let message = response.message || `{% trans "Successfully actualized" %} ${actualizedCount} {% trans "asset(s)" %}`;
+                        if (response.skipped_count > 0) {
+                            message += ` (${response.skipped_count} {% trans "skipped" %})`;
+                        }
+                        toastr.success(message);
+                        window.selectedAssetIds.clear();
+                        $('#assetTable tbody .asset-checkbox').prop('checked', false);
+                        $('#selectAllAssets').prop('checked', false).prop('indeterminate', false);
+                        updateBulkActionsToolbar();
+                        // Оновлюємо таблицю
+                        $('#assetTable').DataTable().ajax.reload(null, false);
+                    } else {
+                        toastr.error(response.message || '{% trans "Error during bulk actualization" %}');
+                        button.prop('disabled', false);
+                        button.html('<i class="fas fa-sync-alt me-1"></i>{% trans "Bulk Actualize" %}');
+                    }
+                },
+            error: function(xhr) {
+                let errorMsg = '{% trans "Error during bulk actualization" %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMsg = xhr.responseJSON.message;
+                }
+                toastr.error(errorMsg);
+                button.prop('disabled', false);
+                button.html('<i class="fas fa-sync-alt me-1"></i>{% trans "Bulk Actualize" %}');
+            }
+        });
+    });
+
+    // Функція для оновлення "time ago" в реальному часі
+    function updateTimeAgoDisplay() {
+        $('#assetTable tbody .actualize-action[data-action="actualize"][data-actual-date]').each(function() {
+            const $button = $(this);
+            const actualDate = $button.attr('data-actual-date');
+            if (!actualDate) return;
+            
+            try {
+                // Парсимо дату з формату 'dd-mm-yyyy HH:MM:SS'
+                const [datePart, timePart] = actualDate.split(' ');
+                const [day, month, year] = datePart.split('-');
+                const [hours, minutes, seconds] = timePart.split(':');
+                const date = new Date(year, month - 1, day, hours, minutes, seconds);
+                
+                const now = new Date();
+                const diffMs = now - date;
+                const diffSeconds = Math.floor(diffMs / 1000);
+                const diffMinutes = Math.floor(diffSeconds / 60);
+                const diffHours = Math.floor(diffMinutes / 60);
+                const diffDays = Math.floor(diffHours / 24);
+                const diffMonths = Math.floor(diffDays / 30);
+                const diffYears = Math.floor(diffDays / 365);
+                
+                let timeAgoText = '';
+                let buttonClass = 'btn-outline-secondary'; // Сірий якщо ще не актуалізувався
+                
+                if (diffYears > 0) {
+                    // Більше 1 року - червоний
+                    timeAgoText = `${diffYears} ${diffYears === 1 ? translations.year : translations.years} ${translations.ago}`;
+                    buttonClass = 'btn-outline-danger';
+                } else if (diffMonths >= 8) {
+                    // 8+ місяців - помаранчевий
+                    timeAgoText = `${diffMonths} ${diffMonths === 1 ? translations.month : translations.months} ${translations.ago}`;
+                    buttonClass = 'btn-outline-warning';
+                } else if (diffMonths >= 6) {
+                    // 6-7 місяців - жовтий
+                    timeAgoText = `${diffMonths} ${diffMonths === 1 ? translations.month : translations.months} ${translations.ago}`;
+                    buttonClass = 'btn-warning';
+                } else if (diffMonths > 0) {
+                    // Менше 6 місяців - зелений
+                    timeAgoText = `${diffMonths} ${diffMonths === 1 ? translations.month : translations.months} ${translations.ago}`;
+                    buttonClass = 'btn-success';
+                } else if (diffDays > 0) {
+                    // Дні - зелений (сьогодні)
+                    timeAgoText = `${diffDays} ${diffDays === 1 ? translations.day : translations.days} ${translations.ago}`;
+                    buttonClass = 'btn-success';
+                } else if (diffHours > 0) {
+                    // Години - зелений (сьогодні)
+                    timeAgoText = `${diffHours} ${diffHours === 1 ? translations.hour : translations.hours} ${translations.ago}`;
+                    buttonClass = 'btn-success';
+                } else if (diffMinutes > 0) {
+                    // Хвилини - зелений (сьогодні)
+                    timeAgoText = `${diffMinutes} ${diffMinutes === 1 ? translations.minute : translations.minutes} ${translations.ago}`;
+                    buttonClass = 'btn-success';
+                } else {
+                    // Тільки що - зелений (сьогодні)
+                    timeAgoText = translations['Just now'];
+                    buttonClass = 'btn-success';
+                }
+                
+                // Оновлюємо клас кнопки
+                $button.removeClass('btn-outline-secondary btn-outline-danger btn-outline-warning btn-warning btn-outline-success btn-success')
+                       .addClass(buttonClass);
+                
+                // Оновлюємо tooltip
+                const actualUser = $button.attr('data-actual-user') || '';
+                const tooltipContent = `${translations.Actualized}: ${actualDate}` + 
+                                     (actualUser ? `<br>${translations.By}: ${actualUser}` : '') +
+                                     `<br><strong>${timeAgoText}</strong>` +
+                                     `<br>${translations['Click to actualize again']}`;
+                
+                $button.attr('data-original-title', tooltipContent);
+                $button.attr('title', tooltipContent);
+                $button.attr('data-bs-html', 'true');
+                
+                try {
+                    const tooltipInstance = bootstrap.Tooltip.getInstance($button[0]);
+                    if (tooltipInstance) tooltipInstance.dispose();
+                    new bootstrap.Tooltip($button[0], { container: 'body', html: true });
+                } catch (e) {
+                    console.warn('Could not create tooltip on actualize button:', e);
+                }
+                
+                // Оновлюємо timeline під кнопками (timeline є sibling від btn-group)
+                const $timeline = $button.closest('.btn-group').parent().find('div[data-time-ago]');
+                if ($timeline.length) {
+                    let color = '#28a745'; // Зелений за замовчуванням
+                    if (diffYears > 0 || diffDays >= 365) {
+                        // Більше 1 року - червоний
+                        color = '#dc3545';
+                    } else if (diffMonths >= 8) {
+                        // 8+ місяців - помаранчевий
+                        color = '#fd7e14';
+                    } else if (diffMonths >= 6) {
+                        // 6-7 місяців - жовтий
+                        color = '#ffc107';
+                    } else {
+                        // Менше 6 місяців - зелений
+                        color = '#28a745';
+                    }
+                    
+                    $timeline.find('span').text(timeAgoText);
+                    $timeline.find('i').css('color', color);
+                    $timeline.css('color', color);
+                    
+                    // Оновлюємо tooltip timeline
+                    const timelineTooltipContent = `${translations.Actualized}: ${actualDate}` + 
+                                                  (actualUser ? `<br>${translations.By}: ${actualUser}` : '') +
+                                                  `<br><strong>${timeAgoText}</strong>`;
+                    $timeline.attr('data-original-title', timelineTooltipContent);
+                    $timeline.attr('title', timelineTooltipContent);
+                    $timeline.attr('data-bs-html', 'true'); // Забезпечуємо HTML підтримку
+                    
+                    // Переініціалізуємо Bootstrap tooltip timeline з HTML підтримкою
+                    const timelineTooltipInstance = bootstrap.Tooltip.getInstance($timeline[0]);
+                    if (timelineTooltipInstance) {
+                        timelineTooltipInstance.dispose();
+                    }
+                    // Перестворюємо tooltip з HTML підтримкою
+                    new bootstrap.Tooltip($timeline[0], {
+                        container: 'body',
+                        html: true
+                    });
+                }
+            } catch (e) {
+                console.error('Error updating time ago:', e);
+            }
+        });
+    }
+    
+    // Оновлюємо час кожну хвилину
+    setInterval(updateTimeAgoDisplay, 60000); // 60000 мс = 1 хвилина
+    
+    // Оновлюємо час після перемальовування таблиці
+    $('#assetTable').on('draw.dt', function() {
+        setTimeout(updateTimeAgoDisplay, 100);
+    });
+    
+    // Оновлюємо час при завантаженні сторінки
+    $(document).ready(function() {
+        setTimeout(updateTimeAgoDisplay, 500);
+    });
+
+</script>
+
+{% endblock %}

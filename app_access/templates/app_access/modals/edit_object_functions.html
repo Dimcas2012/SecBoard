@@ -1,0 +1,1535 @@
+<!-- Object Functions Management Modal -->
+{% load i18n %}
+<script>
+window.OBJECT_FORM_LANGUAGES = [{% for lang_code, lang_label in object_form_languages %}['{{ lang_code }}', '{{ lang_label|escapejs }}']{% if not forloop.last %}, {% endif %}{% endfor %}];
+if (!window.OBJECT_FORM_LANGUAGES || !window.OBJECT_FORM_LANGUAGES.length) window.OBJECT_FORM_LANGUAGES = [['en', 'English']];
+</script>
+<div class="modal fade" id="editObjectFunctionsModal" tabindex="-1" aria-labelledby="editObjectFunctionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="editObjectFunctionsModalLabel">
+                    <i class="fas fa-cogs me-2"></i>{% trans "Manage Object Functions" %}
+                </h5>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <!-- Object Info -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <strong>{% trans "Object" %}:</strong> <span id="objectFunctionsObjectName"></span><br>
+                            <strong>{% trans "System" %}:</strong> <span id="objectFunctionsSystemName"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="objectFunctionsLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                    <p class="mt-2">{% trans "Loading functions..." %}</p>
+                </div>
+
+                <!-- Error Alert -->
+                <div id="objectFunctionsError" class="alert alert-danger d-none">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="objectFunctionsErrorMessage"></span>
+                </div>
+
+                <!-- Success Alert -->
+                <div id="objectFunctionsSuccess" class="alert alert-success d-none">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span id="objectFunctionsSuccessMessage"></span>
+                </div>
+
+                <!-- Functions Management Content -->
+                <div id="objectFunctionsContent" class="d-none">
+                    <div class="row">
+                        <!-- Available Functions -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-list me-2"></i>{% trans "Available Functions" %}
+                                        <span class="badge bg-secondary ms-2" id="availableFunctionsCount">0</span>
+                                    </h6>
+                                    <button type="button" class="btn btn-outline-warning btn-sm" id="toggleReorderMode" title="{% trans 'Toggle Reorder Mode' %}">
+                                        <i class="fas fa-sort me-1"></i><span class="btn-text">{% trans "Reorder" %}</span>
+                                    </button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <!-- Search -->
+                                    <div class="p-3 border-bottom">
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control" id="searchAvailableFunctions" 
+                                                   placeholder="{% trans 'Search functions...' %}">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Functions List -->
+                                    <div class="functions-list" style="max-height: 500px; overflow-y: auto;">
+                                        <div id="availableFunctionsList" class="list-group list-group-flush">
+                                            <!-- Available functions will be loaded here -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <button type="button" class="btn btn-primary btn-sm" id="addSelectedFunctions" disabled>
+                                        <i class="fas fa-arrow-right me-2"></i>{% trans "Add Selected" %}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="selectAllAvailable">
+                                        <i class="fas fa-check-square me-2"></i>{% trans "Select All" %}
+                                    </button>
+                                    <button type="button" class="btn btn-success btn-sm ms-2" id="createCustomFunctionBtn" title="{% trans 'Create Custom Function' %}">
+                                        <i class="fas fa-plus me-1"></i>{% trans "Custom Function" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Assigned Functions -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-check-circle me-2"></i>{% trans "Assigned Functions" %}
+                                        <span class="badge bg-light text-dark ms-2" id="assignedFunctionsCount">0</span>
+                                    </h6>
+                                    <button type="button" class="btn btn-outline-light btn-sm" id="toggleAssignedReorderMode" title="{% trans 'Toggle Assigned Functions Reorder Mode' %}">
+                                        <i class="fas fa-sort me-1"></i><span class="btn-text">{% trans "Reorder" %}</span>
+                                    </button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <!-- Search -->
+                                    <div class="p-3 border-bottom">
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control" id="searchAssignedFunctions" 
+                                                   placeholder="{% trans 'Search assigned functions...' %}">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Functions List -->
+                                    <div class="functions-list" style="max-height: 500px; overflow-y: auto;">
+                                        <div id="assignedFunctionsList" class="list-group list-group-flush">
+                                            <!-- Assigned functions will be loaded here -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <button type="button" class="btn btn-danger btn-sm" id="removeSelectedFunctions" disabled>
+                                        <i class="fas fa-trash me-2"></i>{% trans "Remove Selected" %}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm ms-2" id="selectAllAssigned">
+                                        <i class="fas fa-check-square me-2"></i>{% trans "Select All" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Close" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="refreshObjectFunctions">
+                    <i class="fas fa-sync-alt me-2"></i>{% trans "Refresh" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom CSS for Object Functions -->
+<style>
+/* Increase modal height by 25% */
+#editObjectFunctionsModal .modal-dialog {
+    max-height: calc(100vh - 60px);
+    height: 90vh;
+}
+
+#editObjectFunctionsModal .modal-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#editObjectFunctionsModal .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    max-height: none;
+}
+
+.function-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 4px solid transparent;
+}
+
+.function-item:hover {
+    background-color: #f8f9fa;
+    border-left-color: #007bff;
+}
+
+.function-item.selected {
+    background-color: #e3f2fd;
+    border-left-color: #2196f3;
+}
+
+.function-item.assigned {
+    background-color: #e8f5e8;
+    border-left-color: #28a745;
+}
+
+.function-hierarchy {
+    font-family: monospace;
+    color: #6c757d;
+    font-size: 0.9em;
+}
+
+.function-level-0 {
+    margin-left: 0;
+    font-weight: 600;
+    border-left: 4px solid #6c757d;
+    padding-left: 8px;
+    background-color: rgba(248, 249, 250, 0.5);
+}
+
+.function-level-1 {
+    margin-left: 30px; 
+    position: relative;
+    background: linear-gradient(90deg, rgba(0,123,255,0.05) 0%, transparent 50px);
+    border-left: 3px solid rgba(0,123,255,0.2);
+    padding-left: 8px;
+}
+
+.function-level-2 {
+    margin-left: 60px; 
+    position: relative;
+    background: linear-gradient(90deg, rgba(40,167,69,0.05) 0%, transparent 50px);
+    border-left: 3px solid rgba(40,167,69,0.2);
+    padding-left: 8px;
+}
+
+.function-level-3 {
+    margin-left: 90px; 
+    position: relative;
+    background: linear-gradient(90deg, rgba(255,193,7,0.05) 0%, transparent 50px);
+    border-left: 3px solid rgba(255,193,7,0.2);
+    padding-left: 8px;
+}
+
+/* Hierarchy visual indicators */
+.function-level-1::before {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #007bff;
+}
+
+.function-level-1::after {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 50%;
+    width: 12px;
+    height: 2px;
+    background-color: #007bff;
+}
+
+.function-level-2::before {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #28a745;
+}
+
+.function-level-2::after {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 50%;
+    width: 12px;
+    height: 2px;
+    background-color: #28a745;
+}
+
+.function-level-3::before {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #ffc107;
+}
+
+.function-level-3::after {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 50%;
+    width: 12px;
+    height: 2px;
+    background-color: #ffc107;
+}
+
+.function-color-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.functions-list {
+    scrollbar-width: thin;
+    scrollbar-color: #6c757d #f8f9fa;
+}
+
+.functions-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.functions-list::-webkit-scrollbar-track {
+    background: #f8f9fa;
+}
+
+.functions-list::-webkit-scrollbar-thumb {
+    background: #6c757d;
+    border-radius: 3px;
+}
+
+.functions-list::-webkit-scrollbar-thumb:hover {
+    background: #495057;
+}
+
+.function-description {
+    font-size: 0.85em;
+    color: #6c757d;
+    margin-top: 2px;
+}
+
+.function-stats {
+    font-size: 0.75em;
+    color: #6c757d;
+}
+
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+/* Drag and Drop Styles */
+.function-item {
+    position: relative;
+}
+
+.function-item.draggable {
+    cursor: move;
+}
+
+.function-item.dragging {
+    opacity: 0.5;
+    transform: rotate(5deg);
+    z-index: 1000;
+}
+
+.function-item.drag-over {
+    border-top: 3px solid #007bff;
+    background-color: #f8f9fa;
+}
+
+.drag-handle {
+    cursor: move;
+    color: #6c757d;
+    margin-right: 8px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.function-item:hover .drag-handle {
+    opacity: 1;
+}
+
+.drag-handle:hover {
+    color: #007bff;
+}
+
+.drop-zone {
+    min-height: 2px;
+    transition: all 0.2s ease;
+}
+
+.drop-zone.active {
+    min-height: 20px;
+    background-color: #e3f2fd;
+    border: 2px dashed #2196f3;
+    margin: 2px 0;
+}
+
+.reorder-mode .function-item {
+    border-left: 4px solid #ffc107 !important;
+}
+
+.reorder-mode .function-item .form-check {
+    display: none;
+}
+
+.function-group-dragging {
+    background-color: #fff3cd !important;
+    border-left: 4px solid #ffc107 !important;
+}
+
+.function-group-preview {
+    background-color: #f8f9fa !important;
+    border-left: 4px solid #6c757d !important;
+    opacity: 0.7;
+}
+</style>
+
+<!-- JavaScript for Object Functions Management -->
+<script>
+class ObjectFunctionsManager {
+    constructor() {
+        this.currentObjectId = null;
+        this.availableFunctions = [];
+        this.assignedFunctions = [];
+        this.selectedAvailable = new Set();
+        this.selectedAssigned = new Set();
+        this.isReorderMode = false;
+        this.isAssignedReorderMode = false;
+        this.draggedElement = null;
+        this.init();
+    }
+
+    init() {
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        // Modal events
+        $('#editObjectFunctionsModal').on('hidden.bs.modal', () => {
+            this.reset();
+        });
+
+        // Search functionality
+        $('#searchAvailableFunctions').on('input', (e) => {
+            this.filterFunctions('available', e.target.value);
+        });
+
+        $('#searchAssignedFunctions').on('input', (e) => {
+            this.filterFunctions('assigned', e.target.value);
+        });
+
+        // Button events
+        $('#addSelectedFunctions').on('click', () => this.addSelectedFunctions());
+        $('#removeSelectedFunctions').on('click', () => this.removeSelectedFunctions());
+        $('#selectAllAvailable').on('click', () => this.selectAll('available'));
+        $('#selectAllAssigned').on('click', () => this.selectAll('assigned'));
+        $('#refreshObjectFunctions').on('click', () => this.loadObjectFunctions());
+        
+        // Custom function management events
+        $('#createCustomFunctionBtn').on('click', () => this.showCreateCustomFunctionModal());
+        
+        // Reorder mode toggle
+        $('#toggleReorderMode').on('click', () => this.toggleReorderMode());
+        
+        // Assigned functions reorder mode toggle
+        $('#toggleAssignedReorderMode').on('click', () => this.toggleAssignedReorderMode());
+        
+        // Delegate events for dynamically created buttons
+        $(document).on('click', '.edit-custom-function', (e) => {
+            e.stopPropagation();
+            const functionId = $(e.currentTarget).data('function-id');
+            this.showEditCustomFunctionModal(functionId);
+        });
+        
+        $(document).on('click', '.delete-custom-function', (e) => {
+            e.stopPropagation();
+            const functionId = $(e.currentTarget).data('function-id');
+            this.deleteCustomFunction(functionId);
+        });
+    }
+
+    reset() {
+        this.currentObjectId = null;
+        this.availableFunctions = [];
+        this.assignedFunctions = [];
+        this.selectedAvailable.clear();
+        this.selectedAssigned.clear();
+        
+        // Reset reorder modes
+        if (this.isReorderMode) {
+            this.toggleReorderMode();
+        }
+        if (this.isAssignedReorderMode) {
+            this.toggleAssignedReorderMode();
+        }
+        
+        this.hideAlerts();
+        $('#objectFunctionsContent').addClass('d-none');
+        $('#objectFunctionsLoading').removeClass('d-none');
+    }
+
+    async loadObjectFunctions() {
+        if (!this.currentObjectId) return;
+
+        this.showLoading();
+        this.hideAlerts();
+
+        try {
+            // Get the language prefix from the URL
+            const languagePrefix = window.location.pathname.split('/')[1];
+            
+            // Load available and assigned functions in parallel
+            const [availableResponse, assignedResponse] = await Promise.all([
+                fetch(`/${languagePrefix}/app_access/object-functions/${this.currentObjectId}/available/`),
+                fetch(`/${languagePrefix}/app_access/object-functions/${this.currentObjectId}/`)
+            ]);
+
+            if (!availableResponse.ok || !assignedResponse.ok) {
+                throw new Error('Failed to load functions data');
+            }
+
+            const availableData = await availableResponse.json();
+            const assignedData = await assignedResponse.json();
+
+            if (!availableData.success || !assignedData.success) {
+                throw new Error(availableData.error || assignedData.error || 'Unknown error');
+            }
+
+            this.availableFunctions = availableData.functions || [];
+            this.assignedFunctions = assignedData.functions || [];
+
+            const obj = availableData.object;
+            $('#objectFunctionsObjectName').text((obj && obj.name) || 'Unknown');
+            $('#objectFunctionsSystemName').text(availableData.object?.system_name || 'Unknown');
+
+            this.renderFunctions();
+            this.hideLoading();
+
+        } catch (error) {
+            console.error('Error loading object functions:', error);
+            this.showError(error.message);
+            this.hideLoading();
+        }
+    }
+
+    renderFunctions() {
+        this.renderAvailableFunctions();
+        this.renderAssignedFunctions();
+        this.updateCounts();
+        this.updateButtons();
+    }
+
+    renderAvailableFunctions() {
+        const container = $('#availableFunctionsList');
+        container.empty();
+
+        // Filter out already assigned functions
+        const assignedIds = new Set(this.assignedFunctions.map(f => f.id));
+        const available = this.availableFunctions.filter(f => !assignedIds.has(f.id));
+
+        if (available.length === 0) {
+            container.append(`
+                <div class="list-group-item text-center text-muted py-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "No available functions" %}
+                </div>
+            `);
+            return;
+        }
+
+        available.forEach(func => {
+            const item = this.createFunctionItem(func, 'available');
+            container.append(item);
+        });
+    }
+
+    renderAssignedFunctions() {
+        const container = $('#assignedFunctionsList');
+        container.empty();
+
+        if (this.assignedFunctions.length === 0) {
+            container.append(`
+                <div class="list-group-item text-center text-muted py-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "No assigned functions" %}
+                </div>
+            `);
+            return;
+        }
+
+        this.assignedFunctions.forEach(func => {
+            const item = this.createFunctionItem(func, 'assigned');
+            container.append(item);
+        });
+    }
+
+    createFunctionItem(func, type) {
+        const isSelected = type === 'available' ? 
+            this.selectedAvailable.has(func.id) : 
+            this.selectedAssigned.has(func.id);
+
+        const levelClass = `function-level-${Math.min(func.level || 0, 3)}`;
+        
+        // Add custom function indicator
+        const customBadge = func.function_type === 'custom' ? 
+            '<span class="badge bg-warning text-dark ms-1">custom</span>' : '';
+        
+        // Add group indicator for drag handle if function has children
+        const hasChildren = func.children_count > 0;
+        const dragIcon = hasChildren ? 'fa-grip-lines' : 'fa-grip-vertical';
+        const dragTitle = hasChildren ? 
+            `{% trans "Drag group" %} (1 + ${func.children_count} {% trans "children" %})` : 
+            '{% trans "Drag function" %}';
+        
+        // Add edit/delete buttons for custom functions
+        const customActions = func.function_type === 'custom' && type === 'available' ? `
+            <div class="btn-group btn-group-sm ms-2" role="group">
+                <button type="button" class="btn btn-outline-primary btn-xs edit-custom-function" 
+                        data-function-id="${func.id}" title="{% trans 'Edit Custom Function' %}">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-xs delete-custom-function" 
+                        data-function-id="${func.id}" title="{% trans 'Delete Custom Function' %}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        ` : '';
+
+        const item = $(`
+            <div class="list-group-item function-item ${levelClass} ${isSelected ? 'selected' : ''}" 
+                 data-function-id="${func.id}" data-type="${type}" data-order="${func.order || 0}" draggable="false">
+                <div class="d-flex align-items-start">
+                    <div class="drag-handle me-2" style="display: none;" title="${dragTitle}">
+                        <i class="fas ${dragIcon}"></i>
+                    </div>
+                    <div class="form-check me-3">
+                        <input class="form-check-input" type="checkbox" ${isSelected ? 'checked' : ''}>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="function-color-indicator" style="background-color: ${func.color || '#6c757d'}"></span>
+                            ${func.level > 0 ? `<span class="badge bg-secondary me-2" style="font-size: 0.7em;">L${func.level}</span>` : ''}
+                            <strong>${func.name || ''}</strong>
+                            ${func.children_count > 0 ? `<span class="badge bg-info ms-2">${func.children_count} {% trans "children" %}</span>` : ''}
+                            ${customBadge}
+                            ${customActions}
+                        </div>
+                        ${func.localized_description ? `<div class="function-description">${func.localized_description}</div>` : ''}
+                        <div class="function-stats">
+                            {% trans "Level" %}: ${func.level || 0} | {% trans "Order" %}: ${func.order || 0}
+                            ${type === 'available' && func.is_assigned ? ' | <span class="text-warning">{% trans "Already assigned" %}</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        // Bind click events
+        item.on('click', (e) => {
+            if (e.target.type !== 'checkbox') {
+                const checkbox = item.find('input[type="checkbox"]');
+                checkbox.prop('checked', !checkbox.prop('checked'));
+                checkbox.trigger('change');
+            }
+        });
+
+        item.find('input[type="checkbox"]').on('change', (e) => {
+            const isChecked = e.target.checked;
+            const functionId = parseInt(func.id);
+
+            if (type === 'available') {
+                if (isChecked) {
+                    this.selectedAvailable.add(functionId);
+                } else {
+                    this.selectedAvailable.delete(functionId);
+                }
+            } else {
+                if (isChecked) {
+                    this.selectedAssigned.add(functionId);
+                } else {
+                    this.selectedAssigned.delete(functionId);
+                }
+            }
+
+            item.toggleClass('selected', isChecked);
+            this.updateButtons();
+        });
+
+        return item;
+    }
+
+    filterFunctions(type, searchTerm) {
+        const container = type === 'available' ? '#availableFunctionsList' : '#assignedFunctionsList';
+        const items = $(`${container} .function-item`);
+
+        if (!searchTerm.trim()) {
+            items.show();
+            return;
+        }
+
+        const term = searchTerm.toLowerCase();
+        items.each(function() {
+            const text = $(this).text().toLowerCase();
+            $(this).toggle(text.includes(term));
+        });
+    }
+
+    selectAll(type) {
+        const container = type === 'available' ? '#availableFunctionsList' : '#assignedFunctionsList';
+        const checkboxes = $(`${container} input[type="checkbox"]:visible`);
+        const allChecked = checkboxes.length > 0 && checkboxes.filter(':checked').length === checkboxes.length;
+
+        checkboxes.prop('checked', !allChecked).trigger('change');
+    }
+
+    async addSelectedFunctions() {
+        if (this.selectedAvailable.size === 0) return;
+
+        const functionIds = Array.from(this.selectedAvailable);
+        
+        try {
+            this.showLoading();
+            
+            // Get the language prefix from the URL
+            const languagePrefix = window.location.pathname.split('/')[1];
+            
+            const formData = new FormData();
+            formData.append('object_id', this.currentObjectId);
+            functionIds.forEach(id => formData.append('function_ids', id));
+
+            const response = await fetch(`/${languagePrefix}/app_access/object-functions/add/`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to add functions');
+            }
+
+            this.showSuccess(data.message);
+            this.selectedAvailable.clear();
+            await this.loadObjectFunctions();
+
+        } catch (error) {
+            console.error('Error adding functions:', error);
+            this.showError(error.message);
+            this.hideLoading();
+        }
+    }
+
+    async removeSelectedFunctions() {
+        if (this.selectedAssigned.size === 0) return;
+
+        if (!confirm('{% trans "Are you sure you want to remove selected functions? This will also remove any child functions." %}')) {
+            return;
+        }
+
+        try {
+            this.showLoading();
+
+            // Get the language prefix from the URL
+            const languagePrefix = window.location.pathname.split('/')[1];
+
+            // Remove functions one by one (could be optimized with bulk endpoint)
+            for (const functionId of this.selectedAssigned) {
+                const response = await fetch(`/${languagePrefix}/app_access/object-functions/${this.currentObjectId}/${functionId}/remove/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                    }
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to remove function');
+                }
+            }
+
+            this.showSuccess('{% trans "Selected functions removed successfully" %}');
+            this.selectedAssigned.clear();
+            await this.loadObjectFunctions();
+
+        } catch (error) {
+            console.error('Error removing functions:', error);
+            this.showError(error.message);
+            this.hideLoading();
+        }
+    }
+
+    updateCounts() {
+        const assignedIds = new Set(this.assignedFunctions.map(f => f.id));
+        const availableCount = this.availableFunctions.filter(f => !assignedIds.has(f.id)).length;
+        
+        $('#availableFunctionsCount').text(availableCount);
+        $('#assignedFunctionsCount').text(this.assignedFunctions.length);
+    }
+
+    updateButtons() {
+        $('#addSelectedFunctions').prop('disabled', this.selectedAvailable.size === 0);
+        $('#removeSelectedFunctions').prop('disabled', this.selectedAssigned.size === 0);
+    }
+
+    showLoading() {
+        $('#objectFunctionsLoading').removeClass('d-none');
+        $('#objectFunctionsContent').addClass('d-none');
+    }
+
+    hideLoading() {
+        $('#objectFunctionsLoading').addClass('d-none');
+        $('#objectFunctionsContent').removeClass('d-none');
+    }
+
+    showError(message) {
+        $('#objectFunctionsErrorMessage').text(message);
+        $('#objectFunctionsError').removeClass('d-none');
+        setTimeout(() => this.hideAlerts(), 5000);
+    }
+
+    showSuccess(message) {
+        $('#objectFunctionsSuccessMessage').text(message);
+        $('#objectFunctionsSuccess').removeClass('d-none');
+        setTimeout(() => this.hideAlerts(), 3000);
+    }
+
+    hideAlerts() {
+        $('#objectFunctionsError, #objectFunctionsSuccess').addClass('d-none');
+    }
+
+    // Method to open modal and load data for specific object
+    openModal(objectId, objectName, systemId, companyId) {
+        console.log('ObjectFunctionsManager.openModal:', objectId, objectName, systemId, companyId);
+        
+        // Set current object ID and load data
+        this.currentObjectId = objectId;
+        this.loadObjectFunctions();
+    }
+    
+    // Custom function management methods
+    showCreateCustomFunctionModal() {
+        const modalHtml = `
+            <div class="modal fade" id="createCustomFunctionModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">{% trans "Create Custom Function" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="createCustomFunctionForm">
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Name" %} *</label>
+                                    <input type="text" class="form-control" name="name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Description" %}</label>
+                                    <textarea class="form-control" name="description" rows="2"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Color" %}</label>
+                                    <input type="color" class="form-control" name="color" value="#007bff">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Parent Function" %}</label>
+                                    <select class="form-select" name="parent_id">
+                                        <option value="">{% trans "No parent (root function)" %}</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                            <button type="button" class="btn btn-primary" id="saveCustomFunctionBtn">{% trans "Create" %}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        $('#createCustomFunctionModal').remove();
+        
+        // Add modal to body
+        $('body').append(modalHtml);
+        
+        // Populate parent function options
+        this.populateParentFunctionOptions('#createCustomFunctionModal select[name="parent_id"]');
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('createCustomFunctionModal'));
+        modal.show();
+        
+        // Bind save event
+        $('#saveCustomFunctionBtn').on('click', () => this.saveCustomFunction());
+    }
+    
+    showEditCustomFunctionModal(functionId) {
+        const func = this.availableFunctions.find(f => f.id === functionId);
+        if (!func) return;
+        const escapeVal = v => (v == null ? '' : String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'));
+        const nameVal = escapeVal(func.name || '');
+        const descVal = escapeVal(func.description || '');
+        const modalHtml = `
+            <div class="modal fade" id="editCustomFunctionModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">{% trans "Edit Custom Function" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="editCustomFunctionForm">
+                                <input type="hidden" name="function_id" value="${func.id}">
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Name" %} *</label>
+                                    <input type="text" class="form-control" name="name" value="${nameVal}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Description" %}</label>
+                                    <textarea class="form-control" name="description" rows="2">${descVal}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Color" %}</label>
+                                    <input type="color" class="form-control" name="color" value="${func.color || '#007bff'}">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Parent Function" %}</label>
+                                    <select class="form-select" name="parent_id">
+                                        <option value="">{% trans "No parent (root function)" %}</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                            <button type="button" class="btn btn-primary" id="updateCustomFunctionBtn">{% trans "Update" %}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        $('#editCustomFunctionModal').remove();
+        
+        // Add modal to body
+        $('body').append(modalHtml);
+        
+        // Populate parent function options and select current parent
+        this.populateParentFunctionOptions('#editCustomFunctionModal select[name="parent_id"]', func.parent_id, func.id);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('editCustomFunctionModal'));
+        modal.show();
+        
+        // Bind update event
+        $('#updateCustomFunctionBtn').on('click', () => this.updateCustomFunction());
+    }
+    
+    populateParentFunctionOptions(selector, selectedParentId = null, excludeFunctionId = null) {
+        const select = $(selector);
+        
+        // Get all functions that can be parents (both system and custom functions)
+        // Exclude the function being edited to prevent circular references
+        const potentialParents = this.availableFunctions.filter(func => {
+            // Exclude the function being edited itself
+            if (excludeFunctionId && func.id === excludeFunctionId) {
+                return false;
+            }
+            
+            // Allow system functions up to level 2
+            if (!func.is_object_specific && func.level < 2) {
+                return true;
+            }
+            
+            // Allow custom functions up to level 1 (to maintain max depth of 3)
+            if (func.is_object_specific && func.level < 1) {
+                return true;
+            }
+            
+            return false;
+        });
+        
+        // Sort by level and name for better UX
+        potentialParents.sort((a, b) => {
+            if (a.level !== b.level) {
+                return a.level - b.level;
+            }
+            const nameA = (a.name || a.localized_name || '').toString();
+            const nameB = (b.name || b.localized_name || '').toString();
+            return nameA.localeCompare(nameB);
+        });
+        
+        // Add functions as options
+        potentialParents.forEach(func => {
+            const displayName = func.name || func.localized_name || '';
+            const indent = '  '.repeat(func.level || 0);
+            const label = func.is_object_specific ? 
+                `${indent}${displayName} (custom)` : 
+                `${indent}${displayName}`;
+            const option = $(`<option value="${func.id}">${label}</option>`);
+            
+            if (selectedParentId && func.id === selectedParentId) {
+                option.prop('selected', true);
+            }
+            select.append(option);
+        });
+    }
+    
+    async saveCustomFunction() {
+        const form = $('#createCustomFunctionForm')[0];
+        const formData = new FormData(form);
+        const name = (formData.get('name') || '').trim();
+        if (!name) {
+            this.showError('{% trans "Name is required" %}');
+            return;
+        }
+        const data = {
+            object_id: this.currentObjectId,
+            name: name,
+            description: (formData.get('description') || '').trim(),
+            color: formData.get('color') || '#007bff',
+            parent_id: formData.get('parent_id') || null
+        };
+        
+        try {
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const response = await fetch(`/${languagePrefix}/app_access/object-functions/save-custom/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                this.showSuccess(result.message);
+                $('#createCustomFunctionModal').modal('hide');
+                await this.loadObjectFunctions();
+            } else {
+                this.showError(result.message);
+            }
+        } catch (error) {
+            console.error('Error creating custom function:', error);
+            this.showError('Error creating custom function');
+        }
+    }
+    
+    async updateCustomFunction() {
+        const form = $('#editCustomFunctionForm')[0];
+        const formData = new FormData(form);
+        const name = (formData.get('name') || '').trim();
+        if (!name) {
+            this.showError('{% trans "Name is required" %}');
+            return;
+        }
+        const data = {
+            function_id: formData.get('function_id'),
+            object_id: this.currentObjectId,
+            name: name,
+            description: (formData.get('description') || '').trim(),
+            color: formData.get('color') || '#007bff',
+            parent_id: formData.get('parent_id') || null
+        };
+        
+        try {
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const response = await fetch(`/${languagePrefix}/app_access/object-functions/edit-custom/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                this.showSuccess(result.message);
+                $('#editCustomFunctionModal').modal('hide');
+                await this.loadObjectFunctions();
+            } else {
+                this.showError(result.message);
+            }
+        } catch (error) {
+            console.error('Error updating custom function:', error);
+            this.showError('Error updating custom function');
+        }
+    }
+    
+    async deleteCustomFunction(functionId) {
+        if (!confirm('{% trans "Are you sure you want to delete this custom function? This action cannot be undone." %}')) {
+            return;
+        }
+        
+        try {
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const response = await fetch(`/${languagePrefix}/app_access/object-functions/delete-custom/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                },
+                body: JSON.stringify({
+                    function_id: functionId,
+                    object_id: this.currentObjectId
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                this.showSuccess(result.message);
+                await this.loadObjectFunctions();
+            } else {
+                this.showError(result.message);
+            }
+        } catch (error) {
+            console.error('Error deleting custom function:', error);
+            this.showError('Error deleting custom function');
+        }
+    }
+    
+    // Drag and Drop Methods
+    toggleReorderMode() {
+        this.isReorderMode = !this.isReorderMode;
+        const container = $('#availableFunctionsList');
+        const toggleBtn = $('#toggleReorderMode');
+        
+        if (this.isReorderMode) {
+            container.addClass('reorder-mode');
+            toggleBtn.removeClass('btn-outline-warning').addClass('btn-warning');
+            toggleBtn.find('i').removeClass('fa-sort').addClass('fa-times');
+            toggleBtn.find('.btn-text').text('{% trans "Exit Reorder" %}');
+            this.enableDragAndDrop();
+        } else {
+            container.removeClass('reorder-mode');
+            toggleBtn.removeClass('btn-warning').addClass('btn-outline-warning');
+            toggleBtn.find('i').removeClass('fa-times').addClass('fa-sort');
+            toggleBtn.find('.btn-text').text('{% trans "Reorder" %}');
+            this.disableDragAndDrop();
+        }
+    }
+    
+    enableDragAndDrop() {
+        const container = $('#availableFunctionsList');
+        
+        // Show drag handles
+        container.find('.drag-handle').show();
+        
+        // Make items draggable
+        container.find('.function-item').each((index, element) => {
+            const $element = $(element);
+            $element.attr('draggable', 'true');
+            $element.addClass('draggable');
+            
+            // Add drag event listeners
+            element.addEventListener('dragstart', (e) => this.handleDragStart(e));
+            element.addEventListener('dragover', (e) => this.handleDragOver(e));
+            element.addEventListener('drop', (e) => this.handleDrop(e));
+            element.addEventListener('dragend', (e) => this.handleDragEnd(e));
+        });
+    }
+    
+    disableDragAndDrop() {
+        const container = $('#availableFunctionsList');
+        
+        // Hide drag handles
+        container.find('.drag-handle').hide();
+        
+        // Make items non-draggable
+        container.find('.function-item').each((index, element) => {
+            const $element = $(element);
+            $element.attr('draggable', 'false');
+            $element.removeClass('draggable dragging drag-over');
+            
+            // Remove drag event listeners
+            element.removeEventListener('dragstart', this.handleDragStart);
+            element.removeEventListener('dragover', this.handleDragOver);
+            element.removeEventListener('drop', this.handleDrop);
+            element.removeEventListener('dragend', this.handleDragEnd);
+        });
+    }
+    
+    handleDragStart(e) {
+        this.draggedElement = e.target.closest('.function-item');
+        $(this.draggedElement).addClass('dragging');
+        
+        // Find and highlight all children that will be moved with this parent
+        const children = this.findChildrenElements(this.draggedElement, '#availableFunctionsList');
+        children.forEach(child => {
+            $(child).addClass('function-group-dragging');
+        });
+        
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/html', this.draggedElement.outerHTML);
+    }
+    
+    handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        const targetElement = e.target.closest('.function-item');
+        if (targetElement && targetElement !== this.draggedElement) {
+            // Remove previous drag-over classes
+            $('#availableFunctionsList .function-item').removeClass('drag-over');
+            $(targetElement).addClass('drag-over');
+        }
+    }
+    
+    handleDrop(e) {
+        e.preventDefault();
+        
+        const targetElement = e.target.closest('.function-item');
+        if (targetElement && targetElement !== this.draggedElement) {
+            const draggedId = $(this.draggedElement).data('function-id');
+            const targetId = $(targetElement).data('function-id');
+            
+            // Move the dragged function with all its children before the target
+            const movedCount = this.moveFunctionWithChildren(this.draggedElement, targetElement, '#availableFunctionsList');
+            
+            console.log(`Moved ${movedCount} elements (parent + children)`);
+            
+            // Update order based on new position
+            this.updateFunctionOrder();
+        }
+        
+        // Clean up
+        $('#availableFunctionsList .function-item').removeClass('drag-over');
+    }
+    
+    handleDragEnd(e) {
+        $(this.draggedElement).removeClass('dragging');
+        $('#availableFunctionsList .function-item').removeClass('drag-over function-group-dragging function-group-preview');
+        this.draggedElement = null;
+    }
+    
+    updateFunctionOrder() {
+        const functionOrders = [];
+        
+        $('#availableFunctionsList .function-item').each((index, element) => {
+            const $element = $(element);
+            const functionId = $element.data('function-id');
+            const newOrder = index + 1;
+            
+            functionOrders.push({
+                id: functionId,
+                order: newOrder
+            });
+            
+            // Update the displayed order in the UI
+            $element.find('.function-stats').html(function() {
+                const currentText = $(this).html();
+                return currentText.replace(/Order.*?\d+/, `Order: ${newOrder}`);
+            });
+        });
+        
+        // Send update to server
+        this.saveFunctionOrder(functionOrders);
+    }
+    
+    async saveFunctionOrder(functionOrders) {
+        try {
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const response = await fetch(`/${languagePrefix}/app_access/object-functions/update-order/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                },
+                body: JSON.stringify({
+                    function_orders: functionOrders
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                this.showSuccess('{% trans "Function order updated successfully" %}');
+            } else {
+                this.showError(result.message || '{% trans "Failed to update function order" %}');
+            }
+        } catch (error) {
+            console.error('Error updating function order:', error);
+            this.showError('{% trans "Error updating function order" %}');
+        }
+    }
+
+    toggleAssignedReorderMode() {
+        this.isAssignedReorderMode = !this.isAssignedReorderMode;
+        const container = $('#assignedFunctionsList');
+        const toggleBtn = $('#toggleAssignedReorderMode');
+        
+        if (this.isAssignedReorderMode) {
+            container.addClass('reorder-mode');
+            toggleBtn.removeClass('btn-outline-light').addClass('btn-light');
+            toggleBtn.find('i').removeClass('fa-sort').addClass('fa-times');
+            toggleBtn.find('.btn-text').text('{% trans "Exit Reorder" %}');
+            this.enableAssignedDragAndDrop();
+        } else {
+            container.removeClass('reorder-mode');
+            toggleBtn.removeClass('btn-light').addClass('btn-outline-light');
+            toggleBtn.find('i').removeClass('fa-times').addClass('fa-sort');
+            toggleBtn.find('.btn-text').text('{% trans "Reorder" %}');
+            this.disableAssignedDragAndDrop();
+        }
+    }
+    
+    enableAssignedDragAndDrop() {
+        const container = $('#assignedFunctionsList');
+        
+        // Show drag handles
+        container.find('.drag-handle').show();
+        
+        // Make items draggable
+        container.find('.function-item').each((index, element) => {
+            const $element = $(element);
+            $element.attr('draggable', 'true');
+            $element.addClass('draggable');
+            
+            // Add drag event listeners
+            element.addEventListener('dragstart', (e) => this.handleAssignedDragStart(e));
+            element.addEventListener('dragover', (e) => this.handleAssignedDragOver(e));
+            element.addEventListener('drop', (e) => this.handleAssignedDrop(e));
+            element.addEventListener('dragend', (e) => this.handleAssignedDragEnd(e));
+        });
+    }
+    
+    disableAssignedDragAndDrop() {
+        const container = $('#assignedFunctionsList');
+        
+        // Hide drag handles
+        container.find('.drag-handle').hide();
+        
+        // Make items non-draggable
+        container.find('.function-item').each((index, element) => {
+            const $element = $(element);
+            $element.attr('draggable', 'false');
+            $element.removeClass('draggable dragging drag-over');
+            
+            // Remove drag event listeners
+            element.removeEventListener('dragstart', this.handleAssignedDragStart);
+            element.removeEventListener('dragover', this.handleAssignedDragOver);
+            element.removeEventListener('drop', this.handleAssignedDrop);
+            element.removeEventListener('dragend', this.handleAssignedDragEnd);
+        });
+    }
+    
+    handleAssignedDragStart(e) {
+        this.draggedAssignedElement = e.target.closest('.function-item');
+        $(this.draggedAssignedElement).addClass('dragging');
+        
+        // Find and highlight all children that will be moved with this parent
+        const children = this.findChildrenElements(this.draggedAssignedElement, '#assignedFunctionsList');
+        children.forEach(child => {
+            $(child).addClass('function-group-dragging');
+        });
+        
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/html', this.draggedAssignedElement.outerHTML);
+    }
+    
+    handleAssignedDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        const targetElement = e.target.closest('.function-item');
+        if (targetElement && targetElement !== this.draggedAssignedElement) {
+            // Remove previous drag-over classes
+            $('#assignedFunctionsList .function-item').removeClass('drag-over');
+            $(targetElement).addClass('drag-over');
+        }
+    }
+    
+    handleAssignedDrop(e) {
+        e.preventDefault();
+        
+        const targetElement = e.target.closest('.function-item');
+        if (targetElement && targetElement !== this.draggedAssignedElement) {
+            const draggedId = $(this.draggedAssignedElement).data('function-id');
+            const targetId = $(targetElement).data('function-id');
+            
+            // Move the dragged function with all its children before the target
+            const movedCount = this.moveFunctionWithChildren(this.draggedAssignedElement, targetElement, '#assignedFunctionsList');
+            
+            console.log(`Moved ${movedCount} assigned elements (parent + children)`);
+            
+            // Update order based on new position
+            this.updateAssignedFunctionOrder();
+        }
+        
+        // Clean up
+        $('#assignedFunctionsList .function-item').removeClass('drag-over');
+    }
+    
+    handleAssignedDragEnd(e) {
+        $(this.draggedAssignedElement).removeClass('dragging');
+        $('#assignedFunctionsList .function-item').removeClass('drag-over function-group-dragging function-group-preview');
+        this.draggedAssignedElement = null;
+    }
+    
+    updateAssignedFunctionOrder() {
+        const functionOrders = [];
+        
+        $('#assignedFunctionsList .function-item').each((index, element) => {
+            const $element = $(element);
+            const functionId = $element.data('function-id');
+            const newOrder = index + 1;
+            
+            functionOrders.push({
+                id: functionId,
+                order: newOrder
+            });
+            
+            // Update the displayed order in the UI
+            $element.find('.function-stats').html(function() {
+                const currentText = $(this).html();
+                return currentText.replace(/Order.*?\d+/, `Order: ${newOrder}`);
+            });
+        });
+        
+        // Send update to server
+        this.saveAssignedFunctionOrder(functionOrders);
+    }
+    
+    async saveAssignedFunctionOrder(functionOrders) {
+        try {
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const response = await fetch(`/${languagePrefix}/app_access/object-functions/update-assigned-order/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                },
+                body: JSON.stringify({
+                    function_orders: functionOrders,
+                    object_id: this.currentObjectId
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                this.showSuccess('{% trans "Assigned function order updated successfully" %}');
+            } else {
+                this.showError(result.message || '{% trans "Failed to update assigned function order" %}');
+            }
+        } catch (error) {
+            console.error('Error updating assigned function order:', error);
+            this.showError('{% trans "Error updating assigned function order" %}');
+        }
+    }
+
+    // Helper method to find all children of a function element
+    findChildrenElements(parentElement, containerSelector) {
+        const children = [];
+        const parentId = $(parentElement).data('function-id');
+        const parentLevel = parseInt($(parentElement).find('.function-stats').text().match(/Level.*?(\d+)/)?.[1] || 0);
+        
+        // Find all subsequent elements that are children of this parent
+        let nextElement = $(parentElement).next('.function-item');
+        
+        while (nextElement.length > 0) {
+            const currentLevel = parseInt(nextElement.find('.function-stats').text().match(/Level.*?(\d+)/)?.[1] || 0);
+            
+            // If we encounter an element at the same level or higher, stop
+            if (currentLevel <= parentLevel) {
+                break;
+            }
+            
+            // This is a child, add it to the list
+            children.push(nextElement[0]);
+            nextElement = nextElement.next('.function-item');
+        }
+        
+        return children;
+    }
+    
+    // Helper method to move function with all its children
+    moveFunctionWithChildren(draggedElement, targetElement, containerSelector) {
+        const children = this.findChildrenElements(draggedElement, containerSelector);
+        const allElements = [draggedElement, ...children];
+        
+        // Create a document fragment to hold all elements
+        const fragment = document.createDocumentFragment();
+        
+        // Move all elements to the fragment (this removes them from DOM)
+        allElements.forEach(element => {
+            fragment.appendChild(element);
+        });
+        
+        // Insert the fragment before the target element
+        $(targetElement).before(fragment);
+        
+        return allElements.length;
+    }
+}
+
+// Initialize when document is ready
+$(document).ready(function() {
+    window.objectFunctionsManager = new ObjectFunctionsManager();
+});
+
+// Global function to open the object functions modal
+function openObjectFunctionsModal(objectId, objectName, systemId, companyId) {
+    console.log('Opening object functions modal:', objectId, objectName, systemId, companyId);
+    
+    // Set the object info in the modal
+    document.getElementById('objectFunctionsObjectName').textContent = objectName;
+    
+    // Try to set system name from global variables if available
+    if (window.selectedSystemData && window.selectedSystemData.asset_name) {
+        document.getElementById('objectFunctionsSystemName').textContent = window.selectedSystemData.asset_name;
+    } else if (systemId) {
+        document.getElementById('objectFunctionsSystemName').textContent = `System ID: ${systemId}`;
+    }
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('editObjectFunctionsModal'));
+    modal.show();
+    
+    // Load data using the manager
+    if (window.objectFunctionsManager) {
+        window.objectFunctionsManager.openModal(objectId, objectName, systemId, companyId);
+    } else {
+        console.error('objectFunctionsManager not found');
+    }
+}
+</script>

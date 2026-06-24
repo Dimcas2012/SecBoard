@@ -1,0 +1,266 @@
+﻿{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{% trans "DPIA Assessments" %}{% endblock %}
+
+{% block gdpr_content %}
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>{% trans "DPIA Assessments" %}</h2>
+        <p class="text-muted mb-0">{% trans "Data Protection Impact Assessments (GDPR Article 35)" %}</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="sb-toolbar d-flex flex-wrap gap-1 justify-content-end">
+            <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-tachometer-alt me-1"></i>{% trans "Dashboard" %}
+            </a>
+            {% if can_conduct_dpia %}
+            <a href="{% url 'app_gdpr:dpia_create' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-plus me-1"></i>{% trans "New DPIA" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% url 'app_gdpr:dpia_list' as dpia_list_clear_url %}
+{% filters_expanded 'search' 'status' 'risk_level' 'company' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="dpiaFiltersCollapse" toggle_id="toggleDpiaFilters" icon_id="dpiaFiltersToggleIcon" filter_clear_url=dpia_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="dpiaFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" id="filterForm" class="row g-1 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" name="search" id="filterSearch" class="form-control form-control-sm"
+                       placeholder="{% trans 'Search by assessment #, project...' %}" value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                <select name="status" id="filterStatus" class="form-select form-select-sm">
+                    <option value="">{% trans "All Statuses" %}</option>
+                    <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>{% trans "Draft" %}</option>
+                    <option value="in_review" {% if request.GET.status == 'in_review' %}selected{% endif %}>{% trans "In Review" %}</option>
+                    <option value="approved" {% if request.GET.status == 'approved' %}selected{% endif %}>{% trans "Approved" %}</option>
+                    <option value="rejected" {% if request.GET.status == 'rejected' %}selected{% endif %}>{% trans "Rejected" %}</option>
+                    <option value="requires_revision" {% if request.GET.status == 'requires_revision' %}selected{% endif %}>{% trans "Requires Revision" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterRiskLevel">{% trans "Risk Level" %}</label>
+                <select name="risk_level" id="filterRiskLevel" class="form-select form-select-sm">
+                    <option value="">{% trans "All Risk Levels" %}</option>
+                    <option value="low" {% if request.GET.risk_level == 'low' %}selected{% endif %}>{% trans "Low" %}</option>
+                    <option value="medium" {% if request.GET.risk_level == 'medium' %}selected{% endif %}>{% trans "Medium" %}</option>
+                    <option value="high" {% if request.GET.risk_level == 'high' %}selected{% endif %}>{% trans "High" %}</option>
+                    <option value="very_high" {% if request.GET.risk_level == 'very_high' %}selected{% endif %}>{% trans "Very High" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                <select name="company" id="filterCompany" class="form-select form-select-sm">
+                    <option value="">{% trans "All Companies" %}</option>
+                    {% for company in accessible_companies %}
+                    <option value="{{ company.id }}" {% if request.GET.company == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterSort">{% trans "Sort By" %}</label>
+                <select name="sort" id="filterSort" class="form-select form-select-sm">
+                    <option value="-created_date" {% if request.GET.sort == '-created_date' or not request.GET.sort %}selected{% endif %}>{% trans "Newest" %}</option>
+                    <option value="created_date" {% if request.GET.sort == 'created_date' %}selected{% endif %}>{% trans "Oldest" %}</option>
+                    <option value="-overall_risk_level" {% if request.GET.sort == '-overall_risk_level' %}selected{% endif %}>{% trans "Risk ↓" %}</option>
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+    <!-- DPIA Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "DPIA Assessments" %} ({{ page_obj.paginator.count }})</h4>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Assessment #" %}</th>
+                            <th>{% trans "Project Name" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "Status" %}</th>
+                            <th>{% trans "Overall Risk" %}</th>
+                            <th>{% trans "Residual Risk" %}</th>
+                            <th>{% trans "Conducted By" %}</th>
+                            <th>{% trans "Review Date" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dpia in dpias %}
+                        <tr {% if dpia.overall_risk_level == 'very_high' %}class="very-high-risk-row"{% elif dpia.overall_risk_level == 'high' %}class="high-risk-row"{% endif %}>
+                            <td>
+                                <strong>{{ dpia.assessment_number }}</strong>
+                            </td>
+                            <td>
+                                <div>
+                                    <strong>{{ dpia.project_name|truncatewords:4 }}</strong>
+                                    {% if dpia.dpo_consulted %}
+                                        <br><span class="badge bg-info" style="font-size: 0.6rem;">
+                                            <i class="fas fa-user-shield"></i> {% trans "DPO Consulted" %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    <i class="fas fa-building"></i> {{ dpia.company.name }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if dpia.status == 'draft' %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-file"></i> {{ dpia.get_status_display }}
+                                    </span>
+                                {% elif dpia.status == 'in_review' %}
+                                    <span class="badge bg-primary">
+                                        <i class="fas fa-search"></i> {{ dpia.get_status_display }}
+                                    </span>
+                                {% elif dpia.status == 'approved' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> {{ dpia.get_status_display }}
+                                    </span>
+                                {% elif dpia.status == 'rejected' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-times-circle"></i> {{ dpia.get_status_display }}
+                                    </span>
+                                {% elif dpia.status == 'requires_revision' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-edit"></i> {{ dpia.get_status_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ dpia.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if dpia.overall_risk_level == 'low' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check"></i> {{ dpia.get_overall_risk_level_display }}
+                                    </span>
+                                {% elif dpia.overall_risk_level == 'medium' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-exclamation"></i> {{ dpia.get_overall_risk_level_display }}
+                                    </span>
+                                {% elif dpia.overall_risk_level == 'high' %}
+                                    <span class="badge" style="background-color: #fd7e14; color: white;">
+                                        <i class="fas fa-exclamation-triangle"></i> {{ dpia.get_overall_risk_level_display }}
+                                    </span>
+                                {% elif dpia.overall_risk_level == 'very_high' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-skull-crossbones"></i> {{ dpia.get_overall_risk_level_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ dpia.get_overall_risk_level_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if dpia.residual_risk_level %}
+                                    <div class="progress" style="height: 15px; min-width: 80px;">
+                                        {% if dpia.residual_risk_level == 'low' %}
+                                            <div class="progress-bar bg-success" style="width: 25%; font-size: 0.6rem;">{% trans "Low" %}</div>
+                                        {% elif dpia.residual_risk_level == 'medium' %}
+                                            <div class="progress-bar bg-warning" style="width: 50%; font-size: 0.6rem;">{% trans "Med" %}</div>
+                                        {% elif dpia.residual_risk_level == 'high' %}
+                                            <div class="progress-bar" style="width: 75%; background-color: #fd7e14; font-size: 0.6rem;">{% trans "High" %}</div>
+                                        {% elif dpia.residual_risk_level == 'very_high' %}
+                                            <div class="progress-bar bg-danger" style="width: 100%; font-size: 0.6rem;">{% trans "V.High" %}</div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if dpia.conducted_by %}
+                                    <small>
+                                        <i class="fas fa-user"></i>
+                                        {{ dpia.conducted_by.get_full_name|default:dpia.conducted_by.username }}
+                                    </small>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar-check"></i>
+                                    {{ dpia.review_date|date:"d.m.Y" }}
+                                </small>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'app_gdpr:dpia_detail' dpia.pk %}" 
+                                       class="btn btn-sm btn-info"
+                                       title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_conduct_dpia and dpia.status != 'approved' %}
+                                    <a href="{% url 'app_gdpr:dpia_update' dpia.pk %}" 
+                                       class="btn btn-sm btn-warning"
+                                       title="{% trans 'Edit' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if can_approve_dpia and dpia.status == 'in_review' %}
+                                    <a href="{% url 'app_gdpr:dpia_approve' dpia.pk %}" 
+                                       class="btn btn-sm btn-success"
+                                       title="{% trans 'Approve' %}">
+                                        <i class="fas fa-check"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                {% trans "No DPIA assessments found" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% include 'app_gdpr/includes/gdpr_table_pagination.html' with pagination_item_label=_("assessments") pagination_aria_label=_("DPIA pagination") %}
+        </div>
+    </div>
+    
+    <!-- About DPIA (collapsible) -->
+    <div class="card mt-4">
+        <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#aboutDPIA">
+            <h4 class="mb-0">
+                <i class="fas fa-info-circle text-primary"></i> 
+                {% trans "About DPIA Assessments" %}
+                <i class="fas fa-chevron-down float-end"></i>
+            </h4>
+        </div>
+        <div id="aboutDPIA" class="collapse">
+            <div class="card-body">
+                <p style="font-size: 0.75rem;">
+                    {% trans "A Data Protection Impact Assessment (DPIA) is mandatory when processing operations are likely to result in a high risk to the rights and freedoms of natural persons. DPIAs help identify and minimize data protection risks." %}
+                </p>
+                <div class="alert alert-warning" style="font-size: 0.7rem;">
+                    <strong><i class="fas fa-exclamation-triangle"></i> {% trans "Mandatory for High-Risk Processing" %}:</strong>
+                    {% trans "Required when processing is likely to result in high risk, especially with new technologies" %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

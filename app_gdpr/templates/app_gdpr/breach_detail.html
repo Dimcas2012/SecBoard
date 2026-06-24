@@ -1,0 +1,251 @@
+{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+
+{% block title %}{{ object.incident_number }} - {% trans "Data Breach Incident" %}{% endblock %}
+
+{% block gdpr_content %}
+<div class="mb-3">
+    <a href="{% url 'app_gdpr:breach_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> {% trans "Back to List" %}
+    </a>
+    {% if can_edit_breaches %}
+    <a href="{% url 'app_gdpr:breach_update' object.pk %}" class="btn btn-primary">
+        <i class="fas fa-edit"></i> {% trans "Edit" %}
+    </a>
+    {% endif %}
+</div>
+
+<div class="card border-danger">
+    <div class="card-header bg-danger text-white">
+        <h3 class="mb-0">
+            <i class="fas fa-exclamation-triangle"></i> {{ object.incident_number }} - {{ object.title }}
+        </h3>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Incident Information" %}</h5>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Incident Number" %}:</label>
+                    <p class="form-control-plaintext">{{ object.incident_number }}</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Company" %}:</label>
+                    <p class="form-control-plaintext">{{ object.company.company_name_ua }}</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Status" %}:</label>
+                    <span class="badge 
+                        {% if object.status == 'detected' %}badge-warning
+                        {% elif object.status == 'investigating' %}badge-info
+                        {% elif object.status == 'contained' %}badge-primary
+                        {% elif object.status == 'resolved' %}badge-success
+                        {% else %}badge-secondary{% endif %}">
+                        {{ object.get_status_display }}
+                    </span>
+                </div>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Severity" %}:</label>
+                    <span class="badge 
+                        {% if object.severity == 'critical' %}badge-danger
+                        {% elif object.severity == 'high' %}badge-warning
+                        {% elif object.severity == 'medium' %}badge-info
+                        {% else %}badge-secondary{% endif %}">
+                        {{ object.get_severity_display }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Timeline" %}</h5>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Discovery Date" %}:</label>
+                    <p class="form-control-plaintext">{{ object.discovery_date|date:"d.m.Y H:i" }}</p>
+                </div>
+                
+                {% if object.incident_date %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Incident Date" %}:</label>
+                    <p class="form-control-plaintext">{{ object.incident_date|date:"d.m.Y H:i" }}</p>
+                </div>
+                {% endif %}
+                
+                {% if object.notification_deadline %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Notification Deadline" %}:</label>
+                    <p class="form-control-plaintext 
+                        {% if object.is_notification_overdue %}text-danger font-weight-bold{% endif %}">
+                        {{ object.notification_deadline|date:"d.m.Y H:i" }}
+                        {% if object.is_notification_overdue %}
+                            <span class="badge badge-danger">{% trans "OVERDUE" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                {% endif %}
+                
+                {% if object.assigned_to %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Assigned To" %}:</label>
+                    <p class="form-control-plaintext">{{ object.assigned_to.get_full_name }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Description" %}</h5>
+                <div class="form-group">
+                    <p class="form-control-plaintext">{{ object.description|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Impact Assessment" %}</h5>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Affected Subjects Count" %}:</label>
+                    <p class="form-control-plaintext">{{ object.affected_subjects_count|default:"Not specified" }}</p>
+                </div>
+                
+                {% if object.data_types_affected %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Data Types Affected" %}:</label>
+                    <p class="form-control-plaintext">{{ object.data_types_affected|linebreaks }}</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Response Actions" %}</h5>
+                
+                {% if object.immediate_actions %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Immediate Actions" %}:</label>
+                    <p class="form-control-plaintext">{{ object.immediate_actions|linebreaks }}</p>
+                </div>
+                {% endif %}
+                
+                {% if object.mitigation_actions %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Mitigation Actions" %}:</label>
+                    <p class="form-control-plaintext">{{ object.mitigation_actions|linebreaks }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if object.preventive_measures %}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Preventive Measures" %}</h5>
+                <div class="form-group">
+                    <p class="form-control-plaintext">{{ object.preventive_measures|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "Notification Status" %}</h5>
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Reported to Authority" %}:</label>
+                    <span class="badge {% if object.reported_to_authority %}badge-success{% else %}badge-warning{% endif %}">
+                        {% if object.reported_to_authority %}{% trans "Yes" %}{% else %}{% trans "No" %}{% endif %}
+                    </span>
+                </div>
+                
+                {% if object.authority_report_date %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Authority Report Date" %}:</label>
+                    <p class="form-control-plaintext">{{ object.authority_report_date|date:"d.m.Y H:i" }}</p>
+                </div>
+                {% endif %}
+                
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Subjects Notified" %}:</label>
+                    <span class="badge {% if object.subjects_notified %}badge-success{% else %}badge-warning{% endif %}">
+                        {% if object.subjects_notified %}{% trans "Yes" %}{% else %}{% trans "No" %}{% endif %}
+                    </span>
+                </div>
+                
+                {% if object.subjects_notification_date %}
+                <div class="form-group">
+                    <label class="font-weight-bold">{% trans "Subjects Notification Date" %}:</label>
+                    <p class="form-control-plaintext">{{ object.subjects_notification_date|date:"d.m.Y H:i" }}</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-6">
+                <h5 class="border-bottom pb-2 mb-3">{% trans "GDPR Compliance" %}</h5>
+                
+                {% if object.is_notification_overdue %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>{% trans "URGENT" %}:</strong>
+                    {% trans "72-hour notification deadline has passed. Immediate action required!" %}
+                </div>
+                {% elif object.notification_deadline %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-clock"></i>
+                    <strong>{% trans "Deadline" %}:</strong>
+                    {% trans "72-hour notification deadline: " %}{{ object.notification_deadline|date:"d.m.Y H:i" }}
+                </div>
+                {% endif %}
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-shield-alt"></i>
+                    <strong>{% trans "GDPR Article 33" %}:</strong>
+                    {% trans "Data breach notification to supervisory authority must be made within 72 hours of becoming aware of the breach." %}
+                </div>
+                
+                {% if object.severity == 'critical' or object.severity == 'high' %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>{% trans "High Risk" %}:</strong>
+                    {% trans "This breach involves high risk to individuals' rights and freedoms. Enhanced notification requirements apply." %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>{% trans "Quick Actions" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if can_edit_breaches %}
+                            <a href="{% url 'app_gdpr:breach_update' object.pk %}" class="btn btn-primary mr-2">
+                                <i class="fas fa-edit"></i> {% trans "Edit Incident" %}
+                            </a>
+                        {% endif %}
+                        {% if not object.reported_to_authority and can_investigate_breach %}
+                        <a href="{% url 'app_gdpr:breach_report' object.pk %}" class="btn btn-warning mr-2">
+                            <i class="fas fa-flag"></i> {% trans "Report to Authority" %}
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'app_gdpr:breach_list' %}" class="btn btn-secondary mr-2">
+                            <i class="fas fa-list"></i> {% trans "All Breaches" %}
+                        </a>
+                        <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-info">
+                            <i class="fas fa-dashboard"></i> {% trans "Dashboard" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

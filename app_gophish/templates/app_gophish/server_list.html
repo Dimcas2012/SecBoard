@@ -1,0 +1,219 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Gophish Servers" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="bi bi-hdd-network me-2"></i>{% trans "Gophish Servers" %}</h2>
+    </div>
+</div>
+
+<!-- Servers Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                {% if can_manage_servers %}
+                <div class="export-controls px-3 pt-2 pb-0">
+                    <div class="row align-items-center g-1">
+                        <div class="col-md-6"></div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group sb-toolbar" role="group">
+                                <a href="{% url 'app_gophish:server_create' %}" class="btn btn-outline-success btn-sm btn-icon-action"
+                                   title="{% trans 'Add Server' %}">
+                                    <i class="bi bi-plus-circle"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table sb-data-table gophish-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "URL" %}</th>
+                                <th>{% trans "Company" %}</th>
+                                <th>{% trans "Status" %}</th>
+                                <th>{% trans "Connection" %}</th>
+                                <th class="text-center">{% trans "Campaigns" %}</th>
+                                <th>{% trans "Created By" %}</th>
+                                <th>{% trans "Created" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for server in servers %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'app_gophish:server_detail' server.id %}">
+                                        {{ server.name }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <a href="{{ server.base_url }}" target="_blank" class="text-decoration-none">
+                                        {{ server.base_url }}
+                                        <i class="fas fa-external-link-alt fa-sm ms-1"></i>
+                                    </a>
+                                </td>
+                                <td>{{ server.company.name|default:"-" }}</td>
+                                <td class="server-status-{% if server.is_active %}active{% else %}inactive{% endif %}">
+                                    {% if server.is_active %}
+                                    <span class="status-badge status-active">{% trans "Active" %}</span>
+                                    {% else %}
+                                    <span class="status-badge status-inactive">{% trans "Inactive" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="connection-testing" id="connection-{{ server.id }}">
+                                    <span class="status-badge status-testing">
+                                        <i class="fas fa-spinner fa-spin"></i> {% trans "Testing..." %}
+                                    </span>
+                                </td>
+                                <td class="numeric {% if server.campaigns.count == 0 %}zero{% else %}positive{% endif %}">
+                                    {{ server.campaigns.count }}
+                                </td>
+                                <td>{{ server.created_by.get_full_name|default:server.created_by.username }}</td>
+                                <td>{{ server.created_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{% url 'app_gophish:server_detail' server.id %}" 
+                                           class="btn btn-outline-primary btn-sm" title="{% trans 'View Details' %}">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if can_manage_servers %}
+                                        <a href="{% url 'app_gophish:server_edit' server.id %}" 
+                                           class="btn btn-outline-secondary btn-sm" title="{% trans 'Edit' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if can_sync %}
+                                        <a href="{% url 'app_gophish:sync_data' %}?server={{ server.id }}" 
+                                           class="btn btn-outline-success btn-sm" title="{% trans 'Sync Data' %}">
+                                            <i class="fas fa-sync"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if can_manage_servers %}
+                                        <a href="{% url 'app_gophish:server_delete' server.id %}" 
+                                           class="btn btn-outline-danger btn-sm" title="{% trans 'Delete' %}">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if servers|length == 0 %}
+                <div class="text-center text-muted py-4">
+                    {% trans "No servers found" %}
+                    <br>
+                    <a href="{% url 'app_gophish:server_create' %}" class="btn btn-sm btn-primary mt-2">
+                        <i class="fas fa-plus"></i> {% trans "Add Your First Server" %}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+{% if servers %}
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Total Servers" %}</h5>
+                <h3 class="mb-0 text-primary">{{ servers.count }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Active Servers" %}</h5>
+                <h3 class="mb-0 text-success">{{ servers|length }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Total Campaigns" %}</h5>
+                <h3 class="mb-0 text-info">
+                    {% for server in servers %}{{ server.campaigns.count }}{% if not forloop.last %}+{% endif %}{% endfor %}
+                </h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">{% trans "Connected Servers" %}</h5>
+                <h3 class="mb-0 text-warning" id="connected-count">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Test connections for all servers
+    {% for server in servers %}
+    testServerConnection({{ server.id }}, '{{ server.base_url }}');
+    {% endfor %}
+    
+    function testServerConnection(serverId, baseUrl) {
+        $.ajax({
+            url: '{% url "app_gophish:ajax_load_server_data" %}',
+            method: 'POST',
+            data: {
+                'server_id': serverId,
+                'data_type': 'connection_test',
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                var connectionCell = $('#connection-' + serverId);
+                var badge = connectionCell.find('span');
+                if (response.connected) {
+                    connectionCell.removeClass('connection-testing').addClass('connection-success');
+                    badge.removeClass('status-testing').addClass('status-success');
+                    badge.html('<i class="fas fa-check"></i> {% trans "Connected" %}');
+                } else {
+                    connectionCell.removeClass('connection-testing').addClass('connection-failed');
+                    badge.removeClass('status-testing').addClass('status-failed');
+                    badge.html('<i class="fas fa-times"></i> {% trans "Failed" %}');
+                }
+                updateConnectedCount();
+            },
+            error: function() {
+                var connectionCell = $('#connection-' + serverId);
+                var badge = connectionCell.find('span');
+                connectionCell.removeClass('connection-testing').addClass('connection-failed');
+                badge.removeClass('status-testing').addClass('status-failed');
+                badge.html('<i class="fas fa-times"></i> {% trans "Error" %}');
+                updateConnectedCount();
+            }
+        });
+    }
+    
+    function updateConnectedCount() {
+        var connected = $('.status-success').length;
+        $('#connected-count').text(connected);
+    }
+});
+</script>
+{% endblock %}

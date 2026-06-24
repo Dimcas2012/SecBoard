@@ -1,0 +1,1046 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Custom HTML Editor - No external dependencies -->
+<style>
+    .form-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-left: 4px solid #007bff;
+    }
+    .question-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        padding: 15px;
+        background: white;
+    }
+    .answer-item {
+        background: #f8f9fa;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-left: 3px solid #6c757d;
+    }
+    .answer-item.correct {
+        border-left-color: #28a745;
+        background: #d4edda;
+    }
+    .btn-floating {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        border-radius: 50%;
+        width: 56px;
+        height: 56px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    .editor-toolbar {
+        border: 1px solid #dee2e6;
+        border-radius: 5px 5px 0 0;
+        padding: 8px;
+        background: #f8f9fa;
+    }
+    .editor-toolbar + textarea {
+        border-top: none;
+        border-radius: 0 0 5px 5px;
+    }
+    .html-mode {
+        font-family: 'Courier New', monospace;
+        background-color: #2d3748;
+        color: #e2e8f0;
+        border: 1px solid #4a5568;
+    }
+    .html-preview {
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        margin-top: 10px;
+        min-height: 100px;
+    }
+    .image-in-editor {
+        max-width: 100%;
+        height: auto;
+        border: 2px dashed #007bff;
+        margin: 5px 0;
+        cursor: pointer;
+    }
+    .image-in-editor:hover {
+        border-color: #0056b3;
+        opacity: 0.8;
+    }
+    .image-modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+    }
+    .image-modal-content {
+        background-color: white;
+        margin: 10% auto;
+        padding: 20px;
+        border-radius: 8px;
+        width: 500px;
+        max-width: 90%;
+    }
+    .btn-color-picker {
+        width: 40px;
+        height: 30px;
+        border: none;
+        border-radius: 4px;
+        margin: 0 2px;
+        cursor: pointer;
+    }
+    .form-select-sm {
+        width: auto;
+        min-width: 80px;
+        margin: 0 2px;
+    }
+    .editor-toolbar .btn-group {
+        margin-bottom: 5px;
+    }
+    .definition-list dt {
+        font-weight: bold;
+        margin-top: 10px;
+    }
+    .definition-list dd {
+        margin-left: 20px;
+        margin-bottom: 5px;
+    }
+    .bootstrap-table {
+        width: 100%;
+        margin: 15px 0;
+    }
+    .section-container {
+        padding: 15px;
+        margin: 10px 0;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        background: #f8f9fa;
+    }
+    .bootstrap-container {
+        padding: 15px;
+        margin: 10px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-{% if action == 'create' %}plus-circle{% else %}pencil-square{% endif %}"></i>
+            {{ title }}
+        </h2>
+        <a href="{% url 'quiz_manager' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> {% trans "Back to Quiz Manager" %}
+        </a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <!-- Basic Information Section -->
+        <div class="form-section">
+            <h4 class="mb-3">
+                <i class="bi bi-info-circle"></i> {% trans "Basic Information" %}
+            </h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">
+                            <i class="bi bi-card-text"></i> {{ form.title.label }}
+                        </label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                            <div class="text-danger">{{ form.title.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ form.passing_score.id_for_label }}" class="form-label">
+                            <i class="bi bi-trophy"></i> {{ form.passing_score.label }}
+                        </label>
+                        {{ form.passing_score }}
+                        {% if form.passing_score.errors %}
+                            <div class="text-danger">{{ form.passing_score.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="{{ form.description.id_for_label }}" class="form-label">
+                    <i class="bi bi-file-text"></i> {{ form.description.label }}
+                </label>
+                
+                {{ form.description }}
+                {% if form.description.errors %}
+                    <div class="text-danger">{{ form.description.errors }}</div>
+                {% endif %}
+                
+
+                
+                                 function formatText(command) {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var end = textarea.selectionEnd;
+                     var selectedText = textarea.value.substring(start, end);
+                     
+                     if (selectedText) {
+                         var formattedText = '';
+                         switch(command) {
+                             case 'bold':
+                                 formattedText = '<strong>' + selectedText + '</strong>';
+                                 break;
+                             case 'italic':
+                                 formattedText = '<em>' + selectedText + '</em>';
+                                 break;
+                             case 'underline':
+                                 formattedText = '<u>' + selectedText + '</u>';
+                                 break;
+                             case 'strikethrough':
+                                 formattedText = '<s>' + selectedText + '</s>';
+                                 break;
+                             case 'superscript':
+                                 formattedText = '<sup>' + selectedText + '</sup>';
+                                 break;
+                             case 'subscript':
+                                 formattedText = '<sub>' + selectedText + '</sub>';
+                                 break;
+                             case 'code':
+                                 formattedText = '<code>' + selectedText + '</code>';
+                                 break;
+                             case 'keyboard':
+                                 formattedText = '<kbd>' + selectedText + '</kbd>';
+                                 break;
+                             case 'mark':
+                                 formattedText = '<mark>' + selectedText + '</mark>';
+                                 break;
+                         }
+                         
+                         textarea.value = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
+                         textarea.focus();
+                         textarea.setSelectionRange(start + formattedText.length, start + formattedText.length);
+                         updatePreview();
+                     }
+                 }
+                 
+                 // Color and styling functions
+                 function applyColor(property, color) {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var end = textarea.selectionEnd;
+                     var selectedText = textarea.value.substring(start, end);
+                     
+                     if (selectedText) {
+                         var coloredText = '<span style="' + property + ': ' + color + ';">' + selectedText + '</span>';
+                         textarea.value = textarea.value.substring(0, start) + coloredText + textarea.value.substring(end);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                 
+                 function applyFontSize(size) {
+                     if (!size) return;
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var end = textarea.selectionEnd;
+                     var selectedText = textarea.value.substring(start, end);
+                     
+                     if (selectedText) {
+                         var styledText = '<span style="font-size: ' + size + ';">' + selectedText + '</span>';
+                         textarea.value = textarea.value.substring(0, start) + styledText + textarea.value.substring(end);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                 
+                 function applyFontFamily(font) {
+                     if (!font) return;
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var end = textarea.selectionEnd;
+                     var selectedText = textarea.value.substring(start, end);
+                     
+                     if (selectedText) {
+                         var styledText = '<span style="font-family: ' + font + ';">' + selectedText + '</span>';
+                         textarea.value = textarea.value.substring(0, start) + styledText + textarea.value.substring(end);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                 
+                 function applyAlignment(align) {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var end = textarea.selectionEnd;
+                     var selectedText = textarea.value.substring(start, end);
+                     
+                     if (selectedText) {
+                         var alignedText = '<div style="text-align: ' + align + ';">' + selectedText + '</div>';
+                         textarea.value = textarea.value.substring(0, start) + alignedText + textarea.value.substring(end);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                 
+                 function applyLineHeight(height) {
+                     if (!height) return;
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var end = textarea.selectionEnd;
+                     var selectedText = textarea.value.substring(start, end);
+                     
+                     if (selectedText) {
+                         var styledText = '<div style="line-height: ' + height + ';">' + selectedText + '</div>';
+                         textarea.value = textarea.value.substring(0, start) + styledText + textarea.value.substring(end);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                 
+                 // Header functions
+                 function insertHeader(level) {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var text = prompt('Enter header text:', 'Header ' + level);
+                     
+                     if (text) {
+                         var headerTag = '<h' + level + '>' + text + '</h' + level + '>';
+                         textarea.value = textarea.value.substring(0, start) + headerTag + textarea.value.substring(start);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                
+                                 function insertList(type) {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var listTag = type === 'ul' ? '<ul>\n<li>List item 1</li>\n<li>List item 2</li>\n<li>List item 3</li>\n</ul>' : '<ol>\n<li>List item 1</li>\n<li>List item 2</li>\n<li>List item 3</li>\n</ol>';
+                     
+                     textarea.value = textarea.value.substring(0, start) + listTag + textarea.value.substring(start);
+                     textarea.focus();
+                     updatePreview();
+                 }
+                 
+                 function insertDefinitionList() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var dlTag = '<dl class="definition-list">\n<dt>Term 1</dt>\n<dd>Definition 1</dd>\n<dt>Term 2</dt>\n<dd>Definition 2</dd>\n</dl>';
+                     
+                     textarea.value = textarea.value.substring(0, start) + dlTag + textarea.value.substring(start);
+                     textarea.focus();
+                     updatePreview();
+                 }
+                 
+                 function insertDivider() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var hrTag = '<hr>';
+                     
+                     textarea.value = textarea.value.substring(0, start) + hrTag + textarea.value.substring(start);
+                     textarea.focus();
+                     updatePreview();
+                 }
+                 
+                 function insertSection() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var title = prompt('Enter section title:', 'Section Title');
+                     var content = prompt('Enter section content:', 'Section content goes here...');
+                     
+                     if (title && content) {
+                         var sectionTag = '<div class="section-container">\n<h3>' + title + '</h3>\n<p>' + content + '</p>\n</div>';
+                         textarea.value = textarea.value.substring(0, start) + sectionTag + textarea.value.substring(start);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                 
+                 function insertContainer() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var containerTypes = [
+                         'container',
+                         'container-fluid', 
+                         'alert alert-primary',
+                         'alert alert-success',
+                         'alert alert-warning',
+                         'alert alert-danger',
+                         'card',
+                         'card card-body'
+                     ];
+                     
+                     var type = prompt('Choose container type:\n0 - Container\n1 - Fluid Container\n2 - Primary Alert\n3 - Success Alert\n4 - Warning Alert\n5 - Danger Alert\n6 - Card\n7 - Card with Body\n\nEnter number (0-7):');
+                     
+                     if (type !== null && type >= 0 && type < containerTypes.length) {
+                         var content = prompt('Enter container content:', 'Container content here...');
+                         if (content) {
+                             var containerTag = '<div class="' + containerTypes[type] + '">\n' + content + '\n</div>';
+                             textarea.value = textarea.value.substring(0, start) + containerTag + textarea.value.substring(start);
+                             textarea.focus();
+                             updatePreview();
+                         }
+                     }
+                 }
+                 
+                 function insertTable() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var rows = prompt('Enter number of rows:', '3');
+                     var cols = prompt('Enter number of columns:', '3');
+                     
+                     if (rows && cols && !isNaN(rows) && !isNaN(cols)) {
+                         var tableTag = '<table border="1" style="border-collapse: collapse; width: 100%;">\n';
+                         
+                         // Header row
+                         tableTag += '<tr>\n';
+                         for (var i = 1; i <= cols; i++) {
+                             tableTag += '<th style="padding: 8px; background: #f8f9fa;">Header ' + i + '</th>\n';
+                         }
+                         tableTag += '</tr>\n';
+                         
+                         // Data rows
+                         for (var r = 1; r < rows; r++) {
+                             tableTag += '<tr>\n';
+                             for (var c = 1; c <= cols; c++) {
+                                 tableTag += '<td style="padding: 8px;">Cell ' + r + ',' + c + '</td>\n';
+                             }
+                             tableTag += '</tr>\n';
+                         }
+                         
+                         tableTag += '</table>';
+                         
+                         textarea.value = textarea.value.substring(0, start) + tableTag + textarea.value.substring(start);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                 
+                 function insertBootstrapTable() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var tableStyles = [
+                         'table',
+                         'table table-striped',
+                         'table table-bordered',
+                         'table table-hover',
+                         'table table-striped table-bordered',
+                         'table table-striped table-hover',
+                         'table table-dark',
+                         'table table-sm'
+                     ];
+                     
+                     var style = prompt('Choose table style:\n0 - Basic\n1 - Striped\n2 - Bordered\n3 - Hover\n4 - Striped + Bordered\n5 - Striped + Hover\n6 - Dark\n7 - Small\n\nEnter number (0-7):');
+                     
+                     if (style !== null && style >= 0 && style < tableStyles.length) {
+                         var tableTag = '<table class="' + tableStyles[style] + '">\n';
+                         tableTag += '<thead>\n<tr>\n<th>Header 1</th>\n<th>Header 2</th>\n<th>Header 3</th>\n</tr>\n</thead>\n';
+                         tableTag += '<tbody>\n<tr>\n<td>Row 1, Col 1</td>\n<td>Row 1, Col 2</td>\n<td>Row 1, Col 3</td>\n</tr>\n';
+                         tableTag += '<tr>\n<td>Row 2, Col 1</td>\n<td>Row 2, Col 2</td>\n<td>Row 2, Col 3</td>\n</tr>\n</tbody>\n</table>';
+                         
+                         textarea.value = textarea.value.substring(0, start) + tableTag + textarea.value.substring(start);
+                         textarea.focus();
+                         updatePreview();
+                     }
+                 }
+                 
+                 // Helper function to update preview
+                 function updatePreview() {
+                     if (isHtmlMode && previewDiv) {
+                         previewDiv.innerHTML = document.querySelector('textarea[name="description"]').value;
+                     }
+                 }
+                
+                                 function insertTag(tag) {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var start = textarea.selectionStart;
+                     var tagContent = '<' + tag + '></' + tag + '>';
+                     
+                     textarea.value = textarea.value.substring(0, start) + tagContent + textarea.value.substring(start);
+                     textarea.focus();
+                     textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2);
+                 }
+                 
+                 var isHtmlMode = false;
+                 var previewDiv = null;
+                 
+                 function toggleHtmlMode() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var btn = document.getElementById('htmlModeBtn');
+                     
+                     if (!isHtmlMode) {
+                         // Switch to HTML mode
+                         textarea.classList.add('html-mode');
+                         btn.classList.remove('btn-outline-primary');
+                         btn.classList.add('btn-primary');
+                         btn.innerHTML = '<i class="bi bi-eye"></i> Preview';
+                         isHtmlMode = true;
+                         
+                         // Create preview div
+                         if (!previewDiv) {
+                             previewDiv = document.createElement('div');
+                             previewDiv.className = 'html-preview';
+                             previewDiv.style.display = 'none';
+                             textarea.parentNode.insertBefore(previewDiv, textarea.nextSibling);
+                         }
+                         previewDiv.innerHTML = textarea.value;
+                         previewDiv.style.display = 'block';
+                         
+                     } else {
+                         // Switch to visual mode
+                         textarea.classList.remove('html-mode');
+                         btn.classList.remove('btn-primary');
+                         btn.classList.add('btn-outline-primary');
+                         btn.innerHTML = '<i class="bi bi-code-slash"></i> HTML';
+                         isHtmlMode = false;
+                         
+                         if (previewDiv) {
+                             previewDiv.style.display = 'none';
+                         }
+                     }
+                 }
+                 
+                 function insertHtmlTemplate() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var templates = [
+                         '<p><strong>Important:</strong> Your text here</p>',
+                         '<ul>\n<li>List item 1</li>\n<li>List item 2</li>\n<li>List item 3</li>\n</ul>',
+                         '<ol>\n<li>Step 1</li>\n<li>Step 2</li>\n<li>Step 3</li>\n</ol>',
+                         '<blockquote>\n<p>Quote text here</p>\n</blockquote>',
+                         '<table border="1">\n<tr><th>Header 1</th><th>Header 2</th></tr>\n<tr><td>Cell 1</td><td>Cell 2</td></tr>\n</table>',
+                         '<div class="alert alert-info">\n<p>Information message</p>\n</div>'
+                     ];
+                     
+                     var template = prompt('Choose template:\n0 - Important text\n1 - Bullet list\n2 - Numbered list\n3 - Quote\n4 - Table\n5 - Info box\n\nEnter number (0-5):');
+                     
+                     if (template !== null && template >= 0 && template < templates.length) {
+                         var start = textarea.selectionStart;
+                         textarea.value = textarea.value.substring(0, start) + templates[template] + textarea.value.substring(start);
+                         textarea.focus();
+                     }
+                 }
+                 
+                 function cleanHtml() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     if (confirm('Clean HTML? This will remove all HTML tags and keep only plain text.')) {
+                         var text = textarea.value.replace(/<[^>]*>/g, '');
+                         textarea.value = text.trim();
+                         textarea.focus();
+                     }
+                 }
+                 
+                 // Image functions
+                 function insertImage() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var url = prompt('Enter image URL:', 'https://');
+                     
+                     if (url && url !== 'https://') {
+                         var alt = prompt('Enter image description (alt text):', 'Image description');
+                         var width = prompt('Enter image width (optional, e.g. 300 or leave empty):', '');
+                         
+                         var imgTag = '<img src="' + url + '" alt="' + (alt || 'Image') + '"';
+                         if (width && !isNaN(width)) {
+                             imgTag += ' width="' + width + '"';
+                         }
+                         imgTag += ' class="image-in-editor" onclick="editImageElement(this)">';
+                         
+                         var start = textarea.selectionStart;
+                         textarea.value = textarea.value.substring(0, start) + imgTag + textarea.value.substring(start);
+                         textarea.focus();
+                         
+                         // Update preview if in HTML mode
+                         if (isHtmlMode && previewDiv) {
+                             previewDiv.innerHTML = textarea.value;
+                         }
+                     }
+                 }
+                 
+                 function uploadImage() {
+                     document.getElementById('imageUpload').click();
+                 }
+                 
+                 function handleImageUpload(input) {
+                     if (input.files && input.files[0]) {
+                         var file = input.files[0];
+                         var reader = new FileReader();
+                         
+                         reader.onload = function(e) {
+                             var textarea = document.querySelector('textarea[name="description"]');
+                             var alt = prompt('Enter image description (alt text):', file.name);
+                             var width = prompt('Enter image width (optional, e.g. 300 or leave empty):', '');
+                             
+                             var imgTag = '<img src="' + e.target.result + '" alt="' + (alt || file.name) + '"';
+                             if (width && !isNaN(width)) {
+                                 imgTag += ' width="' + width + '"';
+                             }
+                             imgTag += ' class="image-in-editor" onclick="editImageElement(this)">';
+                             
+                             var start = textarea.selectionStart;
+                             textarea.value = textarea.value.substring(0, start) + imgTag + textarea.value.substring(start);
+                             textarea.focus();
+                             
+                             // Update preview if in HTML mode
+                             if (isHtmlMode && previewDiv) {
+                                 previewDiv.innerHTML = textarea.value;
+                             }
+                         };
+                         
+                         reader.readAsDataURL(file);
+                     }
+                     
+                     // Clear the input
+                     input.value = '';
+                 }
+                 
+                 function editImage() {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     var text = textarea.value;
+                     var start = textarea.selectionStart;
+                     var end = textarea.selectionEnd;
+                     
+                     // Find img tag around cursor
+                     var beforeCursor = text.substring(0, start);
+                     var afterCursor = text.substring(end);
+                     
+                     var imgStartIndex = beforeCursor.lastIndexOf('<img');
+                     var imgEndIndex = text.indexOf('>', start);
+                     
+                     if (imgStartIndex !== -1 && imgEndIndex !== -1 && imgStartIndex < start && imgEndIndex >= start) {
+                         var imgTag = text.substring(imgStartIndex, imgEndIndex + 1);
+                         editImageTag(imgTag, imgStartIndex, imgEndIndex + 1);
+                     } else {
+                         alert('Place cursor inside an image tag to edit it.');
+                     }
+                 }
+                 
+                 function editImageTag(imgTag, startIndex, endIndex) {
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     
+                     // Extract current attributes
+                     var srcMatch = imgTag.match(/src="([^"]*)"/);
+                     var altMatch = imgTag.match(/alt="([^"]*)"/);
+                     var widthMatch = imgTag.match(/width="([^"]*)"/);
+                     
+                     var currentSrc = srcMatch ? srcMatch[1] : '';
+                     var currentAlt = altMatch ? altMatch[1] : '';
+                     var currentWidth = widthMatch ? widthMatch[1] : '';
+                     
+                     // Prompt for new values
+                     var newSrc = prompt('Image URL:', currentSrc);
+                     if (newSrc === null) return; // User cancelled
+                     
+                     var newAlt = prompt('Image description (alt text):', currentAlt);
+                     if (newAlt === null) return;
+                     
+                     var newWidth = prompt('Image width (optional):', currentWidth);
+                     if (newWidth === null) return;
+                     
+                     // Create new image tag
+                     var newImgTag = '<img src="' + newSrc + '" alt="' + newAlt + '"';
+                     if (newWidth && !isNaN(newWidth)) {
+                         newImgTag += ' width="' + newWidth + '"';
+                     }
+                     newImgTag += ' class="image-in-editor" onclick="editImageElement(this)">';
+                     
+                     // Replace in textarea
+                     textarea.value = textarea.value.substring(0, startIndex) + newImgTag + textarea.value.substring(endIndex);
+                     textarea.focus();
+                     textarea.setSelectionRange(startIndex + newImgTag.length, startIndex + newImgTag.length);
+                     
+                     // Update preview if in HTML mode
+                     if (isHtmlMode && previewDiv) {
+                         previewDiv.innerHTML = textarea.value;
+                     }
+                 }
+                 
+                 function editImageElement(imgElement) {
+                     var currentSrc = imgElement.src;
+                     var currentAlt = imgElement.alt;
+                     var currentWidth = imgElement.width || '';
+                     
+                     var newSrc = prompt('Image URL:', currentSrc);
+                     if (newSrc === null) return;
+                     
+                     var newAlt = prompt('Image description (alt text):', currentAlt);
+                     if (newAlt === null) return;
+                     
+                     var newWidth = prompt('Image width (optional):', currentWidth);
+                     if (newWidth === null) return;
+                     
+                     // Update the element
+                     imgElement.src = newSrc;
+                     imgElement.alt = newAlt;
+                     if (newWidth && !isNaN(newWidth)) {
+                         imgElement.width = newWidth;
+                     } else {
+                         imgElement.removeAttribute('width');
+                     }
+                     
+                     // Update textarea with new HTML
+                     var textarea = document.querySelector('textarea[name="description"]');
+                     if (previewDiv) {
+                         textarea.value = previewDiv.innerHTML;
+                     }
+                 }
+                 
+                 // Auto-update preview when typing in HTML mode
+                 document.querySelector('textarea[name="description"]').addEventListener('input', function() {
+                     if (isHtmlMode && previewDiv) {
+                         previewDiv.innerHTML = this.value;
+                     }
+
+            </div>
+        </div>
+
+        <!-- Quiz Settings Section -->
+        <div class="form-section">
+            <h4 class="mb-3">
+                <i class="bi bi-gear"></i> {% trans "Quiz Settings" %}
+            </h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-check mb-3">
+                        {{ form.shuffle_questions }}
+                        <label class="form-check-label" for="{{ form.shuffle_questions.id_for_label }}">
+                            <i class="bi bi-shuffle"></i> {{ form.shuffle_questions.label }}
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check mb-3">
+                        {{ form.shuffle_answers }}
+                        <label class="form-check-label" for="{{ form.shuffle_answers.id_for_label }}">
+                            <i class="bi bi-shuffle"></i> {{ form.shuffle_answers.label }}
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Materials Section -->
+        <div class="form-section">
+            <h4 class="mb-3">
+                <i class="bi bi-collection"></i> {% trans "Materials" %}
+            </h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ form.youtube_video_id.id_for_label }}" class="form-label">
+                            <i class="bi bi-youtube"></i> {{ form.youtube_video_id.label }}
+                        </label>
+                        {{ form.youtube_video_id }}
+                        {% if form.youtube_video_id.errors %}
+                            <div class="text-danger">{{ form.youtube_video_id.errors }}</div>
+                        {% endif %}
+                        <div class="form-text">{% trans "Enter YouTube video ID (e.g., dQw4w9WgXcQ)" %}</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ form.page.id_for_label }}" class="form-label">
+                            <i class="bi bi-link"></i> {{ form.page.label }}
+                        </label>
+                        {{ form.page }}
+                        {% if form.page.errors %}
+                            <div class="text-danger">{{ form.page.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ form.pdf_material.id_for_label }}" class="form-label">
+                            <i class="bi bi-file-earmark-pdf"></i> {{ form.pdf_material.label }}
+                        </label>
+                        {{ form.pdf_material }}
+                        {% if form.pdf_material.errors %}
+                            <div class="text-danger">{{ form.pdf_material.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ form.pdf_filename.id_for_label }}" class="form-label">
+                            <i class="bi bi-file-text"></i> {{ form.pdf_filename.label }}
+                        </label>
+                        {{ form.pdf_filename }}
+                        {% if form.pdf_filename.errors %}
+                            <div class="text-danger">{{ form.pdf_filename.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Access Control Section -->
+        <div class="form-section">
+            <h4 class="mb-3">
+                <i class="bi bi-shield-lock"></i> {% trans "Access Control" %}
+            </h4>
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                {% trans "Access is filtered based on your AccessQuiz permissions. You can only assign quizzes to companies and groups you have access to." %}
+                <br><br>
+                <strong>{% trans "Access Logic:" %}</strong>
+                <ul class="mb-0">
+                    <li>{% trans "Companies are required - all users from selected companies will have access" %}</li>
+                    <li>{% trans "If Cabinet Groups or Cabinet Users are specified, access will be limited only to those groups/users" %}</li>
+                    <li>{% trans "If Cabinet Groups and Cabinet Users are not specified, ALL users from selected companies will have access" %}</li>
+                </ul>
+            </div>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="{{ form.companies.id_for_label }}" class="form-label">
+                            <i class="bi bi-building"></i> {{ form.companies.label }}
+                            <span class="text-danger">*</span>
+                        </label>
+                        {{ form.companies }}
+                        {% if form.companies.help_text %}
+                            <div class="form-text">{{ form.companies.help_text }}</div>
+                        {% endif %}
+                        {% if form.companies.errors %}
+                            <div class="text-danger">{{ form.companies.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="{{ form.cabinet_groups.id_for_label }}" class="form-label">
+                            <i class="bi bi-people"></i> {{ form.cabinet_groups.label }}
+                            <small class="text-muted">({% trans "optional" %})</small>
+                        </label>
+                        {{ form.cabinet_groups }}
+                        {% if form.cabinet_groups.help_text %}
+                            <div class="form-text">{{ form.cabinet_groups.help_text }}</div>
+                        {% endif %}
+                        {% if form.cabinet_groups.errors %}
+                            <div class="text-danger">{{ form.cabinet_groups.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="{{ form.cabinet_users.id_for_label }}" class="form-label">
+                            <i class="bi bi-person"></i> {{ form.cabinet_users.label }}
+                            <small class="text-muted">({% trans "optional" %})</small>
+                        </label>
+                        {{ form.cabinet_users }}
+                        {% if form.cabinet_users.help_text %}
+                            <div class="form-text">{{ form.cabinet_users.help_text }}</div>
+                        {% endif %}
+                        {% if form.cabinet_users.errors %}
+                            <div class="text-danger">{{ form.cabinet_users.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Questions Section (only shown when editing) -->
+        {% if action == 'edit' and questions %}
+            <div class="form-section">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4>
+                        <i class="bi bi-question-circle"></i> {% trans "Questions" %} ({{ questions.count }})
+                    </h4>
+                    <a href="{% url 'question_create' quiz.id %}" class="btn btn-success btn-sm">
+                        <i class="bi bi-plus-circle"></i> {% trans "Add Question" %}
+                    </a>
+                </div>
+                
+                {% for question in questions %}
+                    <div class="question-card">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-2">
+                                    <span class="badge bg-primary me-2">{{ question.order }}</span>
+                                    {{ question.text|safe|truncatewords:15 }}
+                                </h6>
+                                <div class="answers-preview">
+                                    {% for answer in question.answers.all %}
+                                        <div class="answer-item {% if answer.is_correct %}correct{% endif %}">
+                                            <small>
+                                                {% if answer.is_correct %}
+                                                    <i class="bi bi-check-circle text-success"></i>
+                                                {% else %}
+                                                    <i class="bi bi-circle text-muted"></i>
+                                                {% endif %}
+                                                {{ answer.text|safe|truncatewords:10 }}
+                                                <span class="badge bg-secondary ms-2">{{ answer.score }}</span>
+                                            </small>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="ms-3">
+                                <div class="btn-group-vertical">
+                                    <a href="{% url 'question_edit' question.id %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'answer_create' question.id %}" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-plus"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                                            onclick="confirmDelete('{% url 'question_delete' question.id %}', '{{ question.text|truncatewords:5 }}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'quiz_manager' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> {% trans "Cancel" %}
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-{% if action == 'create' %}check-circle{% else %}save{% endif %}"></i>
+                {% if action == 'create' %}
+                    {% trans "Create Quiz" %}
+                {% else %}
+                    {% trans "Save Changes" %}
+                {% endif %}
+            </button>
+        </div>
+    </form>
+
+    <!-- Floating Action Button for adding questions (only when editing) -->
+    {% if action == 'edit' %}
+        <a href="{% url 'question_create' quiz.id %}" class="btn btn-success btn-floating" 
+           data-bs-toggle="tooltip" title="{% trans 'Add Question' %}">
+            <i class="bi bi-plus fs-4"></i>
+        </a>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded');
+    
+    // Initialize tooltips
+    var tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(function(el) {
+        new bootstrap.Tooltip(el);
+    });
+});
+
+// TinyMCE initialization
+window.addEventListener('load', function() {
+    console.log('Window loaded, initializing TinyMCE');
+    
+    if (typeof tinymce !== 'undefined') {
+        console.log('TinyMCE is available');
+        tinymce.init({
+            selector: 'textarea[name="description"]',
+            height: 300,
+            menubar: false,
+            plugins: 'lists link',
+            toolbar: 'undo redo | bold italic | bullist numlist | link',
+            branding: false
+        });
+    } else {
+        console.log('TinyMCE not available');
+    }
+});
+
+    // Confirm delete function
+    function confirmDelete(url, itemName) {
+        if (confirm('Are you sure you want to delete "' + itemName + '"?')) {
+            // Create a form and submit it
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = url;
+            
+            // Add CSRF token
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            var csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+            
+    // Insert template function
+    function insertTemplate() {
+        var templates = {
+            'blockquote': '<blockquote class="blockquote">\n<p class="mb-0">Quote text goes here...</p>\n<footer class="blockquote-footer">Author name <cite title="Source Title">Source</cite></footer>\n</blockquote>',
+            'card': '<div class="card" style="width: 18rem;">\n<div class="card-body">\n<h5 class="card-title">Card title</h5>\n<p class="card-text">Card content text goes here.</p>\n<a href="#" class="btn btn-primary">Button</a>\n</div>\n</div>',
+            'accordion': '<div class="accordion" id="accordionExample">\n<div class="accordion-item">\n<h2 class="accordion-header" id="headingOne">\n<button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">\nAccordion Item #1\n</button>\n</h2>\n<div id="collapseOne" class="accordion-collapse collapse show">\n<div class="accordion-body">Content goes here...</div>\n</div>\n</div>\n</div>',
+            'badge': '<span class="badge bg-primary">Primary</span> <span class="badge bg-secondary">Secondary</span> <span class="badge bg-success">Success</span>',
+            'button-group': '<div class="btn-group" role="group">\n<button type="button" class="btn btn-primary">Left</button>\n<button type="button" class="btn btn-primary">Middle</button>\n<button type="button" class="btn btn-primary">Right</button>\n</div>',
+            'breadcrumb': '<nav aria-label="breadcrumb">\n<ol class="breadcrumb">\n<li class="breadcrumb-item"><a href="#">Home</a></li>\n<li class="breadcrumb-item"><a href="#">Library</a></li>\n<li class="breadcrumb-item active">Data</li>\n</ol>\n</nav>',
+            'progress': '<div class="progress">\n<div class="progress-bar" role="progressbar" style="width: 25%" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100">25%</div>\n</div>',
+            'modal': '<div class="modal fade" id="exampleModal" tabindex="-1">\n<div class="modal-dialog">\n<div class="modal-content">\n<div class="modal-header">\n<h5 class="modal-title">Modal title</h5>\n<button type="button" class="btn-close" data-bs-dismiss="modal"></button>\n</div>\n<div class="modal-body">Modal content...</div>\n<div class="modal-footer">\n<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>\n<button type="button" class="btn btn-primary">Save changes</button>\n</div>\n</div>\n</div>\n</div>'
+        };
+        
+        var choice = prompt('Choose template:\n\n1. blockquote - Quote with citation\n2. card - Bootstrap card\n3. accordion - Collapsible accordion\n4. badge - Colored badges\n5. button-group - Button group\n6. breadcrumb - Navigation breadcrumb\n7. progress - Progress bar\n8. modal - Modal dialog\n\nEnter template name:');
+        
+        if (choice && templates[choice]) {
+            var textarea = document.querySelector('textarea[name="description"]');
+            var start = textarea.selectionStart;
+            textarea.value = textarea.value.substring(0, start) + templates[choice] + textarea.value.substring(start);
+            textarea.focus();
+        }
+    }
+            
+    function insertQuickTemplate() {
+        var quickTemplates = {
+            '1': '<div class="alert alert-primary"><strong>Info!</strong> This is an info alert.</div>',
+            '2': '<div class="alert alert-success"><strong>Success!</strong> This is a success alert.</div>',
+            '3': '<div class="alert alert-warning"><strong>Warning!</strong> This is a warning alert.</div>',
+            '4': '<div class="alert alert-danger"><strong>Error!</strong> This is an error alert.</div>',
+            '5': '<div class="text-center"><h2>Centered Title</h2><p>Centered paragraph text.</p></div>',
+            '6': '<div class="row"><div class="col-md-6">Left column</div><div class="col-md-6">Right column</div></div>',
+            '7': '<pre><code>Code block example\nvar x = 1;\nconsole.log(x);</code></pre>',
+            '8': '<figure class="figure"><img src="image.jpg" class="figure-img img-fluid rounded"><figcaption class="figure-caption">Image caption</figcaption></figure>',
+            '9': '<div style="background: linear-gradient(45deg, #007bff, #6610f2); color: white; padding: 20px; border-radius: 10px; text-align: center;"><h3>Gradient Box</h3><p>Beautiful gradient background</p></div>',
+            '0': '<details><summary>Click to expand</summary><p>Hidden content that can be expanded and collapsed.</p></details>'
+        };
+        
+        var choice = prompt('Quick Templates:\n\n1. Info Alert\n2. Success Alert\n3. Warning Alert\n4. Error Alert\n5. Centered Content\n6. Two Columns\n7. Code Block\n8. Figure with Caption\n9. Gradient Box\n0. Expandable Details\n\nPress number (0-9):');
+        
+        if (choice && quickTemplates[choice]) {
+            var textarea = document.querySelector('textarea[name="description"]');
+            var start = textarea.selectionStart;
+            textarea.value = textarea.value.substring(0, start) + quickTemplates[choice] + textarea.value.substring(start);
+            textarea.focus();
+        }
+    }
+</script>
+{% endblock %} 

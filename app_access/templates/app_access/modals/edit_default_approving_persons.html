@@ -1,0 +1,622 @@
+<!-- SecBoard\templates\app_access\modals\edit_default_approving_persons.html -->
+{% load i18n %}
+
+<div class="modal fade" id="editDefaultApproversModal" tabindex="-1" aria-hidden="true">
+    <span id="approversI18nNoDept" class="d-none">{% trans "No Department" %}</span>
+    <span id="approversI18nNoPos" class="d-none">{% trans "No Position" %}</span>
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Edit default Approving Persons" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editApproversForm">
+                    {% csrf_token %}
+                    <div id="modalAlerts"></div>
+                    
+                    <div id="approvalLevels" class="mb-3">
+                        <!-- Рівні погодження будуть додані тут -->
+                    </div>
+                    
+                    <button type="button" class="btn btn-outline-primary" id="addLevelBtn">
+                        <i class="bi bi-plus-circle"></i> {% trans "Add Level" %}
+                    </button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="saveApproversBtn">
+                    {% trans "Save Changes" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Шаблон для рівня погодження -->
+<template id="approvalLevelTemplate">
+    <div class="approval-level card mb-3" data-level="{level}">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">{% trans "Level" %} {level}</h6>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-primary btn-sm add-approver">
+                    <i class="bi bi-person-plus"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm remove-level">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="approvers-container">
+                <!-- Тут будуть approvers -->
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Шаблон для approver -->
+<template id="approverTemplate">
+    <div class="approver-item d-flex align-items-center mb-2" data-user-id="{userId}">
+        <div class="me-2">
+            {avatar}
+        </div>
+        <div class="flex-grow-1">
+            <div class="fw-bold">{name}</div>
+            <div class="text-muted small">{department}</div>
+            <div class="text-muted small">{position}</div>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm remove-approver">
+            <i class="bi bi-x"></i>
+        </button>
+    </div>
+</template>
+
+<style>
+.approval-level {
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+
+.approver-item {
+    background-color: #f8f9fa;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('editDefaultApproversModal');
+    const approvalLevels = document.getElementById('approvalLevels');
+    let currentSystemId = null;
+    let currentCompanyId = null;
+    let currentEnvironment = 'test';
+    let availableUsers = [];
+
+    // Flag so show.bs.modal does not reload when we already opened and loaded via openDefaultApproversModal
+    let approversModalOpenedByApi = false;
+
+    // Функція відкриття модального вікна для системи
+    window.openDefaultApproversModal = function(systemId, systemName, companyId, environment) {
+        console.log('openDefaultApproversModal called with environment:', environment);
+        currentSystemId = systemId;
+        currentCompanyId = companyId;
+        currentEnvironment = environment || 'test';
+        console.log('currentEnvironment set to:', currentEnvironment);
+        approversModalOpenedByApi = true;
+
+        // Set data attributes for any show.bs.modal logic that reads them
+        modal.setAttribute('data-system-id', String(systemId));
+        modal.setAttribute('data-company-id', String(companyId));
+        modal.setAttribute('data-environment', currentEnvironment);
+
+        // Оновлюємо інформацію про систему
+        document.querySelector('#editDefaultApproversModal .modal-title').textContent = 
+            `{% trans "Edit default Approving Persons" %} - ${systemName}`;
+
+        // Очищаємо поточні рівні
+        approvalLevels.innerHTML = '';
+
+        // Завантажуємо доступних користувачів
+        loadAvailableUsers(companyId);
+
+        // Завантажуємо поточних approvers для системи
+        loadSystemApprovers(systemId);
+
+        // Показуємо модальне вікно
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+    };
+
+    // Завантаження поточних approvers для системи
+    async function loadSystemApprovers(systemId) {
+        // Always clear levels first so multiple calls do not duplicate entries
+        approvalLevels.innerHTML = '';
+
+        try {
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const environment = currentEnvironment || 'test';
+            console.log('loadSystemApprovers using environment:', environment);
+            const response = await fetch(`/${languagePrefix}/app_access/approving-persons/${systemId}/?environment=${environment}`);
+            const data = await response.json();
+
+            if (response.ok && data.status === 'success') {
+                console.log('Received approvers data:', data.approvers);
+
+                // Групуємо approvers за рівнями
+                const approversByLevel = {};
+                data.approvers.forEach(approver => {
+                    console.log('Processing approver:', approver);
+                    if (!approversByLevel[approver.order]) {
+                        approversByLevel[approver.order] = [];
+                    }
+                    approversByLevel[approver.order].push(approver);
+                });
+                
+                console.log('Grouped approvers by level:', approversByLevel);
+                
+                // Створюємо рівні з approvers
+                Object.keys(approversByLevel).sort().forEach(level => {
+                    addLevel(level, approversByLevel[level]);
+                });
+                
+                // Якщо немає approvers, додаємо один порожній рівень
+                if (Object.keys(approversByLevel).length === 0) {
+                    addLevel(1);
+                }
+            } else {
+                throw new Error(data.message || '{% trans "Error loading approvers" %}');
+            }
+        } catch (error) {
+            console.error('Error loading system approvers:', error);
+            showModalAlert('danger', '{% trans "Error loading current approvers" %}');
+            // Додаємо один порожній рівень в разі помилки
+            addLevel(1);
+        }
+    }
+
+    // Додавання нового рівня
+    document.getElementById('addLevelBtn').addEventListener('click', function() {
+        const nextLevel = document.querySelectorAll('.approval-level').length + 1;
+        addLevel(nextLevel);
+    });
+
+    // Функція додавання рівня
+    function addLevel(level, approvers = []) {
+        console.log(`Adding level ${level} with ${approvers.length} approvers:`, approvers);
+        
+        const template = document.getElementById('approvalLevelTemplate');
+        const levelHtml = template.innerHTML
+            .replace(/{level}/g, level);
+        
+        const levelElement = document.createElement('div');
+        levelElement.innerHTML = levelHtml;
+        const levelNode = levelElement.firstElementChild;
+        
+        // Додаємо існуючих approvers
+        const approversContainer = levelNode.querySelector('.approvers-container');
+        console.log('Approvers container found:', approversContainer);
+        
+        approvers.forEach(approver => {
+            console.log('Adding approver to container:', approver);
+            addApproverToLevel(approversContainer, approver);
+        });
+        
+        approvalLevels.appendChild(levelNode);
+        console.log(`Level ${level} added successfully`);
+    }
+
+    // Функція додавання approver до рівня
+    function addApproverToLevel(container, approver) {
+        console.log('Adding approver to level:', approver);
+        
+        if (!approver || (!approver.user_id && !approver.id)) {
+            console.error('Invalid approver data:', approver);
+            return;
+        }
+
+        var dept = (approver.department && approver.department.trim() !== 'No Department') ? approver.department : '';
+        var pos = (approver.position && approver.position.trim() !== 'No Position') ? approver.position : '';
+        if (!dept || !pos) {
+            var noDeptEl = document.getElementById('approversI18nNoDept');
+            var noPosEl = document.getElementById('approversI18nNoPos');
+            if (!dept && noDeptEl) dept = noDeptEl.textContent.trim();
+            if (!pos && noPosEl) pos = noPosEl.textContent.trim();
+        }
+
+        const template = document.getElementById('approverTemplate');
+        console.log('Approver template found:', template);
+        
+        const approverHtml = template.innerHTML
+            .replace(/{userId}/g, approver.user_id || approver.id)
+            .replace(/{name}/g, approver.name)
+            .replace(/{department}/g, dept || '')
+            .replace(/{position}/g, pos || '')
+            .replace(/{avatar}/g, getAvatarHtml(approver));
+        
+        console.log('Generated approver HTML:', approverHtml);
+        
+        const approverElement = document.createElement('div');
+        approverElement.innerHTML = approverHtml;
+        const approverNode = approverElement.firstElementChild;
+        
+        console.log('Approver node created:', approverNode);
+        container.appendChild(approverNode);
+        console.log('Approver added to container successfully');
+    }
+
+    // Генерація HTML для аватара
+    function getAvatarHtml(approver) {
+        console.log('Generating avatar HTML for approver:', approver);
+        
+        if (approver.avatar) {
+            return `<img src="${approver.avatar}" class="user-avatar" alt="${approver.name}">`;
+        }
+        
+        const color = approver.color || '#6c757d';
+        const initial = approver.name ? approver.name.charAt(0).toUpperCase() : '?';
+        const avatarHtml = `<div class="user-avatar" style="background-color: ${color}">
+                    ${initial}
+                </div>`;
+        
+        console.log('Generated avatar HTML:', avatarHtml);
+        return avatarHtml;
+    }
+
+    // Завантаження доступних користувачів
+    async function loadAvailableUsers(companyId) {
+        try {
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const response = await fetch(`/${languagePrefix}/app_access/cabinet-users/${companyId}/`);
+            const data = await response.json();
+            
+            if (response.ok && data.status === 'success') {
+                availableUsers = data.users;
+                console.log('Loaded available users:', availableUsers);
+            } else {
+                throw new Error(data.message || '{% trans "Error loading users" %}');
+            }
+        } catch (error) {
+            console.error('Error loading users:', error);
+            showModalAlert('danger', '{% trans "Error loading available users" %}');
+        }
+    }
+
+    // Додавання approver
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.add-approver')) {
+            const level = e.target.closest('.approval-level');
+            showUserSelectionDialog(level);
+        }
+    });
+
+    // Видалення approver
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-approver')) {
+            e.target.closest('.approver-item').remove();
+        }
+    });
+
+    // Видалення рівня
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-level')) {
+            e.target.closest('.approval-level').remove();
+            renumberLevels();
+        }
+    });
+
+    // Перенумерація рівнів
+    function renumberLevels() {
+        document.querySelectorAll('.approval-level').forEach((level, index) => {
+            const levelNum = index + 1;
+            level.setAttribute('data-level', levelNum);
+            level.querySelector('h6').textContent = `{% trans "Level" %} ${levelNum}`;
+        });
+    }
+
+    // Збереження змін
+    document.getElementById('saveApproversBtn').addEventListener('click', async function() {
+        try {
+            const approvers = [];
+            document.querySelectorAll('.approval-level').forEach((level, index) => {
+                const levelNum = index + 1;
+                level.querySelectorAll('.approver-item').forEach(approver => {
+                    const userId = parseInt(approver.dataset.userId);
+                    if (!userId) {
+                        throw new Error('{% trans "Invalid user ID found" %}');
+                    }
+                    approvers.push({
+                        user_id: userId,
+                        order: levelNum
+                    });
+                });
+            });
+
+            if (approvers.length === 0) {
+                throw new Error('{% trans "Please add at least one approver" %}');
+            }
+
+            console.log('Sending approvers data:', approvers);
+            console.log('Using environment for save:', currentEnvironment || 'test');
+
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const response = await fetch(`/${languagePrefix}/app_access/approving-persons/add/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    asset_id: currentSystemId,
+                    environment: currentEnvironment || 'test',
+                    approvers: approvers
+                })
+            });
+
+            const data = await response.json();
+            console.log('Server response:', data);
+
+            if (!response.ok) {
+                throw new Error(data.message || `HTTP error! status: ${response.status}`);
+            }
+
+            if (data.status === 'success') {
+                const bsModal = bootstrap.Modal.getInstance(modal);
+                bsModal.hide();
+                
+                // Використовуємо showModalAlert замість toastr, якщо toastr не доступний
+                if (typeof toastr !== 'undefined') {
+                    toastr.success(data.message);
+                } else {
+                    showModalAlert('success', data.message);
+                }
+                
+                const systemSelect = document.getElementById('systemSelect');
+                if (systemSelect) {
+                    const event = new Event('change');
+                    systemSelect.dispatchEvent(event);
+                }
+            } else {
+                throw new Error(data.message || '{% trans "Error saving changes" %}');
+            }
+        } catch (error) {
+            console.error('Error saving approvers:', error);
+            if (typeof toastr !== 'undefined') {
+                toastr.error(error.message || '{% trans "Error saving changes" %}');
+            }
+            showModalAlert('danger', error.message || '{% trans "Error saving changes" %}');
+        }
+    });
+
+    // Оновлена функція показу діалогу вибору користувача
+    async function showUserSelectionDialog(level) {
+        if (!availableUsers || availableUsers.length === 0) {
+            showModalAlert('warning', '{% trans "No users available" %}');
+            return;
+        }
+
+        const userSelect = document.createElement('select');
+        userSelect.className = 'form-select';
+        
+        const noDept = (document.getElementById('approversI18nNoDept') || {}).textContent || '';
+        const noPos = (document.getElementById('approversI18nNoPos') || {}).textContent || '';
+        const norm = (v) => (v && typeof v === 'string' && !v.trim().startsWith('{%')) ? v.trim() : '';
+        const usePageLangDept = (v) => { const n = norm(v); return (!n || n === 'No Department') ? noDept : n; };
+        const usePageLangPos = (v) => { const n = norm(v); return (!n || n === 'No Position') ? noPos : n; };
+        availableUsers.forEach(user => {
+            const dept = usePageLangDept(user.department);
+            const pos = usePageLangPos(user.position);
+            const sub = [dept, pos].filter(Boolean).join(' · ');
+            const option = new Option(
+                sub ? `${user.name} (${sub})` : user.name,
+                user.id
+            );
+            option.dataset.user = JSON.stringify({
+                id: user.id,
+                name: user.name,
+                department: dept,
+                position: pos,
+                color: user.color,
+                avatar: user.avatar
+            });
+            userSelect.appendChild(option);
+        });
+
+        const dialog = await showDialog('{% trans "Select User" %}', userSelect);
+        if (dialog.value) {
+            const selectedOption = userSelect.selectedOptions[0];
+            const userData = JSON.parse(selectedOption.dataset.user);
+            const noDeptEl = document.getElementById('approversI18nNoDept');
+            const noPosEl = document.getElementById('approversI18nNoPos');
+            const noDept = (noDeptEl && noDeptEl.textContent) ? noDeptEl.textContent.trim() : '';
+            const noPos = (noPosEl && noPosEl.textContent) ? noPosEl.textContent.trim() : '';
+            const d = (userData.department && userData.department.trim() !== 'No Department') ? userData.department.trim() : noDept;
+            const p = (userData.position && userData.position.trim() !== 'No Position') ? userData.position.trim() : noPos;
+            const approverData = {
+                user_id: parseInt(userData.id),
+                id: parseInt(userData.id),
+                name: userData.name,
+                department: d || '',
+                position: p || '',
+                color: userData.color,
+                avatar: userData.avatar
+            };
+            addApproverToLevel(level.querySelector('.approvers-container'), approverData);
+        }
+    }
+
+    // Функція для показу алертів в модальному вікні
+    function showModalAlert(type, message) {
+        const alertsContainer = document.getElementById('modalAlerts');
+        const alertHtml = `
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        alertsContainer.innerHTML = alertHtml;
+        
+        // Автоматично приховуємо alert через 5 секунд
+        setTimeout(() => {
+            const alert = alertsContainer.querySelector('.alert');
+            if (alert) {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }
+        }, 5000);
+    }
+
+    // Допоміжна функція для показу діалогу
+    function showDialog(title, content) {
+        return new Promise((resolve) => {
+            const dialog = document.createElement('div');
+            dialog.className = 'modal fade';
+            dialog.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">${title}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body"></div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                {% trans "Cancel" %}
+                            </button>
+                            <button type="button" class="btn btn-primary" data-action="confirm">
+                                {% trans "Select" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            dialog.querySelector('.modal-body').appendChild(content);
+            document.body.appendChild(dialog);
+            
+            const modalInstance = new bootstrap.Modal(dialog);
+            
+            dialog.addEventListener('click', function(e) {
+                if (e.target.dataset.action === 'confirm') {
+                    resolve({ value: true });
+                    modalInstance.hide();
+                }
+            });
+            
+            dialog.addEventListener('hidden.bs.modal', function() {
+                dialog.remove();
+                resolve({ value: false });
+            });
+            
+            modalInstance.show();
+        });
+    }
+
+    // Показ сповіщень в модальному вікні
+    function showModalAlert(type, message) {
+        const alertsContainer = document.getElementById('modalAlerts');
+        if (!alertsContainer) return;
+
+        // Очищаємо попередні сповіщення
+        alertsContainer.innerHTML = '';
+
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        alertsContainer.appendChild(alert);
+        
+        // Автоматично приховуємо сповіщення через 5 секунд
+        setTimeout(() => {
+            if (alert && alert.parentNode) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+
+    // Оновлюємо список після закриття модального вікна (використовуємо поточне середовище)
+    document.getElementById('editDefaultApproversModal').addEventListener('hidden.bs.modal', function() {
+        const systemId = document.getElementById('systemSelect').value;
+        const envSelect = document.getElementById('environmentSelect');
+        const environment = (envSelect && envSelect.value) ? envSelect.value : (currentEnvironment || 'test');
+        if (systemId) {
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const approversUrl = `/${languagePrefix}/app_access/approving-persons/${systemId}/?environment=${encodeURIComponent(environment)}`;
+
+            $.ajax({
+                url: approversUrl,
+                type: 'GET',
+                success: function(response) {
+                    if (typeof updateApproversList === 'function') {
+                        updateApproversList(response);
+                    } else {
+                        console.error('updateApproversList function is not defined');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error updating approvers list:', error);
+                }
+            });
+        }
+    });
+
+    // Додаткове ініціалізування при відкритті модального вікна (лише якщо відкрито не через openDefaultApproversModal)
+    document.getElementById('editDefaultApproversModal').addEventListener('show.bs.modal', function(event) {
+        try {
+            if (approversModalOpenedByApi) {
+                approversModalOpenedByApi = false;
+                return;
+            }
+
+            const modalElement = event.target;
+            const systemIdAttr = modalElement.getAttribute('data-system-id');
+            const companyIdAttr = modalElement.getAttribute('data-company-id');
+            const environmentAttr = modalElement.getAttribute('data-environment') || 'test';
+
+            const systemIdParsed = systemIdAttr ? parseInt(systemIdAttr) : null;
+            const companyIdParsed = companyIdAttr ? parseInt(companyIdAttr) : null;
+
+            if (systemIdParsed && companyIdParsed) {
+                currentSystemId = systemIdParsed;
+                currentCompanyId = companyIdParsed;
+                currentEnvironment = environmentAttr;
+
+                approvalLevels.innerHTML = '';
+                loadAvailableUsers(currentCompanyId);
+                loadSystemApprovers(currentSystemId);
+            } else {
+                console.warn('Missing system/company id on modal element, attempting to read from selects');
+                const systemSelectEl = document.getElementById('systemSelect');
+                const companySelectEl = document.getElementById('companySelect');
+                if (systemSelectEl && companySelectEl) {
+                    currentSystemId = parseInt(systemSelectEl.value);
+                    currentCompanyId = parseInt(companySelectEl.value);
+                    currentEnvironment = environmentAttr;
+                    approvalLevels.innerHTML = '';
+                    loadAvailableUsers(currentCompanyId);
+                    loadSystemApprovers(currentSystemId);
+                }
+            }
+        } catch (e) {
+            console.error('Error initializing default approvers modal on show:', e);
+        }
+    });
+});
+</script>

@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load risk_custom_filters %}
+
+{% block title %}
+    {% if edit_mode %}
+        {% trans "Edit Incident" %} #{{ incident.id }}
+    {% else %}
+        {% trans "Add New Incident" %}
+    {% endif %}
+{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_incident/includes/incident_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_incident/css/incident_form-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<script>
+    // Simple description display function with Unicode handling
+    function showDescription(selectId) {
+        try {
+            console.log("showDescription called for", selectId);
+            var select = document.getElementById(selectId);
+            var descEl = document.getElementById(selectId + 'Description');
+            
+            if (!select || !descEl) {
+                console.error("Cannot find select or description element for", selectId);
+                return;
+            }
+            
+            if (select.selectedIndex > 0) {
+                var option = select.options[select.selectedIndex];
+                var description = option.getAttribute('data-description');
+                var color = option.getAttribute('data-color');
+                
+                console.log("Selected", selectId, "value:", option.value, "description:", description);
+                
+                if (description) {
+                    // Process the description text to handle Unicode escape sequences
+                    // This converts the escaped sequences to their actual characters
+                    var processedDescription = description
+                        .replace(/\\u([0-9a-fA-F]{4})/g, function(match, hex) {
+                            return String.fromCharCode(parseInt(hex, 16));
+                        });
+                    
+                    descEl.textContent = processedDescription;
+                    descEl.style.color = color || '#6c757d';
+                    descEl.style.display = 'block';
+                } else {
+                    descEl.style.display = 'none';
+                }
+            } else {
+                descEl.style.display = 'none';
+            }
+        } catch (error) {
+            console.error("Error in showDescription for", selectId, error);
+        }
+    }
+</script>
+
+<div class="container-fluid incident-page mt-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h2 class="mb-0">
+            {% if edit_mode %}
+                {% trans "Edit Incident" %} #{{ incident.id }}
+            {% else %}
+                {% trans "Add New Incident" %}
+            {% endif %}
+        </h2>
+        <div class="btn-group sb-toolbar" role="group">
+            <a href="{% url 'incident_register' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+               title="{% trans 'Back to List' %}">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        {% if edit_mode %}
+                            {% trans "Edit Incident Details" %}
+                        {% else %}
+                            {% trans "Enter Incident Details" %}
+                        {% endif %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% if edit_mode %}{% url 'incident_edit' incident.id %}{% else %}{% url 'incident_add' %}{% endif %}" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <!-- GENERAL INFO -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h5 class="font-weight-bold">{% trans "General Information" %}</h5>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="company">{% trans "Company" %}*</label>
+                                    <select class="form-control" id="company" name="company" {% if edit_mode %}disabled{% else %}required{% endif %}>
+                                        <option value="">--- {% trans "Select" %} ---</option>
+                                        {% for company in companies %}
+                                            <option value="{{ company.id }}" {% if edit_mode and incident.company.id == company.id %}selected{% endif %}>
+                                                {{ company.name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    {% if edit_mode %}
+                                        <input type="hidden" name="company" value="{{ incident.company.id }}">
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="occurrence_datetime">{% trans "Date and Time of Occurrence" %}</label>
+                                    <input type="datetime-local" class="form-control" id="occurrence_datetime" name="occurrence_datetime" 
+                                        value="{% if edit_mode and incident.occurrence_datetime %}{{ incident.occurrence_datetime|date:'Y-m-d' }}T{{ incident.occurrence_datetime|date:'H:i' }}{% endif %}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="place">{% trans "Place of Occurrence" %}*</label>
+                                    <input type="text" class="form-control" id="place" name="place" required 
+                                        value="{% if edit_mode %}{{ incident.place }}{% endif %}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="classification">{% trans "Classification" %}</label>
+                                    <select class="form-control" id="classification" name="classification" onchange="showDescription('classification')">
+                                        <option value="">--- {% trans "Select" %} ---</option>
+                                        {% for classification in classifications %}
+                                            <option value="{{ classification.id }}" 
+                                                    data-description="{{ classification.get_description|escapejs }}"
+                                                    data-color="{{ classification.color }}"
+                                                    style="color: {{ classification.color }};"
+                                                    {% if edit_mode and incident.classification and incident.classification.id == classification.id %}selected{% endif %}>{{ classification.get_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div id="classificationDescription" class="description-text" style="display: none;"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="incident_type">{% trans "Incident Type" %}</label>
+                                    <select class="form-control" id="incident_type" name="incident_type" onchange="showDescription('incident_type')">
+                                        <option value="">--- {% trans "Select" %} ---</option>
+                                        {% for incident_type in incident_types %}
+                                            <option value="{{ incident_type.id }}" 
+                                                    data-description="{{ incident_type.get_description|escapejs }}"
+                                                    data-color="{{ incident_type.color }}"
+                                                    style="color: {{ incident_type.color }};"
+                                                    {% if edit_mode and incident.incident_type and incident.incident_type.id == incident_type.id %}selected{% endif %}>{{ incident_type.get_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div id="incident_typeDescription" class="description-text" style="display: none;"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="current_state">{% trans "Current State" %}</label>
+                                    <select class="form-control" id="current_state" name="current_state" onchange="showDescription('current_state')">
+                                        <option value="">--- {% trans "Select" %} ---</option>
+                                        {% for current_state in current_states %}
+                                            <option value="{{ current_state.id }}" 
+                                                    data-description="{{ current_state.get_description|escapejs }}"
+                                                    data-color="{{ current_state.color }}"
+                                                    style="color: {{ current_state.color }};"
+                                                    {% if edit_mode and incident.current_state and incident.current_state.id == current_state.id %}selected{% endif %}>{{ current_state.get_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div id="current_stateDescription" class="description-text" style="display: none;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DESCRIPTION -->
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <h5 class="font-weight-bold">{% trans "Incident Details" %}</h5>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="description">{% trans "Description" %}*</label>
+                                    <textarea class="form-control" id="description" name="description" rows="4" required>{% if edit_mode %}{{ incident.description }}{% endif %}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="features">{% trans "Features and Signs" %}</label>
+                                    <textarea class="form-control" id="features" name="features" rows="3">{% if edit_mode %}{{ incident.features }}{% endif %}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="impact">{% trans "Impact" %}</label>
+                                    <textarea class="form-control" id="impact" name="impact" rows="3">{% if edit_mode %}{{ incident.impact }}{% endif %}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RESPONSE -->
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <h5 class="font-weight-bold">{% trans "Incident Response" %}</h5>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="responsible">{% trans "Responsible for Resolution" %}*</label>
+                                    <input type="text" class="form-control" id="responsible" name="responsible" required 
+                                        value="{% if edit_mode %}{{ incident.responsible }}{% endif %}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="reported_by">{% trans "Reported By" %}*</label>
+                                    <input type="text" class="form-control" id="reported_by" name="reported_by" required 
+                                        value="{% if edit_mode %}{{ incident.reported_by }}{% endif %}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="reported_datetime">{% trans "Reported Date and Time" %}</label>
+                                    <input type="datetime-local" class="form-control" id="reported_datetime" name="reported_datetime" 
+                                        value="{% if edit_mode and incident.reported_datetime %}{{ incident.reported_datetime|date:'Y-m-d' }}T{{ incident.reported_datetime|date:'H:i' }}{% endif %}">
+                                    {% if not edit_mode %}
+                                    <small class="form-text text-muted">{% trans "You can manually set the reported date and time" %}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="registered_by">{% trans "Registered By" %}</label>
+                                    <input type="text" class="form-control" id="registered_by" name="registered_by" 
+                                        value="{% if edit_mode %}{{ incident.registered_by }}{% else %}{{ request.user.get_full_name|default:request.user.username }}{% endif %}" 
+                                        readonly title="{% trans 'This field is set automatically' %}">
+                                    <small class="form-text text-muted">{% trans "Set automatically to current user" %}</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="registered_datetime">{% trans "Registered Date and Time" %}</label>
+                                    <input type="datetime-local" class="form-control" id="registered_datetime" name="registered_datetime" 
+                                        value="{% if edit_mode and incident.registered_datetime %}{{ incident.registered_datetime|date:'Y-m-d' }}T{{ incident.registered_datetime|date:'H:i' }}{% endif %}">
+                                    <small class="form-text text-muted">{% trans "You can manually set the registration date and time" %}</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="measures_taken">{% trans "Measures Taken" %}</label>
+                                    <textarea class="form-control" id="measures_taken" name="measures_taken" rows="3">{% if edit_mode %}{{ incident.measures_taken }}{% endif %}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="additional_measures">{% trans "Additional Measures to Prevent Recurrence" %}</label>
+                                    <textarea class="form-control" id="additional_measures" name="additional_measures" rows="3">{% if edit_mode %}{{ incident.additional_measures }}{% endif %}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ADDITIONAL INFO -->
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <h5 class="font-weight-bold">{% trans "Additional Information" %}</h5>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="reports_and_records">{% trans "Reports and Records" %}</label>
+                                    <textarea class="form-control" id="reports_and_records" name="reports_and_records" rows="3">{% if edit_mode %}{{ incident.reports_and_records }}{% endif %}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="additional_files">{% trans "Incident Report Files" %}</label>
+                                    {{ form.additional_files.errors }}
+                                    <input type="file" name="additional_files" class="form-control" id="additional_files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png">
+                                    <small class="form-text text-muted">
+                                        {% trans "You can select multiple files by holding CTRL (or CMD on Mac) while selecting files" %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {% if edit_mode and incident.files.all or edit_mode and incident.file_incident %}
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="m-0">{% trans "Current Incident Report Files" %}</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="list-group">
+                                            {% if incident.file_incident %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center" id="main-file-container">
+                                                <a href="{{ incident.file_incident.url }}" target="_blank">{{ incident.file_incident.name|split:"/"|last }}</a>
+                                                <div>
+                                                    <span class="text-muted mr-3">{% trans "Main file" %}</span>
+                                                    <button type="button" class="btn btn-sm btn-danger" id="main-file-delete-btn" data-toggle="modal" data-target="#mainFileDeleteModal">
+                                                        <i class="fas fa-trash"></i> {% trans "Delete" %}
+                                                    </button>
+                                                </div>
+                                            </li>
+                                            {% endif %}
+                                            
+                                            {% for file in incident.files.all %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center" id="file-container-{{ file.id }}">
+                                                <a href="{{ file.file.url }}" target="_blank">{{ file.filename }}</a>
+                                                <div>
+                                                    <span class="text-muted mr-3">{{ file.uploaded_at|date:"d.m.Y H:i" }}</span>
+                                                    <button type="button" class="btn btn-sm btn-danger delete-file-btn" data-file-id="{{ file.id }}" data-toggle="modal" data-target="#deleteFileModal">
+                                                        <i class="fas fa-trash"></i> {% trans "Delete" %}
+                                                    </button>
+                                                </div>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="comment">{% trans "Comment" %}</label>
+                                    <textarea class="form-control" id="comment" name="comment" rows="3">{% if edit_mode %}{{ incident.comment }}{% endif %}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+                            <div class="col-md-12 text-center">
+                                <div class="btn-group sb-toolbar d-inline-flex gap-1" role="group">
+                                    <button type="submit" class="btn btn-outline-success btn-sm btn-icon-action"
+                                            title="{% if edit_mode %}{% trans 'Update Incident' %}{% else %}{% trans 'Add Incident' %}{% endif %}">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
+                                    <a href="{% url 'incident_register' %}" class="btn btn-outline-secondary btn-sm btn-icon-action" title="{% trans 'Cancel' %}">
+                                        <i class="bi bi-x-lg"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for File Deletion Confirmation -->
+<div class="modal fade" id="deleteFileModal" tabindex="-1" role="dialog" aria-labelledby="deleteFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteFileModalLabel">{% trans "Confirm File Deletion" %}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Are you sure you want to delete this file? This action cannot be undone." %}</p>
+                <p><strong>{% trans "File ID" %}:</strong> <span id="deleteFileId"></span></p>
+                <div id="deleteFileStatus" class="alert alert-info" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteFile">
+                    <i class="fas fa-trash"></i> {% trans "Delete" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Main File Deletion Confirmation -->
+<div class="modal fade" id="mainFileDeleteModal" tabindex="-1" role="dialog" aria-labelledby="mainFileDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="mainFileDeleteModalLabel">{% trans "Confirm Main File Deletion" %}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Are you sure you want to remove the main incident file? This action cannot be undone." %}</p>
+                <p><strong>{% trans "File" %}:</strong> {{ incident.file_incident.name|split:"/"|last }}</p>
+                <div id="mainFileDeleteStatus" class="alert alert-info" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger" id="confirmMainFileDelete">
+                    <i class="fas fa-trash"></i> {% trans "Remove" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // File deletion functionality
+        $('.delete-file-btn').click(function() {
+            var fileId = $(this).data('file-id');
+            $('#deleteFileId').text(fileId);
+            $('#deleteFileModal').modal('show');
+        });
+
+        $('#confirmDeleteFile').click(function() {
+            var fileId = $('#deleteFileId').text();
+            deleteFile(fileId);
+        });
+
+        function deleteFile(fileId) {
+            $('#deleteFileStatus').text('{% trans "Deleting file..." %}').show();
+            $.ajax({
+                url: "{% url 'delete_incident_file' %}",
+                type: "POST",
+                data: {
+                    file_id: fileId,
+                    csrfmiddlewaretoken: "{{ csrf_token }}"
+                },
+                success: function(response) {
+                    $('#file-container-' + fileId).remove();
+                    $('#deleteFileStatus').text('{% trans "File deleted successfully." %}').removeClass('alert-info').addClass('alert-success');
+                    setTimeout(function() {
+                        $('#deleteFileModal').modal('hide');
+                        $('#deleteFileStatus').hide().removeClass('alert-success').addClass('alert-info');
+                    }, 2000);
+                },
+                error: function(xhr, status, error) {
+                    $('#deleteFileStatus').text('{% trans "Error deleting file: " %}' + error).removeClass('alert-info').addClass('alert-danger');
+                }
+            });
+        }
+
+        // Main file deletion functionality
+        $('#main-file-delete-btn').click(function() {
+            console.log('Main file delete button clicked');
+            $('#mainFileDeleteModal').modal('show');
+        });
+
+        $('#confirmMainFileDelete').click(function() {
+            console.log('Confirm main file delete button clicked');
+            deleteMainFile();
+        });
+
+        function deleteMainFile() {
+            console.log('deleteMainFile function called');
+            $('#mainFileDeleteStatus').text('{% trans "Removing file..." %}').show();
+            
+            // Log the data being sent
+            var incidentId = "{{ incident.id }}";
+            console.log('Sending incident_id:', incidentId);
+            
+            $.ajax({
+                url: "{% url 'delete_main_incident_file' %}",
+                type: "POST",
+                data: {
+                    "incident_id": incidentId,
+                    "csrfmiddlewaretoken": "{{ csrf_token }}"
+                },
+                success: function(response) {
+                    console.log('Success response:', response);
+                    if (response.success) {
+                        $('#main-file-container').hide();
+                        $('#mainFileDeleteStatus').text('{% trans "File removed successfully." %}').removeClass('alert-info').addClass('alert-success');
+                        setTimeout(function() {
+                            $('#mainFileDeleteModal').modal('hide');
+                            $('#mainFileDeleteStatus').hide().removeClass('alert-success').addClass('alert-info');
+                            // Reload the page to show the updated form
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        $('#mainFileDeleteStatus').text('{% trans "Error: " %}' + (response.error || 'Unknown error')).removeClass('alert-info').addClass('alert-danger');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.log('Error response:', status, error);
+                    console.log('Response text:', xhr.responseText);
+                    $('#mainFileDeleteStatus').text('{% trans "Error removing file: " %}' + error).removeClass('alert-info').addClass('alert-danger');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %} 

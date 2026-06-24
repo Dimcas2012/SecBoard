@@ -1,0 +1,2442 @@
+<!-- SecBoard\SecBoard\templates\app_access\ -->
+
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load access_filters %}
+
+{% csrf_token %}
+
+{% block styles %}
+{{ block.super }}
+{% include "app_access/includes/access_styles.html" %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'app_access/css/access-records-page.css' %}">
+{% endblock styles %}
+
+
+
+{% block content %}
+{{ block.super }}
+<div class="container-fluid access-page access-records-page px-2 py-1">
+    <!-- Header Section -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">{% trans "Access Records" %}</h5>
+        <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#accessRecordsGuideModal">
+            <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+        </button>
+    </div>
+
+    <!-- Filters Section (collapsed by default) -->
+    <div class="card mb-2 filter-section access-request-filters access-records-filters">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                    <span class="small fw-bold mb-0">
+                        <i class="bi bi-funnel me-1"></i>{% trans "Filters" %}
+                    </span>
+                    <div class="d-flex gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="resetFiltersBtn" title="{% trans 'Clear all filters' %}">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleAccessRecordsFilters" aria-expanded="false" aria-controls="accessRecordsFiltersCollapse" title="{% trans 'Show or hide filters' %}">
+                        <i class="bi bi-chevron-down" id="accessRecordsFiltersToggleIcon"></i>
+                    </button>
+                    </div>
+            </div>
+            <div class="collapse" id="accessRecordsFiltersCollapse">
+            <div class="card-body py-2">
+                <div class="filters-single-row">
+                    <div class="filter-field">
+                        <label class="form-label small mb-1">{% trans "Company" %}</label>
+                        <select class="form-select form-select-sm" id="companyFilter">
+                            <option value="">{% trans "All Companies" %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label class="form-label small mb-1">{% trans "System" %}</label>
+                        <select class="form-select form-select-sm" id="systemFilter" disabled>
+                            <option value="">{% trans "All Systems" %}</option>
+                        </select>
+                    </div>
+                    <div class="filter-field filter-field--env">
+                        <label class="form-label small mb-1">{% trans "Env" %}</label>
+                        <select class="form-select form-select-sm" id="environmentFilter" disabled>
+                            <option value="">{% trans "All" %}</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label class="form-label small mb-1">{% trans "Object" %}</label>
+                        <select class="form-select form-select-sm" id="objectFilter" disabled>
+                            <option value="">{% trans "All Objects" %}</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label class="form-label small mb-1">{% trans "Role" %}</label>
+                        <select class="form-select form-select-sm" id="roleFilter" disabled>
+                            <option value="">{% trans "All Roles" %}</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label class="form-label small mb-1">{% trans "Request who" %}</label>
+                        <select class="form-select form-select-sm" id="requestWhoFilter">
+                            <option value="">{% trans "All" %}</option>
+                            {% for option in request_who_filter_options %}
+                                <option value="{{ option.type }}:{{ option.id }}">
+                                    {{ option.label }}{% if option.type == 'group' %} ({% trans "Group" %}){% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label class="form-label small mb-1">{% trans "Request for" %}</label>
+                        <select class="form-select form-select-sm" id="requestForFilter">
+                            <option value="">{% trans "All" %}</option>
+                            {% for option in request_for_filter_options %}
+                                <option value="{{ option.type }}:{{ option.id }}">
+                                    {{ option.label }}{% if option.type == 'group' %} ({% trans "Group" %}){% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label class="form-label small mb-1">{% trans "Search" %}</label>
+                        <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="{% trans 'Search...' %}">
+                    </div>
+                    <div class="filter-field filter-field--period">
+                        <label class="form-label small mb-1">{% trans "Period" %}</label>
+                        <div class="d-flex gap-1">
+                            <input type="date" class="form-control form-control-sm" id="periodStartFilter" placeholder="{% trans 'From' %}">
+                            <input type="date" class="form-control form-control-sm" id="periodEndFilter" placeholder="{% trans 'To' %}">
+                        </div>
+                    </div>
+                    <div class="filter-field filter-field--options">
+                        <label class="form-label small mb-1">{% trans "Options" %}</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showInactiveRecords">
+                            <label class="form-check-label small" for="showInactiveRecords">
+                                {% trans "Show Inactive" %}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+    <div class="card mb-3">
+        <div class="card-header py-2">
+            <h6 class="mb-0"><i class="bi bi-table me-1"></i>{% trans "Manage Access Records" %}</h6>
+        </div>
+        <div class="card-body py-2">
+            <div class="export-controls mb-2">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        {% if not can_add_access_records %}
+                        <span class="text-muted small">
+                            <i class="bi bi-exclamation-triangle me-1"></i>{% trans "You don't have permission to add access records" %}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if can_add_access_records %}
+                            <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="addAccessBtn"
+                                    data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Add Access Record' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            {% endif %}
+                            {% if can_delete_access_records %}
+                            <button type="button" class="btn btn-outline-danger btn-sm btn-icon-action" id="bulkDeleteAccessBtn" disabled
+                                    data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Delete selected access records' %}">
+                                <i class="bi bi-trash"></i>
+                                <span class="badge bg-danger ms-1" id="bulkDeleteCount">0</span>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-wrapper">
+        <div class="table-scroll">
+            <table class="table table-hover table-fixed-layout" id="accessTable">
+                <thead>
+                    <tr>
+                        {% if can_delete_access_records %}
+                        <th class="col-select text-center"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            title="{% trans 'Select records for bulk delete' %}">
+                            <input class="form-check-input access-select-all"
+                                   type="checkbox"
+                                   id="selectAllAccessRecords"
+                                   aria-label="{% trans 'Select all deletable records' %}">
+                        </th>
+                        {% endif %}
+                        <th class="col-id"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Ідентифікатор запису доступу{% elif LANGUAGE_CODE == 'en' %}Access Record ID{% else %}Идентификатор записи доступа{% endif %}">
+                            ID
+                        </th>
+                        <th class="col-company" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Компанія, до якої належить інформаційна система{% elif LANGUAGE_CODE == 'en' %}Company that owns the information system{% else %}Компания, которой принадлежит информационная система{% endif %}">
+                            {% trans "Company" %}
+                        </th>
+                        <th class="col-system" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Інформаційна система, для якої налаштовується доступ{% elif LANGUAGE_CODE == 'en' %}Information system for which access is configured{% else %}Информационная система, для которой настраивается доступ{% endif %}">
+                            {% trans "Information System" %}
+                        </th>
+                        <th class="col-environment" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Середовище, в якому надається доступ (Production, Test, Development){% elif LANGUAGE_CODE == 'en' %}Environment where access is granted (Production, Test, Development){% else %}Среда, в которой предоставляется доступ (Production, Test, Development){% endif %}">
+                            {% trans "Environment" %}
+                        </th>
+                        <th class="col-roles" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Об'єкт та ролі доступу{% elif LANGUAGE_CODE == 'en' %}Object and access roles{% else %}Объект и роли доступа{% endif %}">
+                            {% trans "Object Roles" %}
+                        </th>
+                        <th class="col-owners" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Власники інформаційної системи, відповідальні за її функціонування{% elif LANGUAGE_CODE == 'en' %}Information system owners responsible for its operation{% else %}Владельцы информационной системы, ответственные за ее функционирование{% endif %}">
+                            {% trans "Owners" %}
+                        </th>
+                        <th class="col-admins" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Адміністратори системи, які керують технічними аспектами{% elif LANGUAGE_CODE == 'en' %}System administrators who manage technical aspects{% else %}Администраторы системы, управляющие техническими аспектами{% endif %}">
+                            {% trans "Administrators" %}
+                        </th>
+                        <th class="col-approvers" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Особи, які затверджують запити на доступ до системи або об'єкта{% elif LANGUAGE_CODE == 'en' %}Persons who approve access requests to the system or object{% else %}Лица, утверждающие запросы на доступ к системе или объекту{% endif %}">
+                            {% trans "Approving Persons" %}
+                        </th>
+                        <th class="col-request-users" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Користувачі та групи, які можуть запитувати доступ{% elif LANGUAGE_CODE == 'en' %}Users and groups who can request access{% else %}Пользователи и группы, которые могут запрашивать доступ{% endif %}">
+                            {% trans "Request who" %}
+                        </th>
+                        <th class="col-access-users" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Користувачі та групи, які вже мають доступ до системи{% elif LANGUAGE_CODE == 'en' %}Users and groups who already have access to the system{% else %}Пользователи и группы, которые уже имеют доступ к системе{% endif %}">
+                            {% trans "Request for" %}
+                        </th>
+                        <th class="col-period" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Період дії доступу: дата початку, закінчення та статус активності{% elif LANGUAGE_CODE == 'en' %}Access validity period: start date, end date and activity status{% else %}Период действия доступа: дата начала, окончания и статус активности{% endif %}">
+                            {% trans "Access Period" %}
+                        </th>
+
+                        <th class="col-description" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Додаткові коментарі та опис запису доступу{% elif LANGUAGE_CODE == 'en' %}Additional comments and description of the access record{% else %}Дополнительные комментарии и описание записи доступа{% endif %}">
+                            {% trans "Description" %}
+                        </th>
+                        <th class="col-access-requests" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Запити доступу пов'язані з цим записом доступу{% elif LANGUAGE_CODE == 'en' %}Access requests related to this access record{% else %}Запросы доступа связанные с этой записью доступа{% endif %}">
+                            {% trans "Access Requests" %}
+                        </th>
+                        <th class="col-actions" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="{% if LANGUAGE_CODE == 'uk' %}Дії: редагування та видалення запису доступу{% elif LANGUAGE_CODE == 'en' %}Actions: edit and delete access record{% else %}Действия: редактирование и удаление записи доступа{% endif %}">
+                            {% trans "Actions" %}
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if access_records %}
+                    {% for access in access_records %}
+                    <tr data-access-id="{{ access.id }}"
+                        data-request-user-ids="{% for user in access.request_users.all %}{{ user.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                        data-request-group-ids="{% for group in access.request_groups.all %}{{ group.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                        data-access-user-ids="{% for user in access.access_users.all %}{{ user.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                        data-access-group-ids="{% for group in access.access_groups.all %}{{ group.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                        data-has-third-parties="{% if access.third_parties %}true{% else %}false{% endif %}">
+                        {% if can_delete_access_records %}
+                        <td class="text-center">
+                            {% with request_count=access.access_requests.count %}
+                            <input class="form-check-input access-record-select"
+                                   type="checkbox"
+                                   value="{{ access.id }}"
+                                   data-access-id="{{ access.id }}"
+                                   aria-label="{% trans 'Select record' %} #{{ access.id }}"
+                                   {% if request_count > 0 %}disabled
+                                   data-bs-toggle="tooltip"
+                                   title="{% trans 'Cannot delete: has active access request(s)' %}"
+                                   {% endif %}>
+                            {% endwith %}
+                        </td>
+                        {% endif %}
+                        <td>
+                            <span class="text-muted">#{{ access.id }}</span>
+                        </td>
+                        <td>
+                            <div data-company-id="{{ access.asset.company.id }}">
+                                {{ access.asset.company.name }}
+                                {% if access.asset.company.description %}
+                                    <i class="bi bi-info-circle ms-1" 
+                                       data-bs-toggle="tooltip" 
+                                       title="{{ access.asset.company.description }}">
+                                    </i>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div data-system-id="{{ access.asset.id }}">
+                                {{ access.asset.name }}
+                            </div>
+                        </td>
+                        <td>
+                            {% if access.environment %}
+                                <div data-environment="{{ access.environment }}">
+                                    <span class="badge {% if access.environment == 'production' %}bg-danger{% elif access.environment == 'test' %}bg-warning text-dark{% elif access.environment == 'development' %}bg-info{% else %}bg-secondary{% endif %}">
+                                        {% if access.environment == 'production' %}
+                                            {% trans "Production" %}
+                                        {% elif access.environment == 'test' %}
+                                            {% trans "Test" %}
+                                        {% elif access.environment == 'development' %}
+                                            {% trans "Development" %}
+                                        {% else %}
+                                            {{ access.environment }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            {% else %}
+                                <span class="text-muted">{% trans "Not set" %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="access-record-object-roles">
+                            <div class="object-name-row">
+                                {% if access.access_object %}
+                                    <div data-object-id="{{ access.access_object.id }}">
+                                        <strong>{% firstof access.access_object.name access.access_object.name_local "" %}</strong>
+                                        {% if access.access_object.description %}
+                                            <i class="bi bi-info-circle ms-1" data-bs-toggle="tooltip" title="{{ access.access_object.description }}"></i>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">{% trans "No object selected" %}</span>
+                                {% endif %}
+                            </div>
+                            <div class="access-record-roles">
+                                {% if access.roles.all %}
+                                    {% for role in access.roles.all %}
+                                        <button type="button"
+                                                class="btn show-role-matrix"
+                                                style="background-color: {{ role.color }}; color: #fff;"
+                                                data-role-id="{{ role.id }}"
+                                                data-system-id="{{ access.asset.id }}"
+                                                data-object-id="{{ access.access_object.id|default:'' }}"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#roleMatrixModal"
+                                                title="{{ role.name }}">{% if LANGUAGE_CODE == 'uk' %}{{ role.name }}{% elif LANGUAGE_CODE == 'en' %}{{ role.name }}{% else %}{{ role.name }}{% endif %}</button>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted small">{% trans "No roles assigned" %}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% with owners=access.asset.owners.all %}
+                                {% if owners %}
+                                    <div class="d-flex flex-column">
+                                        {% for owner in owners %}
+                                            <span class="badge bg-light text-dark" 
+                                                  data-bs-toggle="tooltip" 
+                                                  data-bs-html="true"
+                                                  title="{% if owner.cabinet_user %}
+                                                            <div>
+                                                                {% if owner.cabinet_user.department %}
+                                                        {{ owner.cabinet_user.department }}
+                                                                {% endif %}
+                                                        {% if owner.cabinet_user.department and owner.cabinet_user.position %} / {% endif %}
+                                                                {% if owner.cabinet_user.position %}
+                                                        {{ owner.cabinet_user.position }}
+                                                                {% endif %}
+                                                            </div>
+                                                    {% if owner.cabinet_user.phone or owner.cabinet_user.user.email %}
+                                                                <div class='mt-1'>
+                                                            {% if owner.cabinet_user.phone %}📞 {{ owner.cabinet_user.phone }}{% endif %}
+                                                                    {% if owner.cabinet_user.phone and owner.cabinet_user.user.email %}<br>{% endif %}
+                                                            {% if owner.cabinet_user.user.email %}✉️ {{ owner.cabinet_user.user.email }}{% endif %}
+                                                                </div>
+                                                    {% endif %}
+                                                         {% endif %}">
+                                                {{ owner.name }}
+                                            </span>
+                                            {% if not forloop.last %}<hr class="my-1">{% endif %}
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">{% trans "No owners assigned" %}</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>
+                            {% with administrators=access.asset.administrators.all %}
+                                {% if administrators %}
+                                    <div class="d-flex flex-column">
+                                        {% for admin in administrators %}
+                                            <span class="badge bg-light text-dark"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-html="true"
+                                                  title="{% if admin.cabinet_user %}
+                                                            <div>
+                                                                {% if admin.cabinet_user.department %}
+                                                        {{ admin.cabinet_user.department }}
+                                                                {% endif %}
+                                                        {% if admin.cabinet_user.department and admin.cabinet_user.position %} / {% endif %}
+                                                                {% if admin.cabinet_user.position %}
+                                                        {{ admin.cabinet_user.position }}
+                                                                {% endif %}
+                                                            </div>
+                                                    {% if admin.cabinet_user.phone or admin.cabinet_user.user.email %}
+                                                                <div class='mt-1'>
+                                                            {% if admin.cabinet_user.phone %}📞 {{ admin.cabinet_user.phone }}{% endif %}
+                                                                    {% if admin.cabinet_user.phone and admin.cabinet_user.user.email %}<br>{% endif %}
+                                                            {% if admin.cabinet_user.user.email %}✉️ {{ admin.cabinet_user.user.email }}{% endif %}
+                                                                </div>
+                                                    {% endif %}
+                                                         {% endif %}">
+                                                {{ admin.name }}
+                                            </span>
+                                            {% if not forloop.last %}<hr class="my-1">{% endif %}
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">{% trans "No administrators assigned" %}</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>
+                            {% with access_approvers=access.approvers.all|dictsort:"order" system_approvers=access.asset.approving_persons.all|dictsort:"order" %}
+                                {% if access_approvers %}
+                                    <div class="d-flex flex-column">
+                                        {% regroup access_approvers by order as approvers_by_level %}
+                                        {% for level in approvers_by_level %}
+                                            <div class="mb-2">
+                                                <span class="badge level-badge" 
+                                                      style="background-color: {{ level.list.0.cabinet_user.color|default:'#6c757d' }}">
+                                                    {% if LANGUAGE_CODE == 'uk' %}
+                                                        Рівень {{ level.grouper }}
+                                                    {% elif LANGUAGE_CODE == 'en' %}
+                                                        Level {{ level.grouper }}
+                                                    {% else %}
+                                                        Уровень {{ level.grouper }}
+                                                    {% endif %}
+                                                </span>
+                                                <div class="ms-1 mt-0">
+                                                    {% for approver in level.list %}
+                                                        <div class="approver-container">
+                                                            <span class="d-inline-block" 
+                                                                  data-bs-toggle="tooltip" 
+                                                                  data-bs-html="true"
+                                                                  title="<div>
+                                                                            {% if approver.cabinet_user.department %}{{ approver.cabinet_user.department.name }}{% endif %}
+                                                                    {% if approver.cabinet_user.department and approver.cabinet_user.position %} / {% endif %}
+                                                                            {% if approver.cabinet_user.position %}{{ approver.cabinet_user.position.name }}{% endif %}
+                                                                        </div>
+                                                                        {% if approver.cabinet_user.phone or approver.cabinet_user.user.email %}
+                                                                            <div class='mt-1'>
+                                                                                {% if approver.cabinet_user.phone %}📞 {{ approver.cabinet_user.phone }}{% endif %}
+                                                                                {% if approver.cabinet_user.phone and approver.cabinet_user.user.email %}<br>{% endif %}
+                                                                                {% if approver.cabinet_user.user.email %}✉️ {{ approver.cabinet_user.user.email }}{% endif %}
+                                                                            </div>
+                                                                        {% endif %}">
+                                                            <span class="approver-name">
+                                                                {{ approver.cabinet_user.user.get_full_name }}
+                                                            </span>
+                                                                {% if approver.approved %}
+                                                                <i class="bi bi-check-circle-fill text-success ms-1 approver-icon" 
+                                                                   title="{% if LANGUAGE_CODE == 'uk' %}Схвалено{% elif LANGUAGE_CODE == 'en' %}Approved{% else %}Одобрено{% endif %}"></i>
+                                                                {% endif %}
+                                                            </span>
+                                                        </div>
+                                                    {% if not forloop.last %}<hr class="approver-divider">{% endif %}
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            {% if not forloop.last %}<hr class="approver-divider">{% endif %}
+                                        {% endfor %}
+                                    </div>
+                                {% elif system_approvers %}
+                                    <div class="d-flex flex-column">
+                                        {% regroup system_approvers by order as approvers_by_level %}
+                                        {% for level in approvers_by_level %}
+                                            <div class="mb-2">
+                                                <span class="badge bg-secondary level-badge">
+                                                    {% if LANGUAGE_CODE == 'uk' %}
+                                                        Системний рівень {{ level.grouper }}
+                                                    {% elif LANGUAGE_CODE == 'en' %}
+                                                        System Level {{ level.grouper }}
+                                                    {% else %}
+                                                        Системный уровень {{ level.grouper }}
+                                                    {% endif %}
+                                                </span>
+                                                <div class="ms-1 mt-0">
+                                                    {% for approver in level.list %}
+                                                        <div class="approver-container">
+                                                            <span class="d-inline-block text-muted" 
+                                                                  data-bs-toggle="tooltip" 
+                                                                  data-bs-html="true"
+                                                                  title="<div>
+                                                                            {% if approver.cabinet_user.department %}{{ approver.cabinet_user.department.name }}{% endif %}
+                                                                    {% if approver.cabinet_user.department and approver.cabinet_user.position %} / {% endif %}
+                                                                            {% if approver.cabinet_user.position %}{{ approver.cabinet_user.position.name }}{% endif %}
+                                                                        </div>
+                                                                        {% if approver.cabinet_user.phone or approver.cabinet_user.user.email %}
+                                                                            <div class='mt-1'>
+                                                                                {% if approver.cabinet_user.phone %}📞 {{ approver.cabinet_user.phone }}{% endif %}
+                                                                                {% if approver.cabinet_user.phone and approver.cabinet_user.user.email %}<br>{% endif %}
+                                                                                {% if approver.cabinet_user.user.email %}✉️ {{ approver.cabinet_user.user.email }}{% endif %}
+                                                                            </div>
+                                                                        {% endif %}">
+                                                            <span class="approver-name">
+                                                                {{ approver.cabinet_user.user.get_full_name }}
+                                                            </span>
+                                                            <i class="bi bi-person-fill-gear ms-1 approver-icon"
+                                                               title="{% if LANGUAGE_CODE == 'uk' %}Системний затверджувач{% elif LANGUAGE_CODE == 'en' %}System Approver{% else %}Системный утверждающий{% endif %}">
+                                                            </i>
+                                                            </span>
+                                                        </div>
+                                                    {% if not forloop.last %}<hr class="approver-divider">{% endif %}
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            {% if not forloop.last %}<hr class="approver-divider">{% endif %}
+                                        {% endfor %}
+                                    </div>
+
+                                {% else %}
+                                    <span class="text-muted">{% trans "No approving persons assigned" %}</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for user in access.request_users.all %}
+                                    <span class="badge bg-primary" 
+                                          data-bs-toggle="tooltip" 
+                                          data-bs-html="true"
+                                          title="{% if user.cabinet %}
+                                                    {% if user.cabinet.department %}
+                                                        {% trans 'Department' %}: {{ user.cabinet.department.name }}<br>
+                                                    {% endif %}
+                                                    {% if user.cabinet.position %}
+                                                        {% trans 'Position' %}: {{ user.cabinet.position.name }}
+                                                    {% endif %}
+                                                 {% endif %}">
+                                        <i class="bi bi-person"></i>
+                                        {% if user.cabinet %}
+                                            {{ user.first_name }} {{ user.last_name }}
+                                        {% else %}
+                                            {{ user.get_full_name|default:user.username }}
+                                        {% endif %}
+                                    </span>
+                                {% endfor %}
+                                {% for group in access.request_groups.all %}
+                                    <span class="badge bg-secondary"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-html="true"
+                                          title="{% if group.cabinet_details %}
+                                                    {{ group.cabinet_details.description|default:'' }}
+                                                    <br><br>
+                                                    {% trans 'Users in group' %}:<br>
+                                                    {% for user in group.user_set.all %}
+                                                        - {{ user.get_full_name|default:user.username }}
+                                                        {% if user.cabinet and user.cabinet.department %}
+                                                            ({{ user.cabinet.department.get_name|default:'' }})
+                                                        {% endif %}
+                                                        <br>
+                                                    {% empty %}
+                                                        {% trans 'No users in group' %}
+                                                    {% endfor %}
+                                                 {% endif %}">
+                                        <i class="bi bi-people"></i>
+                                        {% if group.cabinet_details %}
+                                            {{ group.cabinet_details.name }}
+                                        {% else %}
+                                            {{ group.name }}
+                                        {% endif %}
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for user in access.access_users.all %}
+                                    <span class="badge bg-success" 
+                                          data-bs-toggle="tooltip" 
+                                          data-bs-html="true"
+                                          title="{% if user.cabinet %}
+                                                    {% if user.cabinet.department %}
+                                                        {% trans 'Department' %}: {{ user.cabinet.department.name }}<br>
+                                                    {% endif %}
+                                                    {% if user.cabinet.position %}
+                                                        {% trans 'Position' %}: {{ user.cabinet.position.name }}
+                                                    {% endif %}
+                                                 {% endif %}">
+                                        <i class="bi bi-person-check"></i>
+                                        {% if user.cabinet %}
+                                            {{ user.first_name }} {{ user.last_name }}
+                                        {% else %}
+                                            {{ user.get_full_name|default:user.username }}
+                                        {% endif %}
+                                    </span>
+                                {% endfor %}
+                                {% for group in access.access_groups.all %}
+                                    <span class="badge bg-info"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-html="true"
+                                          title="{% if group.cabinet_details %}
+                                                    {{ group.cabinet_details.description|default:'' }}
+                                                    <br><br>
+                                                    {% trans 'Users in group' %}:<br>
+                                                    {% for user in group.user_set.all %}
+                                                        - {{ user.get_full_name|default:user.username }}
+                                                        {% if user.cabinet and user.cabinet.department %}
+                                                            ({{ user.cabinet.department.get_name|default:'' }})
+                                                        {% endif %}
+                                                        <br>
+                                                    {% empty %}
+                                                        {% trans 'No users in group' %}
+                                                    {% endfor %}
+                                                 {% endif %}">
+                                        <i class="bi bi-people-fill"></i>
+                                        {% if group.cabinet_details %}
+                                            {{ group.cabinet_details.name }}
+                                        {% else %}
+                                            {{ group.name }}
+                                        {% endif %}
+                                    </span>
+                                {% endfor %}
+                                {% if access.third_parties %}
+                                    <span class="badge bg-warning"
+                                          data-bs-toggle="tooltip"
+                                          title="{% if LANGUAGE_CODE == 'uk' %}Третя сторона (клієнти, технічна підтримка, мерчанти тощо){% elif LANGUAGE_CODE == 'en' %}Third parties (customers, technical support, merchants, etc.){% else %}Третья сторона (клиенты, техническая поддержка, мерчанты и т.д.){% endif %}">
+                                        <i class="bi bi-building"></i>
+                                        {% trans "Third parties" %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <td>
+                            <div class="d-flex flex-column">
+                                <!-- Record Active Status -->
+                                <div class="mb-1">
+                                    <span class="badge {% if access.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                        {% if access.is_active %}
+                                            <i class="bi bi-check-circle-fill"></i> {% trans "Active" %}
+                                        {% else %}
+                                            <i class="bi bi-x-circle-fill"></i> {% trans "Inactive" %}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <!-- Access Period -->
+                                <div>
+                                    <strong>{% trans "Start" %}:</strong> {{ access.start_date|date:"d.m.Y H:i" }}<br>
+                                    {% if access.end_date %}
+                                        <strong>{% trans "End" %}:</strong> {{ access.end_date|date:"d.m.Y H:i" }}
+                                        {% with days_left=access.end_date|timeuntil_days %}
+                                            {% if days_left < 0 %}
+                                                <div class="progress mt-1" style="height: 5px;">
+                                                    <div class="progress-bar bg-danger" style="width: 100%"></div>
+                                                </div>
+                                                <small class="text-danger">
+                                                    {% trans "Expired" %} {{ days_left|abs }} {% trans "days ago" %}
+                                                </small>
+                                            {% else %}
+                                                <div class="progress mt-1" style="height: 5px;">
+                                                    {% if days_left <= 7 %}
+                                                        <div class="progress-bar bg-danger" style="width: {{ days_left|percentage_of_days:7 }}%"></div>
+                                                    {% elif days_left <= 30 %}
+                                                        <div class="progress-bar bg-warning" style="width: {{ days_left|percentage_of_days:30 }}%"></div>
+                                                    {% else %}
+                                                        <div class="progress-bar bg-success" style="width: {{ days_left|percentage_of_days:90 }}%"></div>
+                                                    {% endif %}
+                                                </div>
+                                                <small class="text-muted">
+                                                    {{ days_left }} {% trans "days left" %}
+                                                </small>
+                                            {% endif %}
+                                        {% endwith %}
+                                    {% else %}
+                                        <span class="badge bg-info">{% trans "Indefinite" %}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+
+                        <td>
+                            {% if access.description %}
+                                <span class="text-truncate" 
+                                      data-bs-toggle="tooltip" 
+                                      data-bs-placement="top" 
+                                      title="{{ access.description }}">
+                                    {{ access.description|truncatechars:50 }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">{% trans "No description" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex justify-content-center align-items-center access-requests-count">
+                                {% with request_count=access.access_requests.count %}
+                                    {% if request_count > 0 %}
+                                        <button type="button" 
+                                                class="btn btn-sm access-requests-btn badge-button {% if request_count > 5 %}bg-warning text-dark{% elif request_count > 2 %}bg-info text-white{% else %}bg-secondary text-white{% endif %}" 
+                                                data-access-id="{{ access.id }}"
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#accessRequestsModal"
+                                                title="{% trans 'View Access Requests' %}">
+                                            <i class="fas fa-list me-1"></i>
+                                            {{ request_count }}
+                                        </button>
+                                    {% else %}
+                                        <span class="badge bg-light text-muted fs-6" title="{% trans 'No access requests' %}">
+                                            <i class="fas fa-list me-1"></i>
+                                            0
+                                        </span>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                {% if can_edit_access_records %}
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-primary" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#editAccessModal" 
+                                        data-access-id="{{ access.id }}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                {% else %}
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-secondary" 
+                                        disabled
+                                        data-bs-toggle="tooltip"
+                                        title="{% trans 'You don\'t have permission to edit access records' %}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                {% endif %}
+                                {% if can_delete_access_records %}
+                                {% with request_count=access.accessrequest_set.count %}
+                                    {% if request_count > 0 %}
+                                        <button class="btn btn-sm btn-outline-danger delete-access-disabled"
+                                                disabled
+                                                data-bs-toggle="tooltip"
+                                                title="{% trans 'Cannot delete: has' %} {{ request_count }} {% trans 'active access request(s)' %}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-danger delete-access"
+                                                data-id="{{ access.id }}"
+                                                data-bs-toggle="tooltip"
+                                                title="{% trans 'Delete' %}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    {% endif %}
+                                {% endwith %}
+                                {% else %}
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-secondary" 
+                                        disabled
+                                        data-bs-toggle="tooltip"
+                                        title="{% trans 'You don\'t have permission to delete access records' %}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="{% if can_delete_access_records %}15{% else %}14{% endif %}" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="bi bi-info-circle mb-2 fs-4"></i>
+                                    <p class="mb-0">{% trans "No access records found" %}</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <div class="table-scroll-clone">
+            <table class="table">
+                <!-- Клон таблиці для нижнього скролу -->
+                <thead>
+                    <tr>
+                        <!-- Копіюємо заголовки з основної таблиці -->
+                        <th>{% trans "ID" %}</th>
+                        <th>{% trans "Information System" %}</th>
+                        <th>{% trans "Owners" %}</th>
+                        <th>{% trans "Administrators" %}</th>
+                        <th>{% trans "Approving Persons" %}</th>
+                        <th>{% trans "Users/Groups" %}</th>
+                        <th>{% trans "Roles" %}</th>
+                        <th>{% trans "Access Period" %}</th>
+                        <th>{% trans "Justification" %}</th>
+                        <th>{% trans "Requirements" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+            </div>
+        </div>
+    </div>
+
+    {% include "app_access/includes/access_table_pagination.html" with pagination_item_label=_("records") pagination_aria_label=_("Access records pagination") %}
+</div>
+{% include 'app_access/modals/add_access_modal.html' %}
+{% include 'app_access/modals/edit_access_modal.html' %}
+{% include 'app_access/modals/role_matrix_modal.html' %}
+
+<!-- Access Requests Modal -->
+<div class="modal fade" id="accessRequestsModal" tabindex="-1" aria-labelledby="accessRequestsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="accessRequestsModalLabel">
+                    {% trans "View Access Requests" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="accessRequestsContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">{% trans "Loading..." %}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Access Records Guide Modal -->
+<div class="modal fade" id="accessRecordsGuideModal" tabindex="-1" aria-labelledby="accessRecordsGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'access_records_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="accessRecordsGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Access Records Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="accessRecordsGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('accessRecordsGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('accessRecordsGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+
+{% endblock content %}
+
+{% block scripts %}
+{{ block.super }}
+
+<!-- jQuery має бути першим -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Потім Popper.js -->
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+
+<!-- Потім Bootstrap -->
+
+<!-- Toastr JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    // Глобальна змінна для CSRF токену
+    window.csrftoken = '{{ csrf_token }}';
+    
+    // Налаштування toastr
+    toastr.options = {
+        "closeButton": true,
+        "progressBar": true,
+        "positionClass": "toast-top-right",
+        "timeOut": "3000"
+    };
+</script>
+
+<!-- Після цього Select2 -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<!-- Інші скрипти -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-treeview/1.2.0/bootstrap-treeview.min.js"></script>
+
+<!-- Ініціалізація модальних вікон -->
+<script>
+// Функція для оновлення фільтрів на основі даних в таблиці (застаріла - не використовується)
+// Фільтри тепер заповнюються через updateDependentFilters() при виборі системи
+function updateFiltersFromTableData() {
+    // Ця функція застаріла і не використовується
+    // Фільтри заповнюються автоматично при виборі компанії та системи
+    console.log('updateFiltersFromTableData is deprecated - filters are now populated via updateDependentFilters()');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+        new bootstrap.Tooltip(el);
+    });
+
+    // Встановлюємо стан чекбоксу відповідно до URL параметру
+    const urlParams = new URLSearchParams(window.location.search);
+    const showInactive = urlParams.get('show_inactive') === 'true';
+    $('#showInactiveRecords').prop('checked', showInactive);
+    
+    // Ініціалізуємо модальні вікна
+    const addAccessModal = new bootstrap.Modal(document.getElementById('addAccessModal'));
+    const editAccessModal = new bootstrap.Modal(document.getElementById('editAccessModal'));
+    
+    // Глобальний обробник для очищення backdrop'ів всіх модальних вікон
+    document.addEventListener('hidden.bs.modal', function (e) {
+        // Видаляємо всі backdrop'и якщо вони залишилися
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+        
+        // Відновлюємо стан body тільки якщо немає відкритих модальних вікон
+        const openModals = document.querySelectorAll('.modal.show');
+        if (openModals.length === 0) {
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+            document.body.classList.remove('modal-open');
+        }
+    });
+
+    // Обробник кнопки додавання (тільки якщо кнопка існує)
+    const addAccessBtn = document.getElementById('addAccessBtn');
+    if (addAccessBtn) {
+        addAccessBtn.addEventListener('click', function() {
+            addAccessModal.show();
+        });
+    }
+
+    // Обробник кнопок редагування
+    document.querySelectorAll('.edit-access').forEach(button => {
+        button.addEventListener('click', async function(e) {
+            e.preventDefault();
+            // Очищаємо фокус з кнопки перед відкриттям модального вікна
+            this.blur();
+            await editAccessRecord(this.dataset.id);
+            editAccessModal.show();
+        });
+    });
+
+    // Масове видалення записів
+    const bulkDeleteBtn = document.getElementById('bulkDeleteAccessBtn');
+    const selectAllCheckbox = document.getElementById('selectAllAccessRecords');
+
+    function getDeletableAccessCheckboxes() {
+        return Array.from(document.querySelectorAll('.access-record-select:not(:disabled)'));
+    }
+
+    function getSelectedAccessIds() {
+        return getDeletableAccessCheckboxes()
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+    }
+
+    function updateBulkDeleteState() {
+        const selected = getSelectedAccessIds();
+        const count = selected.length;
+        const countBadge = document.getElementById('bulkDeleteCount');
+        if (countBadge) {
+            countBadge.textContent = count;
+        }
+        if (bulkDeleteBtn) {
+            bulkDeleteBtn.disabled = count === 0;
+        }
+        if (selectAllCheckbox) {
+            const deletable = getDeletableAccessCheckboxes();
+            const checkedDeletable = deletable.filter(cb => cb.checked);
+            selectAllCheckbox.indeterminate = checkedDeletable.length > 0 && checkedDeletable.length < deletable.length;
+            selectAllCheckbox.checked = deletable.length > 0 && checkedDeletable.length === deletable.length;
+        }
+    }
+
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const checked = this.checked;
+            getDeletableAccessCheckboxes().forEach(cb => { cb.checked = checked; });
+            updateBulkDeleteState();
+        });
+    }
+
+    document.querySelectorAll('.access-record-select').forEach(cb => {
+        cb.addEventListener('change', updateBulkDeleteState);
+    });
+
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.addEventListener('click', async function() {
+            this.blur();
+            await bulkDeleteAccessRecords();
+        });
+    }
+
+    // Обробник кнопок видалення (делегований для динамічних елементів)
+    document.addEventListener('click', async function(e) {
+        if (e.target.closest('.delete-access')) {
+            e.preventDefault();
+            const button = e.target.closest('.delete-access');
+            // Очищаємо фокус з кнопки перед показом діалогу
+            button.blur();
+            const accessId = button.dataset.id;
+            await deleteAccessRecord(accessId, button);
+        }
+        
+        // Обробник кнопок Access Requests
+        if (e.target.closest('.access-requests-btn')) {
+            e.preventDefault();
+            const button = e.target.closest('.access-requests-btn');
+            button.blur();
+            const accessId = button.dataset.accessId;
+            await loadAccessRequests(accessId);
+        }
+    });
+
+    // Ініціалізація Select2 для всіх селектів
+    $('#company, #system').select2({
+        theme: 'bootstrap-5'
+    });
+
+    $('#users_groups').select2({
+        theme: 'bootstrap-5',
+        multiple: true
+    });
+
+    $('#editUsersGroups').select2({
+        theme: 'bootstrap-5',
+        multiple: true
+    });
+
+    // Ініціалізація всіх тултіпів
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function(tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true,
+            trigger: 'hover focus'
+        });
+    });
+    
+    // Спеціальна ініціалізація для заголовків таблиці
+    const tableHeaders = document.querySelectorAll('th[data-bs-toggle="tooltip"]');
+    tableHeaders.forEach(function(header) {
+        new bootstrap.Tooltip(header, {
+            html: false,
+            trigger: 'hover focus',
+            placement: 'top',
+            delay: { show: 500, hide: 100 }
+        });
+    });
+
+    // Синхронізація горизонтального скролу
+    const tableScroll = document.querySelector('.table-scroll');
+    const tableScrollClone = document.querySelector('.table-scroll-clone');
+    
+    if (tableScroll && tableScrollClone) {
+        tableScroll.addEventListener('scroll', function() {
+            tableScrollClone.scrollLeft = this.scrollLeft;
+        });
+        
+        tableScrollClone.addEventListener('scroll', function() {
+            tableScroll.scrollLeft = this.scrollLeft;
+        });
+    }
+
+    // Функція для оновлення списку Information System
+    async function updateSystemFilter(companyId) {
+        const systemFilter = $('#systemFilter');
+        
+        if (!companyId) {
+            systemFilter.prop('disabled', true).html('<option value="">{% trans "All Systems" %}</option>');
+            // Скидаємо залежні фільтри
+            $('#roleFilter').prop('disabled', true).html('<option value="">{% trans "All Roles" %}</option>');
+
+            $('#objectFilter').prop('disabled', true).html('<option value="">{% trans "All Objects" %}</option>');
+            $('#environmentFilter').prop('disabled', true).html('<option value="">{% trans "All Environments" %}</option>');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/app_access/company-systems/${companyId}/`);
+        if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+            
+            if (data.status === 'success' && data.data && Array.isArray(data.data.systems)) {
+                let systemsHtml = '<option value="">{% trans "All Systems" %}</option>';
+                data.data.systems.forEach(system => {
+                    const description = system.description || '';
+                    systemsHtml += `<option value="${system.id}" title="${description}">${system.name}</option>`;
+                });
+                
+                systemFilter.html(systemsHtml).prop('disabled', false);
+            } else {
+                throw new Error('{% trans "Invalid response format" %}');
+            }
+            
+    } catch (error) {
+            console.error('Error updating systems:', error);
+            toastr.error(error.message || '{% trans "Error loading systems" %}');
+            systemFilter.prop('disabled', true);
+            systemFilter.html('<option value="">{% trans "Error loading systems" %}</option>');
+            
+            // Скидаємо залежні фільтри
+            $('#roleFilter').prop('disabled', true).html('<option value="">{% trans "All Roles" %}</option>');
+
+            $('#objectFilter').prop('disabled', true).html('<option value="">{% trans "All Objects" %}</option>');
+            $('#environmentFilter').prop('disabled', true).html('<option value="">{% trans "All Environments" %}</option>');
+        }
+    }
+
+    // Обробник зміни компанії
+    (function initAccessRecordsFiltersCollapse() {
+        const collapseEl = document.getElementById('accessRecordsFiltersCollapse');
+        const toggleBtn = document.getElementById('toggleAccessRecordsFilters');
+        const icon = document.getElementById('accessRecordsFiltersToggleIcon');
+        if (!collapseEl || !toggleBtn || !window.bootstrap) return;
+        const collapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+        function sync(expanded) {
+            toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            if (icon) { icon.classList.toggle('bi-chevron-down', !expanded); icon.classList.toggle('bi-chevron-up', expanded); }
+        }
+        collapseEl.addEventListener('show.bs.collapse', function() { sync(true); });
+        collapseEl.addEventListener('hide.bs.collapse', function() { sync(false); });
+        toggleBtn.addEventListener('click', function(e) { e.preventDefault(); collapse.toggle(); });
+        sync(collapseEl.classList.contains('show'));
+    })();
+
+    $('#companyFilter').change(function() {
+        const companyId = $(this).val();
+        updateSystemFilter(companyId);
+        // Скидаємо значення залежних фільтрів
+        $('#systemFilter').val('');
+        $('#roleFilter').val('');
+        $('#objectFilter').val('');
+        $('#environmentFilter').val('');
+        filterTable();
+});
+
+// Filter functionality
+const searchInput = document.getElementById('searchInput');
+if (searchInput) {
+    searchInput.addEventListener('keyup', function() {
+        filterTable();
+    });
+}
+
+// Filter handlers
+    $('#companyFilter, #systemFilter, #objectFilter, #environmentFilter, #roleFilter, #requestWhoFilter, #requestForFilter, #periodStartFilter, #periodEndFilter').change(function() {
+    filterTable();
+});
+
+    // Show inactive records checkbox handler
+    $('#showInactiveRecords').change(function() {
+        const showInactive = $(this).is(':checked');
+        const currentUrl = new URL(window.location);
+        
+        if (showInactive) {
+            currentUrl.searchParams.set('show_inactive', 'true');
+        } else {
+            currentUrl.searchParams.delete('show_inactive');
+        }
+        currentUrl.searchParams.delete('page');
+        
+        // Перезавантажуємо сторінку з новим параметром
+        window.location.href = currentUrl.toString();
+    });
+
+    // Reset filters button handler
+    $('#resetFiltersBtn').click(function() {
+        // Скидаємо всі фільтри
+        $('#companyFilter').val('');
+        $('#systemFilter').val('').prop('disabled', true);
+        $('#environmentFilter').val('').prop('disabled', true);
+        $('#objectFilter').val('').prop('disabled', true);
+        $('#roleFilter').val('').prop('disabled', true);
+        $('#requestWhoFilter').val('');
+        $('#requestForFilter').val('');
+        $('#searchInput').val('');
+        $('#periodStartFilter').val('');
+        $('#periodEndFilter').val('');
+        $('#showInactiveRecords').prop('checked', false);
+        
+
+        
+        // Застосовуємо фільтрацію
+        filterTable();
+        
+        // Показуємо повідомлення
+        toastr.success('{% trans "Filters have been reset" %}');
+    });
+
+// Table filtering function
+function filterTable() {
+    const searchValue = $('#searchInput').val().toLowerCase();
+        const companyId = $('#companyFilter').val();
+        const systemId = $('#systemFilter').val();
+        const objectId = $('#objectFilter').val();
+        const environmentId = $('#environmentFilter').val();
+        const roleId = $('#roleFilter').val();
+        const periodStart = $('#periodStartFilter').val();
+        const periodEnd = $('#periodEndFilter').val();
+
+    $("#accessTable tbody tr").each(function() {
+        const row = $(this);
+            // Company matching
+            const companyCell = row.find("td:eq(0) div[data-company-id]");
+            const companyName = companyCell.text().trim().toLowerCase();
+            const companyIdFromRow = parseInt(companyCell.attr('data-company-id'));
+
+            // System matching
+            const systemCell = row.find("td:eq(1) div[data-system-id]");
+            const systemIdFromRow = parseInt(systemCell.attr('data-system-id'));
+            const systemName = systemCell.text().toLowerCase();
+
+            // Environment matching
+            const environmentCell = row.find("td:eq(2) div[data-environment]");
+            const environmentFromRow = environmentCell.length > 0 ? environmentCell.attr('data-environment') : null;
+            const environmentName = environmentCell.text().toLowerCase();
+
+            // Object matching
+            const objectCell = row.find("td:eq(3) div[data-object-id]");
+            const objectIdFromRow = objectCell.length > 0 ? parseInt(objectCell.attr('data-object-id')) : null;
+            const objectName = objectCell.text().toLowerCase();
+
+            // Role matching
+            const rolesCell = row.find("td:eq(3)");
+            const roleButtons = rolesCell.find('.show-role-matrix');
+            const roleIds = roleButtons.map(function() {
+                return $(this).data('role-id').toString();
+            }).get();
+
+
+
+        const justification = row.find("td:eq(8)").text().toLowerCase();
+        const requirements = row.find("td:eq(9)").text().toLowerCase();
+
+        const searchMatch = !searchValue ||
+                companyName.includes(searchValue) ||
+            systemName.includes(searchValue) ||
+            objectName.includes(searchValue) ||
+            environmentName.includes(searchValue) ||
+            justification.includes(searchValue) ||
+            requirements.includes(searchValue);
+
+            const companyMatch = !companyId || companyIdFromRow === parseInt(companyId, 10);
+            const systemMatch = !systemId || (systemIdFromRow && systemIdFromRow === parseInt(systemId, 10));
+            const objectMatch = !objectId || (objectIdFromRow && objectIdFromRow === parseInt(objectId, 10));
+            const environmentMatch = !environmentId || (environmentFromRow && environmentFromRow === environmentId);
+            const roleMatch = !roleId || roleIds.includes(roleId);
+
+
+
+            const periodMatch = (!periodStart || !periodEnd) || 
+                              (row.find("td:eq(9)").data('start-date') && row.find("td:eq(9)").data('end-date') && 
+                               new Date(row.find("td:eq(9)").data('start-date')) >= new Date(periodStart) && 
+                               new Date(row.find("td:eq(9)").data('end-date')) <= new Date(periodEnd));
+
+            row.toggle(searchMatch && companyMatch && systemMatch && objectMatch && environmentMatch && roleMatch && periodMatch);
+    });
+}
+
+// Bulk delete selected records
+async function bulkDeleteAccessRecords() {
+    const accessIds = Array.from(document.querySelectorAll('.access-record-select:not(:disabled):checked'))
+        .map(cb => cb.value);
+    if (!accessIds.length) {
+        return;
+    }
+
+    try {
+        if (document.activeElement && document.activeElement.blur) {
+            document.activeElement.blur();
+        }
+
+        const result = await Swal.fire({
+            title: '{% trans "Delete selected records?" %}',
+            text: '{% trans "You are about to delete" %} ' + accessIds.length + ' {% trans "access record(s). This action cannot be undone." %}',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '{% trans "Yes, delete them!" %}',
+            cancelButtonText: '{% trans "Cancel" %}',
+            focusConfirm: false,
+            focusCancel: true,
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        const response = await fetch('{% url "bulk_delete_access" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify({ access_ids: accessIds }),
+        });
+
+        const data = await response.json();
+
+        if (data.failed && data.failed.length > 0) {
+            const failedList = data.failed
+                .map(item => `#${item.id}: ${item.message}`)
+                .join('<br>');
+            await Swal.fire({
+                icon: data.deleted_count > 0 ? 'warning' : 'error',
+                title: data.deleted_count > 0 ? '{% trans "Partially completed" %}' : '{% trans "Delete failed" %}',
+                html: `<p>${data.message || ''}</p><div class="text-start small text-muted mt-2">${failedList}</div>`,
+                confirmButtonText: '{% trans "OK" %}',
+            });
+            if (data.deleted_count > 0) {
+                window.location.reload();
+            }
+            return;
+        }
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || '{% trans "Failed to delete access records" %}');
+        }
+
+        await Swal.fire({
+            icon: 'success',
+            title: '{% trans "Success" %}',
+            text: data.message || '{% trans "Access records deleted successfully" %}',
+            timer: 2000,
+            showConfirmButton: false,
+        });
+        window.location.reload();
+    } catch (error) {
+        console.error('Error bulk deleting access records:', error);
+        Swal.fire({
+            icon: 'error',
+            title: '{% trans "Error" %}',
+            text: error.message || '{% trans "Error deleting access records" %}',
+        });
+    }
+}
+
+// Delete record function
+async function deleteAccessRecord(accessId, button) {
+    try {
+        // Переконуємося, що фокус очищений перед показом SweetAlert
+        if (document.activeElement && document.activeElement.blur) {
+            document.activeElement.blur();
+        }
+        
+        // Показуємо діалог підтвердження через SweetAlert2
+        const result = await Swal.fire({
+            title: '{% trans "Are you sure?" %}',
+            text: '{% trans "This action cannot be undone." %}',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '{% trans "Yes, delete it!" %}',
+            cancelButtonText: '{% trans "Cancel" %}',
+            // Додаємо налаштування фокуса
+            focusConfirm: false,
+            focusCancel: true
+        });
+
+        if (result.isConfirmed) {
+            // Видаляємо тултіп, якщо він є
+            if (button) {
+                const tooltip = bootstrap.Tooltip.getInstance(button);
+                if (tooltip) {
+                    tooltip.dispose();
+                }
+            }
+
+            const deleteUrl = `/${window.location.pathname.split('/')[1]}/app_access/access/delete/${accessId}/`;
+            console.log('Delete URL:', deleteUrl);
+
+            const response = await fetch(
+                deleteUrl,
+                {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                }
+            );
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                // Спеціальна обробка для випадку з активними Access Requests
+                if (response.status === 400 && data.message && data.message.includes('active access request')) {
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: '{% trans "Cannot Delete Record" %}',
+                        html: `<div class="text-start">
+                                   <p><strong>{% trans "This access record cannot be deleted because it has active access requests." %}</strong></p>
+                                   <p>{% trans "To delete this record, you must first:" %}</p>
+                                   <ul class="text-start ps-3">
+                                       <li>{% trans "Complete all pending access requests, or" %}</li>
+                                       <li>{% trans "Cancel all pending access requests" %}</li>
+                                   </ul>
+                                   <p class="text-muted"><small>${data.message}</small></p>
+                               </div>`,
+                        confirmButtonText: '{% trans "Understood" %}',
+                        confirmButtonColor: '#6c757d'
+                    });
+                    return;
+                } else {
+                    throw new Error(data.message || '{% trans "Failed to delete access record" %}');
+                }
+            }
+            
+            if (data.success) {
+                // Показуємо повідомлення про успіх
+                await Swal.fire({
+                    icon: 'success',
+                    title: '{% trans "Success" %}',
+                    text: data.message || '{% trans "Access record deleted successfully" %}',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                
+                // Оновлюємо сторінку
+                window.location.reload();
+            } else {
+                throw new Error(data.message || '{% trans "Failed to delete access record" %}');
+            }
+        }
+    } catch (error) {
+        console.error('Error deleting access record:', error);
+        
+        // Показуємо повідомлення про помилку
+        Swal.fire({
+            icon: 'error',
+            title: '{% trans "Error" %}',
+            text: error.message || '{% trans "Error deleting access record" %}'
+        });
+    }
+}
+
+// Refresh table data
+window.refreshTable = function() {
+    // Dispose all tooltips before reload
+    const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(el => {
+        const tooltip = bootstrap.Tooltip.getInstance(el);
+        if (tooltip) {
+            tooltip.dispose();
+        }
+    });
+    location.reload();
+};
+document.addEventListener('approving-persons-updated', function(e) {
+    refreshTable();
+    // Фільтри оновляться автоматично після refreshTable()
+});
+// Event listeners for modal events
+document.addEventListener('accessSaved', function() {
+    refreshTable();
+    // Фільтри оновляться автоматично після refreshTable()
+});
+
+document.addEventListener('accessRightSaved', function() {
+    refreshTable();
+    // Фільтри оновляться автоматично після refreshTable()
+});
+
+// Error handling for script loading
+if (typeof bootstrap === 'undefined') {
+    console.error('Bootstrap is not loaded properly');
+}
+if (typeof jQuery === 'undefined') {
+    console.error('jQuery is not loaded properly');
+}
+
+// Function to initialize tooltips for new content
+function initTooltips() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function(tooltipTriggerEl) {
+        // Dispose old tooltip if exists
+        const existingTooltip = bootstrap.Tooltip.getInstance(tooltipTriggerEl);
+        if (existingTooltip) {
+            existingTooltip.dispose();
+        }
+        // Create new tooltip
+        new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true,
+            trigger: 'hover focus'
+        });
+    });
+}
+
+// Handle dynamic content updates
+const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'childList') {
+            initTooltips();
+        }
+    });
+});
+
+// Observe the table body for changes
+const tableBody = document.querySelector('#accessTable tbody');
+if (tableBody) {
+    observer.observe(tableBody, {
+        childList: true,
+        subtree: true
+    });
+}
+
+// Cleanup function
+function cleanup() {
+    // Dispose all tooltips
+    const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(el => {
+        const tooltip = bootstrap.Tooltip.getInstance(el);
+        if (tooltip) {
+            tooltip.dispose();
+        }
+    });
+    if (typeof observer !== 'undefined') {
+        observer.disconnect();
+    }
+}
+
+// Handle page unload
+window.addEventListener('unload', cleanup);
+
+// Глобальний обробник для уникнення проблем з aria-hidden та фокусом
+document.addEventListener('DOMContentLoaded', function() {
+    // Флаг для відстеження стану модального вікна approvers
+    let approversModalOpen = false;
+    
+    // Універсальний обробник для всіх подій модальних вікон
+    const handleModalFocus = (event) => {
+        // ПОВНІСТЮ виключаємо обробку коли відкрите модальне вікно approvers
+        if (approversModalOpen) {
+            console.log('Global modal handler disabled - approvers modal is open');
+            return;
+        }
+        
+        // Виключаємо модальне вікно approvers з глобальної обробки
+        if (event && event.target && (
+            event.target.id === 'editApproversModal' || 
+            event.target.closest('#editApproversModal')
+        )) {
+            console.log('Skipping global modal focus handler for editApproversModal');
+            return;
+        }
+        
+        // Радикальне очищення всіх фокусів
+        const activeElement = document.activeElement;
+        if (activeElement && activeElement !== document.body && activeElement !== document.documentElement) {
+            try {
+                activeElement.blur();
+            } catch(e) {
+                // Ігноруємо помилки blur
+            }
+        }
+        
+        // Перевіряємо, чи фокус не застряг у модальному вікні
+        if (document.activeElement && document.activeElement.closest && document.activeElement.closest('.modal')) {
+            try {
+                // Не очищаємо фокус якщо це модальне вікно approvers
+                if (document.activeElement.closest('#editApproversModal')) {
+                    return;
+                }
+                
+                document.activeElement.blur();
+                // Створюємо тимчасовий безпечний елемент
+                const tempElement = document.createElement('div');
+                tempElement.tabIndex = -1;
+                tempElement.style.position = 'absolute';
+                tempElement.style.left = '-9999px';
+                tempElement.setAttribute('aria-hidden', 'true');
+                document.body.appendChild(tempElement);
+                tempElement.focus();
+                tempElement.blur();
+                document.body.removeChild(tempElement);
+            } catch(e) {
+                // Ігноруємо помилки
+            }
+        }
+    };
+
+    // Додаємо обробники для всіх подій модальних вікон
+    ['show.bs.modal', 'hide.bs.modal', 'hidden.bs.modal', 'shown.bs.modal'].forEach(eventType => {
+        document.addEventListener(eventType, handleModalFocus);
+    });
+    
+    // Спеціальні обробники для модального вікна approvers
+    document.addEventListener('show.bs.modal', function(e) {
+        if (e.target && e.target.id === 'editApproversModal') {
+            console.log('Approvers modal is opening - disabling global handlers');
+            approversModalOpen = true;
+        }
+    });
+    
+    document.addEventListener('hidden.bs.modal', function(e) {
+        if (e.target && e.target.id === 'editApproversModal') {
+            console.log('Approvers modal is closed - enabling global handlers');
+            approversModalOpen = false;
+        }
+    });
+    
+    // Додатковий обробник для MutationObserver для відслідковування змін aria-hidden
+    if (window.MutationObserver) {
+        const observer = new MutationObserver(function(mutations) {
+            // Виключаємо observer коли відкрите модальне вікно approvers
+            if (approversModalOpen) {
+                return;
+            }
+            
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'aria-hidden') {
+                    // Виключаємо модальне вікно approvers
+                    if (mutation.target.id === 'editApproversModal' || 
+                        mutation.target.closest('#editApproversModal')) {
+                        return;
+                    }
+                    // Якщо встановлено aria-hidden, очищаємо фокус
+                    setTimeout(() => handleModalFocus(null), 10);
+                }
+            });
+        });
+        
+        // Спостерігаємо за всіма модальними вікнами, крім editApproversModal
+        document.querySelectorAll('.modal').forEach(modal => {
+            if (modal.id !== 'editApproversModal') {
+                observer.observe(modal, { attributes: true, attributeFilter: ['aria-hidden'] });
+            }
+        });
+    }
+    
+    // Додаємо глобальну змінну для доступу з інших скриптів
+    window.setApproversModalState = function(isOpen) {
+        approversModalOpen = isOpen;
+        console.log('Approvers modal state set to:', isOpen);
+    };
+});
+
+// Listen for accessUpdated event
+document.addEventListener('accessUpdated', async function(event) {
+    const accessId = event.detail.accessId;
+    
+    try {
+        // Refresh the specific row in the table
+        const response = await fetch(`{% url 'get_access' '0' %}`.replace('0', accessId));
+        const data = await response.json();
+        
+        if (data) {
+            const row = document.querySelector(`tr[data-access-id="${accessId}"]`);
+                // ... оновлення рядка ...
+            }
+        } catch (error) {
+            console.error('Error updating table:', error);
+        }
+    });
+
+
+
+    // Функція для оновлення списків Role, Object та Environment
+    async function updateDependentFilters(systemId) {
+        const roleFilter = $('#roleFilter');
+        const objectFilter = $('#objectFilter');
+        const environmentFilter = $('#environmentFilter');
+        
+        if (!systemId) {
+            roleFilter.prop('disabled', true).html('<option value="">{% trans "All Roles" %}</option>');
+            objectFilter.prop('disabled', true).html('<option value="">{% trans "All Objects" %}</option>');
+            environmentFilter.prop('disabled', true).html('<option value="">{% trans "All Environments" %}</option>');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/app_access/system-filters/${systemId}/`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.data) {
+                console.log('Received data from server:', data.data);
+                
+                // Оновлюємо список ролей
+                let rolesHtml = '<option value="">{% trans "All Roles" %}</option>';
+                if (data.data.roles && data.data.roles.length > 0) {
+                    data.data.roles.forEach(role => {
+                        rolesHtml += `<option value="${role.value}" style="color: ${role.color || '#000'}">${role.label}</option>`;
+                    });
+                }
+                roleFilter.html(rolesHtml).prop('disabled', true).val('');
+                
+                // Оновлюємо список середовищ
+                let environmentsHtml = '<option value="">{% trans "All Environments" %}</option>';
+                if (data.data.environments && data.data.environments.length > 0) {
+                    data.data.environments.forEach(environment => {
+                        environmentsHtml += `<option value="${environment.value}">${environment.label}</option>`;
+                    });
+                }
+                environmentFilter.html(environmentsHtml).prop('disabled', false);
+                objectFilter.prop('disabled', true).val('');
+
+                // Оновлюємо список об'єктів так само, як в access-matrix (ієрархічно)
+                await loadObjectFilterLikeAccessMatrix(systemId);
+                
+                console.log('Updated filters with server data');
+            } else {
+                throw new Error('{% trans "Invalid response format" %}');
+            }
+            
+        } catch (error) {
+            console.error('Error updating filters:', error);
+            toastr.error(error.message || '{% trans "Error loading filters" %}');
+            roleFilter.prop('disabled', true).html('<option value="">{% trans "All Roles" %}</option>');
+            objectFilter.prop('disabled', true).html('<option value="">{% trans "All Objects" %}</option>');
+            environmentFilter.prop('disabled', true).html('<option value="">{% trans "All Environments" %}</option>');
+        }
+    }
+
+    // Формування Object фільтра в стилі access-matrix (ієрархія)
+    async function loadObjectFilterLikeAccessMatrix(systemId) {
+        const objectFilter = document.getElementById('objectFilter');
+        if (!objectFilter || !systemId) return;
+
+        const previousValue = objectFilter.value || '';
+        const environmentFilter = document.getElementById('environmentFilter');
+        const selectedEnvironment = environmentFilter ? (environmentFilter.value || '') : '';
+        const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+        const url = selectedEnvironment
+            ? `/${languagePrefix}/app_access/matrix/objects/${systemId}/?environment=${encodeURIComponent(selectedEnvironment)}`
+            : `/${languagePrefix}/app_access/matrix/objects/${systemId}/`;
+
+        objectFilter.innerHTML = '<option value="">{% trans "All Objects" %}</option>';
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            if (!(data && data.status === 'success' && Array.isArray(data.data))) {
+                objectFilter.disabled = false;
+                return;
+            }
+
+            const addObjectsToSelect = (objects, level = 0, parentPrefix = '') => {
+                objects.forEach((obj, index) => {
+                    const isLast = index === objects.length - 1;
+                    const option = document.createElement('option');
+                    option.value = obj.id;
+
+                    let treePrefix = '';
+                    if (level > 0) {
+                        treePrefix = parentPrefix + (isLast ? '└─ ' : '├─ ');
+                    }
+                    option.textContent = `${treePrefix}${obj.name || ''}`;
+                    objectFilter.appendChild(option);
+
+                    if (Array.isArray(obj.children) && obj.children.length > 0) {
+                        const childPrefix = level > 0 ? parentPrefix + (isLast ? '    ' : '│   ') : '';
+                        addObjectsToSelect(obj.children, level + 1, childPrefix);
+                    }
+                });
+            };
+
+            addObjectsToSelect(data.data);
+            objectFilter.disabled = false;
+
+            if (previousValue && objectFilter.querySelector(`option[value="${previousValue}"]`)) {
+                objectFilter.value = previousValue;
+            }
+            const roleFilter = document.getElementById('roleFilter');
+            if (roleFilter) {
+                roleFilter.disabled = !objectFilter.value;
+                if (!objectFilter.value) {
+                    roleFilter.value = '';
+                } else {
+                    await loadRoleFilterByObject(objectFilter.value);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading objects (access-matrix style):', error);
+            objectFilter.disabled = false;
+            const roleFilter = document.getElementById('roleFilter');
+            if (roleFilter) {
+                roleFilter.disabled = true;
+                roleFilter.value = '';
+            }
+        }
+    }
+
+    // Завантажуємо ролі лише для обраного Object
+    async function loadRoleFilterByObject(objectId) {
+        const roleFilter = document.getElementById('roleFilter');
+        if (!roleFilter) return;
+
+        if (!objectId) {
+            roleFilter.innerHTML = '<option value="">{% trans "All Roles" %}</option>';
+            roleFilter.disabled = true;
+            roleFilter.value = '';
+            return;
+        }
+
+        const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+        roleFilter.innerHTML = '<option value="">{% trans "All Roles" %}</option>';
+        roleFilter.disabled = true;
+        roleFilter.value = '';
+
+        try {
+            const response = await fetch(`/${languagePrefix}/app_access/object-roles/${objectId}/`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!(data && data.status === 'success' && Array.isArray(data.roles))) {
+                roleFilter.disabled = false;
+                return;
+            }
+
+            let rolesHtml = '<option value="">{% trans "All Roles" %}</option>';
+            data.roles.forEach(item => {
+                const roleId = item.role_id || item.id;
+                const roleName = item.name || '';
+                if (!roleId || !roleName) return;
+                const color = item.color || '#000';
+                rolesHtml += `<option value="${roleId}" style="color: ${color}">${roleName}</option>`;
+            });
+
+            roleFilter.innerHTML = rolesHtml;
+            roleFilter.disabled = false;
+        } catch (error) {
+            console.error('Error loading roles by object:', error);
+            roleFilter.innerHTML = '<option value="">{% trans "All Roles" %}</option>';
+            roleFilter.disabled = false;
+        }
+    }
+
+    function rowMatchesUserGroupFilter(row, filterValue, userIdsAttr, groupIdsAttr) {
+        if (!filterValue) {
+            return true;
+        }
+        const [type, id] = filterValue.split(':');
+        if (type === 'third_parties') {
+            return row.attr('data-has-third-parties') === 'true';
+        }
+        const userIds = (row.attr(userIdsAttr) || '').split(',').filter(Boolean);
+        const groupIds = (row.attr(groupIdsAttr) || '').split(',').filter(Boolean);
+        if (type === 'user') {
+            return userIds.includes(id);
+        }
+        if (type === 'group') {
+            return groupIds.includes(id);
+        }
+        return true;
+    }
+
+    // Функція для фільтрації таблиці
+    function filterTable() {
+        const companyFilter = $('#companyFilter').val();
+        const systemFilter = $('#systemFilter').val();
+        const environmentFilter = $('#environmentFilter').val();
+        const objectFilter = $('#objectFilter').val();
+        const roleFilter = $('#roleFilter').val();
+        const requestWhoFilter = $('#requestWhoFilter').val();
+        const requestForFilter = $('#requestForFilter').val();
+        const searchInput = $('#searchInput').val().toLowerCase();
+        const periodStartFilter = $('#periodStartFilter').val();
+        const periodEndFilter = $('#periodEndFilter').val();
+        const showInactive = $('#showInactiveRecords').is(':checked');
+        const hasSelectColumn = $('#accessTable thead .access-select-all').length > 0;
+        const colOffset = hasSelectColumn ? 1 : 0;
+
+        $('#accessTable tbody tr').each(function() {
+            const row = $(this);
+            let showRow = true;
+
+            // Пропускаємо порожній рядок "No access records found"
+            if (row.find('td').length === 1 && row.find('td').attr('colspan')) {
+                return;
+            }
+
+            // Отримуємо значення з рядка таблиці
+            const cells = row.find('td');
+            if (cells.length === 0) return;
+
+            // Отримуємо ID з data-атрибутів
+            const companyId = cells.eq(colOffset + 1).find('[data-company-id]').attr('data-company-id');
+            const systemId = cells.eq(colOffset + 2).find('[data-system-id]').attr('data-system-id');
+            const environment = cells.eq(colOffset + 3).find('[data-environment]').attr('data-environment');
+            const objectId = cells.eq(colOffset + 4).find('[data-object-id]').attr('data-object-id');
+            
+            // Отримуємо ID ролей з кнопок
+            const roleIds = [];
+            cells.eq(colOffset + 4).find('.show-role-matrix').each(function() {
+                roleIds.push($(this).data('role-id').toString());
+            });
+
+            const rowData = {
+                id: cells.eq(colOffset).text().toLowerCase(),
+                company: cells.eq(colOffset + 1).text().toLowerCase(),
+                system: cells.eq(colOffset + 2).text().toLowerCase(),
+                environment: cells.eq(colOffset + 3).text().toLowerCase(),
+                objectRoles: cells.eq(colOffset + 4).text().toLowerCase(),
+                owners: cells.eq(colOffset + 5).text().toLowerCase(),
+                admins: cells.eq(colOffset + 6).text().toLowerCase(),
+                approvers: cells.eq(colOffset + 7).text().toLowerCase(),
+                requestUsers: cells.eq(colOffset + 8).text().toLowerCase(),
+                accessUsers: cells.eq(colOffset + 9).text().toLowerCase(),
+                period: cells.eq(colOffset + 10).text().toLowerCase(),
+                description: cells.eq(colOffset + 11).text().toLowerCase(),
+                isActive: cells.eq(colOffset + 10).find('.badge.bg-success').length > 0
+            };
+
+            // Фільтр по компанії
+            if (companyFilter && companyId !== companyFilter) {
+                showRow = false;
+            }
+
+            // Фільтр по системі
+            if (systemFilter && systemId !== systemFilter) {
+                showRow = false;
+            }
+
+            // Фільтр по середовищу
+            if (environmentFilter && environment !== environmentFilter) {
+                showRow = false;
+            }
+
+            // Фільтр по об'єкту
+            if (objectFilter && objectId !== objectFilter) {
+                showRow = false;
+            }
+
+            // Фільтр по ролі
+            if (roleFilter && !roleIds.includes(roleFilter)) {
+                showRow = false;
+            }
+
+            // Фільтр Request who
+            if (!rowMatchesUserGroupFilter(row, requestWhoFilter, 'data-request-user-ids', 'data-request-group-ids')) {
+                showRow = false;
+            }
+
+            // Фільтр Request for
+            if (!rowMatchesUserGroupFilter(row, requestForFilter, 'data-access-user-ids', 'data-access-group-ids')) {
+                showRow = false;
+            }
+
+            // Фільтр по пошуку (шукаємо у всіх полях)
+            if (searchInput) {
+                const searchableText = Object.values(rowData).join(' ').toLowerCase();
+                if (!searchableText.includes(searchInput)) {
+                    showRow = false;
+                }
+            }
+
+            // Фільтр по періоду
+            if (periodStartFilter || periodEndFilter) {
+                const startDateText = row.find('td').eq(colOffset + 10).find('strong:contains("Start")').parent().text();
+                const endDateText = row.find('td').eq(colOffset + 10).find('strong:contains("End")').parent().text();
+                
+                // Тут можна додати більш складну логіку фільтрації по датах
+                // Наразі просто перевіряємо наявність тексту дат
+            }
+
+            // Фільтр по активності
+            if (!showInactive && !rowData.isActive) {
+                showRow = false;
+            }
+
+            // Показуємо або ховаємо рядок
+            if (showRow) {
+                row.show();
+            } else {
+                row.hide();
+            }
+        });
+
+        // Оновлюємо повідомлення "No records found"
+        updateNoRecordsMessage();
+    }
+
+    // Функція для оновлення повідомлення "No records found"
+    function updateNoRecordsMessage() {
+        const visibleRows = $('#accessTable tbody tr:visible').length;
+        const noRecordsRow = $('#accessTable tbody tr td[colspan]').parent();
+        
+        if (visibleRows === 0 || (visibleRows === 1 && noRecordsRow.is(':visible'))) {
+            if (noRecordsRow.length === 0) {
+                $('#accessTable tbody').append(`
+                    <tr>
+                        <td colspan="14" class="text-center py-4">
+                            <div class="text-muted">
+                                <i class="bi bi-info-circle mb-2 fs-4"></i>
+                                <p class="mb-0">{% trans "No access records found matching the filters" %}</p>
+                            </div>
+                        </td>
+                    </tr>
+                `);
+            } else {
+                noRecordsRow.show();
+            }
+        } else {
+            noRecordsRow.hide();
+        }
+    }
+
+    // Обробник зміни системи
+    $('#systemFilter').change(function() {
+        const systemId = $(this).val();
+        updateDependentFilters(systemId);
+        // Скидаємо значення залежних фільтрів
+        $('#roleFilter').val('');
+        $('#objectFilter').val('');
+        $('#environmentFilter').val('');
+        filterTable();
+    });
+
+    $('#environmentFilter').change(function() {
+        const systemId = $('#systemFilter').val();
+        $('#objectFilter').val('');
+        $('#roleFilter').val('').prop('disabled', true);
+        if (systemId) {
+            loadObjectFilterLikeAccessMatrix(systemId);
+        }
+        filterTable();
+    });
+
+    $('#objectFilter').change(function() {
+        const hasObject = !!$(this).val();
+        if (!hasObject) {
+            $('#roleFilter').val('').prop('disabled', true);
+            loadRoleFilterByObject('');
+        } else {
+            loadRoleFilterByObject($(this).val());
+        }
+        filterTable();
+    });
+
+    // Функція перевірки активності запису
+    function checkRecordActive() {
+        const endDate = $('#editEndDate').val();
+        const recordActiveCheckbox = $('#editRecordActive');
+        
+        if (endDate) {
+            const now = new Date();
+            const end = new Date(endDate);
+            
+            if (end < now) {
+                recordActiveCheckbox.prop('checked', false);
+                recordActiveCheckbox.prop('disabled', true);
+                
+                // Додаємо підказку
+                if (!recordActiveCheckbox.next('.form-text').length) {
+                    recordActiveCheckbox.parent().append(
+                        $('<div>')
+                            .addClass('form-text text-muted')
+                            .text('{% trans "Record automatically deactivated due to end date" %}')
+                    );
+                }
+            } else {
+                recordActiveCheckbox.prop('disabled', false);
+                recordActiveCheckbox.next('.form-text').remove();
+            }
+        } else {
+            recordActiveCheckbox.prop('disabled', false);
+            recordActiveCheckbox.next('.form-text').remove();
+        }
+    }
+
+    // Обробник зміни дати закінчення
+    $('#editEndDate').on('change', checkRecordActive);
+
+    // Функція завантаження даних для редагування
+    async function loadAccessDataForEdit(accessId) {
+        // ... існуючий код ...
+        
+        try {
+            const response = await fetch(`/app_access/access/get/${accessId}/`);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // ... існуючий код завантаження даних ...
+                
+                // Встановлюємо значення дат
+                $('#editStartDate').val(formatDateTimeForInput(data.access.start_date));
+                $('#editEndDate').val(data.access.end_date ? formatDateTimeForInput(data.access.end_date) : '');
+                
+                // Перевіряємо активність запису
+                checkRecordActive();
+                
+                // ... інший код ...
+        }
+    } catch (error) {
+            console.error('Error loading access data:', error);
+            showError('{% trans "Error loading access data" %}');
+        }
+    }
+
+    // При збереженні форми
+    $('#updateAccess').on('click', async function() {
+        // ... існуючий код ...
+        
+        const formData = {
+            // ... існуючі поля ...
+            start_date: $('#editStartDate').val(),
+            end_date: $('#editEndDate').val(),
+            is_active: $('#editRecordActive').is(':checked'),
+            // ... інші поля ...
+        };
+        
+        // ... код відправки даних ...
+    });
+});
+
+// Оновлюємо функцію для відображення матриці ролей
+async function showRoleMatrix(roleId, systemId) {
+    try {
+        // Використовуємо новий URL
+        const response = await fetch(`/app_access/role-matrix/${roleId}/${systemId}/`);
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            const matrixHtml = formatRoleMatrix(data.data);
+            
+            Swal.fire({
+                title: data.data.role.name,
+                html: matrixHtml,
+                width: 600,
+                showConfirmButton: false,
+                showCloseButton: true,
+                customClass: {
+                    container: 'role-matrix-modal'
+                }
+            });
+        } else {
+            throw new Error(data.message || 'Error loading matrix');
+        }
+    } catch (error) {
+        console.error('Error showing role matrix:', error);
+        showError('{% trans "Error loading role matrix" %}');
+    }
+}
+
+// Функція форматування матриці ролей
+function formatRoleMatrix(data) {
+    let html = `
+        <div class="role-matrix">
+            <div class="functions-list">
+                <div class="section-header">
+                    <strong>{% trans "Functions" %}</strong>
+                </div>
+    `;
+
+    data.functions.forEach(func => {
+        html += `
+            <div class="function-item">
+                <div class="function-name">${func.name}</div>
+                <div class="rights-section">
+                    <small class="text-muted">{% trans "Access Rights" %}:</small>
+                    <div class="function-rights">
+                        ${func.access_rights.map(right => 
+                            `<span class="badge" style="background-color: ${right.color}">${right.name}</span>`
+                        ).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    return html;
+}
+
+$(document).ready(function() {
+    // Ініціалізуємо тултіпи для кнопок ролей
+    const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(el => {
+        new bootstrap.Tooltip(el);
+    });
+
+    // Ініціалізуємо модальне вікно
+    const roleMatrixModal = new bootstrap.Modal(document.getElementById('roleMatrixModal'));
+    
+    // Оновлюємо фільтри на основі даних в таблиці при завантаженні сторінки
+    // Переносимо виклик в кінець файлу після оголошення функції
+});
+
+// Функція для завантаження Access Requests
+async function loadAccessRequests(accessId) {
+    const modalElement = document.getElementById('accessRequestsModal');
+    const modal = new bootstrap.Modal(modalElement);
+    const content = document.getElementById('accessRequestsContent');
+    
+    // Показуємо спінер
+    content.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">{% trans "Loading..." %}</span>
+            </div>
+        </div>
+    `;
+    
+    modal.show();
+    
+    try {
+        const response = await fetch(`/app_access/access-requests/${accessId}/`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': window.csrftoken,
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            content.innerHTML = formatAccessRequestsTable(data.data);
+        } else {
+            throw new Error(data.message || '{% trans "Error loading access requests" %}');
+        }
+        
+    } catch (error) {
+        console.error('Error loading access requests:', error);
+        content.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                ${error.message || '{% trans "Error loading access requests" %}'}
+            </div>
+        `;
+    }
+}
+
+// Функція для форматування таблиці Access Requests
+function formatAccessRequestsTable(data) {
+    if (!data.requests || data.requests.length === 0) {
+        return `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <h5>{% trans "No Access Requests Found" %}</h5>
+                <p>{% trans "There are no access requests associated with this access record." %}</p>
+            </div>
+        `;
+    }
+    
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover table-sm table-sm-font sb-data-table" id="accessRequestsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 90px">{% trans "ID" %}</th>
+                        <th>{% trans "Request Type" %}</th>
+                        <th>{% trans "Requested For" %}</th>
+                        <th>{% trans "Requested By" %}</th>
+                        <th>{% trans "Requested Role" %}</th>
+                        <th>{% trans "Request Status" %}</th>
+                        <th>{% trans "Admin Status" %}</th>
+                        <th>{% trans "Created At" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    data.requests.forEach(request => {
+        const requestStatusBadge = getRequestStatusBadge(request.status);
+        const adminStatusBadge = getAdminStatusBadge(request.admin_status, request.request_type);
+        const requestTypeBadge = getRequestTypeBadge(request.request_type);
+        
+        const requestedRoleHtml = request.requested_role
+            ? `<span class="fw-semibold" style="color: ${request.requested_role.color || '#6c757d'}">${request.requested_role.name || ''}</span>`
+            : '<span class="text-muted">—</span>';
+        html += `
+            <tr>
+                <td class="text-nowrap" style="max-width: none"><strong>#${request.id}</strong></td>
+                <td>${requestTypeBadge}</td>
+                <td>
+                    <div>
+                        <strong>${request.requested_for_name}</strong>
+                        <br><small class="text-muted">${request.requested_for_email}</small>
+                    </div>
+                </td>
+                <td>
+                    <div>
+                        <strong>${request.requested_by_name}</strong>
+                        <br><small class="text-muted">${request.requested_by_email}</small>
+                    </div>
+                </td>
+                <td>${requestedRoleHtml}</td>
+                <td>${requestStatusBadge}</td>
+                <td>${adminStatusBadge}</td>
+                <td>
+                    <div>
+                        ${new Date(request.created_at).toLocaleDateString('uk-UA')}
+                        <br><small class="text-muted">${new Date(request.created_at).toLocaleTimeString('uk-UA')}</small>
+                    </div>
+                </td>
+                <td>
+                    <a href="javascript:void(0)" onclick="openRequestDetails(${request.id})" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye"></i> {% trans "View" %}
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    return html;
+}
+
+// Helper functions for badges
+function getRequestStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge bg-warning text-dark">{% trans "Pending" %}</span>',
+        'approved': '<span class="badge bg-success">{% trans "Approved" %}</span>',
+        'rejected': '<span class="badge bg-danger">{% trans "Rejected" %}</span>',
+        'cancelled': '<span class="badge bg-secondary">{% trans "Cancelled" %}</span>'
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function getAdminStatusBadge(status, requestType) {
+    // Use original names based on request type
+    if (requestType === 'revoke' && status === 'granted') {
+        // For revoke requests, “granted” means Access Revoked
+        return '<span class="badge bg-danger">{% trans "Access Revoked" %}</span>';
+    }
+    const badges = {
+        'pending': '<span class="badge bg-warning text-dark">{% trans "Pending" %}</span>',
+        'granted': '<span class="badge bg-success">{% trans "Access Granted" %}</span>',
+        'denied': '<span class="badge bg-danger">{% trans "Access Denied" %}</span>',
+        'in_progress': '<span class="badge bg-info">{% trans "In Progress" %}</span>'
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function getRequestTypeBadge(type) {
+    const badges = {
+        'grant': '<span class="badge" style="color: #198754; background-color: transparent;"><i class="bi bi-plus-circle me-1"></i>{% trans "Grant" %}</span>',
+        'revoke': '<span class="badge" style="color: #dc3545; background-color: transparent;"><i class="bi bi-dash-circle me-1"></i>{% trans "Revoke" %}</span>'
+    };
+    return badges[type] || `<span class="badge bg-secondary">${type}</span>`;
+}
+
+// Функція для відкриття деталей запиту
+function openRequestDetails(requestId) {
+    const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+    const url = `/${languagePrefix}/app_access/manage-access-requests/?request_id=${requestId}`;
+    window.open(url, '_blank');
+}
+
+// Ініціалізуємо фільтри після завантаження всіх функцій
+$(document).ready(function() {
+    // Фільтри будуть заповнені автоматично при виборі компанії та системи
+    // через функції updateSystemFilter() та updateDependentFilters()
+});
+// Cache busting comment - function moved to top at 18:03
+</script>
+{% endblock scripts %}

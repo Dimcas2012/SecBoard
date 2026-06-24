@@ -1,0 +1,363 @@
+<!-- SecBoard\templates\app_access\modals\role_matrix_modal.html -->
+{% load i18n %}
+
+<div class="modal fade" id="roleMatrixModal" tabindex="-1" aria-labelledby="roleMatrixModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h5 class="modal-title" id="roleMatrixModalLabel">{% trans "Role Matrix" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-2">
+                <div class="role-info mb-2">
+                    <h6 class="role-name mb-1 fs-6"></h6>
+                    <p class="role-description text-muted small mb-2"></p>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm table-sm-font sb-data-table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40%" class="py-2">
+                                    <div class="d-flex align-items-center">
+                                        {% trans "Functions" %}
+                                        <i class="bi bi-info-circle ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="{% trans 'List of available system functions' %}">
+                                        </i>
+                                    </div>
+                                </th>
+                                <th class="py-2">
+                                    <div class="d-flex align-items-center">
+                                        {% trans "Access Rights" %}
+                                        <i class="bi bi-info-circle ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="{% trans 'Available access rights for each function' %}">
+                                        </i>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="roleMatrixBody">
+                            <!-- Дані будуть додані динамічно -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Стилі для тултіпів */
+.tooltip {
+    font-size: 0.8125rem;
+}
+
+.tooltip-inner {
+    max-width: 250px;
+    padding: 0.4rem 0.8rem;
+    text-align: left;
+}
+
+/* Стилі для елементів з тултіпами */
+[data-bs-toggle="tooltip"] {
+    cursor: help;
+}
+
+.function-row {
+    transition: background-color 0.2s;
+    font-size: 0.875rem;
+}
+
+.function-row:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+
+.function-name {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+}
+
+.access-rights-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.access-right-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25em 0.8em;
+    border-radius: 3px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    color: #fff;
+    transition: all 0.2s ease;
+}
+
+.access-right-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.function-cell {
+    display: flex;
+    align-items: center;
+}
+
+.function-text {
+    font-weight: 500;
+}
+
+.nested-function {
+    position: relative;
+    padding-left: 20px;
+}
+
+.nested-function::before {
+    content: '└─';
+    position: absolute;
+    left: 0;
+    font-family: monospace;
+}
+
+.role-name {
+    font-weight: 600;
+}
+
+.table td, .table th {
+    padding: 0.4rem 0.6rem;
+}
+</style>
+
+<script>
+$(document).ready(function() {
+    // Ініціалізуємо тултіпи
+    function initTooltips() {
+        const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltips.forEach(el => {
+            if (!bootstrap.Tooltip.getInstance(el)) {
+                new bootstrap.Tooltip(el, {
+                    html: true,
+                    delay: {
+                        show: 100,
+                        hide: 100
+                    }
+                });
+            }
+        });
+    }
+    
+    // Ініціалізуємо початкові тултіпи
+    initTooltips();
+
+    $('.show-role-matrix').on('click', function() {
+        const roleId = $(this).data('role-id');
+        const systemId = $(this).data('system-id');
+        const objectId = $(this).data('object-id');
+        
+        // Очищаємо попередні дані
+        $('.role-name').text('');
+        $('.role-description').text('');
+        $('#roleMatrixBody').empty().html(`
+            <tr>
+                <td colspan="2" class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                </td>
+            </tr>
+        `);
+        
+        // Отримуємо посилання на tbody
+        const $tbody = $('#roleMatrixBody');
+        
+        // Визначаємо URL залежно від наявності objectId
+        let requestUrl;
+        if (objectId) {
+            // Для об'єктних ролей використовуємо Object Access Rights Matrix
+            requestUrl = `/app_access/matrix/${systemId}/?object_id=${objectId}`;
+        } else {
+            // Для системних ролей використовуємо існуючий ендпоінт
+            requestUrl = `{% url 'get_role_matrix_for_tooltip' 0 0 %}`.replace('0/0', `${roleId}/${systemId}`);
+        }
+        
+        $.get(requestUrl)
+            .done(function(response) {
+                if (response.status === 'success') {
+                    let data, roleName, roleColor, roleDescription, functions;
+                    
+                    if (objectId) {
+                        // Object Access Rights Matrix response
+                        data = response.data;
+                        const selectedRole = data.roles ? data.roles.find(role => role.id == roleId) : null;
+                        
+                        if (selectedRole) {
+                            roleName = data.is_object_matrix && data.object_name ? 
+                                `${selectedRole.name} - ${data.object_name}` : 
+                                selectedRole.name;
+                            roleColor = selectedRole.color;
+                            roleDescription = selectedRole.description || '';
+                            
+                            // Збираємо всі функції з усіх рівнів та дедуплікуємо їх
+                            const functionMap = new Map();
+                            if (selectedRole.columns) {
+                                // Додаємо функції з усіх рівнів до Map для дедуплікації
+                                [...(selectedRole.columns.functions || []),
+                                 ...(selectedRole.columns.subfunctions || []),
+                                 ...(selectedRole.columns.subsubfunctions || [])].forEach(func => {
+                                    if (!functionMap.has(func.id)) {
+                                        functionMap.set(func.id, func);
+                                    }
+                                });
+                            }
+                            functions = Array.from(functionMap.values());
+                            
+                            // Додаємо права доступу до кожної функції на основі маппінгів
+                            functions.forEach(func => {
+                                const accessRightsSet = new Set(); // Використовуємо Set для дедуплікації прав доступу
+                                if (response.mappings) {
+                                    response.mappings.forEach(mapping => {
+                                        if (mapping.function_id === func.id) {
+                                            const right = data.access_rights.find(r => r.id === mapping.right_id);
+                                            if (right) {
+                                                accessRightsSet.add(JSON.stringify(right)); // Серіалізуємо для порівняння
+                                            }
+                                        }
+                                    });
+                                }
+                                // Перетворюємо Set назад в масив об'єктів
+                                func.access_rights = Array.from(accessRightsSet).map(rightStr => JSON.parse(rightStr));
+                            });
+                        } else {
+                            roleName = 'Role not found';
+                            roleColor = '#333';
+                            roleDescription = '';
+                            functions = [];
+                        }
+                    } else {
+                        // System role matrix response (existing format)
+                        data = response.data;
+                        roleName = data.role.name;
+                        roleColor = data.role.color;
+                        roleDescription = data.role.description || '';
+                        functions = data.functions || [];
+                    }
+                    
+                    // Оновлюємо заголовок
+                    $('.role-name')
+                        .text(roleName)
+                        .css('color', roleColor);
+                    $('.role-description').text(roleDescription);
+                    
+                    // Очищаємо таблицю
+                    $tbody.empty();
+                    
+                    function renderFunctions(functions, level = 0) {
+                        functions.forEach(function(func) {
+                            const $row = $('<tr>').addClass('function-row');
+                            
+                            // Функція з кольором
+                            const functionName = $('<div>')
+                                .addClass('function-cell')
+                                .css('padding-left', `${level * 20}px`);
+
+                            if (level > 0) {
+                                functionName.addClass('nested-function')
+                                    .css('--tree-color', func.color);
+                                
+                                // Додаємо стиль для псевдоелемента
+                                const style = document.createElement('style');
+                                style.textContent = `
+                                    .nested-function[style*="--tree-color: ${func.color}"]::before {
+                                        color: ${func.color};
+                                    }
+                                `;
+                                document.head.appendChild(style);
+                            }
+
+                            const nameSpan = $('<span>')
+                                .addClass('function-text')
+                                .css('color', func.color)
+                                .text(func.name)
+                                .attr('title', func.description || func.name);
+
+                            functionName.append(nameSpan);
+                            
+                            const $functionCell = $('<td>').append(functionName);
+                            $row.append($functionCell);
+                            
+                            // Права доступу
+                            const $rightsCell = $('<td>');
+                            const $rightsContainer = $('<div>').addClass('access-rights-container');
+                            
+                            if (func.access_rights && func.access_rights.length > 0) {
+                                func.access_rights.forEach(right => {
+                                    $rightsContainer.append(
+                                        $('<span>')
+                                            .addClass('access-right-badge')
+                                            .css('background-color', right.color)
+                                            .text(right.name)
+                                            .attr('title', right.description || right.name)
+                                    );
+                                });
+                            } else {
+                                $rightsContainer.append(
+                                    $('<span>')
+                                        .addClass('text-muted fst-italic')
+                                        .text('{% trans "No access rights assigned" %}')
+                                );
+                            }
+                            
+                            $rightsCell.append($rightsContainer);
+                            $row.append($rightsCell);
+                            
+                            $tbody.append($row);
+                            
+                            // Рекурсивно відображаємо дочірні функції
+                            if (func.children && func.children.length > 0) {
+                                renderFunctions(func.children, level + 1);
+                            }
+                        });
+                    }
+                    
+                    if (functions && functions.length > 0) {
+                        renderFunctions(functions);
+                        // Ініціалізуємо тултіпи для нових елементів
+                        initTooltips();
+                    } else {
+                        $tbody.html(`
+                            <tr>
+                                <td colspan="2" class="text-center py-3">
+                                    <div class="text-muted small">
+                                        <i class="bi bi-info-circle mb-1"></i>
+                                        <p class="mb-0">{% trans "No functions assigned to this role" %}</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                }
+            })
+            .fail(function(xhr) {
+                $('#roleMatrixBody').html(`
+                    <tr>
+                        <td colspan="2" class="text-center py-3">
+                            <div class="text-danger small">
+                                <i class="bi bi-exclamation-triangle mb-1"></i>
+                                <p class="mb-0">{% trans "Error loading role matrix" %}</p>
+                            </div>
+                        </td>
+                    </tr>
+                `);
+            });
+    });
+});
+</script>

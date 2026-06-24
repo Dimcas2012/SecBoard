@@ -1,0 +1,950 @@
+<!-- SecBoard\templates\app_access\modals\edit_default_function_modal.html -->
+{% load i18n %}
+
+<div class="modal fade" id="editFunctionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Edit Default Functions" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="functionModalAlerts"></div>
+                
+                <!-- Пошукове поле -->
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control" 
+                               id="searchFunctionsInput" 
+                               placeholder="{% trans 'Search functions...' %}"
+                               autocomplete="off">
+                        <button class="btn btn-outline-secondary" 
+                                type="button" 
+                                id="clearSearchFunctionsInput"
+                                style="display: none;">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted" id="searchFunctionsResultsCount" style="display: none;">
+                        <i class="bi bi-info-circle"></i> 
+                        <span id="searchFunctionsResultsText"></span>
+                    </small>
+                </div>
+                
+                <!-- Дерево функцій -->
+                <div class="functions-tree mb-3">
+                    <div id="functionsTreeView" class="sortable-tree">
+                        <!-- Функції будуть додані тут динамічно -->
+                    </div>
+                </div>
+
+                <!-- Кнопки управління -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-primary" id="addRootFunctionBtn">
+                        <i class="bi bi-plus-circle"></i> {% trans "Add Root Function" %}
+                    </button>
+                    <button type="button" class="btn btn-success" id="addChildFunctionBtn">
+                        <i class="bi bi-plus-circle"></i> {% trans "Add Child Function" %}
+                    </button>
+                </div>
+
+                <!-- Форма редагування функції -->
+                <form id="functionForm" class="d-none">
+                    {% csrf_token %}
+                    <input type="hidden" id="functionId" name="function_id">
+                    <input type="hidden" id="parentFunctionId" name="parent_id">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="functionName" class="form-label required">{% trans "Name" %}</label>
+                            <input type="text" class="form-control" id="functionName" name="name" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="functionOrder" class="form-label">{% trans "Order" %}</label>
+                            <input type="number" class="form-control form-control-sm" id="functionOrder" name="order" min="0" value="0" style="width: 55px;">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="functionColor" class="form-label">{% trans "Color" %}</label>
+                            <input type="color" class="form-control form-control-color w-100" id="functionColor" name="color" value="#6c757d">
+                        </div>
+                        <div class="col-12">
+                            <label for="functionDescription" class="form-label">{% trans "Description" %}</label>
+                            <textarea class="form-control" id="functionDescription" name="description" rows="2"></textarea>
+                        </div>
+                        <!-- Попередній перегляд -->
+                        <div class="col-12">
+                            <div class="preview-box p-3 border rounded">
+                                <h6>{% trans "Preview" %}</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="color-dot me-2" id="previewColorDot"></div>
+                                    <span id="previewName"></span>
+                                </div>
+                                <p class="text-muted small mb-0 mt-2" id="previewDescription"></p>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-success">{% trans "Save Function" %}</button>
+                            <button type="button" class="btn btn-secondary" id="cancelFunctionEdit">{% trans "Cancel" %}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.required:after {
+    content: " *";
+    color: red;
+}
+
+.functions-tree {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.function-item {
+    margin: 5px 0;
+    padding: 5px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.function-item:hover {
+    background-color: #f8f9fa;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.function-item.selected {
+    background-color: #e9ecef;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.function-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.function-content {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.function-children {
+    margin-left: 20px;
+    padding-left: 10px;
+    border-left: 2px solid #dee2e6;
+}
+
+/* Order — однаковий вигляд як у Edit Default Access Rights */
+.function-item .order-input {
+    width: 55px;
+}
+
+.drag-handle {
+    cursor: move;
+    color: #6c757d;
+    width: 20px;
+    text-align: center;
+    padding: 0 5px;
+}
+
+.drag-handle:hover {
+    color: #000;
+}
+
+.sortable-ghost {
+    opacity: 0.5;
+    background-color: #f8f9fa;
+}
+
+.sortable-chosen {
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.color-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.preview-box {
+    background-color: #f8f9fa;
+}
+
+#previewColorDot {
+    width: 16px;
+    height: 16px;
+}
+
+/* Стиль для неактивної кнопки */
+.btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Стилі для пошуку */
+.function-item.hidden {
+    display: none !important;
+}
+
+.function-item.search-match {
+    background-color: #fff3cd;
+    border-color: #ffc107;
+}
+
+.search-highlight {
+    background-color: #ffeb3b;
+    font-weight: bold;
+    padding: 1px 2px;
+    border-radius: 2px;
+}
+
+#searchFunctionsResultsCount {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.85rem;
+}
+
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('functionForm');
+    const modalElement = document.getElementById('editFunctionModal');
+    const modal = new bootstrap.Modal(modalElement);
+    const treeView = document.getElementById('functionsTreeView');
+    let selectedFunctionId = null;
+
+    // Додаємо функцію для завантаження функцій
+    function loadFunctions() {
+        const systemId = document.getElementById('systemSelect').value;
+        if (!systemId) {
+            showModalAlert('warning', '{% trans "Please select a system first" %}');
+            return;
+        }
+
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const environment = modalElement.getAttribute('data-environment') || 'test';
+        
+        console.log('loadFunctions using environment:', environment);
+        
+        $.ajax({
+            url: `/${languagePrefix}/app_access/functions/system/?system_id=${systemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.functions) {
+                    renderFunctionTree(response.functions);
+                }
+            },
+            error: function() {
+                showModalAlert('danger', '{% trans "Error loading functions" %}');
+            }
+        });
+
+        // Після завантаження функцій скидаємо виділення і деактивуємо кнопку
+        selectedFunctionId = null;
+        document.getElementById('addChildFunctionBtn').disabled = true;
+    }
+
+    // Додаємо функцію renderFunctionChildren перед renderFunctionTree
+    function renderFunctionChildren(children, container) {
+        // Сортуємо дочірні елементи за order
+        children.sort((a, b) => a.order - b.order);
+        
+        const currentLang = window.location.pathname.split('/')[1] || 'ua';
+        const langNorm = currentLang === 'uk' ? 'ua' : currentLang;
+        
+        children.forEach(function(child) {
+            const childItem = document.createElement('div');
+            childItem.className = 'function-item';
+            childItem.dataset.functionId = child.id;
+            childItem.dataset.order = child.order;
+            const name = child.name || '';
+            
+            const childOrder = child.order !== undefined ? child.order : 0;
+            childItem.innerHTML = `
+                <div class="function-header">
+                    <div class="drag-handle">
+                        <i class="bi bi-grip-vertical"></i>
+                    </div>
+                    <div class="function-content">
+                        <div class="d-flex align-items-center">
+                            <input type="number" class="form-control form-control-sm order-input" min="0" value="${childOrder}" data-function-id="${child.id}" style="width: 55px;" title="{% trans 'Order' %}">
+                            <div class="color-dot me-2" style="background-color: ${child.color}"></div>
+                            <span class="function-name">${name}</span>
+                        </div>
+                        <div class="function-actions">
+                            <button type="button" class="btn btn-sm btn-outline-primary edit-function" data-function-id="${child.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-function" data-function-id="${child.id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                ${child.children && child.children.length > 0 ? '<div class="function-children sortable-tree"></div>' : ''}
+            `;
+            
+            container.appendChild(childItem);
+            
+            if (child.children && child.children.length > 0) {
+                const childrenContainer = childItem.querySelector('.function-children');
+                renderFunctionChildren(child.children, childrenContainer);
+            }
+        });
+    }
+
+    // Оновлюємо функцію для рендерингу дерева функцій
+    function renderFunctionTree(functions) {
+        const treeView = document.getElementById('functionsTreeView');
+        treeView.innerHTML = '';
+        
+        // Сортуємо функції за order перед рендерингом
+        functions.sort((a, b) => a.order - b.order);
+        
+        functions.forEach(function(func) {
+            const funcItem = document.createElement('div');
+            funcItem.className = 'function-item';
+            funcItem.dataset.functionId = func.id;
+            funcItem.dataset.order = func.order; // Додаємо order в data-атрибут
+            
+            const currentLang = window.location.pathname.split('/')[1] || 'ua';
+            const langNorm = currentLang === 'uk' ? 'ua' : currentLang;
+            const name = func.name || '';
+            
+            const funcOrder = func.order !== undefined ? func.order : 0;
+            funcItem.innerHTML = `
+                <div class="function-header">
+                    <div class="drag-handle">
+                        <i class="bi bi-grip-vertical"></i>
+                    </div>
+                    <div class="function-content">
+                        <div class="d-flex align-items-center">
+                            <input type="number" class="form-control form-control-sm order-input" min="0" value="${funcOrder}" data-function-id="${func.id}" style="width: 55px;" title="{% trans 'Order' %}">
+                            <div class="color-dot me-2" style="background-color: ${func.color}"></div>
+                            <span class="function-name">${name}</span>
+                        </div>
+                        <div class="function-actions">
+                            <button type="button" class="btn btn-sm btn-outline-primary edit-function" data-function-id="${func.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-function" data-function-id="${func.id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                ${func.children && func.children.length > 0 ? '<div class="function-children sortable-tree"></div>' : ''}
+            `;
+            
+            treeView.appendChild(funcItem);
+            
+            if (func.children && func.children.length > 0) {
+                const childrenContainer = funcItem.querySelector('.function-children');
+                renderFunctionChildren(func.children, childrenContainer);
+            }
+        });
+        
+        initializeSortable();
+        attachFunctionOrderInputHandlers();
+        setupFunctionsSearch();
+    }
+
+    function attachFunctionOrderInputHandlers() {
+        treeView.querySelectorAll('.order-input').forEach(input => {
+            input.removeEventListener('blur', handleFunctionOrderBlur);
+            input.addEventListener('blur', handleFunctionOrderBlur);
+        });
+    }
+    function handleFunctionOrderBlur(e) {
+        const input = e.target;
+        if (!input.classList.contains('order-input')) return;
+        const functionItem = input.closest('.function-item');
+        const container = functionItem ? functionItem.parentElement : null;
+        if (!container || !container.classList.contains('sortable-tree')) return;
+        const targetOrder = parseInt(input.value, 10);
+        if (isNaN(targetOrder) || targetOrder < 0) return;
+        const siblings = Array.from(container.querySelectorAll(':scope > .function-item'));
+        const currentIndex = siblings.indexOf(functionItem);
+        if (currentIndex === -1) return;
+        const newIndex = Math.min(targetOrder, siblings.length - 1);
+        if (newIndex === currentIndex) return;
+        if (newIndex < currentIndex) {
+            container.insertBefore(functionItem, siblings[newIndex]);
+        } else {
+            container.insertBefore(functionItem, siblings[newIndex].nextSibling);
+        }
+        const systemId = document.getElementById('systemSelect').value;
+        if (!systemId) return;
+        const parentEl = container.closest('.function-item');
+        const parentId = parentEl ? parentEl.dataset.functionId : null;
+        const newSiblings = Array.from(container.querySelectorAll(':scope > .function-item'));
+        const orders = newSiblings.map((item, index) => ({ id: item.dataset.functionId, order: index }));
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/functions/update-order/`,
+            type: 'POST',
+            data: JSON.stringify({ function_orders: orders, orders: orders, parent_id: parentId, system_id: systemId }),
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+            success: function(response) {
+                if (response.success || response.status === 'success') {
+                    showModalAlert('success', response.message || '{% trans "Order updated successfully" %}');
+                    newSiblings.forEach((item, index) => {
+                        const inp = item.querySelector('.order-input');
+                        if (inp) inp.value = index;
+                    });
+                }
+            },
+            error: function(xhr) {
+                showModalAlert('danger', xhr.responseJSON?.message || '{% trans "Error updating order" %}');
+            }
+        });
+    }
+
+    function initializeSortable() {
+        document.querySelectorAll('.sortable-tree').forEach(el => {
+            new Sortable(el, {
+                group: 'functions',
+                handle: '.drag-handle',
+                animation: 150,
+                fallbackOnBody: true,
+                swapThreshold: 0.65,
+                onEnd: function(evt) {
+                    // Отримуємо всі функції в поточному контейнері та їх порядок
+                    const container = evt.to;
+                    const items = Array.from(container.children);
+                    const orders = items.map((item, index) => ({
+                        id: item.dataset.functionId,
+                        order: index
+                    }));
+
+                    // Отримуємо батьківський елемент
+                    const parentElement = container.closest('.function-item');
+                    const parentId = parentElement ? parentElement.dataset.functionId : null;
+
+                    // Отримуємо переміщений елемент
+                    const movedItemId = evt.item.dataset.functionId;
+
+                    const systemId = document.getElementById('systemSelect').value;
+                    if (!systemId) {
+                        showModalAlert('warning', '{% trans "Please select a system first" %}');
+                        evt.preventDefault();
+                        return;
+                    }
+
+                    const languagePrefix = window.location.pathname.split('/')[1];
+                    $.ajax({
+                        url: `/${languagePrefix}/app_access/functions/update-order/`,
+                        type: 'POST',
+                        data: JSON.stringify({
+                            function_orders: orders,
+                            parent_id: parentId,
+                            moved_item_id: movedItemId,
+                            system_id: systemId
+                        }),
+                        contentType: 'application/json',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        success: function(response) {
+                            if (response.status === 'success' || response.success) {
+                                showModalAlert('success', response.message);
+                                items.forEach((item, index) => {
+                                    const inp = item.querySelector('.order-input');
+                                    if (inp) inp.value = index;
+                                });
+                            } else {
+                                showModalAlert('danger', response.message || '{% trans "Error updating order" %}');
+                                // Повертаємо елемент на початкову позицію
+                                evt.from.insertBefore(evt.item, evt.oldIndex >= evt.from.children.length ? null : evt.from.children[evt.oldIndex]);
+                            }
+                        },
+                        error: function(xhr) {
+                            console.error('Error updating order:', xhr.responseJSON);
+                            showModalAlert('danger', xhr.responseJSON?.message || '{% trans "Error updating order" %}');
+                            // Повертаємо елемент на початкову позицію
+                            evt.from.insertBefore(evt.item, evt.oldIndex >= evt.from.children.length ? null : evt.from.children[evt.oldIndex]);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    function updatePreview() {
+        const previewName = document.getElementById('functionName')?.value || '';
+        const previewDescription = document.getElementById('functionDescription')?.value || '';
+        const color = document.getElementById('functionColor').value;
+        document.getElementById('previewName').textContent = previewName;
+        document.getElementById('previewDescription').textContent = previewDescription;
+        document.getElementById('previewColorDot').style.backgroundColor = color;
+    }
+    
+    // Функція налаштування пошуку функцій
+    function setupFunctionsSearch() {
+        const searchInput = document.getElementById('searchFunctionsInput');
+        const clearButton = document.getElementById('clearSearchFunctionsInput');
+        const resultsCount = document.getElementById('searchFunctionsResultsCount');
+        const resultsText = document.getElementById('searchFunctionsResultsText');
+        const treeView = document.getElementById('functionsTreeView');
+        
+        if (!searchInput) return;
+        
+        // Обробник введення тексту в пошук
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            if (searchTerm.length > 0) {
+                clearButton.style.display = 'block';
+                filterFunctions(searchTerm);
+            } else {
+                clearButton.style.display = 'none';
+                clearFunctionsSearch();
+            }
+        });
+        
+        // Обробник кнопки очищення пошуку
+        if (clearButton) {
+            clearButton.addEventListener('click', function() {
+                searchInput.value = '';
+                clearButton.style.display = 'none';
+                clearFunctionsSearch();
+                searchInput.focus();
+            });
+        }
+        
+        // Функція фільтрації функцій
+        function filterFunctions(searchTerm) {
+            const allFunctionItems = treeView.querySelectorAll('.function-item');
+            let matchCount = 0;
+            let totalCount = allFunctionItems.length;
+            
+            // Перевіряємо кожен елемент функції
+            allFunctionItems.forEach(item => {
+                const functionName = item.querySelector('.function-name');
+                const name = functionName ? functionName.textContent.toLowerCase() : '';
+                const isMatch = name.includes(searchTerm);
+                
+                if (isMatch) {
+                    item.classList.remove('hidden');
+                    item.classList.add('search-match');
+                    matchCount++;
+                    
+                    // Підсвічуємо знайдений текст
+                    highlightFunctionText(functionName, searchTerm);
+                    
+                    // Показуємо всі батьківські елементи
+                    showFunctionParents(item);
+                } else {
+                    item.classList.add('hidden');
+                    item.classList.remove('search-match');
+                }
+            });
+            
+            // Показуємо результати пошуку
+            if (resultsCount && resultsText) {
+                resultsCount.style.display = 'block';
+                resultsText.textContent = `{% trans "Found" %} ${matchCount} {% trans "of" %} ${totalCount} {% trans "functions" %}`;
+            }
+        }
+        
+        // Функція підсвічування тексту
+        function highlightFunctionText(element, searchTerm) {
+            if (!element) return;
+            
+            const originalText = element.getAttribute('data-original-text') || element.textContent;
+            if (!element.getAttribute('data-original-text')) {
+                element.setAttribute('data-original-text', originalText);
+            }
+            
+            const lowerText = originalText.toLowerCase();
+            const index = lowerText.indexOf(searchTerm);
+            
+            if (index !== -1) {
+                const before = originalText.substring(0, index);
+                const match = originalText.substring(index, index + searchTerm.length);
+                const after = originalText.substring(index + searchTerm.length);
+                
+                element.innerHTML = `${before}<span class="search-highlight">${match}</span>${after}`;
+            }
+        }
+        
+        // Функція показу батьківських елементів
+        function showFunctionParents(item) {
+            let parent = item.parentElement;
+            while (parent && parent !== treeView) {
+                if (parent.classList.contains('function-item')) {
+                    parent.classList.remove('hidden');
+                }
+                if (parent.classList.contains('function-children')) {
+                    parent.style.display = 'block';
+                }
+                parent = parent.parentElement;
+            }
+        }
+        
+        // Функція очищення пошуку
+        function clearFunctionsSearch() {
+            const allFunctionItems = treeView.querySelectorAll('.function-item');
+            
+            allFunctionItems.forEach(item => {
+                item.classList.remove('hidden');
+                item.classList.remove('search-match');
+                
+                // Відновлюємо оригінальний текст
+                const functionName = item.querySelector('.function-name');
+                if (functionName && functionName.getAttribute('data-original-text')) {
+                    functionName.textContent = functionName.getAttribute('data-original-text');
+                }
+            });
+            
+            // Ховаємо результати пошуку
+            if (resultsCount) {
+                resultsCount.style.display = 'none';
+            }
+        }
+    }
+
+    // Додаємо обробники подій
+    document.getElementById('addRootFunctionBtn').addEventListener('click', function() {
+        form.reset();
+        document.getElementById('functionId').value = '';
+        document.getElementById('parentFunctionId').value = '';
+        document.getElementById('functionOrder').value = '0';
+        form.classList.remove('d-none');
+    });
+
+    // Додаємо обробник для кнопки додавання підфункції
+    document.getElementById('addChildFunctionBtn').addEventListener('click', function() {
+        if (!selectedFunctionId) {
+            showModalAlert('warning', '{% trans "Please select a parent function first" %}');
+            return;
+        }
+        
+        // Очищаємо форму
+        form.reset();
+        form.classList.remove('d-none');
+        
+        // Встановлюємо parent_id
+        document.getElementById('parentFunctionId').value = selectedFunctionId;
+        document.getElementById('functionId').value = '';
+        document.getElementById('functionOrder').value = '0';
+    });
+
+    // Додаємо обробник для вибору функції
+    treeView.addEventListener('click', function(e) {
+        const functionItem = e.target.closest('.function-item, .function-header');
+        if (functionItem && !e.target.closest('.edit-function') && !e.target.closest('.delete-function')) {
+            // Знімаємо виділення з усіх функцій
+            document.querySelectorAll('.function-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Знаходимо батьківський function-item, якщо клікнули на function-header
+            const targetItem = functionItem.classList.contains('function-header') 
+                ? functionItem.closest('.function-item') 
+                : functionItem;
+            
+            // Виділяємо вибрану функцію
+            targetItem.classList.add('selected');
+            selectedFunctionId = targetItem.dataset.functionId;
+            
+            // Активуємо кнопку додавання дочірньої функції
+            document.getElementById('addChildFunctionBtn').disabled = false;
+        }
+    });
+
+    // Додаємо обробник для наведення курсору
+    treeView.addEventListener('mouseover', function(e) {
+        const functionItem = e.target.closest('.function-item');
+        if (functionItem && !functionItem.classList.contains('selected')) {
+            functionItem.style.backgroundColor = '#f8f9fa';
+        }
+    });
+
+    // Додаємо обробник для виходу курсору
+    treeView.addEventListener('mouseout', function(e) {
+        const functionItem = e.target.closest('.function-item');
+        if (functionItem && !functionItem.classList.contains('selected')) {
+            functionItem.style.backgroundColor = '';
+        }
+    });
+
+    // Обробка форми
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(form);
+        formData.append('system_id', document.getElementById('systemSelect').value);
+        const environment = modalElement.getAttribute('data-environment') || 'test';
+        formData.append('environment', environment);
+        formData.append('order', document.getElementById('functionOrder').value || '0');
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/functions/save/`,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            success: function(response) {
+                if (response.success) {
+                    showModalAlert('success', response.message);
+                    loadFunctions();
+                    form.classList.add('d-none');
+                    document.getElementById('addChildFunctionBtn').classList.remove('d-none');
+                    document.getElementById('addChildFunctionBtn').disabled = true;
+                } else {
+                    showModalAlert('danger', response.message || '{% trans "Error saving function" %}');
+                }
+            },
+            error: function(xhr) {
+                const errorMessage = xhr.responseJSON?.message || '{% trans "Error saving function" %}';
+                showModalAlert('danger', errorMessage);
+            }
+        });
+    });
+
+    // Додаємо обробники подій для полів форми
+    form.querySelectorAll('input, textarea').forEach(input => {
+        input.addEventListener('input', updatePreview);
+    });
+
+    // Оновлюємо обробник відкриття модального вікна
+    $(modalElement).on('show.bs.modal', function() {
+        const systemId = document.getElementById('systemSelect').value;
+        if (!systemId) {
+            showModalAlert('warning', '{% trans "Please select a system first" %}');
+            return;
+        }
+
+        // Завантажуємо актуальні дані з сервера
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const environment = modalElement.getAttribute('data-environment') || 'test';
+        $.ajax({
+            url: `/${languagePrefix}/app_access/functions/system/?system_id=${systemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.functions) {
+                    renderFunctionTree(response.functions);
+                    document.getElementById('addChildFunctionBtn').disabled = true;
+                    selectedFunctionId = null;
+                    document.getElementById('addChildFunctionBtn').classList.remove('d-none');
+                }
+            },
+            error: function(error) {
+                console.error('Error loading functions:', error);
+                showModalAlert('danger', '{% trans "Error loading functions" %}');
+            }
+        });
+    });
+
+    // Оновлюємо обробник закриття модального вікна
+    $(modalElement).on('hidden.bs.modal', function() {
+        form.reset();
+        form.classList.add('d-none');
+        selectedFunctionId = null;
+
+        // Очищаємо пошук при закритті модального вікна
+        const searchInput = document.getElementById('searchFunctionsInput');
+        const clearButton = document.getElementById('clearSearchFunctionsInput');
+        const resultsCount = document.getElementById('searchFunctionsResultsCount');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        if (clearButton) {
+            clearButton.style.display = 'none';
+        }
+        if (resultsCount) {
+            resultsCount.style.display = 'none';
+        }
+
+        // Оновлюємо дані на головній сторінці (з тим самим environment, що й у модалці)
+        const systemId = document.getElementById('systemSelect').value;
+        if (systemId) {
+            const environment = modalElement.getAttribute('data-environment') || document.getElementById('environmentSelect').value || 'test';
+            updateMainFunctions(systemId, environment);
+        }
+    });
+
+    // Додаємо обробник для кнопки скасування
+    document.getElementById('cancelFunctionEdit').addEventListener('click', function() {
+        form.reset();
+        form.classList.add('d-none');
+        // Не скидаємо виділення функції при скасуванні редагування
+    });
+
+    // Додаємо обробник для редагування функції
+    treeView.addEventListener('click', function(e) {
+        const editButton = e.target.closest('.edit-function');
+        if (editButton) {
+            const functionItem = editButton.closest('.function-item');
+            if (!functionItem) {
+                console.error('Function item not found');
+                return;
+            }
+            
+            const functionId = functionItem.dataset.functionId;
+            if (!functionId) {
+                showModalAlert('danger', '{% trans "Function ID not found" %}');
+                return;
+            }
+
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const url = `/${languagePrefix}/app_access/functions/${functionId}/detail/`;
+            
+            console.log('Fetching function details from:', url);
+            
+            $.ajax({
+                url: url,
+                type: 'GET',
+                success: function(response) {
+                    console.log('Function details response:', response);
+                    
+                    if (!response || response.error) {
+                        showModalAlert('danger', response.error || '{% trans "Error loading function details" %}');
+                        return;
+                    }
+
+                    document.getElementById('functionId').value = response.id;
+                    document.getElementById('functionName').value = response.name || '';
+                    document.getElementById('functionDescription').value = response.description || '';
+                    document.getElementById('functionColor').value = response.color || '#6c757d';
+                    document.getElementById('parentFunctionId').value = response.parent_id || '';
+                    document.getElementById('functionOrder').value = response.order !== undefined ? response.order : 0;
+                    form.classList.remove('d-none');
+                    updatePreview();
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading function details:', {xhr, status, error});
+                    const errorMessage = xhr.responseJSON?.error || '{% trans "Error loading function details" %}';
+                    showModalAlert('danger', errorMessage);
+                }
+            });
+        }
+    });
+
+    // Додаємо обробник для видалення функції
+    treeView.addEventListener('click', function(e) {
+        const deleteButton = e.target.closest('.delete-function');
+        if (deleteButton) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const functionItem = deleteButton.closest('.function-item');
+            if (!functionItem) {
+                console.error('Function item not found');
+                return;
+            }
+            
+            const functionId = functionItem.dataset.functionId;
+            if (!functionId) {
+                showModalAlert('danger', '{% trans "Function ID not found" %}');
+                return;
+            }
+
+            if (confirm('{% trans "Are you sure you want to delete this function?" %}')) {
+                const languagePrefix = window.location.pathname.split('/')[1];
+                const url = `/${languagePrefix}/app_access/functions/${functionId}/delete/`;
+                
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            showModalAlert('success', response.message);
+                            loadFunctions(); // Оновлюємо дерево в модальному вікні
+                            
+                            // Оновлюємо таблицю в основному вікні
+                            const systemId = document.getElementById('systemSelect').value;
+                            if (systemId) {
+                                const env = modalElement.getAttribute('data-environment') || (document.getElementById('environmentSelect') && document.getElementById('environmentSelect').value) || 'test';
+                                updateMainFunctions(systemId, env);
+                            }
+                        } else {
+                            showModalAlert('danger', response.message || '{% trans "Error deleting function" %}');
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error deleting function:', xhr);
+                        const errorMessage = xhr.responseJSON?.message || '{% trans "Error deleting function" %}';
+                        showModalAlert('danger', errorMessage);
+                    }
+                });
+            }
+        }
+    });
+
+    // Додаємо функцію для показу сповіщень
+    function showModalAlert(type, message) {
+        const alertsContainer = document.getElementById('functionModalAlerts');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        alertsContainer.appendChild(alert);
+        
+        setTimeout(() => {
+            alert.remove();
+        }, 5000);
+    }
+
+    // Функція для оновлення даних на головній сторінці (environment як у модалці/головній)
+    function updateMainFunctions(systemId, environment) {
+        const env = environment || document.getElementById('environmentSelect').value || 'test';
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/functions/system/?system_id=${systemId}&environment=${encodeURIComponent(env)}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.functions) {
+                    if (typeof updateFunctionsTable === 'function') {
+                        updateFunctionsTable(response.functions);
+                    }
+                    const section = document.getElementById('defaultFunctionSection');
+                    if (section) section.style.display = 'block';
+                }
+            },
+            error: function(error) {
+                console.error('Error updating functions:', error);
+                if (typeof toastr !== 'undefined') toastr.error('{% trans "Error updating functions" %}');
+            }
+        });
+    }
+});
+</script> 

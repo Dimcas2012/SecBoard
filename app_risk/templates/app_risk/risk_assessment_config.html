@@ -1,0 +1,230 @@
+<!-- SecBoard\SecBoard\templates\app_risk\risk_assessment_config.html-->
+{% extends 'base.html' %}
+{% load static %}
+{% load risk_custom_filters %}
+{% load i18n %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_risk/includes/risk_config_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_risk/css/risk_assessment_config-page.css' %}">
+    <link rel="stylesheet" href="{% static 'app_risk/css/threats-page.css' %}">
+    <link rel="stylesheet" href="{% static 'app_risk/css/vulnerabilities-page.css' %}">
+    <link rel="stylesheet" href="{% static 'css/risk_assessment.css' %}">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+{% endblock %}
+
+
+{% block content %}
+<div class="container-fluid mt-4 risk-page">
+    <div id="alertContainer"></div>
+    <div class="risk-assessment-container">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="page-title mb-0"><i class="bi bi-sliders me-2"></i>{% trans "Risk Assessment Configuration" %}</h2>
+            <div class="btn-group sb-toolbar" role="group">
+                <button class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="guideBtn" type="button" data-bs-toggle="modal" data-bs-target="#riskConfigGuideModal"
+                        title="{% trans 'Guide' %}">
+                    <i class="bi bi-book"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Navigation Pills -->
+        <ul class="nav nav-pills mb-4" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="threats-tab" data-bs-toggle="tab" data-bs-target="#threatsTab" type="button" role="tab">
+                    <i class="fas fa-shield-alt me-2"></i>{% trans "Threats" %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="vulnerabilities-tab" data-bs-toggle="tab" data-bs-target="#vulnerabilitiesConfig" type="button" role="tab">
+                    <i class="fas fa-bug me-2"></i>{% trans "Vulnerabilities" %}
+                </button>
+            </li>
+
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="myTabContent">
+            {% include 'app_risk/threats.html' %}
+            {% include 'app_risk/vulnerabilities.html' %}
+        </div>
+
+        <!-- Modals -->
+        {% include 'app_risk/modals/threat_modal.html' %}
+        {% include 'app_risk/modals/vuln_modal.html' %}
+        {% include 'app_risk/modals/vulnerability_ai_modals.html' %}
+
+        <!-- Risk Assessment Config Guide Modal -->
+        <div class="modal fade" id="riskConfigGuideModal" tabindex="-1" aria-labelledby="riskConfigGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'risk_assessment_config_guide' %}">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="riskConfigGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Risk Assessment Configuration Guide" %}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="riskConfigGuideModalBody">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                            <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script type="text/javascript" src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<!-- Risk Configuration Permissions Variables -->
+<script>
+    var has_access_config = {{ user_permissions.has_access_config|yesno:"true,false" }};
+    var can_add_config = {{ user_permissions.can_add_config|yesno:"true,false" }};
+    var can_edit_config = {{ user_permissions.can_edit_config|yesno:"true,false" }};
+    var can_delete_config = {{ user_permissions.can_delete_config|yesno:"true,false" }};
+    
+    // Current language for localization
+    var currentLanguage = '{{ current_language }}';
+    window.currentLanguage = currentLanguage;
+
+    // Dynamic vulnerability form languages (from settings.LANGUAGES, filtered by model support)
+    window.VULNERABILITY_FORM_LANGUAGES = [
+        {% for code, name in vulnerability_form_languages %}
+        {"code": "{{ code }}", "name": "{{ name|escapejs }}"}{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    if (window.DEBUG_MODE) {
+        console.log('RiskAssessmentConfig: Language configured -', currentLanguage, window.currentLanguage);
+    }
+    
+    // Debug mode instructions
+    console.log('💡 To enable debug logging, run: toggleDebugMode() in console');
+    console.log('🔧 To test DataTables API, run: fetch("/en/app_risk/get_threats/").then(r => r.json()).then(console.log)');
+    
+</script>
+
+<!-- Disable Excessive Logging -->
+<script src="{% static 'js/disable-excessive-logging.js' %}"></script>
+
+<!-- Reduce Logging -->
+<script src="{% static 'js/reduce-logging.js' %}"></script>
+
+<!-- Risk Configuration Permissions Fix -->
+<script src="{% static 'js/risk-config-permissions-fix.js' %}"></script>
+
+<!-- Threat Impact Assessment -->
+<script src="{% static 'js/threat-impact-assessment.js' %}"></script>
+
+<!-- Risk Assessment Config Guide modal: load content when shown -->
+<script>
+$(document).ready(function() {
+    var $guideModal = document.getElementById('riskConfigGuideModal');
+    if ($guideModal) {
+        $guideModal.addEventListener('show.bs.modal', function() {
+            var url = this.getAttribute('data-guide-url');
+            var body = document.getElementById('riskConfigGuideModalBody');
+            if (!body || !url) return;
+            body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .catch(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        });
+    }
+});
+</script>
+
+<!-- Apply Risk Assessment Config Navigation Styles -->
+<script>
+$(document).ready(function() {
+    // Apply styles to risk assessment config navigation
+    applyRiskConfigNavStyles();
+});
+
+// Function to apply styles to nav-pills
+function applyRiskConfigNavStyles() {
+    console.log('Applying risk config nav styles...');
+    
+    $('.nav-pills .nav-link').each(function() {
+        var $link = $(this);
+        
+        if ($link.hasClass('active')) {
+            // Active tab styles
+            $link.css({
+                'color': '#ffffff',
+                'background-color': '#007bff',
+                'font-weight': '600',
+                'padding': '0.5rem 1rem',
+                'border-radius': '0.25rem',
+                'margin-right': '0.5rem',
+                'transition': 'all 0.2s ease',
+                'border': 'none'
+            });
+        } else {
+            // Inactive tab styles
+            $link.css({
+                'color': '#007bff',
+                'background-color': '#6c757d',
+                'font-weight': '500',
+                'padding': '0.5rem 1rem',
+                'border-radius': '0.25rem',
+                'margin-right': '0.5rem',
+                'transition': 'all 0.2s ease',
+                'border': 'none'
+            });
+        }
+    });
+    
+    // Reapply styles when tab is clicked
+    $('.nav-pills .nav-link').off('click.navStyles').on('click.navStyles', function() {
+        setTimeout(function() {
+            applyRiskConfigNavStyles();
+        }, 100);
+    });
+    
+    // Hover effects
+    $('.nav-pills .nav-link').off('mouseenter.navStyles mouseleave.navStyles').hover(
+        function() {
+            if (!$(this).hasClass('active')) {
+                $(this).css({
+                    'color': '#ffffff',
+                    'background-color': '#5a6268'
+                });
+            }
+        },
+        function() {
+            if (!$(this).hasClass('active')) {
+                $(this).css({
+                    'color': '#007bff',
+                    'background-color': '#6c757d'
+                });
+            }
+        }
+    );
+    
+    console.log('Risk config nav styles applied!');
+}
+</script>
+
+{% include 'app_risk/threats_scripts.html' %}
+{% include 'app_risk/vulnerabilities_scripts.html' %}
+{% endblock %}

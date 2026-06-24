@@ -1,0 +1,323 @@
+{% extends 'app_integration/integration.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block integration_content %}
+<div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h2 class="mb-0"><i class="bi bi-telegram me-2"></i>{{ title }}</h2>
+        <a href="{% url 'app_integration:telegram_bot_list' %}"
+           class="btn btn-outline-secondary btn-sm btn-icon-action"
+           title="{% trans 'Back to list' %}">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post" id="telegramBotForm">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">{{ form.name.label }}</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.bot_token.id_for_label }}" class="form-label">{{ form.bot_token.label }}</label>
+                        {{ form.bot_token }}
+                        {% if form.bot_token.help_text %}
+                        <div class="form-text">{{ form.bot_token.help_text }}</div>
+                        {% endif %}
+                        {% if form.bot_token.errors %}<div class="text-danger small">{{ form.bot_token.errors }}</div>{% endif %}
+                        <div class="form-text">
+                            {% trans "Create a bot via @BotFather in Telegram and paste the API token here." %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.company.id_for_label }}" class="form-label">{{ form.company.label }}</label>
+                        {{ form.company }}
+                        {% if form.company.errors %}<div class="text-danger small">{{ form.company.errors }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.default_chat_id.id_for_label }}" class="form-label">{{ form.default_chat_id.label }}</label>
+                        {{ form.default_chat_id }}
+                        {% if form.default_chat_id.errors %}<div class="text-danger small">{{ form.default_chat_id.errors }}</div>{% endif %}
+                        <div class="form-text">
+                            {% trans "Optional. Used for test messages and default notifications." %}
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        {{ form.respond_to_start }}
+                        <label class="form-check-label" for="{{ form.respond_to_start.id_for_label }}">{{ form.respond_to_start.label }}</label>
+                        <div class="form-text">{% trans "Automatically reply when a user sends /start. Webhook will be registered on save." %}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.start_message.id_for_label }}" class="form-label">{{ form.start_message.label }}</label>
+                        {{ form.start_message }}
+                        {% if form.start_message.errors %}<div class="text-danger small">{{ form.start_message.errors }}</div>{% endif %}
+                        <div class="form-text">{% trans "Leave empty to send the default welcome message with Chat ID." %}</div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        {{ form.use_webhook }}
+                        <label class="form-check-label" for="{{ form.use_webhook.id_for_label }}">{{ form.use_webhook.label }}</label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.webhook_secret.id_for_label }}" class="form-label">{{ form.webhook_secret.label }}</label>
+                        {{ form.webhook_secret }}
+                        {% if form.webhook_secret.errors %}<div class="text-danger small">{{ form.webhook_secret.errors }}</div>{% endif %}
+                    </div>
+
+                    <div class="form-check mb-3">
+                        {{ form.is_active }}
+                        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+                        {{ form.description }}
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="bi bi-check-lg"></i> {% trans "Save" %}
+                        </button>
+                        <a href="{% url 'app_integration:telegram_bot_list' %}" class="btn btn-outline-secondary btn-sm">
+                            {% trans "Cancel" %}
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if bot %}
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">{% trans "Bot info" %}</div>
+            <div class="card-body">
+                <dl class="mb-0">
+                    <dt>{% trans "Username" %}</dt>
+                    <dd>{{ bot.display_username }}</dd>
+                    <dt>{% trans "Bot ID" %}</dt>
+                    <dd>{{ bot.bot_id|default:"—" }}</dd>
+                    <dt>{% trans "Last check" %}</dt>
+                    <dd>{{ bot.last_connection_check|date:"d.m.Y H:i"|default:"—" }}</dd>
+                </dl>
+                {% if can_test_connections %}
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="button" class="btn btn-outline-secondary btn-sm test-connection-btn"
+                            data-url="{% url 'app_integration:telegram_bot_test_connection' bot.pk %}">
+                        <i class="bi bi-arrow-repeat"></i> {% trans "Test connection" %}
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% if can_manage_integrations and webhook_status %}
+        <div class="card mt-3">
+            <div class="card-header">{% trans "Webhook status" %}</div>
+            <div class="card-body" id="webhookStatusCard">
+                <dl class="mb-0 small">
+                    <dt>{% trans "Expected URL" %}</dt>
+                    <dd class="text-break" id="webhookExpectedUrl">{{ webhook_status.expected_url }}</dd>
+                    <dt>{% trans "Registered in Telegram" %}</dt>
+                    <dd class="text-break" id="webhookRegisteredUrl">
+                        {% if webhook_status.registered_url %}
+                            {{ webhook_status.registered_url }}
+                        {% else %}
+                            <span class="text-danger">{% trans "Not registered" %}</span>
+                        {% endif %}
+                    </dd>
+                    <dt>{% trans "Status" %}</dt>
+                    <dd id="webhookConfiguredStatus">
+                        {% if webhook_status.is_configured %}
+                        <span class="status-badge status-success">{% trans "OK" %}</span>
+                        {% else %}
+                        <span class="status-badge status-error">{% trans "Mismatch or missing" %}</span>
+                        {% endif %}
+                    </dd>
+                    {% if webhook_status.pending_update_count %}
+                    <dt>{% trans "Pending updates" %}</dt>
+                    <dd id="webhookPendingCount">{{ webhook_status.pending_update_count }}</dd>
+                    {% endif %}
+                    {% if webhook_status.last_error_message %}
+                    <dt>{% trans "Last error" %}</dt>
+                    <dd class="text-danger" id="webhookLastError">{{ webhook_status.last_error_message }}</dd>
+                    {% endif %}
+                </dl>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="registerWebhookBtn"
+                            data-url="{% url 'app_integration:telegram_bot_configure_webhook' bot.pk %}">
+                        <i class="bi bi-link-45deg"></i> {% trans "Register webhook" %}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshWebhookBtn"
+                            data-url="{% url 'app_integration:telegram_bot_webhook_status' bot.pk %}">
+                        <i class="bi bi-arrow-repeat"></i> {% trans "Refresh" %}
+                    </button>
+                </div>
+                <div id="webhookActionResult" class="d-none mt-2"></div>
+            </div>
+        </div>
+        {% endif %}
+        {% if can_test_connections %}
+        <div class="card mt-3">
+            <div class="card-header">{% trans "Send test message" %}</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="testMessageChatId" class="form-label">{% trans "Chat ID" %}</label>
+                    <input type="text" class="form-control form-control-sm" id="testMessageChatId"
+                           value="{{ bot.default_chat_id }}"
+                           placeholder="{% trans 'e.g. 123456789 or @channelname' %}">
+                    <div class="form-text">{% trans "The user must start a chat with the bot first, or the bot must be added to the group/channel." %}</div>
+                </div>
+                <div id="testMessageResult" class="d-none mb-2"></div>
+                <button type="button" class="btn btn-outline-info btn-sm" id="sendTestMessageBtn"
+                        data-url="{% url 'app_integration:telegram_bot_send_test_message' bot.pk %}">
+                    <i class="bi bi-send"></i> {% trans "Send test message" %}
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+{% if bot and can_manage_integrations and webhook_status %}
+<script>
+async function postIntegrationAction(url) {
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+    return response.json();
+}
+
+function showWebhookActionResult(message, success) {
+    const result = document.getElementById('webhookActionResult');
+    result.classList.remove('d-none');
+    result.className = 'alert ' + (success ? 'alert-success' : 'alert-danger') + ' mt-2';
+    result.textContent = message;
+}
+
+function updateWebhookStatusCard(status) {
+    document.getElementById('webhookExpectedUrl').textContent = status.expected_url;
+    document.getElementById('webhookRegisteredUrl').innerHTML = status.registered_url
+        ? status.registered_url
+        : '<span class="text-danger">{% trans "Not registered" %}</span>';
+    document.getElementById('webhookConfiguredStatus').innerHTML = status.is_configured
+        ? '<span class="status-badge status-success">{% trans "OK" %}</span>'
+        : '<span class="status-badge status-error">{% trans "Mismatch or missing" %}</span>';
+}
+
+document.getElementById('registerWebhookBtn')?.addEventListener('click', async () => {
+    const button = document.getElementById('registerWebhookBtn');
+    button.disabled = true;
+    try {
+        const data = await postIntegrationAction(button.dataset.url);
+        showWebhookActionResult(data.message, data.success);
+        if (data.webhook_status) {
+            updateWebhookStatusCard(data.webhook_status);
+        }
+    } catch (error) {
+        showWebhookActionResult('{% trans "Request failed" %}', false);
+    } finally {
+        button.disabled = false;
+    }
+});
+
+document.getElementById('refreshWebhookBtn')?.addEventListener('click', async () => {
+    const button = document.getElementById('refreshWebhookBtn');
+    button.disabled = true;
+    try {
+        const data = await postIntegrationAction(button.dataset.url);
+        if (data.webhook_status) {
+            updateWebhookStatusCard(data.webhook_status);
+            showWebhookActionResult('{% trans "Webhook status updated." %}', true);
+        }
+    } catch (error) {
+        showWebhookActionResult('{% trans "Request failed" %}', false);
+    } finally {
+        button.disabled = false;
+    }
+});
+</script>
+{% endif %}
+{% if bot and can_test_connections %}
+<script>
+document.querySelector('.test-connection-btn')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const response = await fetch(button.dataset.url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+    const data = await response.json();
+    alert(data.message);
+    if (data.success) {
+        window.location.reload();
+    }
+});
+
+document.getElementById('sendTestMessageBtn')?.addEventListener('click', async () => {
+    const button = document.getElementById('sendTestMessageBtn');
+    const result = document.getElementById('testMessageResult');
+    const chatIdInput = document.getElementById('testMessageChatId');
+    const formData = new FormData();
+    if (chatIdInput.value.trim()) {
+        formData.append('chat_id', chatIdInput.value.trim());
+    }
+    button.disabled = true;
+    result.classList.add('d-none');
+    try {
+        const response = await fetch(button.dataset.url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData,
+        });
+        let data;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            throw new Error('{% trans "Unexpected server response. Please refresh the page and try again." %}');
+        }
+        result.classList.remove('d-none');
+        result.className = 'alert ' + (data.success ? 'alert-success' : 'alert-danger') + ' mb-2';
+        result.textContent = data.message || '{% trans "Request failed" %}';
+    } catch (error) {
+        result.classList.remove('d-none');
+        result.className = 'alert alert-danger mb-2';
+        result.textContent = error.message || '{% trans "Request failed" %}';
+    } finally {
+        button.disabled = false;
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

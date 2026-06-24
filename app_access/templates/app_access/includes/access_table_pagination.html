@@ -1,0 +1,72 @@
+{% load i18n %}
+{# Server-side pagination (user-access-request pattern). Requires: paginator, page_obj, is_paginated, current_page_size, page_size_options #}
+{# Optional: pagination_item_label (default: records), pagination_aria_label (default: Pagination) #}
+{% if is_paginated %}
+<div class="access-table-pagination d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+    <div class="pagination-info">
+        <small class="text-muted">
+            {% trans "Showing" %} {{ page_obj.start_index }} - {{ page_obj.end_index }}
+            {% trans "of" %} {{ paginator.count }}
+            {% firstof pagination_item_label _("records") %}
+        </small>
+    </div>
+
+    <div class="d-flex flex-wrap align-items-center gap-3">
+        <div class="d-flex align-items-center page-size-selector">
+            <label for="accessTablePageSize" class="form-label me-2 mb-0 small">{% trans "Per page" %}:</label>
+            <select class="form-select form-select-sm access-table-page-size-select"
+                    id="accessTablePageSize"
+                    data-access-page-size-select
+                    style="width: auto; min-width: 4.5rem;">
+                {% for size in page_size_options %}
+                    <option value="{{ size }}" {% if current_page_size == size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if paginator.num_pages > 1 %}
+        <nav aria-label="{% firstof pagination_aria_label _('Pagination') %}">
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page=1" aria-label="{% trans 'First' %}">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" aria-label="{% trans 'Previous' %}">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" aria-label="{% trans 'Next' %}">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.paginator.num_pages }}" aria-label="{% trans 'Last' %}">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

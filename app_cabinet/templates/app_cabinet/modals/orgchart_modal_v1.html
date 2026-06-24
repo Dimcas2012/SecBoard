@@ -1,0 +1,725 @@
+<!-- app_cabinet/modals/orgchart_modal.html -->
+{% load i18n %}
+{% load static %}
+
+<!-- Organization Chart Modal -->
+<div class="modal fade" id="orgChartModal" tabindex="-1" aria-labelledby="orgChartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="orgChartModalLabel">{% trans "Organization Chart" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Controls Container -->
+                <div class="controls-container mb-3 d-flex gap-3 align-items-center flex-wrap">
+                    <!-- Zoom Controls -->
+                    <div class="btn-group" role="group" aria-label="{% trans 'Zoom controls' %}">
+                        <button type="button" class="btn btn-outline-primary" id="zoomIn">
+                            <i class="bi bi-zoom-in"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" id="zoomOut">
+                            <i class="bi bi-zoom-out"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" id="resetZoom">
+                            <i class="bi bi-arrows-fullscreen"></i>
+                        </button>
+                    </div>
+
+                    <!-- Layout Controls -->
+                    <div class="btn-group" role="group" aria-label="{% trans 'Layout controls' %}">
+                        <button type="button" class="btn btn-outline-primary" id="toggleLayout">
+                            <i class="bi bi-arrow-left-right"></i>
+                            {% trans "Toggle Layout" %}
+                        </button>
+                    </div>
+
+                    <!-- Show/Hide Controls -->
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showPositionsChart" checked>
+                        <label class="form-check-label" for="showPositionsChart">
+                            {% trans "Show Positions" %}
+                        </label>
+                    </div>
+                    <!-- Show/Hide Users Controls -->
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showUsersChart" checked>
+                        <label class="form-check-label" for="showUsersChart">
+                            {% trans "Show Users" %}
+                        </label>
+                    </div>
+                    <div class="btn-group" role="group" aria-label="{% trans 'Export controls' %}">
+                        <button type="button" class="btn btn-outline-primary" id="exportPDF">
+                            <i class="bi bi-file-pdf"></i>
+                            {% trans "Export PDF" %}
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Chart Container -->
+                <div id="orgChartContainer" class="chart-container">
+                    <div id="orgChart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Required libraries -->
+<link href="https://cdn.jsdelivr.net/npm/orgchart.js/dist/css/jquery.orgchart.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/orgchart.js/dist/js/jquery.orgchart.min.js"></script>
+
+<!-- Custom CSS for the org chart -->
+<style>
+    .chart-container {
+        height: calc(100vh - 200px);
+        overflow: auto;
+        position: relative;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        background: #f8f9fa;
+        padding: 20px;
+    }
+    #exportLoading {
+        z-index: 9999;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    #exportLoading .spinner-border {
+        width: 1.5rem;
+        height: 1.5rem;
+    }
+    #orgChart {
+        width: 100%;
+        height: 100%;
+    }
+
+    .orgchart {
+        background: transparent !important;
+    }
+
+    .orgchart td.left, .orgchart td.right, .orgchart td.top {
+        border-color: #adb5bd;
+    }
+
+    .orgchart td>.down {
+        background-color: #adb5bd;
+    }
+
+    .orgchart .lines .downLine {
+        background-color: #adb5bd;
+    }
+
+    .orgchart .lines .rightLine {
+        border-right: 1px solid #adb5bd;
+    }
+
+    .orgchart .lines .leftLine {
+        border-left: 1px solid #adb5bd;
+    }
+
+    .orgchart .lines .topLine {
+        border-top: 1px solid #adb5bd;
+    }
+
+    .orgchart .node {
+        min-width: 120px;
+        background: #fff;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+
+    .orgchart .node:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .orgchart .node.department {
+        border-width: 2px;
+        background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+
+    }
+
+    .orgchart .node.position {
+        border-width: 2px;
+        background: linear-gradient(to bottom, #f3f4f6, #ffffff);
+
+    }
+    .orgchart .node .title {
+        height: 50px;
+        width: 180px;
+        display: flex;
+        align-items: center;
+        padding: 5px 8px;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    .orgchart .node .avatar-container {
+        width: 36px;
+        height: 36px;
+        margin-right: 8px;
+        border-radius: 50%;
+        overflow: hidden;
+        flex-shrink: 0;
+        background-color: #e9ecef;
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .orgchart .node .avatar {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .orgchart .node .avatar-initials {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #e9ecef;
+        color: #495057;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .orgchart .node .title-text {
+        flex-grow: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.85rem;
+        text-align: left;
+    }
+
+    /* Specific styles for user nodes */
+    .orgchart .node.user .title {
+        background-color: #f8f9fa;
+        height:  50px;
+        width: 200px;
+        border-radius: 10px;
+        font-size: 0.55rem;
+    }
+    .orgchart .node.user .content {
+
+        height:  0px;
+        width: 180 px;
+    }
+    .orgchart .node.user
+         border-radius: 10px;
+         width: 200 px;
+    }
+
+
+    /* Add hover effect for better user experience */
+    .orgchart .node.user:hover .title {
+        background-color: #e9ecef;
+    }
+    .orgchart .node .content {
+        white-space: normal; /* Дозволяє переносити текст */
+        word-wrap: break-word; /* Переносить слова, якщо вони занадто довгі */
+        overflow: hidden; /* Сховує текст, який виходить за межі блоку */
+        text-overflow: ellipsis; /* Додає "..." для тексту, що не поміщається */
+        height: 40px; /* Встановіть максимальну висоту для контролю розміру блоку */
+        width: 180px;
+        line-height: 1.4; /* Встановіть міжрядковий інтервал для зручності читання */
+        font-size: 0.65rem; /* Оптимальний розмір шрифту */
+        padding: 6px; /* Внутрішні відступи для тексту */
+        display: block; /* Робить блоковий контейнер */
+        text-align: center; /* Центрує текст */
+
+    }
+
+
+    .node-content {
+        padding: 12px;
+    }
+
+    .node-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        padding: 6px;
+        border-radius: 4px 4px 0 0;
+    }
+
+    .department .node-header {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+    }
+
+    .position .node-header {
+        background-color: rgba(108, 117, 125, 0.1);
+        color: #6c757d;
+    }
+
+    .node-icon {
+        margin-right: 5px;
+        font-size: 1.2rem; /* Adjust the size as needed */
+        vertical-align: middle;
+    }
+
+    .department .node-icon {
+        background-color: rgba(13, 110, 253, 0.15);
+        color: #0d6efd;
+    }
+
+    .position .node-icon {
+        background-color: rgba(108, 117, 125, 0.15);
+        color: #6c757d;
+    }
+
+    .node-title {
+        font-weight: 600;
+        margin: 0;
+        font-size: 0.9rem;
+        flex-grow: 1;
+    }
+
+    .node-body {
+        padding: 8px;
+        border-top: 1px solid #dee2e6;
+    }
+
+    .node-description {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 8px;
+        line-height: 1.4;
+    }
+
+    .node-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .department .node-badge {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+    }
+
+    .position .node-badge {
+        background-color: rgba(108, 117, 125, 0.1);
+        color: #6c757d;
+    }
+</style>
+
+<!-- Chart Initialization Script -->
+<script>
+$(document).ready(function() {
+    let orgChart = null;
+    let zoomLevel = 1;
+    const zoomStep = 0.1;
+    let currentOrientation = 't2b'; // top-to-bottom
+
+    // Helper function to get current language
+    const getCurrentLanguage = () => $('html').attr('lang') || 'en';
+    window.jsPDF = window.jspdf.jsPDF;
+
+
+    // Helper function to get localized name
+    function getLocalizedName(item, type) {
+        if (!item) return 'Undefined';
+
+        if (item && item.name) return item.name;
+        const currentLanguage = getCurrentLanguage();
+        if (type === 'department') {
+            if (currentLanguage === 'ru' && item.department_name_ru) return item.department_name_ru;
+            if (currentLanguage === 'en' && item.department_name_en) return item.department_name_en;
+            if (item.department_name_ua) return item.department_name_ua;
+        } else if (type === 'position' || type === 'user') {
+            if (currentLanguage === 'ru' && item.position_name_ru) return item.position_name_ru;
+            if (currentLanguage === 'en' && item.position_name_en) return item.position_name_en;
+            if (item.position_name_ua) return item.position_name_ua;
+        }
+        return item && item.name ? item.name : 'Undefined';
+    }
+
+    // Helper function to get localized description (API sends item.description in site language)
+    function getLocalizedDescription(item) {
+        if (!item) return '';
+        if (item.description) return item.description;
+        const currentLanguage = getCurrentLanguage();
+        if (currentLanguage === 'ru' && item.description_ru) return item.description_ru;
+        if (currentLanguage === 'en' && item.description_en) return item.description_en;
+        if (item.description_ua) return item.description_ua;
+        return '';
+    }
+
+    // Initialize the chart when the modal is shown
+    $('#orgChartModal').on('shown.bs.modal', function() {
+        initializeOrgChart();
+    });
+
+    // Clean up when the modal is hidden
+    $('#orgChartModal').on('hidden.bs.modal', function() {
+        if (orgChart) {
+            $('#orgChart').empty();
+        }
+    });
+
+    // Initialize the organization chart
+    function initializeOrgChart() {
+        const showPositions = $('#showPositionsChart').is(':checked');
+        const showUsers = $('#showUsersChart').is(':checked');
+        const companyId = $('#companySelect').val();
+        const currentLanguage = getCurrentLanguage();
+
+        if (!companyId) {
+            console.error('No company selected');
+            return;
+        }
+
+        // Show loading state
+        $('#orgChart').html('<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>');
+
+        // Fetch data
+        $.when(
+            $.get(`/${currentLanguage}/companies/${companyId}/departments/`),
+            $.get(`/${currentLanguage}/companies/${companyId}/positions/`),
+            $.get(`/${currentLanguage}/api/company/${companyId}/users/`)
+        ).done(function(deptResponse, posResponse, userResponse) {
+            const departments = deptResponse[0];
+            const positions = posResponse[0];
+            const users = userResponse[0];
+
+            const chartData = buildHierarchy(departments, positions, users, showPositions, showUsers);
+
+            if (chartData) {
+                renderChart(chartData);
+            } else {
+                $('#orgChart').html('<div class="alert alert-warning">No data available</div>');
+            }
+        }).fail(function(error) {
+            console.error('Error fetching data:', error);
+            $('#orgChart').html('<div class="alert alert-danger">Error loading organization chart</div>');
+        });
+    }
+
+    function buildHierarchy(departments, positions, users, showPositions, showUsers) {
+        if (!departments || departments.length === 0) {
+            return null;
+        }
+
+        const deptMap = new Map();
+
+        // Create all department nodes
+        departments.forEach(dept => {
+            deptMap.set(dept.id, {
+                'id': dept.id,
+                'name': getLocalizedName(dept, 'department'),
+                'title': getLocalizedDescription(dept),
+                'className': 'department',
+                'children': [],
+                'parent_id': dept.parent_id,
+                'color': dept.color || '#000000'
+            });
+        });
+
+        // Build hierarchy
+        const rootNodes = [];
+        departments.forEach(dept => {
+            const deptNode = deptMap.get(dept.id);
+
+            if (dept.parent_id && deptMap.has(dept.parent_id)) {
+                const parentNode = deptMap.get(dept.parent_id);
+                parentNode.children.push(deptNode);
+            } else {
+                rootNodes.push(deptNode);
+            }
+        });
+
+        // Add positions
+        if (showPositions) {
+            positions.forEach(pos => {
+                if (pos.department_id && deptMap.has(pos.department_id)) {
+                    const parentDept = deptMap.get(pos.department_id);
+                    const positionNode = {
+                        'id': `pos_${pos.id}`,
+                        'name': getLocalizedName(pos, 'position'),
+                        'title': getLocalizedDescription(pos),
+                        'className': 'position',
+                        'children': [],
+                        'color': pos.color || '#666666'
+                    };
+
+                    // Add users to position if enabled
+                    if (showUsers) {
+                        const positionUsers = users.filter(user => user.position_id === pos.id);
+                        positionUsers.forEach(user => {
+                            const avatarUrl = user.avatar_url || null;
+                            const initials = user.initials || user.full_name.split(' ').map(n => n[0]).join('');
+
+                            positionNode.children.push({
+                                'id': `user_${user.id}`,
+                                'name': user.full_name,
+                                'title': user.email || '',
+                                'className': 'user',
+                                'children': [],
+                                'color': pos.color || '#999999',
+                                'avatar_url': avatarUrl,    // Make sure this is passed
+                                'initials': initials        // Make sure this is passed
+                            });
+                        });
+                    }
+
+                    parentDept.children.push(positionNode);
+                }
+            });
+        }
+
+        // Convert hierarchy to OrgChart format
+        function convertToOrgChartFormat(node) {
+            return {
+                'id': `node_${node.id}`,
+                'name': node.name,
+                'title': node.title,
+                'className': node.className,
+                'relationship': node.children.length > 0 ? '001' : '000',
+                'children': node.children.map(child => convertToOrgChartFormat(child)),
+                'style': `border-left-color: ${node.color}`,
+                'avatar_url': node.avatar_url,
+                'initials': node.initials
+            };
+        }
+
+        return rootNodes.length > 0 ? convertToOrgChartFormat(rootNodes[0]) : null;
+    }
+
+    function renderChart(data) {
+        $('#orgChart').empty();
+
+        try {
+            $('#orgChart').orgchart({
+                'data': data,
+                'nodeContent': 'title',
+                'direction': 't2b',
+                'pan': true,
+                'zoom': true,
+                'createNode': function($node, data) {
+                    // Determine node type
+                    const isPosition = data.className === 'position';
+                    const isUser = data.className === 'user';
+                    const isEmployee = data.className === 'employee';
+
+                    // Add appropriate class
+                    if (isPosition) {
+                        $node.addClass('position');
+                    } else if (isUser || isEmployee) {
+                        $node.addClass('user');
+                    } else {
+                        $node.addClass('department');
+                    }
+
+                    // Apply custom styles if provided
+                    if (data.style) {
+                        $node.attr('style', data.style);
+                    }
+
+                    const titleElement = $node.find('.title');
+                    if (titleElement.length > 0) {
+                        const currentName = titleElement.text().trim();
+
+                        if (isUser || isEmployee) {
+                            // Handle user/employee nodes with avatars
+                            let avatarHtml = '';
+
+                            if (data.avatar_url) {
+                                // Create avatar with fallback to initials
+                                avatarHtml = `
+                                    <div class="avatar-container">
+                                        <img src="${data.avatar_url}"
+                                             alt="User avatar"
+                                             class="avatar"
+                                             onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\'avatar-initials\'>${data.initials || ''}</div>';">
+                                    </div>`;
+                            } else if (data.initials) {
+                                // Show initials if no avatar
+                                avatarHtml = `
+                                    <div class="avatar-container">
+                                        <div class="avatar-initials">${data.initials}</div>
+                                    </div>`;
+                            }
+
+                            // Combine avatar/initials with name
+                            titleElement.html(`
+                                ${avatarHtml}
+                                <span class="title-text">${currentName}</span>
+                            `);
+                        } else {
+                            // Handle department and position nodes with icons
+                            const iconHtml = isPosition
+                                ? '<i class="bi bi-person-badge-fill node-icon"></i>'
+                                : '<i class="bi bi-building node-icon"></i>';
+
+                            titleElement.html(`
+                                ${iconHtml}
+                                <span class="title-text">${currentName}</span>
+                            `);
+                        }
+
+                        // Apply color styling if provided
+                        if (data.style && data.style.includes('border-left-color:')) {
+                            const colorMatch = data.style.match(/border-left-color:\s*([^;]+)/);
+                            if (colorMatch && colorMatch[1]) {
+                                titleElement.css('background-color', colorMatch[1].trim());
+                            }
+                        }
+                    }
+
+                    // Add hover effect for clickable nodes
+                    if (isUser || isEmployee) {
+                        $node.css('cursor', 'pointer');
+
+                        // Optional: Add click handler for user nodes
+                        $node.on('click', function(event) {
+                            event.stopPropagation();
+                            // You can add custom click behavior here
+                            console.log('Clicked user:', data.name);
+                        });
+                    }
+
+                    // Optional: Add tooltips for truncated content
+                    const contentElement = $node.find('.content');
+                    if (contentElement.length > 0 && data.title) {
+                        contentElement.attr('title', data.title);
+                    }
+                }
+            });
+
+            // Store chart reference
+            orgChart = $('#orgChart').data('orgchart');
+
+            // Add responsive behavior
+            $(window).on('resize', function() {
+                if (orgChart) {
+                    orgChart.resetLayout();
+                }
+            });
+
+        } catch (error) {
+            console.error('Error creating chart:', error);
+            $('#orgChart').html(`
+                <div class="alert alert-danger">
+                    Error rendering organization chart: ${error.message}
+                </div>
+            `);
+        }
+    }
+    async function exportChartToPDF() {
+        try {
+            // Показуємо індикатор завантаження
+            const loadingHtml = `
+                <div id="exportLoading" class="position-fixed top-50 start-50 translate-middle bg-white p-3 rounded shadow">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border text-primary me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span>{% trans "Generating PDF..." %}</span>
+                    </div>
+                </div>
+            `;
+            $('body').append(loadingHtml);
+
+            // Отримуємо елемент діаграми
+            const chartElement = document.getElementById('orgChart');
+
+            // Зберігаємо поточний масштаб
+            const currentTransform = chartElement.style.transform;
+            chartElement.style.transform = 'none';
+
+            // Створюємо canvas
+            const canvas = await html2canvas(chartElement, {
+                scale: 2, // Підвищуємо якість
+                useCORS: true, // Дозволяємо крос-доменні зображення
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            // Відновлюємо масштаб
+            chartElement.style.transform = currentTransform;
+
+            // Створюємо PDF
+            const imgWidth = 210; // A4 ширина в мм
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            // Додаємо заголовок
+            pdf.setFontSize(16);
+            pdf.text('Organization Chart', 105, 15, { align: 'center' });
+
+            // Додаємо дату
+            const currentDate = new Date().toLocaleDateString();
+            pdf.setFontSize(10);
+            pdf.text(`Generated: ${currentDate}`, 105, 22, { align: 'center' });
+
+            // Додаємо зображення діаграми
+            pdf.addImage(
+                canvas.toDataURL('image/jpeg', 1.0),
+                'JPEG',
+                0,
+                30, // Відступ від заголовка
+                imgWidth,
+                imgHeight
+            );
+
+            // Зберігаємо файл
+            pdf.save('organization-chart.pdf');
+
+            // Видаляємо індикатор завантаження
+            $('#exportLoading').remove();
+
+        } catch (error) {
+            console.error('Error exporting PDF:', error);
+            $('#exportLoading').remove();
+            alert('Error generating PDF. Please try again.');
+        }
+    }
+
+    // Додайте обробник події для кнопки експорту
+    $('#exportPDF').click(exportChartToPDF);
+
+    // Event Handlers
+    $('#zoomIn').click(() => {
+        if (orgChart) {
+            zoomLevel = Math.min(zoomLevel + zoomStep, 2);
+            $('#orgChart').css('transform', `scale(${zoomLevel})`);
+        }
+    });
+
+    $('#zoomOut').click(() => {
+        if (orgChart) {
+            zoomLevel = Math.max(zoomLevel - zoomStep, 0.5);
+            $('#orgChart').css('transform', `scale(${zoomLevel})`);
+        }
+    });
+
+    $('#resetZoom').click(() => {
+        if (orgChart) {
+            zoomLevel = 1;
+            $('#orgChart').css('transform', 'scale(1)');
+        }
+    });
+
+    $('#toggleLayout').click(() => {
+        currentOrientation = currentOrientation === 't2b' ? 'l2r' : 't2b';
+        initializeOrgChart();
+    });
+
+    $('#showPositionsChart, #showUsersChart').change(() => {
+        initializeOrgChart();
+    });
+});
+
+
+</script>

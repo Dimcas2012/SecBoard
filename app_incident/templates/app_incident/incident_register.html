@@ -1,0 +1,690 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load risk_custom_filters %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Incident Register" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_incident/includes/incident_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_incident/css/incident_register-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid incident-page mt-4">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>{% trans "Incident Register" %}</h2>
+        </div>
+    </div>
+
+    {% url 'incident_register' as incident_register_clear_url %}
+    {% filters_expanded 'company' 'classification' 'incident_type' 'current_state' 'date_from' 'date_to' as filters_expanded %}
+    <div class="card mb-2 filter-section access-request-filters">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="incidentFiltersCollapse" toggle_id="toggleIncidentFilters" icon_id="incidentFiltersToggleIcon" filter_clear_url=incident_register_clear_url filters_expanded=filters_expanded %}
+        <div class="collapse{% if filters_expanded %} show{% endif %}" id="incidentFiltersCollapse">
+        <div class="card-body py-2">
+            <form method="get" id="filter-form" class="row g-1 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="{{ filter_form.company.id_for_label }}">{% trans "Company" %}</label>
+                    {{ filter_form.company }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="{{ filter_form.classification.id_for_label }}">{% trans "Classification" %}</label>
+                    {{ filter_form.classification }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="{{ filter_form.incident_type.id_for_label }}">{% trans "Incident Type" %}</label>
+                    {{ filter_form.incident_type }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="{{ filter_form.current_state.id_for_label }}">{% trans "Current State" %}</label>
+                    {{ filter_form.current_state }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="{{ filter_form.date_from.id_for_label }}">{% trans "Date From" %}</label>
+                    {{ filter_form.date_from }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="{{ filter_form.date_to.id_for_label }}">{% trans "Date To" %}</label>
+                    {{ filter_form.date_to }}
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header py-2">
+            <h4 class="mb-0">{% trans "Incidents" %}</h4>
+        </div>
+        <div class="card-body">
+            <div class="export-controls mb-2">
+                <div class="row align-items-center g-1">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if can_add %}
+                            <a href="{% url 'incident_add' %}" class="btn btn-outline-success btn-sm btn-icon-action"
+                               title="{% trans 'Add New Incident' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </a>
+                            {% endif %}
+                            <a href="{% url 'export_incidents_excel' %}{% if request.GET %}?{% for key, value in request.GET.items %}{{ key }}={{ value }}&{% endfor %}{% endif %}"
+                               class="btn btn-success btn-sm btn-icon-action" title="{% trans 'Export to Excel' %}">
+                                <i class="bi bi-file-earmark-excel"></i>
+                            </a>
+                            <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="guideBtn" data-bs-toggle="modal" data-bs-target="#incidentRegisterGuideModal"
+                                    title="{% trans 'Guide' %}">
+                                <i class="bi bi-book"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table w-100" id="incidentTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>
+                                <a href="javascript:void(0);" class="text-reset text-decoration-none sort-header" data-sort="id">
+                                    {% trans "ID" %}
+                                    {% if sort_by == 'id' %}
+                                        {% if sort_dir == 'asc' %}
+                                            <i class="fas fa-sort-up ml-1"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort-down ml-1"></i>
+                                        {% endif %}
+                                    {% else %}
+                                        <i class="fas fa-sort text-muted ml-1"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>{% trans "Company" %}</th>
+                            <th>
+                                <a href="javascript:void(0);" class="text-reset text-decoration-none sort-header" data-sort="datetime">
+                                    {% trans "Date & Time" %}
+                                    {% if sort_by == 'datetime' %}
+                                        {% if sort_dir == 'asc' %}
+                                            <i class="fas fa-sort-up ml-1"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort-down ml-1"></i>
+                                        {% endif %}
+                                    {% else %}
+                                        <i class="fas fa-sort text-muted ml-1"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>{% trans "Place" %}</th>
+                            <th>{% trans "Classification" %}</th>
+                            <th>{% trans "Incident Type" %}</th>
+                            <th>{% trans "Current State" %}</th>
+                            <th>{% trans "Reported By" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for incident in incidents %}
+                        <tr>
+                            <td>{{ incident.id }}</td>
+                            <td>{{ incident.company.name }}</td>
+                            <td>{{ incident.occurrence_datetime|date:"d.m.Y H:i" }}</td>
+                            <td>{{ incident.place }}</td>
+                            <td>
+                                {% if incident.classification %}
+                                <span class="badge text-white" style="background-color: {{ incident.classification.color }};">{{ incident.classification.get_name }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if incident.incident_type %}
+                                <span class="badge text-white" style="background-color: {{ incident.incident_type.color }};">{{ incident.incident_type.get_name }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if incident.current_state %}
+                                <span class="badge text-white" style="background-color: {{ incident.current_state.color }};">{{ incident.current_state.get_name }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ incident.reported_by }}</td>
+                            <td class="table-actions">
+                                <a href="{% url 'incident_detail' incident.id %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                                   title="{% trans 'View' %}">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if can_edit %}
+                                <a href="{% url 'incident_edit' incident.id %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                                   title="{% trans 'Edit' %}">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                {% endif %}
+                                {% if can_delete %}
+                                <a href="{% url 'incident_delete' incident.id %}" class="btn btn-outline-danger btn-sm btn-icon-action"
+                                   title="{% trans 'Delete' %}">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                                {% endif %}
+                                {% if can_mail %}
+                                <button type="button" class="btn btn-outline-secondary btn-sm btn-icon-action send-email-btn" data-bs-toggle="modal" data-bs-target="#emailModal" data-incident-id="{{ incident.id }}"
+                                        title="{% trans 'Send Email' %}">
+                                    <i class="bi bi-envelope"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center">{% trans "No incidents found" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% include "app_incident/includes/incident_table_pagination.html" %}
+        </div>
+    </div>
+</div>
+
+<!-- Email Modal -->
+<div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex align-items-center">
+                    <div class="email-header-icon">
+                        <i class="fas fa-envelope"></i>
+                    </div>
+                    <h5 class="modal-title" id="emailModalLabel">{% trans "Send Incident Email" %}</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="emailForm" method="post" action="{% url 'send_incident_email' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="incident_id" id="incident_id">
+                    
+                    <div class="field-group">
+                        <label for="recipients" class="form-label">{% trans "Recipients" %}*</label>
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" id="recipients" name="recipients" placeholder="{% trans 'Enter email addresses separated by commas' %}" required>
+                            <button class="btn btn-outline-secondary" type="button" id="showUserSelector">
+                                <i class="fas fa-users"></i>
+                            </button>
+                        </div>
+                        <small class="form-text text-muted">{% trans "Example: user1@example.com, user2@example.com" %}</small>
+                        
+                        <!-- Cabinet Users Selector (initially hidden) -->
+                        <div id="cabinetUserSelector" class="mt-3" style="display:none;">
+                            <label class="form-label">{% trans "Select from Cabinet Users" %}</label>
+                            <select id="cabinetUsers" class="form-select" size="5" multiple>
+                                <option value="" disabled>{% trans "Loading users..." %}</option>
+                            </select>
+                            <div class="d-flex justify-content-between mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="cancelUserSelection">
+                                    {% trans "Cancel" %}
+                                </button>
+                                <button type="button" class="btn btn-sm btn-primary" id="addSelectedUsers">
+                                    <i class="fas fa-plus-circle me-1"></i> {% trans "Add Selected Users" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="field-group">
+                        <label for="subject" class="form-label">{% trans "Subject" %}*</label>
+                        <input type="text" class="form-control" id="subject" name="subject" required>
+                    </div>
+                    
+                    <div class="field-group">
+                        <label for="message" class="form-label">{% trans "Message" %}*</label>
+                        <div class="card mb-2">
+                            <div class="card-header py-2 bg-light d-flex justify-content-between align-items-center">
+                                <span class="text-muted small"><i class="fas fa-info-circle"></i> {% trans "Preview (formatted for email)" %}</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-primary" id="editMessageBtn">
+                                        <i class="fas fa-edit"></i> {% trans "Edit" %}
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="messagePreviewWrapper" class="border-0 w-100 p-3" style="max-height: 350px; overflow-y: auto;">
+                                    <div id="messagePreview" class="mb-0 border-0 bg-white" style="font-family: inherit;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <textarea class="form-control" id="message" name="message" rows="10" required></textarea>
+                        <input type="hidden" id="message_html" name="message_html">
+                    </div>
+                    
+                    <div class="field-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="include_files" name="include_files" checked>
+                            <label class="form-check-label" for="include_files">
+                                <i class="fas fa-paperclip mr-1"></i> {% trans "Include Incident Report Files as attachments" %}
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div id="emailStatus" class="alert alert-info d-none"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> {% trans "Close" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="sendEmailBtn">
+                    <span class="spinner-border spinner-border-sm d-none mr-1" id="emailSpinner" role="status" aria-hidden="true"></span>
+                    <i class="fas fa-paper-plane mr-1"></i> {% trans "Send Email" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Incident Register Guide Modal -->
+<div class="modal fade" id="incidentRegisterGuideModal" tabindex="-1" aria-labelledby="incidentRegisterGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'incident_register_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="incidentRegisterGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Incident Register Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="incidentRegisterGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="sr-only">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<!-- Add TinyMCE from local static files -->
+<script src="{% static 'tinymce/tinymce.min.js' %}"></script>
+
+<script>
+    function getEmailModalInstance() {
+        var el = document.getElementById('emailModal');
+        if (!el || !window.bootstrap || !bootstrap.Modal) {
+            return null;
+        }
+        return bootstrap.Modal.getOrCreateInstance(el);
+    }
+
+    function hideEmailModal() {
+        var el = document.getElementById('emailModal');
+        if (!el || !window.bootstrap || !bootstrap.Modal) {
+            return;
+        }
+        var instance = bootstrap.Modal.getInstance(el);
+        if (instance) {
+            instance.hide();
+        }
+    }
+
+    // Global function for the onclick handler - moved outside document.ready
+    function openEmailModal(incidentId) {
+        console.log("openEmailModal called for incident #" + incidentId);
+        $('#incident_id').val(incidentId);
+        
+        // Reset form and status
+        $('#emailForm')[0].reset();
+        $('#emailStatus').addClass('d-none').text('');
+        
+        var emailModal = getEmailModalInstance();
+        if (emailModal) {
+            emailModal.show();
+        }
+        
+        // Load incident details for the email template
+        $.ajax({
+            url: "{% url 'get_incident_email_template' %}",
+            type: "GET",
+            data: { incident_id: incidentId },
+            success: function(response) {
+                console.log("Template loaded successfully:", response);
+                $('#subject').val(response.subject);
+                
+                // Set content in TinyMCE
+                if (window.editor) {
+                    window.editor.setContent(response.message_html || response.message);
+                }
+                
+                // Store HTML in hidden field
+                $('#message_html').val(response.message_html);
+                
+                // Show preview
+                $('#messagePreview').html(response.message_html || 
+                    '<pre style="white-space: pre-wrap;">' + response.message + '</pre>');
+                
+                // Initially show the preview, hide the editor area
+                $('.mce-container').hide();
+                $('#messagePreviewWrapper').show();
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading template:", error);
+                $('#emailStatus').removeClass('d-none').addClass('alert-danger').text('{% trans "Error loading incident details:" %} ' + error);
+            }
+        });
+    }
+
+    $(document).ready(function() {
+        console.log("Document ready - initializing incident register page");
+        
+        // Incident Register Guide modal: load content when shown
+        document.getElementById('incidentRegisterGuideModal')?.addEventListener('show.bs.modal', function() {
+            var url = this.getAttribute('data-guide-url');
+            var $body = $('#incidentRegisterGuideModalBody');
+            if (!$body.length || !url) return;
+            $body.html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>');
+            $.getJSON(url).then(function(data) {
+                if (data.content) {
+                    $body.html(data.content);
+                } else {
+                    $body.html('<p class="text-muted">{% trans "No guide available." %}</p>');
+                }
+            }).fail(function() {
+                $body.html('<p class="text-danger">{% trans "Failed to load guide." %}</p>');
+            });
+        });
+        
+        // Add click handler for email buttons
+        $('.send-email-btn').on('click', function() {
+            const incidentId = $(this).data('incident-id');
+            openEmailModal(incidentId);
+        });
+        
+        // Flag to track if we're already reloading the page
+        window.isReloadingPage = false;
+        
+        // Initialize TinyMCE
+        tinymce.init({
+            license_key: 'gpl',
+            selector: '#message',
+            height: 300,
+            plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount visualchars nonbreaking emoticons directionality',
+            toolbar: 'undo redo | formatselect | fontselect fontsizeselect | ' +
+                     'bold italic underline strikethrough | forecolor backcolor | ' +
+                     'alignleft aligncenter alignright alignjustify | ' +
+                     'bullist numlist | outdent indent | blockquote | ' +
+                     'link unlink anchor | image media table | insertdatetime | ' +
+                     'charmap emoticons | visualblocks visualchars | ' +
+                     'searchreplace | code fullscreen | preview | help',
+            toolbar_mode: 'sliding',
+            contextmenu: 'formats | link image table',
+            menubar: 'file edit view insert format tools table help',
+            menu: {
+                file: {title: 'File', items: 'newdocument'},
+                edit: {title: 'Edit', items: 'undo redo | cut copy | selectall | searchreplace'},
+                view: {title: 'View', items: 'code | visualaid visualchars visualblocks | fullscreen preview'},
+                insert: {title: 'Insert', items: 'image link media | charmap emoticons | nonbreaking anchor | insertdatetime'},
+                format: {title: 'Format', items: 'bold italic underline strikethrough superscript subscript | formats blockformats fontformats fontsizes align | forecolor backcolor | removeformat'},
+                tools: {title: 'Tools', items: 'wordcount'},
+                table: {title: 'Table', items: 'inserttable | cell row column | tableprops deletetable'},
+                help: {title: 'Help', items: 'help'}
+            },
+            statusbar: true,
+            branding: false,
+            elementpath: true,
+            resize: true,
+            image_advtab: true,
+            table_toolbar: 'tableprops tabledelete | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol',
+            table_appearance_options: false,
+            table_grid: false,
+            table_class_list: [
+                {title: 'None', value: ''},
+                {title: 'Table with borders', value: 'table table-bordered'},
+                {title: 'Striped table', value: 'table table-striped'}
+            ],
+            content_style: "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px } " +
+                          ".mce-content-body { padding: 10px; }",
+            block_formats: 'Paragraph=p; Heading 1=h1; Heading 2=h2; Heading 3=h3; Heading 4=h4; Heading 5=h5; Heading 6=h6; Preformatted=pre; Blockquote=blockquote',
+            font_formats: 'Arial=arial,helvetica,sans-serif; Georgia=georgia,palatino; Times New Roman=times new roman,times; Courier New=courier new,courier',
+            fontsize_formats: '8pt 10pt 12pt 14pt 16pt 18pt 24pt 36pt 48pt',
+            setup: function(editor) {
+                // Store editor instance globally
+                window.editor = editor;
+            }
+        });
+        
+        // Edit button functionality
+        $('#editMessageBtn').on('click', function() {
+            var $btn = $(this);
+            var $editor = $('.mce-container');
+            var $preview = $('#messagePreviewWrapper');
+            
+            // Toggle between edit mode and preview mode
+            if ($editor.is(':visible')) {
+                // Switch to preview mode
+                $btn.html('<i class="fas fa-edit"></i> {% trans "Edit" %}');
+                $editor.hide();
+                $preview.show();
+                
+                // Update preview content from the editor
+                var editorContent = window.editor.getContent();
+                $('#messagePreview').html(editorContent);
+                $('#message_html').val(editorContent);
+            } else {
+                // Switch to edit mode
+                $btn.html('<i class="fas fa-eye"></i> {% trans "Preview" %}');
+                $editor.show();
+                $preview.hide();
+            }
+        });
+        
+        // Send email button click handler
+        $('#sendEmailBtn').on('click', function() {
+            console.log("Send Email button clicked");
+            
+            // Make sure the hidden message_html field is updated with content from the editor
+            if (window.editor) {
+                var editorContent = window.editor.getContent();
+                $('#message_html').val(editorContent);
+                
+                // Also update the plain text version for compatibility
+                // Convert HTML to plain text by removing tags
+                var plainText = editorContent.replace(/<[^>]*>/g, '');
+                $('#message').val(plainText);
+            }
+            
+            // Show spinner and disable button
+            $('#emailSpinner').removeClass('d-none');
+            $(this).prop('disabled', true);
+            $('#emailStatus').addClass('d-none').text('');
+            
+            // Get form data
+            var formData = $('#emailForm').serialize();
+            
+            // Submit form via AJAX
+            $.ajax({
+                url: $('#emailForm').attr('action'),
+                type: "POST",
+                data: formData,
+                success: function(response) {
+                    console.log("Email send response:", response);
+                    
+                    // Hide spinner and enable button
+                    $('#emailSpinner').addClass('d-none');
+                    $('#sendEmailBtn').prop('disabled', false);
+                    
+                    if (response.success) {
+                        $('#emailStatus').removeClass('d-none alert-danger').addClass('alert-success').text(response.message);
+                        
+                        // Close modal after 3 seconds on success, but keep the page visible
+                        setTimeout(function() {
+                            try {
+                                // Set flag that we're about to reload
+                                window.isReloadingPage = true;
+                                
+                                hideEmailModal();
+                                console.log("Modal hidden, reloading page");
+                                
+                                // Reload the page after modal is closed
+                                window.location.reload();
+                            } catch (e) {
+                                console.error("Error hiding modal:", e);
+                                // Try direct reload if modal hide fails
+                                window.location.reload();
+                            }
+                        }, 3000);
+                    } else {
+                        $('#emailStatus').removeClass('d-none alert-success').addClass('alert-danger').text(response.message);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Email send error:", error);
+                    
+                    // Hide spinner and enable button
+                    $('#emailSpinner').addClass('d-none');
+                    $('#sendEmailBtn').prop('disabled', false);
+                    
+                    let errorMessage = '{% trans "An error occurred while sending the email." %}';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.message) {
+                            errorMessage = response.message;
+                        }
+                    } catch (e) {}
+                    
+                    $('#emailStatus').removeClass('d-none alert-success').addClass('alert-danger').text(errorMessage);
+                }
+            });
+        });
+        
+        // Modal events - clean up when modal is closed
+        $('#emailModal').on('hidden.bs.modal', function () {
+            console.log("Modal hidden event triggered");
+            forceModalCleanup();
+            
+            // Only reload if not already reloading from email send success
+            if (!window.isReloadingPage) {
+                console.log("Reloading page after modal close");
+                window.location.reload();
+            }
+        });
+        
+        
+        // Add global utility function for forcing modal cleanup
+        window.forceModalCleanup = function() {
+            $('#emailModal').attr('aria-hidden', 'true');
+            
+            // Force layout recalculation
+            var forceReflow = document.body.offsetHeight;
+            
+            // Dispatch resize event to update any responsive elements
+            window.dispatchEvent(new Event('resize'));
+        };
+        
+        // Handle escape key directly
+        $(document).on('keydown', function(e) {
+            if (e.key === "Escape" && $('#emailModal').hasClass('show')) {
+                console.log("Escape key pressed while modal is open");
+                forceModalCleanup();
+            }
+        });
+        
+        // Sort functionality
+        $('.sort-header').on('click', function() {
+            const sortField = $(this).data('sort');
+            let direction = 'asc';
+            
+            // If already sorting by this field, toggle direction
+            if ('{{ sort_by }}' === sortField) {
+                direction = '{{ sort_dir }}' === 'asc' ? 'desc' : 'asc';
+            } else if (sortField === 'id') {
+                // Always default ID sorting to descending (newest first)
+                direction = 'desc';
+            }
+            
+            // Build the URL with sort parameters
+            let currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('sort', sortField);
+            currentUrl.searchParams.set('dir', direction);
+            
+            // Reset to first page when changing sort
+            currentUrl.searchParams.set('page', 1);
+            
+            // Navigate to the new URL
+            window.location.href = currentUrl.toString();
+        });
+
+        // Handle cabinet user selection for recipients
+        $('#showUserSelector').on('click', function() {
+            const incidentId = $('#incident_id').val();
+            $('#cabinetUserSelector').show();
+            $(this).hide();
+            
+            // Load users from the company associated with this incident
+            $.ajax({
+                url: "{% url 'get_incident_company_users' %}",
+                type: "GET",
+                data: { incident_id: incidentId },
+                success: function(response) {
+                    if (response.success) {
+                        const users = response.users;
+                        let options = '';
+                        
+                        if (users.length === 0) {
+                            options = '<option value="" disabled>{% trans "No users found for this company" %}</option>';
+                        } else {
+                            users.forEach(function(user) {
+                                const displayName = user.full_name ? 
+                                    `${user.full_name} (${user.email})` : user.email;
+                                options += `<option value="${user.email}">${displayName}</option>`;
+                            });
+                        }
+                        
+                        $('#cabinetUsers').html(options);
+                    } else {
+                        $('#cabinetUsers').html('<option value="" disabled>{% trans "Error loading users" %}</option>');
+                        console.error("Error loading users:", response.message);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $('#cabinetUsers').html('<option value="" disabled>{% trans "Error loading users" %}</option>');
+                    console.error("AJAX error:", error);
+                }
+            });
+        });
+
+        $('#cancelUserSelection').on('click', function() {
+            $('#cabinetUserSelector').hide();
+            $('#showUserSelector').show();
+        });
+
+        $('#addSelectedUsers').on('click', function() {
+            const selectedEmails = Array.from($('#cabinetUsers option:selected')).map(opt => opt.value);
+            
+            if (selectedEmails.length > 0) {
+                // Get current recipients
+                let currentRecipients = $('#recipients').val();
+                let recipientArray = currentRecipients ? 
+                    currentRecipients.split(',').map(email => email.trim()).filter(email => email) : [];
+                
+                // Add new recipients, avoiding duplicates
+                selectedEmails.forEach(email => {
+                    if (!recipientArray.includes(email)) {
+                        recipientArray.push(email);
+                    }
+                });
+                
+                // Update the recipients field
+                $('#recipients').val(recipientArray.join(', '));
+            }
+            
+            // Hide the selector
+            $('#cabinetUserSelector').hide();
+            $('#showUserSelector').show();
+        });
+    });
+</script>
+{% endblock %}
+

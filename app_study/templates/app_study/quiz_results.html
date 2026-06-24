@@ -1,0 +1,595 @@
+ 
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load quiz_custom_filters %}
+
+{% block title %}{% trans "Quiz Results" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_study/includes/study_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_study/css/study-quiz-results-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid study-page quiz-results-page mt-4">
+    <h1 class="mb-3"><i class="bi bi-journal-text me-2"></i>{% trans "Quiz Results" %}</h1>
+    <div class="export-controls mb-2">
+        <div class="row align-items-center g-1">
+            <div class="col-md-6"></div>
+            <div class="col-md-6 text-end">
+                <div class="btn-group sb-toolbar" role="group">
+                    <button type="button" onclick="window.print()" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                            title="{% trans 'Print' %}">
+                        <i class="bi bi-printer"></i>
+                    </button>
+                    <a href="{% url 'export_all_results' %}" class="btn btn-success btn-sm btn-icon-action btn-export"
+                       title="{% trans 'Export All' %}">
+                        <i class="bi bi-file-earmark-excel"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-2 filter-section access-request-filters" id="quizResultsFiltersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="quizResultsFiltersCollapse" toggle_id="toggleQuizResultsFilters" icon_id="quizResultsFiltersToggleIcon" clear_btn_id="clearQuizResultsFilters" filters_expanded=True %}
+        <div class="collapse show" id="quizResultsFiltersCollapse">
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label for="userSearch" class="form-label">{% trans "Search user" %}</label>
+                        <input type="text" id="userSearch" class="form-control form-control-sm" placeholder="{% trans 'Name, email, username...' %}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="companyFilter" class="form-label">{% trans "Company" %}</label>
+                        <select id="companyFilter" class="form-select form-select-sm">
+                            <option value="">{% trans "All Companies" %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}" {% if selected_company_id == company.id %}selected{% endif %}>
+                                    {{ company.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Tabs with Search -->
+    <div class="quiz-tabs-container">
+        <div class="quiz-tabs-search">
+            <input type="text" 
+                   id="quizTabsSearch" 
+                   class="form-control form-control-sm" 
+                   placeholder="{% trans 'Search quizzes...' %}"
+                   autocomplete="off">
+            <i class="bi bi-search search-icon"></i>
+            <button type="button" class="clear-search" id="clearQuizSearch" title="{% trans 'Clear search' %}">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="d-flex align-items-center mb-2">
+            <span class="tabs-counter">
+                <span id="visibleTabsCount">{{ quizzes|length }}</span> / <span id="totalTabsCount">{{ quizzes|length }}</span> {% trans "quizzes" %}
+            </span>
+            {% if quizzes|length > 10 %}
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action ms-auto" id="toggleCompactMode" title="{% trans 'Toggle compact mode' %}">
+                <i class="bi bi-arrows-collapse"></i>
+            </button>
+            {% endif %}
+        </div>
+        <ul class="nav nav-tabs mb-3" id="quizTabs" role="tablist">
+            {% for quiz in quizzes %}
+            {% with quiz_attempts=sorted_quiz_attempts|get_item:quiz.id %}
+            {% with quiz_count=quiz_attempts_count|get_item:quiz.id %}
+            <li class="nav-item" role="presentation" data-quiz-title="{{ quiz.title|lower }}">
+                <button class="nav-link {% if forloop.first %}active{% endif %}" 
+                        id="quiz-tab-{{ quiz.id }}" 
+                        data-bs-toggle="tab"
+                        data-bs-target="#quiz-{{ quiz.id }}" 
+                        type="button" 
+                        role="tab"
+                        data-quiz-id="{{ quiz.id }}">
+                    <span class="tab-text" 
+                          data-bs-toggle="tooltip" 
+                          data-bs-placement="top" 
+                          title="{{ quiz.title }}{% if quiz_count %} - {{ quiz_count.successful }}/{{ quiz_count.total }} {% trans 'passed' %}{% endif %}">
+                        {{ quiz.title|truncatechars:45 }}
+                    </span>
+                    {% if quiz_count %}
+                        {% if quiz_count.successful > 0 %}
+                        <span class="tab-badge" title="{% trans 'Successful attempts' %}: {{ quiz_count.successful }}{% if quiz_count.total > quiz_count.successful %} / {% trans 'Total' %}: {{ quiz_count.total }}{% endif %}">
+                            {{ quiz_count.successful }}{% if quiz_count.total > quiz_count.successful %}/{{ quiz_count.total }}{% endif %}
+                        </span>
+                        {% elif quiz_count.total > 0 %}
+                        <span class="tab-badge" style="background-color: #ffc107; color: #000;" title="{% trans 'Total attempts' %}: {{ quiz_count.total }}">
+                            {{ quiz_count.total }}
+                        </span>
+                        {% else %}
+                        <span class="tab-badge" style="background-color: #dc3545;" title="{% trans 'No attempts' %}">0</span>
+                        {% endif %}
+                    {% else %}
+                        {% if quiz_attempts %}
+                        <span class="tab-badge">{{ quiz_attempts|length }}</span>
+                        {% else %}
+                        <span class="tab-badge" style="background-color: #dc3545;">0</span>
+                        {% endif %}
+                    {% endif %}
+                </button>
+            </li>
+            {% endwith %}
+            {% endwith %}
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="quizTabsContent">
+        {% for quiz in quizzes %}
+        <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" 
+             id="quiz-{{ quiz.id }}" 
+             role="tabpanel">
+            <div class="card mb-4">
+                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">{{ quiz.title }} - {% trans "Results" %}</h3>
+                    <a href="{% url 'export_quiz_results' quiz.id %}{% if selected_company_id %}?company={{ selected_company_id }}{% endif %}"
+                       class="btn btn-sm btn-success btn-icon-action"
+                       title="{% trans 'Export' %}">
+                        <i class="bi bi-file-earmark-excel"></i>
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table table-bordered table-striped journal-table table-sm table-sm-font sb-data-table w-100" id="resultsTable-{{ quiz.id }}">
+                            <thead>
+                                <tr>
+                                    <th data-sort="text">{% trans "Full Name" %}</th>
+                                    <th data-sort="text">{% trans "Company" %}</th>
+                                    <th data-sort="text">{% trans "Department" %}</th>
+                                    <th data-sort="text">{% trans "Position" %}</th>
+                                    <th data-sort="date">{% trans "Completed" %}</th>
+                                    <th data-sort="numeric">{% trans "Result" %}</th>
+                                    <th data-sort="text">{% trans "Successful" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if sorted_quiz_attempts|get_item:quiz.id %}
+                                    {% for attempt_entry in sorted_quiz_attempts|get_item:quiz.id %}
+                                        <tr>
+                                            <td>{{ attempt_entry.cabinet_user.user.get_full_name }}</td>
+                                            <td>{{ attempt_entry.cabinet_user.company.name }}</td>
+                                            <td>{{ attempt_entry.cabinet_user.department }}</td>
+                                            <td>{{ attempt_entry.cabinet_user.position }}</td>
+                                            <td>{{ attempt_entry.completed_at|date:"d.m.Y H:i" }}</td>
+                                            <td>
+                                                {% widthratio attempt_entry.attempt.score attempt_entry.attempt.quiz.questions.count 100 %}%
+                                                ({{ attempt_entry.attempt.score }}/{{ attempt_entry.attempt.quiz.questions.count }})
+                                            </td>
+                                            <td class="successful-yes">
+                                                Yes
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    {% for user_result in results %}
+                                        {% for attempt_data in user_result.attempts %}
+                                            {% if attempt_data.attempt.quiz.id == quiz.id %}
+                                                {% if attempt_data.attempt.score >= attempt_data.attempt.quiz.passing_score %}
+                                                <tr>
+                                                    <td>{{ user_result.cabinet_user.user.get_full_name }}</td>
+                                                    <td>{{ user_result.cabinet_user.company.name }}</td>
+                                                    <td>{{ user_result.cabinet_user.department }}</td>
+                                                    <td>{{ user_result.cabinet_user.position }}</td>
+                                                    <td>{{ attempt_data.attempt.completed_at|date:"d.m.Y H:i" }}</td>
+                                                    <td>
+                                                        {% widthratio attempt_data.attempt.score attempt_data.attempt.quiz.questions.count 100 %}%
+                                                        ({{ attempt_data.attempt.score }}/{{ attempt_data.attempt.quiz.questions.count }})
+                                                    </td>
+                                                    <td class="successful-yes">
+                                                        Yes
+                                                    </td>
+                                                </tr>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Detailed results - now filtered by selected quiz -->
+    <div class="detailed-results">
+        <h2 class="mb-4">{% trans "Detailed Quiz Results" %}</h2>
+
+        {% if results %}
+            {% for user_result in results %}
+                <div class="card mb-3 user-result" data-user-id="{{ user_result.cabinet_user.user.id }}">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0">{{ user_result.cabinet_user.user.get_full_name }} ({{ user_result.cabinet_user.user.email }})</h3>
+                            <small>{% trans "Company:" %} {{ user_result.cabinet_user.company }}</small>
+                            <br>
+                            <small>{% trans "Department:" %} {{ user_result.cabinet_user.department }}</small>
+                            <small class="ms-2">{% trans "Position:" %} {{ user_result.cabinet_user.position }}</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary me-2">{% trans "Attempts:" %} {{ user_result.total_attempts }}</span>
+                            <span class="badge bg-success me-2">{% trans "Successful:" %} {{ user_result.successful_attempts }}</span>
+                            <span class="badge bg-danger">{% trans "Failed:" %} {{ user_result.failed_attempts }}</span>
+                        </div>
+                    </div>
+                    <div class="card-body py-2">
+                        <h4 class="mb-2">{% trans "Attempts:" %}</h4>
+                        {% for attempt_data in user_result.attempts %}
+                            <div class="mb-3 p-2 bg-light rounded attempt-item" 
+                                 data-quiz-id="{{ attempt_data.attempt.quiz.id }}"
+                                 data-attempt-id="{{ attempt_data.attempt.id }}">
+                                <h5 class="mb-1">{{ attempt_data.attempt.quiz.title }}</h5>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <p class="mb-0"><small>{% trans "Result:" %} {{ attempt_data.attempt.score }} / {{ attempt_data.attempt.quiz.questions.count }}</small></p>
+                                    <small>{% trans "Completed:" %} {{ attempt_data.attempt.completed_at|date:"d.m.Y H:i" }}</small>
+                                </div>
+                                <div class="progress mb-2">
+                                    <div class="progress-bar bg-success" role="progressbar"
+                                         style="width: {% widthratio attempt_data.attempt.score attempt_data.attempt.quiz.questions.count 100 %}%"
+                                         aria-valuenow="{{ attempt_data.attempt.score }}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="{{ attempt_data.attempt.quiz.questions.count }}">
+                                    </div>
+                                </div>
+                                {% if attempt_data.answers %}
+                                    <div class="answers-toggle mb-1" data-target="answers-{{ user_result.cabinet_user.user.id }}-{{ attempt_data.attempt.id }}">
+                                        <small><i class="fas fa-chevron-right"></i> {% trans "Show answers" %}</small>
+                                    </div>
+                                    <ul class="answers-list list-group" id="answers-{{ user_result.cabinet_user.user.id }}-{{ attempt_data.attempt.id }}">
+                                        {% for answer in attempt_data.answers %}
+                                            <li class="list-group-item">
+                                                <strong>{{ answer.question.text|safe }}</strong><br>
+                                                {% trans "Answer:" %} {{ answer.answer.text|safe }}<br>
+                                                {% if answer.is_correct %}
+                                                    <span class="badge badge-correct">{% trans "Correct" %}</span>
+                                                {% else %}
+                                                    <span class="badge badge-incorrect">{% trans "Incorrect" %}</span>
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p><small>{% trans "No answers available for this attempt." %}</small></p>
+                                {% endif %}
+                            </div>
+                        {% empty %}
+                            <p><small>{% trans "No attempts yet." %}</small></p>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-info">
+                {% trans "No quiz results available or you don't have permission to view results." %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentSelectedQuizId = null;
+    
+    // Get the first quiz ID as default
+    const firstQuizTab = document.querySelector('.nav-tabs .nav-link.active');
+    if (firstQuizTab) {
+        currentSelectedQuizId = parseInt(firstQuizTab.getAttribute('data-quiz-id'));
+    }
+    
+    // Function to filter detailed results based on selected quiz
+    function filterDetailedResults(quizId) {
+        const userResults = document.querySelectorAll('.user-result');
+        
+        userResults.forEach(userResult => {
+            const attemptItems = userResult.querySelectorAll('.attempt-item');
+            let hasVisibleAttempts = false;
+            
+            attemptItems.forEach(attemptItem => {
+                const attemptQuizId = parseInt(attemptItem.getAttribute('data-quiz-id'));
+                
+                if (quizId === null || attemptQuizId === quizId) {
+                    attemptItem.classList.remove('hidden');
+                    hasVisibleAttempts = true;
+                } else {
+                    attemptItem.classList.add('hidden');
+                }
+            });
+            
+            // Show/hide the entire user result card based on whether they have visible attempts
+            if (hasVisibleAttempts) {
+                userResult.classList.remove('hidden');
+            } else {
+                userResult.classList.add('hidden');
+            }
+        });
+    }
+    
+    // Add event listeners to quiz tabs
+    const quizTabLinks = document.querySelectorAll('.nav-tabs .nav-link');
+    quizTabLinks.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const quizId = parseInt(this.getAttribute('data-quiz-id'));
+            currentSelectedQuizId = quizId;
+            filterDetailedResults(quizId);
+        });
+    });
+    
+    // Initial filter
+    filterDetailedResults(currentSelectedQuizId);
+
+    // Implement table sorting
+    const tables = document.querySelectorAll('.journal-table');
+    tables.forEach(table => {
+        const headers = table.querySelectorAll('th');
+        headers.forEach(header => {
+            header.addEventListener('click', () => {
+                const sortType = header.getAttribute('data-sort');
+                const columnIndex = Array.from(header.parentNode.children).indexOf(header);
+                const currentDirection = header.classList.contains('th-sort-asc') ? 'asc' : 'desc';
+                const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+                
+                // Clear all headers
+                headers.forEach(h => {
+                    h.classList.remove('th-sort-asc', 'th-sort-desc');
+                });
+                
+                header.classList.add(newDirection === 'asc' ? 'th-sort-asc' : 'th-sort-desc');
+                
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                
+                // Sort rows
+                rows.sort((a, b) => {
+                    const aValue = a.cells[columnIndex].textContent.trim();
+                    const bValue = b.cells[columnIndex].textContent.trim();
+                    
+                    if (sortType === 'numeric') {
+                        // Extract numbers for sorting
+                        const aMatch = aValue.match(/(\d+)/);
+                        const bMatch = bValue.match(/(\d+)/);
+                        const aNum = aMatch ? parseInt(aMatch[0]) : 0;
+                        const bNum = bMatch ? parseInt(bMatch[0]) : 0;
+                        return newDirection === 'asc' ? aNum - bNum : bNum - aNum;
+                    } else if (sortType === 'date') {
+                        // Parse dates in format DD.MM.YYYY HH:MM
+                        const aDate = parseDateString(aValue);
+                        const bDate = parseDateString(bValue);
+                        return newDirection === 'asc' ? aDate - bDate : bDate - aDate;
+                    } else {
+                        // Text comparison
+                        return newDirection === 'asc' 
+                            ? aValue.localeCompare(bValue)
+                            : bValue.localeCompare(aValue);
+                    }
+                });
+                
+                // Re-append rows in sorted order
+                rows.forEach(row => tbody.appendChild(row));
+            });
+        });
+    });
+    
+    // Function to parse date strings like "22.08.2024 12:49" to timestamp
+    function parseDateString(dateStr) {
+        if (!dateStr) return 0;
+        
+        const parts = dateStr.split(' ');
+        if (parts.length !== 2) return 0;
+        
+        const dateParts = parts[0].split('.');
+        const timeParts = parts[1].split(':');
+        
+        if (dateParts.length !== 3 || timeParts.length !== 2) return 0;
+        
+        // Note: JavaScript months are 0-based
+        const day = parseInt(dateParts[0]);
+        const month = parseInt(dateParts[1]) - 1;
+        const year = parseInt(dateParts[2]);
+        const hour = parseInt(timeParts[0]);
+        const minute = parseInt(timeParts[1]);
+        
+        return new Date(year, month, day, hour, minute).getTime();
+    }
+
+    // Toggle functionality for showing/hiding answers
+    const toggles = document.querySelectorAll('.answers-toggle');
+    toggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const targetElement = document.getElementById(targetId);
+            if (targetElement.style.display === 'none' || targetElement.style.display === '') {
+                targetElement.style.display = 'block';
+                this.querySelector('i').classList.remove('fa-chevron-right');
+                this.querySelector('i').classList.add('fa-chevron-down');
+                this.querySelector('small').textContent = ' {% trans "Hide answers" %}';
+            } else {
+                targetElement.style.display = 'none';
+                this.querySelector('i').classList.remove('fa-chevron-down');
+                this.querySelector('i').classList.add('fa-chevron-right');
+                this.querySelector('small').textContent = ' {% trans "Show answers" %}';
+            }
+        });
+    });
+
+    // Company filter functionality - reloads page with filter parameter
+    const companyFilter = document.getElementById('companyFilter');
+    if (companyFilter) {
+        companyFilter.addEventListener('change', function() {
+            const selectedCompanyId = this.value;
+            const currentUrl = new URL(window.location.href);
+            
+            if (selectedCompanyId) {
+                currentUrl.searchParams.set('company', selectedCompanyId);
+            } else {
+                currentUrl.searchParams.delete('company');
+            }
+            
+            // Reload page with new filter (server-side filtering)
+            window.location.href = currentUrl.toString();
+        });
+    }
+
+    // Search functionality - works with already filtered results (server-side filtered by company)
+    const userSearch = document.getElementById('userSearch');
+    if (userSearch) {
+        userSearch.addEventListener('input', function() {
+            const searchValue = this.value.toLowerCase();
+            const userResults = document.querySelectorAll('.user-result:not(.hidden)');
+            const tableRows = document.querySelectorAll('.journal-table tbody tr');
+
+            // Search in detailed results (only visible ones - already filtered by company on server)
+            userResults.forEach(result => {
+                const userName = result.querySelector('h3');
+                const userDetails = result.querySelectorAll('small');
+                
+                if (!userName) return;
+                
+                let matchesSearch = userName.textContent.toLowerCase().includes(searchValue);
+                
+                // Check all small elements for search match
+                userDetails.forEach(detail => {
+                    if (detail.textContent.toLowerCase().includes(searchValue)) {
+                        matchesSearch = true;
+                    }
+                });
+                
+                result.style.display = matchesSearch ? 'block' : 'none';
+            });
+
+            // Search in journal table (already filtered by company on server)
+            tableRows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchValue) ? '' : 'none';
+            });
+        });
+    }
+
+    // Initialize tooltips
+    var tooltipTriggerList = document.querySelectorAll('.tab-text[data-bs-toggle="tooltip"]');
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Quiz tabs search functionality
+    const quizTabsSearch = document.getElementById('quizTabsSearch');
+    const clearQuizSearch = document.getElementById('clearQuizSearch');
+    const quizTabsContainer = document.querySelector('.quiz-tabs-search');
+    const toggleCompactMode = document.getElementById('toggleCompactMode');
+    const quizTabs = document.getElementById('quizTabs');
+    
+    if (quizTabsSearch) {
+        quizTabsSearch.addEventListener('input', function() {
+            const searchValue = this.value.toLowerCase().trim();
+            const navItems = quizTabs.querySelectorAll('.nav-item');
+            let visibleCount = 0;
+            
+            navItems.forEach(item => {
+                const quizTitle = item.getAttribute('data-quiz-title') || '';
+                const tabText = item.querySelector('.tab-text')?.textContent.toLowerCase() || '';
+                
+                if (searchValue === '' || quizTitle.includes(searchValue) || tabText.includes(searchValue)) {
+                    item.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    item.classList.add('hidden');
+                }
+            });
+            
+            // Update counter
+            const visibleCounter = document.getElementById('visibleTabsCount');
+            const totalCounter = document.getElementById('totalTabsCount');
+            if (visibleCounter) {
+                visibleCounter.textContent = visibleCount;
+            }
+            if (totalCounter && searchValue === '') {
+                // Reset to total when search is cleared
+                const totalTabs = quizTabs.querySelectorAll('.nav-item').length;
+                totalCounter.textContent = totalTabs;
+            }
+            
+            // Show/hide clear button
+            if (searchValue) {
+                quizTabsContainer.classList.add('has-value');
+            } else {
+                quizTabsContainer.classList.remove('has-value');
+            }
+            
+            // Auto-scroll to first visible tab
+            const firstVisible = quizTabs.querySelector('.nav-item:not(.hidden)');
+            if (firstVisible) {
+                firstVisible.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+            }
+        });
+    }
+    
+    if (clearQuizSearch) {
+        clearQuizSearch.addEventListener('click', function() {
+            if (quizTabsSearch) {
+                quizTabsSearch.value = '';
+                quizTabsSearch.dispatchEvent(new Event('input'));
+                quizTabsSearch.focus();
+            }
+        });
+    }
+    
+    // Compact mode toggle
+    if (toggleCompactMode) {
+        let isCompact = false;
+        toggleCompactMode.addEventListener('click', function() {
+            isCompact = !isCompact;
+            if (isCompact) {
+                quizTabs.classList.add('compact-mode');
+                this.innerHTML = '<i class="bi bi-arrows-expand"></i>';
+                this.setAttribute('title', '{% trans "Switch to normal mode" %}');
+            } else {
+                quizTabs.classList.remove('compact-mode');
+                this.innerHTML = '<i class="bi bi-arrows-collapse"></i>';
+                this.setAttribute('title', '{% trans "Toggle compact mode" %}');
+            }
+        });
+    }
+    
+    // Keyboard navigation for tabs
+    if (quizTabsSearch) {
+        quizTabsSearch.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const firstVisible = quizTabs.querySelector('.nav-item:not(.hidden) .nav-link');
+                if (firstVisible) {
+                    firstVisible.click();
+                }
+            }
+        });
+    }
+    
+    // Auto-focus search on Ctrl+F or Cmd+F
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f' && quizTabsSearch) {
+            const activeElement = document.activeElement;
+            if (activeElement !== quizTabsSearch && activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                quizTabsSearch.focus();
+                quizTabsSearch.select();
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

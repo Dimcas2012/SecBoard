@@ -1,0 +1,1262 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load tz %}
+{% load custom_filters %}
+
+{% block title %}{{ requirement.code }} - {% trans "Local Instance" %}{% endblock %}
+
+{% block extra_css %}
+{% include "includes/sb_compact_css.html" %}
+<style>
+.category-section {
+    border: 1px solid #dee2e6;
+    border-radius: 3px;  /* 4px * 0.75 */
+    margin-bottom: 7.5px;  /* 10px * 0.75 */
+    background: #fff;
+}
+.category-header {
+    background: #f8f9fa;
+    padding: 6px;  /* 8px * 0.75 */
+    border-bottom: 1px solid #dee2e6;
+    cursor: pointer;
+    border-radius: 3px 3px 0 0;  /* 4px * 0.75 */
+}
+.category-header:hover {
+    background: #e9ecef;
+}
+.category-body {
+    padding: 6px;  /* 8px * 0.75 */
+}
+.control-row {
+    border-left: 2px solid #dee2e6;
+    padding-left: 3.75px;  /* 5px * 0.75 */
+    margin-bottom: 3px;  /* 4px * 0.75 */
+}
+.control-row.status-completed {
+    border-left-color: #28a745;
+}
+.control-row.status-in_progress {
+    border-left-color: #17a2b8;
+}
+.control-row.status-ready_for_review {
+    border-left-color: #ffc107;
+}
+.control-row.status-failed {
+    border-left-color: #dc3545;
+}
+.control-row.status-not_started {
+    border-left-color: #6c757d;
+}
+.stats-box {
+    background: #f8f9fa;
+    padding: 7.5px;  /* 10px * 0.75 */
+    border-radius: 3px;  /* 4px * 0.75 */
+    margin-bottom: 7.5px;  /* 10px * 0.75 */
+}
+.progress-large {
+    height: 15px;  /* sb-compact progress bar */
+    border-radius: 3px;
+}
+.progress-large .progress-bar {
+    line-height: 15px;
+    font-weight: bold;
+    font-size: 0.5625rem;  /* 0.75rem * 0.75 */
+}
+/* CSS GRID Layout - Simple and Reliable */
+.requirement-container {
+    display: grid !important;
+    grid-template-columns: 250px 1fr !important;
+    grid-gap: 20px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 80vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Sidebar with vertical scroll */
+.requirements-sidebar {
+    grid-column: 1 !important;
+    width: 250px !important;
+    height: 80vh !important;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
+    background: #f8f9fa !important;
+    border-radius: 8px !important;
+    padding: 15px !important;
+    border: 1px solid #dee2e6 !important;
+    position: relative !important;
+}
+
+/* Content area with vertical scroll */
+.content-area-scroll {
+    grid-column: 2 !important;
+    width: 100% !important;
+    height: 80vh !important;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
+    padding-right: 10px !important;
+    position: relative !important;
+}
+.requirements-sidebar h5 {
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+    color: #495057;
+    font-weight: bold;
+    text-transform: uppercase;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 5px;
+}
+.requirements-sidebar .nav-link {
+    font-size: 0.7rem;
+    padding: 8px 10px;
+    color: #495057;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+    display: block;
+}
+.requirements-sidebar .nav-link:hover {
+    background: #e9ecef;
+    color: #007bff;
+    border-left-color: #007bff;
+    text-decoration: none;
+}
+.requirements-sidebar .nav-link:hover .d-flex > div > div:nth-child(2) {
+    color: #495057;
+}
+.requirements-sidebar .nav-link.active {
+    background: #007bff;
+    color: white;
+    border-left-color: #0056b3;
+}
+.requirements-sidebar .nav-link.active .d-flex > div > div:nth-child(2) {
+    color: rgba(255, 255, 255, 0.8);
+}
+.requirements-sidebar .badge {
+    font-size: 0.55rem;
+    padding: 2px 6px;
+}
+/* Custom scrollbar for sidebar */
+.requirements-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+.requirements-sidebar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+.requirements-sidebar::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+.requirements-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+/* Custom scrollbar for content area */
+.content-area-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+.content-area-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+.content-area-scroll::-webkit-scrollbar-thumb {
+    background: #007bff;
+    border-radius: 4px;
+}
+.content-area-scroll::-webkit-scrollbar-thumb:hover {
+    background: #0056b3;
+}
+
+/* Table compact: secboard-components (.sb-data-table) */
+.full-width-table .table-sm-font td,
+.full-width-table .table-sm-font th {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.full-width-table .table-sm-font td.name-col {
+    white-space: normal;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 sb-compact">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="alert alert-success mb-2" role="alert">
+                <i class="fas fa-building"></i> <strong>{% trans "Local Instance Detail" %}</strong>
+                {% if requirement.template %}
+                - {% trans "Based on" %}: <a href="{% url 'compliance:local_requirement_template_detail' requirement.template.id %}" class="alert-link">{{ requirement.template.code }} - {{ requirement.template.name }}</a>
+                {% endif %}
+            </div>
+            <h1>
+                <i class="fas fa-file-contract"></i> {{ requirement.code }}
+                {% if requirement.company %}
+                <span class="badge {% if requirement.is_mandatory %}badge-danger{% else %}badge-info{% endif %} ml-2" style="{% if requirement.is_mandatory %}background-color: #dc3545;{% else %}background-color: #17a2b8;{% endif %} color: white; font-size: 0.5em; padding: 4px 8px;">
+                    <i class="fas fa-building"></i> {% trans "Applied to" %} {{ requirement.company.name }} ({% if requirement.is_mandatory %}{% trans "Mandatory" %}{% else %}{% trans "Optional" %}{% endif %})
+                </span>
+                {% endif %}
+                <span class="badge badge-lg
+                    {% if requirement.status == 'active' %}badge-success
+                    {% elif requirement.status == 'draft' %}badge-warning
+                    {% elif requirement.status == 'suspended' %}badge-info
+                    {% else %}badge-secondary{% endif %}" 
+                    style="{% if requirement.status == 'active' %}background-color: #28a745; color: white;
+                    {% elif requirement.status == 'draft' %}background-color: #ffc107; color: #212529;
+                    {% elif requirement.status == 'suspended' %}background-color: #17a2b8; color: white;
+                    {% else %}background-color: #6c757d; color: white;{% endif %} font-size: 0.55em; padding: 4px 8px; font-weight: bold;">
+                    {% if requirement.status == 'active' %}<i class="fas fa-check-circle"></i>
+                    {% elif requirement.status == 'draft' %}<i class="fas fa-edit"></i>
+                    {% elif requirement.status == 'suspended' %}<i class="fas fa-pause"></i>
+                    {% else %}<i class="fas fa-archive"></i>{% endif %}
+                    {{ localized_status }}
+                </span>
+            </h1>
+            <h4 class="text-muted">{{ requirement.name }}</h4>
+            {% if requirement.name_local %}
+            <p class="text-muted">{{ requirement.name_local }}</p>
+            {% endif %}
+            {% if requirement.description %}
+            <p class="text-muted">{{ requirement.description }}</p>
+            {% endif %}
+            <p>
+                <strong>{% trans "Regulator" %}:</strong> {{ requirement.regulator.acronym|default:requirement.regulator.name }} ({{ requirement.regulator.country.name }}) |
+                <strong>{% trans "Type" %}:</strong> {{ localized_requirement_type }} |
+                <strong>{% trans "Created" %}:</strong> {{ requirement.created_date|date:"d.m.Y" }}
+                {% if requirement.created_by %}by {{ requirement.created_by.username }}{% endif %} |
+                <strong>{% trans "Categories" %}:</strong> {{ categories.count }} |
+                <strong>{% trans "Controls" %}:</strong> {{ stats.total }}
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-toolbar justify-content-end flex-wrap" role="toolbar" style="gap: 0.25rem; row-gap: 0.25rem;">
+                <a href="{% url 'compliance:control_mapping' %}" class="btn btn-sm btn-outline-info">
+                    <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#localComplianceGuideModal">
+                    <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+                </button>
+                {% if requirement.template %}
+                <a href="{% url 'compliance:local_requirement_template_detail' requirement.template.id %}" class="btn btn-sm btn-outline-info">
+                    <i class="fas fa-layer-group"></i> {% trans "View Template" %}
+                </a>
+                {% endif %}
+                <a href="{% url 'compliance:local_requirement_instances_list' %}" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-arrow-left"></i> {% trans "Back to Local Company Requirements" %}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics (Compact) -->
+    <div class="row mb-2">
+        <div class="col-md-12">
+            <div class="stats-box" style="padding: 0.75rem;">
+                {% if requirement.is_template %}
+                <div class="row align-items-center">
+                    <div class="col-md-12">
+                        <h6 class="mb-2" style="font-size: 0.875rem;">
+                            <i class="fas fa-tasks"></i> {% trans "Controls" %}
+                        </h6>
+                        <div class="d-flex flex-wrap" style="gap: 0.75rem; font-size: 0.875rem;">
+                            <span style="color: #17a2b8; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-list"></i> {{ stats.total }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <h6 class="mb-2" style="font-size: 0.875rem;">
+                            <i class="fas fa-chart-line"></i> {% trans "Completion Progress" %}
+                        </h6>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ completion }}%; font-size: 0.875rem; font-weight: bold;" 
+                                 aria-valuenow="{{ completion }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                {{ completion }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <h6 class="mb-2" style="font-size: 0.875rem;">
+                            <i class="fas fa-tasks"></i> {% trans "Controls Status" %}
+                        </h6>
+                        <div class="d-flex flex-wrap" style="gap: 0.75rem; font-size: 0.875rem;">
+                            <span style="color: #28a745; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-check-circle"></i> {{ stats.completed }}
+                            </span>
+                            <span style="color: #17a2b8; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-spinner"></i> {{ stats.in_progress }}
+                            </span>
+                            <span style="color: #ffc107; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-clock"></i> {{ stats.ready_for_review }}
+                            </span>
+                            <span style="color: #6c757d; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-circle"></i> {{ stats.not_started }}
+                            </span>
+                            <span style="color: #dc3545; font-weight: bold; white-space: nowrap;">
+                                <i class="fas fa-times-circle"></i> {{ stats.failed }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Lifecycle Management & Notes -->
+    <div class="row mb-3">
+        <!-- Lifecycle (8 columns) -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header py-2" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h6 class="mb-0" style="font-size: 0.85rem;">
+                        <i class="fas fa-sync-alt"></i> {% trans "Lifecycle" %}
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="row align-items-center">
+                        <!-- Lifecycle Stages -->
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center" style="gap: 0.5rem;">
+                                <!-- Draft -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if requirement.status == 'draft' %}#ffc107{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-edit" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <div style="width: 30px; height: 2px; background-color: {% if requirement.status == 'active' or requirement.status == 'archived' %}#28a745{% else %}#e0e0e0{% endif %};"></div>
+                                <!-- Active -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if requirement.status == 'active' %}#28a745{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-check-circle" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <div style="width: 30px; height: 2px; background-color: {% if requirement.status == 'archived' %}#6c757d{% else %}#e0e0e0{% endif %};"></div>
+                                <!-- Archived -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if requirement.status == 'archived' %}#6c757d{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-archive" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <span class="ms-2" style="font-size: 0.75rem; font-weight: bold; 
+                                      color: {% if requirement.status == 'draft' %}#ffc107{% elif requirement.status == 'active' %}#28a745{% else %}#6c757d{% endif %};">
+                                    {{ localized_status }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Dates Info -->
+                        <div class="col-md-8">
+                            <div class="row" style="font-size: 0.75rem;">
+                                {% if requirement.effective_date %}
+                                <div class="col-md-4">
+                                    <strong>{% trans "Effective" %}:</strong><br>
+                                    <span class="text-primary">{{ requirement.effective_date|date:"d.m.Y" }}</span>
+                                </div>
+                                {% endif %}
+                                {% if requirement.review_date %}
+                                <div class="col-md-4">
+                                    <strong>{% trans "Review" %}:</strong><br>
+                                    <span class="text-info">{{ requirement.review_date|date:"d.m.Y" }}</span>
+                                </div>
+                                {% endif %}
+                                {% if requirement.deadline_date %}
+                                <div class="col-md-4">
+                                    <strong>{% trans "Deadline" %}:</strong><br>
+                                    <span class="text-danger">{{ requirement.deadline_date|date:"d.m.Y" }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes (4 columns) -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <h6 class="mb-0" style="font-size: 0.85rem;">
+                        <i class="fas fa-sticky-note"></i> {% trans "Notes" %}{% if requirement_notes %} ({{ requirement_notes|length }}){% endif %}
+                    </h6>
+                    {% if permissions.can_edit_requirement_instances %}
+                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#localRequirementAddNoteModal" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body p-2" style="max-height: 300px; overflow-y: auto;">
+                    {% if requirement_notes %}
+                    <div class="notes-list">
+                        {% for note in requirement_notes %}
+                        <div class="note-item border rounded p-2 mb-2" style="background: #f8f9fa;">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong style="font-size: 0.75rem;">
+                                        {{ note.created_by.get_full_name|default:note.created_by.username }}
+                                    </strong>
+                                    <small class="text-muted ms-2" style="font-size: 0.65rem;">
+                                        {{ note.created_date|date:"Y-m-d H:i" }}
+                                    </small>
+                                </div>
+                                {% if permissions.can_edit_requirement_instances %}
+                                <form method="post" action="{% url 'compliance:local_requirement_note_delete' note.id %}" onsubmit="return confirm('{% trans "Delete this note?" %}')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size: 0.6rem; padding: 0.1rem 0.3rem;">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+
+                            {% if permissions.can_edit_requirement_instances %}
+                            <form method="post" action="{% url 'compliance:local_requirement_note_update' note.id %}" enctype="multipart/form-data" class="mt-2">
+                                {% csrf_token %}
+                                <div class="mb-2">
+                                    <textarea name="note" class="form-control form-control-sm" rows="2" style="font-size: 0.75rem;">{{ note.note }}</textarea>
+                                </div>
+                                <div class="mb-2">
+                                    {% if note.attachment %}
+                                    <div class="mb-1 d-flex align-items-center justify-content-between">
+                                        <small class="text-muted me-2" style="font-size: 0.7rem;">
+                                            {% trans "Existing file" %}:
+                                            <a href="{{ note.attachment.url }}" target="_blank">{{ note.attachment_filename }}</a>
+                                        </small>
+                                        <label class="form-check-label" style="font-size: 0.7rem;">
+                                            <input type="checkbox" name="clear_attachment" class="form-check-input form-check-input-sm">
+                                            {% trans "Remove" %}
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                    {% for att in note.attachments.all %}
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <small style="font-size: 0.7rem;">
+                                            <a href="{{ att.file.url }}" target="_blank">{{ att.filename }}</a>
+                                        </small>
+                                        <form method="post" action="{% url 'compliance:local_requirement_note_attachment_delete' att.id %}" class="d-inline" onsubmit="return confirm('{% trans "Delete this attachment?" %}')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size: 0.6rem; padding: 0.1rem 0.3rem;">×</button>
+                                        </form>
+                                    </div>
+                                    {% endfor %}
+                                    <input type="file" name="attachments" class="form-control form-control-sm mt-1" multiple style="font-size: 0.7rem;">
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm w-100" style="font-size: 0.7rem; padding: 0.2rem;">
+                                    <i class="fas fa-save"></i> {% trans "Save" %}
+                                </button>
+                            </form>
+                            {% else %}
+                            <p class="mb-1" style="font-size: 0.75rem;">{{ note.note }}</p>
+                            {% if note.attachment %}
+                            <small><a href="{{ note.attachment.url }}" target="_blank">{{ note.attachment_filename }}</a></small>
+                            {% endif %}
+                            {% for att in note.attachments.all %}
+                            <div><small><a href="{{ att.file.url }}" target="_blank">{{ att.filename }}</a></small></div>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0" style="font-size: 0.75rem;">{% trans "No notes yet" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters (Hidden by default) -->
+    <div class="row mb-2">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#localFiltersCollapse" aria-expanded="false" aria-controls="localFiltersCollapse">
+                    <i class="fas fa-filter"></i> {% trans "Show/Hide Filters" %}
+                </button>
+            </div>
+            <div class="collapse" id="localFiltersCollapse">
+                <div class="card" style="border: 1px solid #dee2e6;">
+                    <div class="card-body" style="padding: 0.5rem;">
+                        <form method="get" class="d-flex align-items-center flex-wrap" style="gap: 0.5rem;">
+                        <input type="text" name="search" class="form-control" style="flex: 1; min-width: 150px;"
+                               placeholder="{% trans 'Search controls...' %}"
+                               value="{{ search }}">
+                        
+                        {% if not requirement.is_template %}
+                        <select name="control_status" class="form-control" style="flex: 0 0 auto; min-width: 120px;">
+                            <option value="">{% trans "All Statuses" %}</option>
+                            {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% endif %}
+                        
+                        <select name="priority" class="form-control" style="flex: 0 0 auto; min-width: 120px;">
+                            <option value="">{% trans "All Priorities" %}</option>
+                            {% for value, label in priority_choices %}
+                            <option value="{{ value }}" {% if priority_filter == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        
+                        {% if requirement.is_template %}
+                        <select name="domain" class="form-control" style="flex: 0 0 auto; min-width: 140px;">
+                            <option value="">{% trans "All Domains" %}</option>
+                            <option value="NETWORK_SECURITY" {% if domain_filter == 'NETWORK_SECURITY' %}selected{% endif %}>NETWORK_SECURITY</option>
+                            <option value="CONFIGURATION_MANAGEMENT" {% if domain_filter == 'CONFIGURATION_MANAGEMENT' %}selected{% endif %}>CONFIGURATION_MANAGEMENT</option>
+                            <option value="CRYPTOGRAPHIC_PROTECTIONS" {% if domain_filter == 'CRYPTOGRAPHIC_PROTECTIONS' %}selected{% endif %}>CRYPTOGRAPHIC_PROTECTIONS</option>
+                            <option value="ENDPOINT_SECURITY" {% if domain_filter == 'ENDPOINT_SECURITY' %}selected{% endif %}>ENDPOINT_SECURITY</option>
+                            <option value="TECHNOLOGY_DEVELOPMENT_ACQUISITION" {% if domain_filter == 'TECHNOLOGY_DEVELOPMENT_ACQUISITION' %}selected{% endif %}>TECHNOLOGY_DEVELOPMENT</option>
+                            <option value="IDENTIFICATION_AUTHENTICATION" {% if domain_filter == 'IDENTIFICATION_AUTHENTICATION' %}selected{% endif %}>IDENTIFICATION_AUTH</option>
+                            <option value="PHYSICAL_ENVIRONMENTAL_SECURITY" {% if domain_filter == 'PHYSICAL_ENVIRONMENTAL_SECURITY' %}selected{% endif %}>PHYSICAL_ENV_SECURITY</option>
+                            <option value="CONTINUOUS_MONITORING" {% if domain_filter == 'CONTINUOUS_MONITORING' %}selected{% endif %}>CONTINUOUS_MONITORING</option>
+                            <option value="INFORMATION_ASSURANCE" {% if domain_filter == 'INFORMATION_ASSURANCE' %}selected{% endif %}>INFORMATION_ASSURANCE</option>
+                            <option value="SECURITY_PRIVACY_GOVERNANCE" {% if domain_filter == 'SECURITY_PRIVACY_GOVERNANCE' %}selected{% endif %}>SECURITY_GOVERNANCE</option>
+                            <option value="ASSET_MANAGEMENT" {% if domain_filter == 'ASSET_MANAGEMENT' %}selected{% endif %}>ASSET_MANAGEMENT</option>
+                            <option value="SECURE_ENGINEERING_ARCHITECTURE" {% if domain_filter == 'SECURE_ENGINEERING_ARCHITECTURE' %}selected{% endif %}>ENGINEERING_ARCH</option>
+                            <option value="INCIDENT_RESPONSE" {% if domain_filter == 'INCIDENT_RESPONSE' %}selected{% endif %}>INCIDENT_RESPONSE</option>
+                        </select>
+                        {% endif %}
+                        
+                        <button type="submit" class="btn btn-sm btn-primary" style="flex: 0 0 auto;">
+                            <i class="fas fa-search"></i> {% trans "Filter" %}
+                        </button>
+                        <a href="{% url 'compliance:local_requirement_instance_detail' requirement.id %}" class="btn btn-sm btn-secondary" style="flex: 0 0 auto;">
+                            <i class="fas fa-times"></i> {% trans "Clear" %}
+                        </a>
+                    </form>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content with Sidebar - Works for BOTH Template and Instance -->
+    <div class="requirement-container" style="display: grid !important; grid-template-columns: 250px 1fr !important; grid-gap: 20px !important; height: 80vh !important; width: 100% !important;">
+        <!-- Sidebar: Requirements Navigation -->
+        <div class="requirements-sidebar" style="grid-column: 1 !important; width: 250px !important; height: 80vh !important; overflow-y: scroll !important; overflow-x: hidden !important; background: #f8f9fa !important; border: 1px solid #dee2e6 !important; border-radius: 8px !important; padding: 15px !important;">
+            <h5><i class="fas fa-list"></i> {% trans "Requirements" %}</h5>
+            <nav class="nav flex-column">
+                {% for category in categories %}
+                <a class="nav-link sidebar-link" data-category-id="{{ category.id }}" href="#category-{{ category.id }}" title="{{ category.description|default:category.name }}">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div style="flex: 1; min-width: 0;">
+                            <div>
+                                <i class="fas fa-folder"></i> 
+                                <strong>{{ category.code }}</strong>
+                            </div>
+                            <div style="font-size: 0.65rem; color: #6c757d; margin-top: 2px; line-height: 1.2; white-space: normal;">
+                                {{ category.name|truncatewords:8 }}
+                            </div>
+                        </div>
+                        <span class="badge bg-secondary" style="font-size: 0.55rem; margin-left: 5px;">{{ category.controls.count }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </nav>
+        </div>
+        
+        <!-- Main Content: Categories and Controls -->
+        <div class="content-area-scroll" id="contentArea" style="grid-column: 2 !important; width: 100% !important; height: 80vh !important; overflow-y: scroll !important; overflow-x: hidden !important; padding-right: 10px !important;">
+    <!-- Categories and Controls -->
+    {% for category in categories %}
+    <div class="category-section" id="category-{{ category.id }}">
+        <div class="category-header" data-bs-toggle="collapse" data-bs-target="#category-body-{{ category.id }}" style="cursor: pointer;">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-folder"></i> {{ category.code }} - {{ category.name }}
+                    <span class="badge badge-info ml-2">{{ category.total_controls }} {% trans "controls" %}</span>
+                    <span class="badge badge-success ml-2">{{ category.get_completion_percentage }}% {% trans "complete" %}</span>
+                </h4>
+                <div>
+                    {% if requirement.is_template %}
+                        {% if permissions.can_add_controls %}
+                        <button type="button" class="btn btn-sm btn-primary" 
+                                onclick="event.stopPropagation(); window.location.href='{% url 'compliance:local_requirement_control_create' category.id %}';" 
+                                title="{% trans 'Add control' %}">
+                            <i class="fas fa-plus"></i> {% trans "Add Control" %}
+                        </button>
+                        {% endif %}
+                        {% if permissions.can_edit_controls %}
+                        <button type="button" class="btn btn-sm btn-warning" 
+                                onclick="event.stopPropagation(); openEditCategoryModal({{ category.id }}, '{{ category.code|escapejs }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', {{ category.order }});" 
+                                title="{% trans 'Edit category' %}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        {% endif %}
+                        {% if permissions.can_delete_controls %}
+                        <button type="button" class="btn btn-sm btn-danger" 
+                                onclick="event.stopPropagation(); openDeleteCategoryModal({{ category.id }}, '{{ category.code|escapejs }}', '{{ category.name|escapejs }}');" 
+                                title="{% trans 'Delete category' %}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% endif %}
+                    {% endif %}
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div id="category-body-{{ category.id }}" class="collapse show">
+            <div class="category-body">
+                {% if category.description %}
+                <p class="text-muted">{{ category.description }}</p>
+                {% endif %}
+                
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font sb-data-table">
+                        <thead>
+                            <tr>
+                                {% if False %}
+                                <th style="width: 8%;">{% trans "Code" %}</th>
+                                <th style="width: 10%;">{% trans "Title" %}</th>
+                                <th style="width: 45%;">{% trans "Name" %}</th>
+                                <th style="width: 12%;">{% trans "Priority" %}</th>
+                                <th style="width: 12%;">{% trans "Domain" %}</th>
+                                <th style="width: 13%;">{% trans "Actions" %}</th>
+                                {% else %}
+                                <th style="width: 12%;">{% trans "Code" %}</th>
+                                <th style="width: 33%;">{% trans "Name" %}</th>
+                                <th style="width: 10%;">{% trans "Status" %}</th>
+                                <th style="width: 8%;">{% trans "Priority" %}</th>
+                                <th style="width: 14%;">{% trans "Responsible" %}</th>
+                                <th style="width: 7%;">{% trans "Evidence" %}</th>
+                                <th style="width: 10%;">{% trans "Date" %}</th>
+                                <th style="width: 6%;">{% trans "Actions" %}</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for control in category.controls.all %}
+                            <tr class="control-row status-{{ control.status }}">
+                                <td>
+                                    <a href="{% url 'compliance:local_control_detail' control.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> {{ control.code }}
+                                    </a>
+                                </td>
+                                <td class="name-col">
+                                    {{ control.name }}
+                                    {% if control.is_verified %}
+                                    <i class="fas fa-check-circle text-success" title="{% trans 'Verified' %}"></i>
+                                    {% endif %}
+                                </td>
+                                {% if True %}
+                                <td>
+                                    <span style="{% if control.status == 'completed' %}color: #28a745;
+                                        {% elif control.status == 'in_progress' %}color: #17a2b8;
+                                        {% elif control.status == 'ready_for_review' %}color: #ffc107;
+                                        {% elif control.status == 'failed' %}color: #dc3545;
+                                        {% elif control.status == 'not_applicable' %}color: #6c757d;
+                                        {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                        {% if control.status == 'completed' %}<i class="fas fa-check-circle"></i>
+                                        {% elif control.status == 'in_progress' %}<i class="fas fa-spinner"></i>
+                                        {% elif control.status == 'ready_for_review' %}<i class="fas fa-clock"></i>
+                                        {% elif control.status == 'failed' %}<i class="fas fa-times-circle"></i>
+                                        {% elif control.status == 'not_applicable' %}<i class="fas fa-ban"></i>
+                                        {% else %}<i class="fas fa-circle"></i>{% endif %}
+                                        {{ control.get_status_display }}
+                                    </span>
+                                </td>
+                                {% endif %}
+                                <td>
+                                    <span style="{% if control.priority == 'critical' %}color: #dc3545;
+                                        {% elif control.priority == 'high' %}color: #fd7e14;
+                                        {% elif control.priority == 'medium' %}color: #ffc107;
+                                        {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                        {% if control.priority == 'critical' %}<i class="fas fa-exclamation-triangle"></i>
+                                        {% elif control.priority == 'high' %}<i class="fas fa-arrow-up"></i>
+                                        {% elif control.priority == 'medium' %}<i class="fas fa-minus"></i>
+                                        {% else %}<i class="fas fa-arrow-down"></i>{% endif %}
+                                        {{ control.get_priority_display }}
+                                    </span>
+                                </td>
+                                {% if False %}
+                                <td>
+                                    {% if control.domain %}
+                                        <span class="badge bg-info" style="font-size: 0.5rem;">{{ control.domain.code }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if permissions.can_delete_controls %}
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            onclick="if(confirm('{% trans "Delete this control?" %}')) { window.location.href='{% url 'compliance:local_requirement_control_delete' control.id %}'; }" 
+                                            title="{% trans 'Delete control' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                                {% else %}
+                                <td>
+                                    {% if control.responsible %}
+                                    <span style="color: #17a2b8; font-weight: bold;" 
+                                          title="{% if control.responsible.cabinet.department %}{{ control.responsible.cabinet.department }}{% endif %}{% if control.responsible.cabinet.department and control.responsible.cabinet.position %} / {% endif %}{% if control.responsible.cabinet.position %}{{ control.responsible.cabinet.position }}{% endif %}">
+                                        <i class="fas fa-user"></i> {{ control.responsible.get_full_name|default:control.responsible.username }}
+                                    </span>
+                                    {% else %}
+                                    <span style="color: #6c757d;">
+                                        <i class="fas fa-user-slash"></i> -
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span style="{% if control.has_sufficient_evidence %}color: #28a745;{% else %}color: #ffc107;{% endif %} font-weight: bold;">
+                                        {% if control.has_sufficient_evidence %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-exclamation-circle"></i>{% endif %}
+                                        {{ control.evidence_count }}/{{ control.required_evidence_count }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if control.actual_completion_date %}
+                                        <span style="color: #28a745; font-weight: bold;" title="{% trans 'Completed' %}">
+                                            <i class="fas fa-check-circle"></i> {{ control.actual_completion_date|date:"d.m.Y" }}
+                                        </span>
+                                    {% elif control.target_completion_date %}
+                                        <span style="color: #17a2b8;" title="{% trans 'Target' %}">
+                                            <i class="fas fa-calendar"></i> {{ control.target_completion_date|date:"d.m.Y" }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'compliance:local_control_detail' control.id %}" class="btn btn-outline-primary" title="{% trans 'Details' %}">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if permissions.can_delete_controls %}
+                                        <form method="post" action="{% url 'compliance:local_requirement_control_delete' control.id %}"
+                                              onsubmit="return confirm('{% trans "Delete this control?" %}');"
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger" title="{% trans 'Delete control' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            
+                            <!-- Sub-controls (if any) -->
+                            {% for sub_control in control.sub_controls.all %}
+                            <tr class="control-row status-{{ sub_control.status }}" style="background-color: #f8f9fa;">
+                                <td style="padding-left: 30px;">
+                                    <a href="{% url 'compliance:local_control_detail' sub_control.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-level-up-alt fa-rotate-90"></i> <i class="fas fa-eye"></i> {{ sub_control.code }}
+                                    </a>
+                                </td>
+                                <td class="name-col">{{ sub_control.name }}</td>
+                                {% if True %}
+                                <td>
+                                    <span style="{% if sub_control.status == 'completed' %}color: #28a745;
+                                        {% elif sub_control.status == 'in_progress' %}color: #17a2b8;
+                                        {% elif sub_control.status == 'ready_for_review' %}color: #ffc107;
+                                        {% elif sub_control.status == 'failed' %}color: #dc3545;
+                                        {% elif sub_control.status == 'not_applicable' %}color: #6c757d;
+                                        {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                        {% if sub_control.status == 'completed' %}<i class="fas fa-check-circle"></i>
+                                        {% elif sub_control.status == 'in_progress' %}<i class="fas fa-spinner"></i>
+                                        {% elif sub_control.status == 'ready_for_review' %}<i class="fas fa-clock"></i>
+                                        {% elif sub_control.status == 'failed' %}<i class="fas fa-times-circle"></i>
+                                        {% elif sub_control.status == 'not_applicable' %}<i class="fas fa-ban"></i>
+                                        {% else %}<i class="fas fa-circle"></i>{% endif %}
+                                        {{ sub_control.get_status_display }}
+                                    </span>
+                                </td>
+                                {% endif %}
+                                <td>
+                                    <span style="{% if sub_control.priority == 'critical' %}color: #dc3545;
+                                        {% elif sub_control.priority == 'high' %}color: #fd7e14;
+                                        {% elif sub_control.priority == 'medium' %}color: #ffc107;
+                                        {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                        {% if sub_control.priority == 'critical' %}<i class="fas fa-exclamation-triangle"></i>
+                                        {% elif sub_control.priority == 'high' %}<i class="fas fa-arrow-up"></i>
+                                        {% elif sub_control.priority == 'medium' %}<i class="fas fa-minus"></i>
+                                        {% else %}<i class="fas fa-arrow-down"></i>{% endif %}
+                                        {{ sub_control.get_priority_display }}
+                                    </span>
+                                </td>
+                                {% if True %}
+                                <td>
+                                    {% if sub_control.responsible %}
+                                    <span style="color: #17a2b8; font-weight: bold;" 
+                                          title="{% if sub_control.responsible.cabinet.department %}{{ sub_control.responsible.cabinet.department }}{% endif %}{% if sub_control.responsible.cabinet.department and sub_control.responsible.cabinet.position %} / {% endif %}{% if sub_control.responsible.cabinet.position %}{{ sub_control.responsible.cabinet.position }}{% endif %}">
+                                        <i class="fas fa-user"></i> {{ sub_control.responsible.get_full_name|default:sub_control.responsible.username }}
+                                    </span>
+                                    {% else %}
+                                    <span style="color: #6c757d;">
+                                        <i class="fas fa-user-slash"></i> -
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                                <td class="text-center">
+                                    <span style="{% if sub_control.has_sufficient_evidence %}color: #28a745;{% else %}color: #ffc107;{% endif %} font-weight: bold;">
+                                        {% if sub_control.has_sufficient_evidence %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-exclamation-circle"></i>{% endif %}
+                                        {{ sub_control.get_evidence_count }}/{{ sub_control.required_evidence_count }}
+                                    </span>
+                                </td>
+                                {% if True %}
+                                <td>
+                                    {% if sub_control.actual_completion_date %}
+                                        <span style="color: #28a745; font-weight: bold;" title="{% trans 'Completed' %}">
+                                            <i class="fas fa-check-circle"></i> {{ sub_control.actual_completion_date|date:"d.m.Y" }}
+                                        </span>
+                                    {% elif sub_control.target_completion_date %}
+                                        <span style="color: #17a2b8;" title="{% trans 'Target' %}">
+                                            <i class="fas fa-calendar"></i> {{ sub_control.target_completion_date|date:"d.m.Y" }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'compliance:local_control_detail' sub_control.id %}" class="btn btn-outline-primary" title="{% trans 'Details' %}">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if permissions.can_delete_controls %}
+                                        <form method="post" action="{% url 'compliance:local_requirement_control_delete' sub_control.id %}"
+                                              onsubmit="return confirm('{% trans "Delete this control?" %}');"
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger" title="{% trans 'Delete control' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% empty %}
+                            <tr>
+                                <td colspan="{% if requirement.is_template %}5{% else %}8{% endif %}" class="text-center text-muted">
+                                    {% trans "No controls in this category" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> {% trans "No categories found. Click 'Add Category' to create one." %}
+    </div>
+    {% endfor %}
+        </div><!-- End content-area-scroll -->
+    </div><!-- End requirement-container -->
+
+    <!-- Recent Activity -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-history"></i> {% trans "Recent Activity" %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 12%;">{% trans "User" %}</th>
+                                    <th style="width: 10%;">{% trans "Action" %}</th>
+                                    <th style="width: 10%;">{% trans "Type" %}</th>
+                                    <th style="width: 30%;">{% trans "Object" %}</th>
+                                    <th style="width: 25%;">{% trans "Changes" %}</th>
+                                    <th style="width: 13%;">{% trans "Timestamp" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_logs %}
+                                <tr>
+                                    <td>
+                                        <span style="color: #17a2b8; font-weight: bold;">
+                                            <i class="fas fa-user"></i> {{ log.user.get_full_name|default:log.user.username }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if log.action == 'create' %}badge-success
+                                            {% elif log.action == 'update' %}badge-info
+                                            {% elif log.action == 'delete' %}badge-danger
+                                            {% elif log.action == 'verify' %}badge-primary
+                                            {% elif log.action == 'approve' %}badge-success
+                                            {% else %}badge-secondary{% endif %}"
+                                            style="{% if log.action == 'create' %}background-color: #28a745;
+                                            {% elif log.action == 'update' %}background-color: #17a2b8;
+                                            {% elif log.action == 'delete' %}background-color: #dc3545;
+                                            {% elif log.action == 'verify' %}background-color: #007bff;
+                                            {% elif log.action == 'approve' %}background-color: #28a745;
+                                            {% else %}background-color: #6c757d;{% endif %} color: white;">
+                                            {{ log.get_action_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ log.get_object_type_display }}</td>
+                                    <td>
+                                        {{ log.object_repr|truncatewords:8 }}
+                                        {% if log.notes %}
+                                        <br><small class="text-muted"><i class="fas fa-comment"></i> {{ log.notes }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.changes %}
+                                            {% with changes_dict=log.get_changes_dict %}
+                                                {% if changes_dict.field == 'status' %}
+                                                    <div style="font-size: 0.65rem;">
+                                                        <span style="color: #dc3545;">{{ changes_dict.old_status|upper }}</span>
+                                                        <i class="fas fa-arrow-right" style="color: #6c757d;"></i>
+                                                        <span style="color: #28a745; font-weight: bold;">{{ changes_dict.new_status|upper }}</span>
+                                                        {% if changes_dict.changed_date %}
+                                                        <br><small class="text-muted"><i class="far fa-calendar-alt"></i> {{ changes_dict.changed_date }}</small>
+                                                        {% endif %}
+                                                    </div>
+                                                {% elif changes_dict.old %}
+                                                    <small class="text-muted">{{ changes_dict.old.status|default:"-" }} → {{ changes_dict.new.status|default:"-" }}</small>
+                                                {% else %}
+                                                    <small class="text-muted">-</small>
+                                                {% endif %}
+                                            {% endwith %}
+                                        {% else %}
+                                            <small class="text-muted">-</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span style="color: #6c757d;">
+                                            <i class="far fa-clock"></i> {{ log.timestamp|date:"d.m.Y H:i" }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        {% trans "No activity yet" %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+{% if requirement.is_template %}
+<div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:local_requirement_category_create' requirement.id %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addCategoryModalLabel">{% trans "Add Category" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Code" %} *</label>
+                        <input type="text" name="code" class="form-control" required placeholder="{% trans 'e.g., 1.1, 2.1' %}">
+                        <small class="form-text text-muted">{% trans "Category code (e.g., 1.1, 2.1, 12.10)" %}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Name" %} *</label>
+                        <input type="text" name="name" class="form-control" required placeholder="{% trans 'e.g., Network Security Controls' %}">
+                        <small class="form-text text-muted">{% trans "Category name" %}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="{% trans 'Optional description...' %}"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Display Order" %}</label>
+                        <input type="number" name="order" class="form-control" value="0">
+                        <small class="form-text text-muted">{% trans "Lower numbers appear first" %}</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> {% trans "Add Category" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1" aria-labelledby="editCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="editCategoryForm">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editCategoryModalLabel">{% trans "Edit Category" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Code" %} *</label>
+                        <input type="text" name="code" id="edit_category_code" class="form-control" required>
+                        <small class="form-text text-muted">{% trans "Category code (e.g., 1.1, 2.1, 12.10)" %}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Name" %} *</label>
+                        <input type="text" name="name" id="edit_category_name" class="form-control" required>
+                        <small class="form-text text-muted">{% trans "Category name" %}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" id="edit_category_description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Display Order" %}</label>
+                        <input type="number" name="order" id="edit_category_order" class="form-control">
+                        <small class="form-text text-muted">{% trans "Lower numbers appear first" %}</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> {% trans "Save Changes" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Category Modal -->
+<div class="modal fade" id="deleteCategoryModal" tabindex="-1" aria-labelledby="deleteCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="deleteCategoryForm">
+                {% csrf_token %}
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteCategoryModalLabel">
+                        <i class="fas fa-exclamation-triangle"></i> {% trans "Delete Category" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">{% trans "Are you sure you want to delete this category?" %}</p>
+                    <div class="alert alert-warning">
+                        <strong id="delete_category_info"></strong>
+                    </div>
+                    <p class="text-danger mb-0">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>{% trans "Warning:" %}</strong>
+                        {% trans "This will also delete all controls in this category. This action cannot be undone!" %}
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> {% trans "Delete Category" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Open Edit Category Modal
+function openEditCategoryModal(categoryId, code, name, description, order) {
+    document.getElementById('edit_category_code').value = code;
+    document.getElementById('edit_category_name').value = name;
+    document.getElementById('edit_category_description').value = description;
+    document.getElementById('edit_category_order').value = order;
+    
+    const form = document.getElementById('editCategoryForm');
+    form.action = "{% url 'compliance:local_requirement_category_update' 0 %}".replace('0', categoryId);
+    
+    const modal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+    modal.show();
+}
+
+// Open Delete Category Modal
+function openDeleteCategoryModal(categoryId, code, name) {
+    document.getElementById('delete_category_info').textContent = code + ' - ' + name;
+    
+    const form = document.getElementById('deleteCategoryForm');
+    form.action = "{% url 'compliance:local_requirement_category_delete' 0 %}".replace('0', categoryId);
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteCategoryModal'));
+    modal.show();
+}
+
+// Modern smooth scrolling with auto-highlight
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebarLinks = document.querySelectorAll('.sidebar-link');
+    const contentArea = document.getElementById('contentArea');
+    
+    if (!contentArea) return; // Exit if not template requirement
+    
+    // Smooth scroll on sidebar click
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const categoryId = this.getAttribute('data-category-id');
+            const targetElement = document.getElementById('category-' + categoryId);
+            
+            if (targetElement) {
+                // Remove active class from all links
+                sidebarLinks.forEach(l => l.classList.remove('active'));
+                // Add active class to clicked link
+                this.classList.add('active');
+                
+                // Calculate scroll position
+                const containerTop = contentArea.offsetTop;
+                const elementTop = targetElement.offsetTop;
+                const scrollPosition = elementTop - containerTop - 20;
+                
+                // Smooth scroll
+                contentArea.scrollTo({
+                    top: scrollPosition,
+                    behavior: 'smooth'
+                });
+                
+                console.log('Scrolling to category:', categoryId, 'position:', scrollPosition);
+            }
+        });
+    });
+    
+    // Auto-highlight on scroll (with debounce for performance)
+    let scrollTimeout;
+    contentArea.addEventListener('scroll', function() {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            const sections = document.querySelectorAll('.category-section');
+            const scrollPosition = contentArea.scrollTop;
+            
+            let activeSection = null;
+            let minDistance = Infinity;
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - contentArea.offsetTop;
+                const distance = Math.abs(scrollPosition - sectionTop + 20);
+                
+                if (distance < minDistance && scrollPosition >= sectionTop - 100) {
+                    minDistance = distance;
+                    activeSection = section;
+                }
+            });
+            
+            if (activeSection) {
+                const categoryId = activeSection.id.replace('category-', '');
+                sidebarLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('data-category-id') === categoryId) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+        }, 100);
+    });
+    
+    // Set first link as active on load
+    if (sidebarLinks.length > 0) {
+        sidebarLinks[0].classList.add('active');
+    }
+});
+</script>
+
+<!-- Add Note Modal -->
+<div class="modal fade" id="localRequirementAddNoteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:local_requirement_note_create' requirement.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Add Note" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Note" %} *</label>
+                        <textarea name="note" class="form-control" rows="4" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Attachments" %}</label>
+                        <input type="file" name="attachments" class="form-control" multiple>
+                        <small class="form-text text-muted">{% trans "You can upload multiple files" %}</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> {% trans "Add Note" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="localComplianceGuideModal" tabindex="-1" aria-labelledby="localComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:local_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="localComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Local Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="localComplianceGuideModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('localComplianceGuideModal').addEventListener('show.bs.modal', function() {
+    var body = document.getElementById('localComplianceGuideModalBody');
+    var url = this.getAttribute('data-guide-url');
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+    fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+        })
+        .catch(function() {
+            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+        });
+});
+</script>
+
+{% endblock %}
+

@@ -1,0 +1,10 @@
+bind = "127.0.0.1:9006"
+workers = 3
+timeout = 120
+keepalive = 2
+max_requests = 1000
+max_requests_jitter = 100
+limit_request_line = 8190
+accesslog = "/srv/SecBoard_base/logs/gunicorn_access.log"
+errorlog = "/srv/SecBoard_base/logs/gunicorn_error.log"
+loglevel = "info"

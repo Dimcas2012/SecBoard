@@ -1,0 +1,2045 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block styles %}
+{{ block.super }}
+{% include "app_access/includes/access_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<!-- SecBoard\templates\app_access\access_matrix_is.html -->
+<div class="access-page">
+<!-- Додаємо форму вибору на початку контенту -->
+<div class="container-fluid mt-4 px-2 py-1">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">{% trans "Access Matrix Information Systems" %}</h5>
+                    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#accessMatrixGuideModal">
+                        <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+                    </button>
+                </div>
+                <div class="card-body">
+                    <!-- Додаємо CSRF токен -->
+                    {% csrf_token %}
+                    
+                    <!-- Форма вибору -->
+                    <form id="systemSelectionForm" class="row g-3">
+                        <!-- Вибір компанії -->
+                        <div class="col-md-3">
+                            <label for="companySelect" class="form-label">{% trans "Company" %}</label>
+                            <select class="form-select" id="companySelect" required>
+                                <option value="" selected disabled>{% trans "Select company" %}</option>
+                            </select>
+                        </div>
+
+                        <!-- Вибір інформаційної системи -->
+                        <div class="col-md-3">
+                            <label for="systemSelect" class="form-label">{% trans "Information System" %}</label>
+                            <select class="form-select" id="systemSelect" required disabled>
+                                <option value="" selected disabled>{% trans "Select system" %}</option>
+                            </select>
+                        </div>
+
+                        <!-- Вибір середовища (Environment) -->
+                        <div class="col-md-3">
+                            <label for="environmentSelect" class="form-label">{% trans "Environment" %}</label>
+                            <select class="form-select" id="environmentSelect" disabled>
+                                <option value="" selected>{% trans "All Environments" %}</option>
+                                <option value="production">{% trans "Production" %}</option>
+                                <option value="test">{% trans "Test" %}</option>
+                                <option value="development">{% trans "Development" %}</option>
+                            </select>
+                        </div>
+
+                        <!-- Вибір об'єкта -->
+                        <div class="col-md-3">
+                            <label for="objectSelect" class="form-label">{% trans "Object" %}</label>
+                            <select class="form-select" id="objectSelect" disabled>
+                                <option value="" selected>{% trans "All objects" %}</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Додаємо контейнер для матриці після форми вибору -->
+<div id="accessMatrixContainer" class="mt-4" style="display: none;">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="card-title mb-0" id="accessMatrixCardTitle">{% trans "Default Access Rights Matrix" %}</h6>
+            <span id="matrixActionButtons" class="btn-group sb-toolbar flex-wrap" role="group">
+                <a href="#" id="exportMatrixExcelBtn" class="btn btn-success btn-sm btn-icon-action"
+                   data-bs-toggle="tooltip" data-bs-placement="top"
+                   title="{% trans 'Export matrix to Excel with styles and colors' %}">
+                    <i class="bi bi-file-earmark-excel"></i>
+                </a>
+                {% if can_edit_matrix %}
+                <button type="button" class="btn btn-outline-secondary btn-sm btn-icon-action" id="copyMatrixBetweenEnvsBtn"
+                        data-bs-toggle="modal" data-bs-target="#copyMatrixBetweenEnvironmentsModal"
+                        title="{% trans 'Copy Access Rights Matrix from one environment to another (objects matched by name)' %}">
+                    <i class="bi bi-clipboard2-pulse"></i>
+                </button>
+                <button type="button" class="btn btn-outline-primary btn-sm btn-icon-action" id="applyDefaultMatrixBtn"
+                        data-bs-toggle="modal" data-bs-target="#applyDefaultMatrixModal"
+                        title="{% trans 'Copy Default Matrix mappings to this object' %}" style="display: none;">
+                    <i class="bi bi-clipboard-check"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-icon-action" id="clearMatrixBtn"
+                        data-bs-toggle="modal" data-bs-target="#clearMatrixModal"
+                        title="{% trans 'Clear all mappings in this matrix' %}">
+                    <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+            <!-- Легенда для об'єктної матриці -->
+            <div id="objectMatrixLegend" class="alert alert-info mb-3" style="display: none;">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <small>
+                        <span class="me-3">
+                            <input type="checkbox" class="form-check-input system-mapping me-1" disabled>
+                            {% trans "Also checked in Default Access Rights Matrix" %}
+                        </span>
+                        <span>
+                            <input type="checkbox" class="form-check-input me-1" disabled>
+                            {% trans "Object-specific settings" %}
+                        </span>
+                    </small>
+                </div>
+            </div>
+
+            <!-- Фільтри по Roles, Functions, Rights -->
+            <div id="matrixFiltersBar" class="mb-3" style="display: none;">
+                <div class="row g-2 align-items-end flex-wrap">
+                    <div class="col-auto">
+                        <label class="form-label small mb-0">{% trans "Filter by Roles" %}</label>
+                        <select id="filterRoles" class="form-select form-select-sm matrix-filter-select" multiple size="1" data-placeholder="{% trans 'All roles' %}">
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label small mb-0">{% trans "Filter by Functions" %}</label>
+                        <select id="filterFunctions" class="form-select form-select-sm matrix-filter-select" multiple size="1" data-placeholder="{% trans 'All functions' %}">
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label small mb-0">{% trans "Filter by Rights" %}</label>
+                        <select id="filterRights" class="form-select form-select-sm matrix-filter-select" multiple size="1" data-placeholder="{% trans 'All rights' %}">
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <button type="button" id="matrixFiltersReset" class="btn btn-outline-secondary btn-sm">{% trans "Reset filters" %}</button>
+                    </div>
+                </div>
+                <small class="text-muted">{% trans "Hold Ctrl/Cmd to select multiple. Empty selection = show all." %}</small>
+            </div>
+            
+            <div class="table-responsive matrix-table-container">
+                <table class="table table-bordered matrix-table">
+                    <thead class="sticky-header">
+                        <tr>
+                            <th style="width: 300px;">{% trans "Roles & Functions" %}</th>
+                            <!-- Access Rights будуть додані тут динамічно -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Ролі та функції будуть додані тут динамічно -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Інформаційна панель для повідомлень про доступ -->
+<div id="accessInfoPanel" class="container-fluid mt-3" style="display: none;">
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        {% trans "Access Information" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="accessInfoContent">
+                        <!-- Контент буде додано через JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Додаємо стилі -->
+<style>
+/* Контейнер з вертикальним скролом */
+.matrix-table-container {
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: auto;
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+/* Закріплені заголовки */
+.matrix-table thead.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f8f9fa;
+}
+
+.matrix-table thead.sticky-header th {
+    position: sticky;
+    top: 0;
+    background-color: #f8f9fa;
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Закріплена перша колонка (опціонально) */
+.matrix-table th:first-child,
+.matrix-table td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: #fff;
+    z-index: 5;
+}
+
+.matrix-table thead.sticky-header th:first-child {
+    z-index: 15;
+    background-color: #f8f9fa;
+}
+
+/* Тінь для закріпленої колонки - використовуємо box-shadow замість ::after */
+.matrix-table td:first-child,
+.matrix-table th:first-child {
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Стилі для custom scrollbar (для Windows) */
+.matrix-table-container::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.matrix-table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 6px;
+}
+
+.matrix-table-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 6px;
+}
+
+.matrix-table-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Для Firefox */
+.matrix-table-container {
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+}
+
+/* Оновлюємо стилі для таблиці */
+.matrix-table {
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    margin-bottom: 0;
+    table-layout: auto; /* колонки по контенту, горизонтальний скрол при потребі */
+}
+
+.matrix-table th, 
+.matrix-table td {
+    border: 1px solid #dee2e6;
+    padding: 2px 6px;
+    vertical-align: middle;
+    line-height: 1.2;
+}
+
+/* Колонки прав доступу: мінімальна ширина щоб назви не накладались */
+.matrix-table th:not(:first-child),
+.matrix-table td:not(:first-child) {
+    min-width: 100px;
+    width: 100px;
+}
+
+/* Заголовки прав доступу — текст по центру, перенос слів */
+.matrix-table th:not(:first-child) {
+    white-space: normal;
+    word-break: break-word;
+    text-align: center;
+    font-size: 0.7rem;
+}
+
+/* Оновлюємо стиль для контейнера з точкою та текстом в заголовку */
+.matrix-table th:not(:first-child) .d-flex {
+    flex-direction: column;
+    gap: 2px; /* Зменшуємо відстань між точкою та текстом */
+    text-align: center;
+}
+
+/* Зменшуємо розмір кольорової точки */
+.matrix-table th:not(:first-child) .color-dot {
+    width: 4px;
+    height: 4px;
+    margin: 0 auto;
+}
+
+.matrix-table th {
+    background-color: #f8f9fa;
+    white-space: nowrap;
+    font-size: 0.8rem; /* Трохи більший шрифт для заголовків */
+}
+
+.role-header {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    font-size: 0.8rem; /* Трохи більший шрифт для заголовків ролей */
+}
+
+.function-row {
+    position: relative;
+}
+
+.function-level-0 {
+    padding-left: 0;
+}
+
+.function-level-1 {
+    padding-left: 24px;
+}
+
+.function-level-2 {
+    padding-left: 48px;
+}
+
+.function-level-3 {
+    padding-left: 72px;
+}
+
+/* Додаємо вертикальні лінії - переписуємо position для level функцій */
+.function-level-1 td:first-child,
+.function-level-2 td:first-child,
+.function-level-3 td:first-child {
+    position: sticky !important;
+    left: 0 !important;
+    background-color: #fff !important;
+    z-index: 5 !important;
+}
+
+.function-level-1 td:first-child::before,
+.function-level-2 td:first-child::before,
+.function-level-3 td:first-child::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #dee2e6;
+    z-index: 1;
+}
+
+/* Додаємо горизонтальні лінії */
+.function-level-1 td:first-child::after,
+.function-level-2 td:first-child::after,
+.function-level-3 td:first-child::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    width: 12px;
+    height: 1px;
+    background-color: #dee2e6;
+    z-index: 1;
+}
+
+/* Оновлюємо стиль для контейнера назви функції */
+.function-name-container {
+    display: flex;
+    align-items: center;
+    position: relative;
+    padding-left: 4px;
+}
+
+/* Оновлюємо розмір точки */
+.color-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+}
+
+/* Зменшуємо розмір чекбоксів */
+.form-check-input {
+    width: 0.7rem !important; /* Зменшуємо розмір чекбоксу */
+    height: 0.7rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Зменшуємо контейнер матриці */
+#accessMatrixContainer .card {
+    max-width: 95%;
+    margin: 0 auto;
+}
+
+/* Зменшуємо відступи в картці */
+#accessMatrixContainer .card-body {
+    padding: 0.5rem;
+}
+
+#accessMatrixContainer .card-header {
+    padding: 0.5rem 1rem;
+}
+
+/* Зменшуємо tooltip */
+.tooltip {
+    font-size: 0.75rem;
+}
+
+/* Зменшуємо форму вибору */
+#systemSelectionForm {
+    font-size: 0.9rem;
+}
+
+#systemSelectionForm .form-label {
+    margin-bottom: 0.25rem;
+}
+
+#systemSelectionForm .form-select {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.9rem;
+}
+
+/* Стилі для вибору об'єктів з ієрархією */
+#objectSelect {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+#objectSelect option {
+    padding: 4px 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+#objectSelect option[data-level="0"] {
+    font-weight: bold;
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
+}
+
+#objectSelect option[data-level="1"] {
+    font-weight: normal;
+    color: #495057 !important;
+    background-color: #fdfdfe !important;
+}
+
+#objectSelect option[data-level="2"] {
+    font-weight: normal;
+    color: #6c757d !important;
+    background-color: #fefefe !important;
+}
+
+#objectSelect option[data-level="3"] {
+    font-weight: normal;
+    color: #868e96 !important;
+    background-color: #ffffff !important;
+}
+
+/* Додаткові стилі для кращого відображення дерева */
+#objectSelect option:hover {
+    background-color: #e9ecef !important;
+    color: #495057 !important;
+}
+
+#objectSelect option:selected {
+    background-color: #007bff !important;
+    color: white !important;
+}
+
+/* Адаптивні стилі для форми */
+@media (max-width: 768px) {
+    #systemSelectionForm .col-md-4 {
+        margin-bottom: 1rem;
+    }
+    
+    #systemSelectionForm {
+        flex-direction: column;
+    }
+}
+
+/* Стилі для деревовидної структури */
+.function-row td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: #fff;
+    z-index: 5;
+}
+
+/* Базові відступи для рівнів */
+.function-level-0 td:first-child {
+    padding-left: 8px;
+}
+
+.function-level-1 td:first-child {
+    padding-left: 32px;
+}
+
+.function-level-2 td:first-child {
+    padding-left: 56px;
+}
+
+.function-level-3 td:first-child {
+    padding-left: 80px;
+}
+
+/* Вертикальні лінії для підрівнів */
+.function-level-1 td:first-child::before,
+.function-level-2 td:first-child::before,
+.function-level-3 td:first-child::before {
+    content: '';
+    position: absolute;
+    left: 16px;
+    top: -50%;
+    height: 150%;
+    border-left: 1px solid #dee2e6;
+}
+
+/* Горизонтальні лінії для підрівнів */
+.function-level-1 td:first-child::after,
+.function-level-2 td:first-child::after,
+.function-level-3 td:first-child::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    width: 16px;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Останній елемент в групі */
+.last-in-group td:first-child::before {
+    height: 50%;
+}
+
+/* Контейнер для назви функції */
+.function-name-container {
+    display: flex;
+    align-items: center;
+    padding-left: 4px;
+}
+
+/* Стиль для кольорової точки */
+.color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+/* Стиль для чекбоксів */
+.checkbox-cell {
+    text-align: center;
+    padding: 2px !important; /* Зменшуємо padding для клітинок з чекбоксами */
+}
+
+/* Стиль для заголовка ролі */
+.role-header td:first-child {
+    padding-left: 8px !important;
+    font-weight: bold;
+    background-color: #f8f9fa;
+}
+
+/* Для role-row також потрібен правильний фон */
+.role-row td:first-child {
+    background-color: #f8f9fa;
+}
+
+/* Прибираємо border для вертикальних ліній */
+.matrix-table td {
+    border-left: none;
+    border-right: none;
+}
+
+.matrix-table th {
+    border-left: none;
+    border-right: none;
+}
+
+.function-name {
+    display: flex;
+    align-items: center;
+    padding: 2px 0;
+}
+
+.sub-function {
+    padding-left: 20px;
+    position: relative;
+}
+
+.sub-function::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #dee2e6;
+}
+
+.sub-function::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    width: 12px;
+    height: 1px;
+    background-color: #dee2e6;
+}
+
+/* Оновлюємо стилі для ієрархічного відображення */
+.role-name {
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.function-item {
+    display: flex;
+    align-items: center;
+    padding: 2px 0;
+}
+
+.level-1 {
+    padding-left: 20px;
+    position: relative;
+}
+
+.level-2 {
+    padding-left: 40px;
+    position: relative;
+}
+
+.level-3 {
+    padding-left: 60px;
+    position: relative;
+}
+
+/* Додаємо вертикальні лінії */
+.level-1::before,
+.level-2::before,
+.level-3::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    width: 12px;
+    height: 1px;
+    background-color: #dee2e6;
+}
+
+.level-1::after,
+.level-2::after,
+.level-3::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 50%;
+    width: 1px;
+    background-color: #dee2e6;
+}
+
+.color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.role-row {
+    background-color: #f8f9fa;
+}
+
+/* Стилі для tooltip чекбоксів */
+.checkbox-cell .tooltip-inner {
+    max-width: 300px;
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    white-space: pre-line;
+}
+
+/* Збільшуємо розмір чекбоксу для кращої взаємодії */
+.checkbox-cell .form-check-input:hover {
+    background-color: #f8f9fa;
+}
+
+/* Стилі для чекбоксів з системними маппінгами */
+.form-check-input.system-mapping {
+    border: 2px solid #fd7e14 !important; /* Помаранчева рамка */
+    box-shadow: 0 0 0 0.1rem rgba(253, 126, 20, 0.25) !important;
+}
+
+.form-check-input.system-mapping:checked {
+    background-color: #fd7e14 !important;
+    border-color: #fd7e14 !important;
+}
+
+.form-check-input.system-mapping:focus {
+    border-color: #fd7e14 !important;
+    box-shadow: 0 0 0 0.2rem rgba(253, 126, 20, 0.5) !important;
+}
+
+.form-check-input.system-mapping:hover {
+    border-color: #e76700 !important;
+    background-color: rgba(253, 126, 20, 0.1);
+}
+
+/* Стилі для легенди */
+#objectMatrixLegend {
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    border-left: 4px solid #fd7e14;
+}
+
+#objectMatrixLegend .form-check-input {
+    width: 0.8rem;
+    height: 0.8rem;
+    margin: 0;
+    vertical-align: middle;
+}
+
+#objectMatrixLegend .bi-info-circle {
+    color: #fd7e14;
+    font-size: 1rem;
+}
+
+/* Фільтри матриці */
+.matrix-filter-select {
+    min-width: 180px;
+    max-width: 220px;
+    height: 2rem;
+}
+#matrixFiltersBar .form-label {
+    font-size: 0.8rem;
+}
+</style>
+
+<!-- Додаємо JavaScript для обробки вибору -->
+<script>
+// Функція-обгортка для показу повідомлень
+function showNotification(type, message) {
+    if (typeof toastr !== 'undefined') {
+        toastr[type](message);
+    } else {
+        console.log(`${type}: ${message}`);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Ініціалізація toastr
+    if (typeof toastr !== 'undefined') {
+        toastr.options = {
+            "closeButton": true,
+            "progressBar": true,
+            "positionClass": "toast-top-right",
+            "timeOut": "3000"
+        };
+    }
+
+    const companySelect = document.getElementById('companySelect');
+    const systemSelect = document.getElementById('systemSelect');
+    const environmentSelect = document.getElementById('environmentSelect');
+    const objectSelect = document.getElementById('objectSelect');
+    
+    // Завантаження компаній при завантаженні сторінки
+    loadCompaniesAndSystems();
+    
+    // Обробник зміни компанії
+    companySelect.addEventListener('change', function() {
+        const companyId = this.value;
+        systemSelect.innerHTML = '<option value="" selected disabled>{% trans "Select system" %}</option>';
+        systemSelect.disabled = !companyId;
+        // Reset environment and objects when company changes
+        environmentSelect.value = '';
+        environmentSelect.disabled = true;
+        objectSelect.innerHTML = '<option value="" selected>{% trans "All objects" %}</option>';
+        objectSelect.disabled = true;
+        
+        if (companyId) {
+            const selectedCompany = JSON.parse(this.options[this.selectedIndex].dataset.systems || '[]');
+            selectedCompany.forEach(system => {
+                const option = new Option(system.name, system.id);
+                systemSelect.add(option);
+            });
+        }
+    });
+    
+    // Обробник зміни системи
+    systemSelect.addEventListener('change', function() {
+        const systemId = this.value;
+        // Reset objects and keep disabled until Environment is selected
+        objectSelect.innerHTML = '<option value="" selected>{% trans "All objects" %}</option>';
+        objectSelect.disabled = true;
+        // Enable environment selection when system is chosen
+        environmentSelect.disabled = !systemId;
+        // Hide matrix until Environment is chosen
+        const container = document.getElementById('accessMatrixContainer');
+        if (container) container.style.display = 'none';
+        const infoPanel = document.getElementById('accessInfoPanel');
+        if (infoPanel) {
+            showAccessInfoPanel(
+                'info',
+                '{% trans "Environment selection required" %}',
+                '{% trans "Please select an Environment to view Default Access Rights Matrix" %}'
+            );
+        }
+    });
+
+    // Обробник зміни середовища
+    environmentSelect.addEventListener('change', function() {
+        const systemId = systemSelect.value;
+        if (!systemId) return;
+        const env = environmentSelect.value;
+        objectSelect.innerHTML = '<option value="" selected>{% trans "All objects" %}</option>';
+        // Enable objects only when environment is selected
+        if (env) {
+            objectSelect.disabled = false;
+            loadSystemObjects(systemId);
+            // Hide any info panel before loading matrix
+            const infoPanel = document.getElementById('accessInfoPanel');
+            if (infoPanel) infoPanel.style.display = 'none';
+            // Load default matrix for selected environment
+            loadAccessMatrix(systemId);
+        } else {
+            objectSelect.disabled = true;
+            // Hide matrix and show hint to select environment
+            const container = document.getElementById('accessMatrixContainer');
+            if (container) container.style.display = 'none';
+            const infoPanel = document.getElementById('accessInfoPanel');
+            if (infoPanel) {
+                showAccessInfoPanel(
+                    'info',
+                    '{% trans "Environment selection required" %}',
+                    '{% trans "Please select an Environment to view Default Access Rights Matrix" %}'
+                );
+            }
+        }
+    });
+    
+    // Обробник зміни об'єкта
+    objectSelect.addEventListener('change', function() {
+        const systemId = systemSelect.value;
+        const objectId = this.value;
+        // Прибираємо залишковий backdrop від модалки (щоб екран не лишався сірим)
+        document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+        document.body.style.removeProperty('overflow');
+        if (systemId) {
+            // Перезавантажуємо матрицю з урахуванням обраного об'єкта
+            loadAccessMatrix(systemId, objectId);
+        }
+    });
+
+    // Експорт матриці в Excel (з стилями та кольорами)
+    const exportMatrixExcelBtn = document.getElementById('exportMatrixExcelBtn');
+    if (exportMatrixExcelBtn) {
+        exportMatrixExcelBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const systemId = systemSelect.value;
+            if (!systemId) {
+                showNotification('warning', '{% trans "Select system and environment first" %}');
+                return;
+            }
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const params = new URLSearchParams({ system_id: systemId });
+            const env = environmentSelect.value;
+            if (env) params.set('environment', env);
+            const objectId = objectSelect.value;
+            if (objectId) params.set('object_id', objectId);
+            window.location.href = `/${languagePrefix}/app_access/matrix/export-excel/?${params.toString()}`;
+        });
+    }
+
+    // Повне очищення матриці з підтвердженням
+    const clearMatrixConfirmBtn = document.getElementById('clearMatrixConfirmBtn');
+    if (clearMatrixConfirmBtn) {
+        clearMatrixConfirmBtn.addEventListener('click', function() {
+            const systemId = systemSelect.value;
+            if (!systemId) {
+                showNotification('error', '{% trans "System not selected" %}');
+                return;
+            }
+            const objectId = objectSelect.value || null;
+            const env = environmentSelect.value || '';
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const payload = { system_id: parseInt(systemId, 10) };
+            if (objectId) payload.object_id = objectId;
+            if (env) payload.environment = env;
+            $.ajax({
+                url: `/${languagePrefix}/app_access/matrix/clear/`,
+                type: 'POST',
+                data: JSON.stringify(payload),
+                contentType: 'application/json',
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+                success: function(response) {
+                    if (response.success) {
+                        const modalEl = document.getElementById('clearMatrixModal');
+                        if (modalEl) {
+                            const modal = bootstrap.Modal.getInstance(modalEl);
+                            if (modal) modal.hide();
+                            setTimeout(function() {
+                                document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+                                document.body.classList.remove('modal-open');
+                                document.body.style.removeProperty('padding-right');
+                                document.body.style.removeProperty('overflow');
+                            }, 300);
+                        }
+                        loadAccessMatrix(systemId, objectId || undefined);
+                        showNotification('success', response.message || '{% trans "Matrix cleared successfully" %}');
+                    } else {
+                        showNotification('error', response.message || '{% trans "Error clearing matrix" %}');
+                    }
+                },
+                error: function(xhr) {
+                    let msg = '{% trans "Error clearing matrix" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                    else if (xhr.status === 403) msg = '{% trans "Access denied" %}';
+                    showNotification('error', msg);
+                }
+            });
+        });
+    }
+
+    // Apply Default Matrix — при відкритті модалки прибираємо залишкові backdrops (щоб не було подвійного сірого)
+    const applyDefaultMatrixModalEl = document.getElementById('applyDefaultMatrixModal');
+    if (applyDefaultMatrixModalEl) {
+        applyDefaultMatrixModalEl.addEventListener('show.bs.modal', function() {
+            var backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length > 0) backdrops.forEach(function(el) { el.remove(); });
+        });
+    }
+    // Apply Default Matrix — копіювання Default Matrix в об'єктну матрицю
+    const applyDefaultMatrixConfirmBtn = document.getElementById('applyDefaultMatrixConfirmBtn');
+    if (applyDefaultMatrixConfirmBtn) {
+        applyDefaultMatrixConfirmBtn.addEventListener('click', function() {
+            const systemId = systemSelect.value;
+            const objectId = objectSelect.value || null;
+            const env = environmentSelect.value || '';
+            if (!systemId || !objectId) {
+                showNotification('error', '{% trans "Select system and object" %}');
+                return;
+            }
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const payload = { system_id: parseInt(systemId, 10), object_id: objectId };
+            if (env) payload.environment = env;
+            $.ajax({
+                url: `/${languagePrefix}/app_access/matrix/apply-default/`,
+                type: 'POST',
+                data: JSON.stringify(payload),
+                contentType: 'application/json',
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+                success: function(response) {
+                    if (response.success) {
+                        const modalEl = document.getElementById('applyDefaultMatrixModal');
+                        const sysId = systemId;
+                        const objId = objectId;
+                        const msg = (response.message || '{% trans "Default matrix applied" %}') + (response.applied_count !== undefined ? ' (' + response.applied_count + ')' : '');
+                        if (modalEl) {
+                            const modal = bootstrap.Modal.getInstance(modalEl);
+                            function cleanupAndReload() {
+                                modalEl.removeEventListener('hidden.bs.modal', cleanupAndReload);
+                                document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+                                document.body.classList.remove('modal-open');
+                                document.body.style.removeProperty('padding-right');
+                                document.body.style.removeProperty('overflow');
+                                loadAccessMatrix(sysId, objId);
+                                showNotification('success', msg);
+                            }
+                            modalEl.addEventListener('hidden.bs.modal', cleanupAndReload, { once: true });
+                            if (modal) modal.hide();
+                        } else {
+                            loadAccessMatrix(sysId, objId);
+                            showNotification('success', msg);
+                        }
+                    } else {
+                        showNotification('error', response.message || '{% trans "Error applying default matrix" %}');
+                    }
+                },
+                error: function(xhr) {
+                    let msg = '{% trans "Error applying default matrix" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                    else if (xhr.status === 403) msg = '{% trans "Access denied" %}';
+                    showNotification('error', msg);
+                }
+            });
+        });
+    }
+
+    // Copy Matrix Between Environments
+    const copyMatrixBetweenEnvsConfirmBtn = document.getElementById('copyMatrixBetweenEnvsConfirmBtn');
+    const copyMatrixBetweenEnvsModal = document.getElementById('copyMatrixBetweenEnvironmentsModal');
+    if (copyMatrixBetweenEnvsConfirmBtn && copyMatrixBetweenEnvsModal) {
+        copyMatrixBetweenEnvsModal.addEventListener('show.bs.modal', function() {
+            const msgEl = document.getElementById('copyMatrixBetweenEnvsMessage');
+            if (msgEl) { msgEl.style.display = 'none'; msgEl.className = 'alert mt-3 mb-0'; msgEl.textContent = ''; }
+        });
+        copyMatrixBetweenEnvsConfirmBtn.addEventListener('click', function() {
+            const systemId = systemSelect.value;
+            const sourceEnv = document.getElementById('copyMatrixSourceEnv') && document.getElementById('copyMatrixSourceEnv').value;
+            const targetEnv = document.getElementById('copyMatrixTargetEnv') && document.getElementById('copyMatrixTargetEnv').value;
+            const copyObjectMatrices = document.getElementById('copyMatrixObjectMatrices') ? document.getElementById('copyMatrixObjectMatrices').checked : true;
+            const msgEl = document.getElementById('copyMatrixBetweenEnvsMessage');
+            if (!systemId) {
+                showNotification('error', '{% trans "Select system first" %}');
+                return;
+            }
+            if (sourceEnv === targetEnv) {
+                if (msgEl) {
+                    msgEl.className = 'alert alert-warning mt-3 mb-0';
+                    msgEl.textContent = '{% trans "Source and target environment must be different" %}';
+                    msgEl.style.display = 'block';
+                }
+                return;
+            }
+            const languagePrefix = window.location.pathname.split('/')[1];
+            const payload = {
+                system_id: parseInt(systemId, 10),
+                source_environment: sourceEnv,
+                target_environment: targetEnv,
+                copy_object_matrices: copyObjectMatrices
+            };
+            $.ajax({
+                url: `/${languagePrefix}/app_access/matrix/copy-between-environments/`,
+                type: 'POST',
+                data: JSON.stringify(payload),
+                contentType: 'application/json',
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+                success: function(response) {
+                    if (response.success) {
+                        const modal = bootstrap.Modal.getInstance(copyMatrixBetweenEnvsModal);
+                        if (modal) modal.hide();
+                        setTimeout(function() {
+                            document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+                            document.body.classList.remove('modal-open');
+                            document.body.style.removeProperty('padding-right');
+                            document.body.style.removeProperty('overflow');
+                        }, 300);
+                        let text = response.message || '{% trans "Matrix copied successfully" %}';
+                        if (response.copied_default !== undefined || response.copied_object_matrices !== undefined) {
+                            text += ' ({% trans "Default" %}: ' + (response.copied_default || 0) + ', {% trans "Object matrices" %}: ' + (response.copied_object_matrices || 0) + ')';
+                        }
+                        if (response.hint) text += '\n' + response.hint;
+                        showNotification('success', text);
+                        const currentEnv = environmentSelect.value;
+                        if (currentEnv === targetEnv) {
+                            const objectId = objectSelect.value || undefined;
+                            loadAccessMatrix(systemId, objectId);
+                        }
+                    } else {
+                        if (msgEl) {
+                            msgEl.className = 'alert alert-danger mt-3 mb-0';
+                            msgEl.textContent = response.message || '{% trans "Error copying matrix" %}';
+                            msgEl.style.display = 'block';
+                        }
+                    }
+                },
+                error: function(xhr) {
+                    let msg = '{% trans "Error copying matrix" %}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                    else if (xhr.status === 403) msg = '{% trans "Access denied" %}';
+                    if (msgEl) {
+                        msgEl.className = 'alert alert-danger mt-3 mb-0';
+                        msgEl.textContent = msg;
+                        msgEl.style.display = 'block';
+                    } else {
+                        showNotification('error', msg);
+                    }
+                }
+            });
+        });
+    }
+    
+    // Функція завантаження компаній та систем
+    function loadCompaniesAndSystems() {
+        const languagePrefix = window.location.pathname.split('/')[1];
+        
+        $.ajax({
+            url: `/${languagePrefix}/app_access/get-company-and-system/`,
+            type: 'GET',
+            success: function(response) {
+                if (response.status === 'success' && response.data) {
+                    companySelect.innerHTML = '<option value="" selected disabled>{% trans "Select company" %}</option>';
+                    
+                    // Перевіряємо, чи є доступні компанії
+                    if (response.data.length === 0) {
+                        // Показуємо повідомлення про відсутність доступу
+                        showNotification('warning', response.message || '{% trans "No companies available - please contact your administrator to grant you access through AccessISAM permissions" %}');
+                        companySelect.innerHTML = '<option value="" selected disabled>{% trans "No companies available" %}</option>';
+                        companySelect.disabled = true;
+                        
+                        // Показуємо інформаційну панель
+                        showAccessInfoPanel(
+                            'warning',
+                            '{% trans "No Companies Available" %}',
+                            '{% trans "You do not have access to any companies. Please contact your administrator to configure AccessISAM permissions." %}',
+                            true
+                        );
+                        
+                        return;
+                    }
+                    
+                    response.data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.company.id;
+                        option.textContent = item.company.name;
+                        option.dataset.systems = JSON.stringify(item.systems);
+                        companySelect.appendChild(option);
+                    });
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading companies:', xhr, status, error);
+                
+                if (xhr.status === 403) {
+                    handleAccessError(xhr, '{% trans "Access denied - insufficient permissions to view companies" %}');
+                } else {
+                    let errorMessage = '{% trans "Error loading companies" %}';
+                    
+                    if (xhr.status === 404) {
+                        errorMessage = '{% trans "Companies endpoint not found" %}';
+                    } else if (xhr.status === 500) {
+                        errorMessage = '{% trans "Server error - please try again later" %}';
+                    } else if (xhr.status === 0) {
+                        errorMessage = '{% trans "Network error - please check your connection" %}';
+                    } else if (xhr.responseText) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.message || errorMessage;
+                        } catch (e) {
+                            // Залишаємо загальне повідомлення
+                        }
+                    }
+                    
+                    showNotification('error', errorMessage);
+                }
+            }
+        });
+    }
+    
+    // Функція завантаження об'єктів системи
+    function loadSystemObjects(systemId) {
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const env = environmentSelect.value;
+        const url = env ? `/${languagePrefix}/app_access/matrix/objects/${systemId}/?environment=${encodeURIComponent(env)}`
+                        : `/${languagePrefix}/app_access/matrix/objects/${systemId}/`;
+        
+        $.ajax({
+            url: url,
+            type: 'GET',
+            success: function(response) {
+                if (response.status === 'success' && response.data) {
+                    objectSelect.innerHTML = '<option value="" selected>{% trans "All objects" %}</option>';
+                    
+                    // Рекурсивна функція для додавання об'єктів з ієрархією
+                    function addObjectsToSelect(objects, level = 0, isLast = true, parentPrefix = '') {
+                        objects.forEach((obj, index) => {
+                            const isLastInGroup = index === objects.length - 1;
+                            const option = document.createElement('option');
+                            option.value = obj.id;
+                            
+                            // Створюємо префікс для дерева
+                            let treePrefix = '';
+                            if (level > 0) {
+                                treePrefix = parentPrefix + (isLastInGroup ? '└─ ' : '├─ ');
+                            }
+                            
+                            option.textContent = treePrefix + obj.name;
+                            option.dataset.level = obj.level;
+                            option.dataset.color = obj.color;
+                            
+                            // Додаємо стилі для різних рівнів
+                            if (level === 0) {
+                                option.style.fontWeight = 'bold';
+                                option.style.backgroundColor = '#f8f9fa';
+                            } else if (level === 1) {
+                                option.style.paddingLeft = '20px';
+                                option.style.color = '#495057';
+                            } else if (level === 2) {
+                                option.style.paddingLeft = '40px';
+                                option.style.color = '#6c757d';
+                            } else {
+                                option.style.paddingLeft = `${20 + level * 20}px`;
+                                option.style.color = '#868e96';
+                            }
+                            
+                            objectSelect.appendChild(option);
+                            
+                            // Рекурсивно додаємо дочірні об'єкти
+                            if (obj.children && obj.children.length > 0) {
+                                const childPrefix = level > 0 ? 
+                                    parentPrefix + (isLastInGroup ? '    ' : '│   ') : 
+                                    '';
+                                addObjectsToSelect(obj.children, level + 1, false, childPrefix);
+                            }
+                        });
+                    }
+                    
+                    // Додаємо об'єкти з ієрархією
+                    addObjectsToSelect(response.data);
+                    
+                    objectSelect.disabled = false;
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading objects:', xhr, status, error);
+                
+                if (xhr.status === 403) {
+                    handleAccessError(xhr, '{% trans "Access denied - insufficient permissions to view objects" %}');
+                } else {
+                    let errorMessage = '{% trans "Error loading objects" %}';
+                    
+                    if (xhr.status === 404) {
+                        errorMessage = '{% trans "Information system not found or access denied" %}';
+                    } else if (xhr.status === 500) {
+                        errorMessage = '{% trans "Server error - please try again later" %}';
+                    } else if (xhr.status === 0) {
+                        errorMessage = '{% trans "Network error - please check your connection" %}';
+                    } else if (xhr.responseText) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.message || errorMessage;
+                        } catch (e) {
+                            // Залишаємо загальне повідомлення
+                        }
+                    }
+                    
+                    showNotification('error', errorMessage);
+                }
+            }
+        });
+    }
+    
+    // Функція завантаження даних системи
+    function loadAccessMatrix(systemId, objectId = null) {
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const env = environmentSelect.value;
+        // Default matrix requires environment; allow object matrix if objectId provided
+        if (!env && !objectId) {
+            const container = document.getElementById('accessMatrixContainer');
+            if (container) container.style.display = 'none';
+            return;
+        }
+        let params = [];
+        if (objectId) params.push(`object_id=${encodeURIComponent(objectId)}`);
+        if (env) params.push(`environment=${encodeURIComponent(env)}`);
+        const qs = params.length ? `?${params.join('&')}` : '';
+        const url = `/${languagePrefix}/app_access/matrix/${systemId}/${qs}`;
+        
+        $.ajax({
+            url: url,
+            type: 'GET',
+            success: function(response) {
+                if (response.status === 'success' && response.data) {
+                    // Додаємо маппінги до даних
+                    response.data.mappings = response.mappings;
+                    updateAccessMatrix(response.data);
+                    document.getElementById('accessMatrixContainer').style.display = 'block';
+                    const infoPanel = document.getElementById('accessInfoPanel');
+                    if (infoPanel) infoPanel.style.display = 'none';
+                } else {
+                    showNotification('error', response.message || '{% trans "Error loading matrix data" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading access matrix:', xhr, status, error);
+                
+                if (xhr.status === 403) {
+                    handleAccessError(xhr, '{% trans "Access denied - insufficient permissions to view matrix" %}');
+                } else {
+                    let errorMessage = '{% trans "Error loading access matrix" %}';
+                    
+                    if (xhr.status === 404) {
+                        errorMessage = '{% trans "Information system not found or access denied" %}';
+                    } else if (xhr.status === 400) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.message || '{% trans "Invalid system selection" %}';
+                        } catch (e) {
+                            errorMessage = '{% trans "Invalid system selection" %}';
+                        }
+                    } else if (xhr.status === 500) {
+                        errorMessage = '{% trans "Server error - please try again later" %}';
+                    } else if (xhr.status === 0) {
+                        errorMessage = '{% trans "Network error - please check your connection" %}';
+                    } else if (xhr.responseText) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.message || errorMessage;
+                        } catch (e) {
+                            // Залишаємо загальне повідомлення
+                        }
+                    }
+                    
+                    showNotification('error', errorMessage);
+                }
+            }
+        });
+    }
+});
+
+// Додаємо обробник подій для чекбоксів
+$(document).on('change', '.matrix-table input[type="checkbox"]', function(e) {
+    const functionId = $(this).data('function-id');
+    const rightId = $(this).data('right-id');
+    const roleId = $(this).closest('tr').attr('data-role-id');
+    const isChecked = $(this).prop('checked');
+    const systemId = $('#systemSelect').val();
+    const objectId = $('#objectSelect').val();
+    
+    if (!systemId) {
+        showNotification('error', '{% trans "System not selected" %}');
+        e.preventDefault();
+        return;
+    }
+    
+    const languagePrefix = window.location.pathname.split('/')[1];
+    const checkbox = $(this);
+    
+    const requestData = {
+        system_id: systemId,
+        function_id: functionId,
+        right_id: rightId,
+        is_active: isChecked
+    };
+    if (objectId) requestData.object_id = objectId;
+    if (roleId) requestData.role_id = roleId;
+    
+    $.ajax({
+        url: `/${languagePrefix}/app_access/matrix/update-mapping/`,
+        type: 'POST',
+        data: JSON.stringify(requestData),
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        success: function(response) {
+            if (response.success) {
+                showNotification('success', '{% trans "Mapping updated successfully" %}');
+            } else {
+                showNotification('error', response.message || '{% trans "Error updating mapping" %}');
+                // Повертаємо чекбокс в попередній стан
+                checkbox.prop('checked', !isChecked);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error updating mapping:', xhr, status, error);
+            
+            if (xhr.status === 403) {
+                handleAccessError(xhr, '{% trans "Access denied - insufficient permissions to edit matrix" %}');
+            } else {
+                let errorMessage = '{% trans "Error updating mapping" %}';
+                
+                if (xhr.status === 404) {
+                    errorMessage = '{% trans "Information system not found or access denied" %}';
+                } else if (xhr.status === 400) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMessage = response.message || '{% trans "Invalid request data" %}';
+                    } catch (e) {
+                        errorMessage = '{% trans "Invalid request data" %}';
+                    }
+                } else if (xhr.status === 500) {
+                    errorMessage = '{% trans "Server error - please try again later" %}';
+                } else if (xhr.status === 0) {
+                    errorMessage = '{% trans "Network error - please check your connection" %}';
+                } else if (xhr.responseText) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMessage = response.message || errorMessage;
+                    } catch (e) {
+                        // Залишаємо загальне повідомлення
+                    }
+                }
+                
+                showNotification('error', errorMessage);
+            }
+            
+            // Повертаємо чекбокс в попередній стан
+            checkbox.prop('checked', !isChecked);
+        }
+    });
+});
+
+function updateAccessMatrix(data) {
+    const table = document.querySelector('.matrix-table');
+    const thead = table.querySelector('thead tr');
+    const tbody = table.querySelector('tbody');
+    
+    // Оновлюємо заголовок матриці залежно від типу
+    const matrixTitle = document.querySelector('#accessMatrixContainer .card-title');
+    const objectMatrixLegend = document.getElementById('objectMatrixLegend');
+    
+    if (data.is_object_matrix && data.object_name) {
+        matrixTitle.textContent = `{% trans "Object Access Rights Matrix" %} - ${data.object_name}`;
+        objectMatrixLegend.style.display = 'block';
+        const applyBtn = document.getElementById('applyDefaultMatrixBtn');
+        if (applyBtn) applyBtn.style.display = '';
+    } else {
+        matrixTitle.textContent = '{% trans "Default Access Rights Matrix" %}';
+        objectMatrixLegend.style.display = 'none';
+        const applyBtn = document.getElementById('applyDefaultMatrixBtn');
+        if (applyBtn) applyBtn.style.display = 'none';
+    }
+    
+    // Очищаємо існуючі дані
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+    
+    // Створюємо заголовок першої колонки залежно від типу матриці
+    const firstColumnHeader = data.is_object_matrix ? 
+        '{% trans "Object Roles & Functions" %}' : 
+        '{% trans "Roles & Functions" %}';
+    
+    thead.innerHTML = `<th style="width: 300px;">${firstColumnHeader}</th>`;
+    
+    // Сортуємо права доступу за order
+    const sortedAccessRights = [...data.access_rights].sort((a, b) => a.order - b.order);
+    
+    // Додаємо заголовки прав доступу
+    const rightsHeaderText = data.is_object_matrix ? 
+        '{% trans "Object Access Rights" %}' : 
+        '{% trans "Access Rights" %}';
+    
+    sortedAccessRights.forEach(right => {
+        const th = document.createElement('th');
+        th.className = 'text-center matrix-right-col';
+        th.setAttribute('data-right-id', String(right.id));
+        th.innerHTML = `
+            <div class="d-flex align-items-center justify-content-center">
+                <div class="color-dot" style="background-color: ${right.color}"></div>
+                <span class="access-right-name" data-bs-toggle="tooltip" title="${right.description}">${right.name}</span>
+            </div>
+        `;
+        thead.appendChild(th);
+    });
+
+    // Функція для створення клітинки з функцією
+    function createFunctionCell(func, level = 0) {
+        return `
+            <div class="function-item level-${level}">
+                <div class="color-dot" style="background-color: ${func.color}"></div>
+                <span data-bs-toggle="tooltip" title="${func.description}">${func.name}</span>
+            </div>
+        `;
+    }
+
+    // Функція для створення чекбоксів (role — поточна роль для системної матриці)
+    function createCheckboxes(func, role) {
+        if (!func) return Array(sortedAccessRights.length).fill('<td class="checkbox-cell"></td>').join('');
+        
+        return sortedAccessRights.map(right => {
+            const isChecked = data.mappings && data.mappings.some(m => {
+                if (!m || m.function_id !== func.id || m.right_id !== right.id) return false;
+                if (data.is_object_matrix) return m.role_id === role.id;
+                return m.role_id === role.id;
+            });
+            
+            const hasSystemMapping = data.is_object_matrix && data.system_mappings && 
+                data.system_mappings.some(m => 
+                    m && m.role_id === role.id && m.function_id === func.id && m.right_id === right.id
+                );
+            
+            // Створюємо текст для tooltip
+            let tooltipText = `
+                ${func.name}
+                ${func.description ? '\n' + func.description : ''}
+                \n${right.name}
+                ${right.description ? '\n' + right.description : ''}
+            `.trim();
+            
+            // Додаємо інформацію про системний маппінг в tooltip
+            if (hasSystemMapping) {
+                tooltipText += '\n{% trans "Also checked in Default Access Rights Matrix" %}';
+            }
+            
+            // Додаємо клас для помаранчевої рамки
+            const systemMappingClass = hasSystemMapping ? ' system-mapping' : '';
+            
+            return `
+                <td class="checkbox-cell" data-right-id="${right.id}">
+                    <input type="checkbox" 
+                           class="form-check-input${systemMappingClass}" 
+                           data-function-id="${func.id}" 
+                           data-right-id="${right.id}"
+                           data-bs-toggle="tooltip"
+                           data-bs-html="true"
+                           title="${tooltipText.replace(/"/g, '&quot;').replace(/\n/g, '<br>')}"
+                           ${isChecked ? 'checked' : ''}>
+                </td>
+            `;
+        }).join('');
+    }
+
+    // Перевіряємо чи є ролі для відображення
+    if (!data.roles || data.roles.length === 0) {
+        const filtersBar = document.getElementById('matrixFiltersBar');
+        if (filtersBar) filtersBar.style.display = 'none';
+        const noDataRow = document.createElement('tr');
+        noDataRow.innerHTML = `
+            <td colspan="${sortedAccessRights.length + 1}" class="text-center text-muted">
+                ${data.is_object_matrix ? 
+                    '{% trans "No roles assigned to this object" %}' : 
+                    '{% trans "No roles available for this system" %}'}
+            </td>
+        `;
+        tbody.appendChild(noDataRow);
+        return;
+    }
+
+    // Додаємо рядки для ролей та їх функцій
+    data.roles.forEach(role => {
+        // Додаємо рядок ролі
+        const roleRow = document.createElement('tr');
+        roleRow.className = 'role-row';
+        roleRow.setAttribute('data-role-id', String(role.id));
+        roleRow.innerHTML = `
+            <td>
+                <div class="role-name">
+                    <div class="color-dot" style="background-color: ${role.color}"></div>
+                    <span data-bs-toggle="tooltip" title="${role.description}">${role.name}</span>
+                </div>
+            </td>
+            ${Array(sortedAccessRights.length).fill('<td class="checkbox-cell"></td>').join('')}
+        `;
+        tbody.appendChild(roleRow);
+
+        // Сортуємо функції за order
+        const sortedFunctions = [...role.columns.functions].sort((a, b) => a.order - b.order);
+
+        // Додаємо функції першого рівня
+        sortedFunctions.forEach(func => {
+            const funcRow = document.createElement('tr');
+            funcRow.className = 'function-row';
+            funcRow.setAttribute('data-role-id', String(role.id));
+            funcRow.setAttribute('data-function-id', String(func.id));
+            funcRow.innerHTML = `
+                <td>${createFunctionCell(func, 1)}</td>
+                ${createCheckboxes(func, role)}
+            `;
+            tbody.appendChild(funcRow);
+
+            // Знаходимо підфункції для цієї функції
+            const subFunctions = role.columns.subfunctions
+                .filter(sf => sf.parent_id === func.id)
+                .sort((a, b) => a.order - b.order);
+
+            subFunctions.forEach(subFunc => {
+                const subFuncRow = document.createElement('tr');
+                subFuncRow.className = 'function-row';
+                subFuncRow.setAttribute('data-role-id', String(role.id));
+                subFuncRow.setAttribute('data-function-id', String(subFunc.id));
+                subFuncRow.innerHTML = `
+                    <td>${createFunctionCell(subFunc, 2)}</td>
+                    ${createCheckboxes(subFunc, role)}
+                `;
+                tbody.appendChild(subFuncRow);
+
+                // Знаходимо підфункції другого рівня
+                const subSubFunctions = role.columns.subsubfunctions
+                    .filter(ssf => ssf.parent_id === subFunc.id)
+                    .sort((a, b) => a.order - b.order);
+
+                subSubFunctions.forEach(subSubFunc => {
+                    const subSubFuncRow = document.createElement('tr');
+                    subSubFuncRow.className = 'function-row';
+                    subSubFuncRow.setAttribute('data-role-id', String(role.id));
+                    subSubFuncRow.setAttribute('data-function-id', String(subSubFunc.id));
+                    subSubFuncRow.innerHTML = `
+                        <td>${createFunctionCell(subSubFunc, 3)}</td>
+                        ${createCheckboxes(subSubFunc, role)}
+                    `;
+                    tbody.appendChild(subSubFuncRow);
+                });
+            });
+        });
+    });
+
+    // Заповнюємо фільтри списками наявних значень
+    const filtersBar = document.getElementById('matrixFiltersBar');
+    const filterRolesSelect = document.getElementById('filterRoles');
+    const filterFunctionsSelect = document.getElementById('filterFunctions');
+    const filterRightsSelect = document.getElementById('filterRights');
+    const filterResetBtn = document.getElementById('matrixFiltersReset');
+
+    if (filtersBar && filterRolesSelect && filterFunctionsSelect && filterRightsSelect) {
+        filtersBar.style.display = 'block';
+
+        // Ролі
+        filterRolesSelect.innerHTML = '';
+        data.roles.forEach(role => {
+            const opt = document.createElement('option');
+            opt.value = String(role.id);
+            opt.textContent = role.name;
+            filterRolesSelect.appendChild(opt);
+        });
+
+        // Функції (унікальні за id з усіх рівнів)
+        const functionsMap = new Map();
+        data.roles.forEach(role => {
+            [].concat(role.columns.functions || [], role.columns.subfunctions || [], role.columns.subsubfunctions || []).forEach(f => {
+                if (f && !functionsMap.has(f.id)) functionsMap.set(f.id, f.name);
+            });
+        });
+        const allFunctionsList = [...functionsMap.entries()].sort((a, b) => (a[1] || '').localeCompare(b[1] || '')).map(([id, name]) => ({ id: String(id), name }));
+        filterFunctionsSelect.innerHTML = '';
+        allFunctionsList.forEach(({ id, name }) => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = name;
+            filterFunctionsSelect.appendChild(opt);
+        });
+
+        // Rights
+        const allRightsList = sortedAccessRights.map(right => ({ id: String(right.id), name: right.name }));
+        filterRightsSelect.innerHTML = '';
+        allRightsList.forEach(({ id, name }) => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = name;
+            filterRightsSelect.appendChild(opt);
+        });
+
+        const allRolesList = data.roles.map(role => ({ id: String(role.id), name: role.name }));
+
+        // Скидання вибору після оновлення матриці
+        filterRolesSelect.selectedIndex = -1;
+        filterFunctionsSelect.selectedIndex = -1;
+        filterRightsSelect.selectedIndex = -1;
+
+        function getMatrixRowPairs() {
+            const pairs = [];
+            tbody.querySelectorAll('tr.function-row').forEach(tr => {
+                const roleId = tr.getAttribute('data-role-id');
+                const functionId = tr.getAttribute('data-function-id');
+                if (roleId && functionId) pairs.push({ roleId, functionId, row: tr });
+            });
+            return pairs;
+        }
+
+        function updateFilterOptions(selectedRoleIds, selectedFunctionIds, selectedRightIds) {
+            const pairs = getMatrixRowPairs();
+            const filterByRole = selectedRoleIds.size > 0;
+            const filterByFunction = selectedFunctionIds.size > 0;
+            const availableRoleIds = new Set();
+            pairs.forEach(({ roleId, functionId }) => {
+                if (!filterByFunction || selectedFunctionIds.has(functionId)) availableRoleIds.add(roleId);
+            });
+            const availableFunctionIds = new Set();
+            pairs.forEach(({ roleId, functionId }) => {
+                if (!filterByRole || selectedRoleIds.has(roleId)) availableFunctionIds.add(functionId);
+            });
+
+            function rebuildSelect(select, fullList, availableIds, selectedIds) {
+                const prevSelected = new Set(selectedIds);
+                select.innerHTML = '';
+                fullList.forEach(({ id, name }) => {
+                    if (!availableIds.has(id)) return;
+                    const opt = document.createElement('option');
+                    opt.value = id;
+                    opt.textContent = name;
+                    if (prevSelected.has(id)) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            }
+            rebuildSelect(filterRolesSelect, allRolesList, availableRoleIds, selectedRoleIds);
+            rebuildSelect(filterFunctionsSelect, allFunctionsList, availableFunctionIds, selectedFunctionIds);
+            // Rights: завжди всі значення, не залежить від інших фільтрів
+            const allRightIds = new Set(allRightsList.map(r => r.id));
+            rebuildSelect(filterRightsSelect, allRightsList, allRightIds, selectedRightIds);
+        }
+
+        function applyMatrixFilters() {
+            const selectedRoleIds = new Set([].map.call(filterRolesSelect.selectedOptions, o => o.value));
+            const selectedFunctionIds = new Set([].map.call(filterFunctionsSelect.selectedOptions, o => o.value));
+            const selectedRightIds = new Set([].map.call(filterRightsSelect.selectedOptions, o => o.value));
+
+            updateFilterOptions(selectedRoleIds, selectedFunctionIds, selectedRightIds);
+
+            const filterByRole = selectedRoleIds.size > 0;
+            const filterByFunction = selectedFunctionIds.size > 0;
+            const filterByRight = selectedRightIds.size > 0;
+
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            // Спершу визначаємо видимість function-row
+            const functionRowVisible = new Map();
+            rows.forEach(tr => {
+                const roleId = tr.getAttribute('data-role-id');
+                const functionId = tr.getAttribute('data-function-id');
+                const isRoleRow = tr.classList.contains('role-row');
+                if (isRoleRow) return;
+                let show = true;
+                if (filterByRole && roleId && !selectedRoleIds.has(roleId)) show = false;
+                if (show && filterByFunction && !selectedFunctionIds.has(functionId)) show = false;
+                functionRowVisible.set(tr, show);
+            });
+            // Ролі, під якими є хоча б один видимий function-row (для показу заголовка ролі)
+            const roleHasVisibleFunction = new Set();
+            rows.forEach(tr => {
+                if (tr.classList.contains('role-row')) return;
+                if (functionRowVisible.get(tr)) roleHasVisibleFunction.add(tr.getAttribute('data-role-id'));
+            });
+            // Застосовуємо видимість: role-row показуємо якщо роль в фільтрі і (немає фільтра функцій або є видима функція під нею)
+            rows.forEach(tr => {
+                const roleId = tr.getAttribute('data-role-id');
+                const functionId = tr.getAttribute('data-function-id');
+                const isRoleRow = tr.classList.contains('role-row');
+                let show;
+                if (isRoleRow) {
+                    if (filterByRole && !selectedRoleIds.has(roleId)) show = false;
+                    else if (filterByFunction && !roleHasVisibleFunction.has(roleId)) show = false;
+                    else show = true;
+                } else {
+                    show = functionRowVisible.get(tr);
+                }
+                tr.style.display = show ? '' : 'none';
+            });
+
+            // Колонки прав
+            table.querySelectorAll('th.matrix-right-col, td[data-right-id]').forEach(cell => {
+                const rightId = cell.getAttribute('data-right-id');
+                if (!rightId) return;
+                cell.style.display = (filterByRight && !selectedRightIds.has(rightId)) ? 'none' : '';
+            });
+        }
+
+        filterRolesSelect.onchange = applyMatrixFilters;
+        filterFunctionsSelect.onchange = applyMatrixFilters;
+        filterRightsSelect.onchange = applyMatrixFilters;
+        if (filterResetBtn) {
+            filterResetBtn.onclick = function() {
+                filterRolesSelect.selectedIndex = -1;
+                filterFunctionsSelect.selectedIndex = -1;
+                filterRightsSelect.selectedIndex = -1;
+                applyMatrixFilters();
+            };
+        }
+        applyMatrixFilters();
+    }
+
+    // Ініціалізуємо tooltips
+    const tooltips = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltips.forEach(el => new bootstrap.Tooltip(el));
+}
+
+// Функція для показу детальної інформації про помилки доступу
+function showAccessDeniedHelp() {
+    const helpMessage = `
+        <div style="text-align: left; max-width: 400px;">
+            <p><strong>{% trans "Access denied" %}</strong></p>
+            <p>{% trans "You don't have sufficient permissions to perform this action." %}</p>
+            <p><strong>{% trans "To get access, contact your administrator:" %}</strong></p>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>{% trans "Request AccessISAM permissions" %}</li>
+                <li>{% trans "Grant access to specific companies" %}</li>
+                <li>{% trans "Enable matrix view/edit rights" %}</li>
+            </ul>
+            <p><em>{% trans "Note: Access is managed through Django Admin → AccessISAM" %}</em></p>
+        </div>
+    `;
+    
+    toastr.error(helpMessage, '', {
+        timeOut: 15000,
+        extendedTimeOut: 5000,
+        allowHtml: true,
+        closeButton: true
+    });
+}
+
+// Функція для обробки помилок доступу з показом детальної інформації
+function handleAccessError(xhr, defaultMessage) {
+    let errorMessage = defaultMessage;
+    let showDetailedHelp = false;
+    
+    if (xhr.status === 403) {
+        try {
+            const response = JSON.parse(xhr.responseText);
+            errorMessage = response.message || defaultMessage;
+            showDetailedHelp = true;
+        } catch (e) {
+            errorMessage = defaultMessage;
+            showDetailedHelp = true;
+        }
+    }
+    
+    showNotification('error', errorMessage);
+    
+    if (showDetailedHelp) {
+        // Показуємо детальну допомогу з затримкою
+        setTimeout(() => {
+            showAccessDeniedHelp();
+        }, 1000);
+    }
+}
+
+// Функція для показу інформаційної панелі про доступ
+function showAccessInfoPanel(type, title, message, details = null) {
+    const panel = document.getElementById('accessInfoPanel');
+    const content = document.getElementById('accessInfoContent');
+    const cardHeader = panel.querySelector('.card-header');
+    const card = panel.querySelector('.card');
+    
+    // Налаштовуємо стилі залежно від типу
+    if (type === 'warning') {
+        card.className = 'card border-warning';
+        cardHeader.className = 'card-header bg-warning text-dark';
+    } else if (type === 'danger') {
+        card.className = 'card border-danger';
+        cardHeader.className = 'card-header bg-danger text-white';
+    } else if (type === 'info') {
+        card.className = 'card border-info';
+        cardHeader.className = 'card-header bg-info text-white';
+    }
+    
+    // Встановлюємо заголовок
+    cardHeader.querySelector('.card-title').innerHTML = `
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        ${title}
+    `;
+    
+    // Формуємо контент
+    let contentHtml = `<p class="mb-3">${message}</p>`;
+    
+    if (details) {
+        contentHtml += `
+            <div class="alert alert-light border">
+                <h6 class="mb-2">{% trans "How to get access:" %}</h6>
+                <ul class="mb-0">
+                    <li>{% trans "Contact your system administrator" %}</li>
+                    <li>{% trans "Request AccessISAM permissions in Django Admin" %}</li>
+                    <li>{% trans "Ask to be added to appropriate user groups" %}</li>
+                    <li>{% trans "Ensure company access is configured" %}</li>
+                </ul>
+            </div>
+        `;
+    }
+    
+    content.innerHTML = contentHtml;
+    panel.style.display = 'block';
+}
+</script>
+
+<!-- Apply Default Matrix confirmation modal -->
+<div class="modal fade" id="applyDefaultMatrixModal" tabindex="-1" aria-labelledby="applyDefaultMatrixModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="applyDefaultMatrixModalLabel"><i class="bi bi-clipboard-check me-2"></i>{% trans "Apply Default Matrix" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">{% trans "Copy all access rights from the Default Access Rights Matrix to this object? Mappings are applied per role and per function (no duplication across roles). Existing object mappings are preserved and missing ones are added." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="applyDefaultMatrixConfirmBtn"><i class="bi bi-clipboard-check me-1"></i>{% trans "Apply" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Clear Matrix confirmation modal -->
+<div class="modal fade" id="clearMatrixModal" tabindex="-1" aria-labelledby="clearMatrixModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="clearMatrixModalLabel"><i class="bi bi-exclamation-triangle me-2"></i>{% trans "Clear matrix" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0" id="clearMatrixModalMessage">{% trans "Clear all access rights mappings in the current matrix? This action cannot be undone." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger" id="clearMatrixConfirmBtn"><i class="bi bi-trash me-1"></i>{% trans "Clear all" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Copy Matrix Between Environments modal -->
+<div class="modal fade" id="copyMatrixBetweenEnvironmentsModal" tabindex="-1" aria-labelledby="copyMatrixBetweenEnvironmentsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title" id="copyMatrixBetweenEnvironmentsModalLabel"><i class="bi bi-clipboard2-pulse me-2"></i>{% trans "Copy Matrix Between Environments" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">{% trans "Copy Default Access Rights Matrix and optionally object-specific matrices from source environment to target. Roles, functions and rights are matched by name; objects are matched by name." %}</p>
+                <div class="mb-3">
+                    <label for="copyMatrixSourceEnv" class="form-label">{% trans "Source environment" %}</label>
+                    <select class="form-select" id="copyMatrixSourceEnv">
+                        <option value="production">{% trans "Production" %}</option>
+                        <option value="test">{% trans "Test" %}</option>
+                        <option value="development">{% trans "Development" %}</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="copyMatrixTargetEnv" class="form-label">{% trans "Target environment" %}</label>
+                    <select class="form-select" id="copyMatrixTargetEnv">
+                        <option value="production">{% trans "Production" %}</option>
+                        <option value="test">{% trans "Test" %}</option>
+                        <option value="development">{% trans "Development" %}</option>
+                    </select>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="copyMatrixObjectMatrices" checked>
+                    <label class="form-check-label" for="copyMatrixObjectMatrices">{% trans "Copy object matrices (match objects by name)" %}</label>
+                </div>
+                <div id="copyMatrixBetweenEnvsMessage" class="alert mt-3 mb-0" style="display: none;" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="copyMatrixBetweenEnvsConfirmBtn"><i class="bi bi-clipboard2-pulse me-1"></i>{% trans "Copy" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Access Matrix Guide Modal -->
+<div class="modal fade" id="accessMatrixGuideModal" tabindex="-1" aria-labelledby="accessMatrixGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'access_matrix_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="accessMatrixGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Access Matrix Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="accessMatrixGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('accessMatrixGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('accessMatrixGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+</div><!-- .access-page -->
+
+{% endblock %}
+
+{% block extra_css %}
+<!-- Toastr CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+{% endblock %}
+
+{% block extra_js %}
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Bootstrap Bundle з Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Toastr JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+<script>
+    // Налаштування toastr
+    toastr.options = {
+        "closeButton": true,
+        "progressBar": true,
+        "positionClass": "toast-top-right",
+        "timeOut": "3000"
+    };
+
+    // Функція для показу повідомлень
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+        new bootstrap.Tooltip(el);
+    });
+
+    function showNotification(type, message) {
+        switch(type) {
+            case 'success':
+                toastr.success(message);
+                break;
+            case 'error':
+                toastr.error(message);
+                break;
+            case 'warning':
+                toastr.warning(message);
+                break;
+            case 'info':
+                toastr.info(message);
+                break;
+        }
+    }
+</script>
+{% endblock %}

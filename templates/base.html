@@ -1,0 +1,2162 @@
+<!--D:\Python\MyProject\SecBoard\SecBoard\templates\base.html-->
+<!DOCTYPE html>
+{% load static %}
+{% load i18n %}
+{% load cabinet_permissions %}
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; object-src 'none'; frame-src 'self' https:">
+    <meta name="description" content="{% block meta_description %}SecBoard - Information Security Management Platform. Training, risk assessment, incident management, and compliance tools for cybersecurity professionals.{% endblock %}">
+    <meta name="keywords" content="{% block meta_keywords %}information security, cybersecurity, risk management, incident response, security training, compliance, security assessment{% endblock %}">
+    <meta name="author" content="{% block meta_author %}SecBoard Team{% endblock %}">
+    <meta name="robots" content="{% block meta_robots %}index, follow{% endblock %}">
+    <meta name="language" content="{{ LANGUAGE_CODE }}">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:url" content="{% block og_url %}{{ request.build_absolute_uri }}{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}SecBoard | Information Security Platform{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}SecBoard - Information Security Management Platform. Training, risk assessment, incident management, and compliance tools for cybersecurity professionals.{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}{% static 'images/secboard-og-image.png' %}{% endblock %}">
+    <meta property="og:site_name" content="SecBoard">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{% block twitter_url %}{{ request.build_absolute_uri }}{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}SecBoard | Information Security Platform{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}SecBoard - Information Security Management Platform. Training, risk assessment, incident management, and compliance tools for cybersecurity professionals.{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{% static 'images/secboard-twitter-card.png' %}{% endblock %}">
+    
+    <!-- Schema.org structured data -->
+    <script type="application/ld+json">
+    {% block structured_data %}
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "SecBoard",
+        "description": "Information Security Management Platform for cybersecurity professionals",
+        "url": "{{ request.build_absolute_uri|cut:'/' }}",
+        "category": "Security Software",
+        "operatingSystem": "Web Browser",
+        "applicationCategory": "BusinessApplication",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        }
+    }
+    {% endblock structured_data %}
+    </script>
+    
+    <!-- Google Analytics Consent Mode -->
+    <script>
+    // Google Analytics Consent Mode
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    
+    // Default consent state - deny all non-essential
+    gtag('consent', 'default', {
+        'analytics_storage': 'denied',
+        'ad_storage': 'denied',
+        'functionality_storage': 'denied',
+        'security_storage': 'granted'
+    });
+    
+    // Check if user has made consent choices and update accordingly
+    document.addEventListener('DOMContentLoaded', function() {
+        const preferences = localStorage.getItem('cookiePreferences');
+        if (preferences) {
+            try {
+                const parsed = JSON.parse(preferences);
+                gtag('consent', 'update', {
+                    'analytics_storage': parsed.analytics ? 'granted' : 'denied',
+                    'ad_storage': parsed.marketing ? 'granted' : 'denied',
+                    'functionality_storage': parsed.functional ? 'granted' : 'denied'
+                });
+            } catch (e) {
+                console.warn('Error parsing cookie preferences for GA consent');
+            }
+        }
+    });
+    </script>
+    
+    <!-- Global Cookie Consent Checker -->
+    <script>
+    // Global consent checking functionality
+    // Usage examples:
+    // if (window.cookieConsent.analytics()) { /* load analytics */ }
+    // if (window.cookieConsent.marketing()) { /* load marketing scripts */ }
+    // if (window.cookieConsent.functional()) { /* enable enhanced features */ }
+    window.cookieConsent = {
+        hasConsent: function(category) {
+            const preferences = localStorage.getItem('cookiePreferences');
+            if (!preferences) return false;
+            
+            try {
+                const parsed = JSON.parse(preferences);
+                return parsed[category] === true;
+            } catch (e) {
+                return false;
+            }
+        },
+        analytics: function() {
+            return this.hasConsent('analytics');
+        },
+        marketing: function() {
+            return this.hasConsent('marketing');
+        },
+        functional: function() {
+            return this.hasConsent('functional');
+        }
+    };
+    </script>
+    
+    <!-- Example: Conditional Google Analytics Loading -->
+    <script>
+    // Load Google Analytics only if user consented to analytics cookies
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.cookieConsent && window.cookieConsent.analytics()) {
+            // Uncomment and replace with your GA4 Measurement ID
+            // gtag('config', 'G-XXXXXXXXXX');
+            // gtag('config', 'G-XXXXXXXXXX');
+        }
+    });
+    </script>
+    
+    {% if user.is_authenticated %}
+    <meta name="user-id" content="{{ request.user.id }}">
+    <meta name="username" content="{{ user.username }}">
+    <meta name="user-company" content="{{ user.cabinetser.company|default:'' }}">
+    <meta name="user-department" content="{{ user.cabinetser.department|default:'' }}">
+    <meta name="user-position" content="{{ user.cabinetser.position|default:'' }}">
+    {% for group in user.groups.all %}
+        <meta name="user-group-{{ forloop.counter }}" content="{{ group.name }}">
+    {% endfor %}
+    {% endif %}
+    <title>{% block title %}SecBoard{% endblock %} | Information security</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="data:,">
+
+<!--    <link rel="stylesheet" href="{% static 'css/org-structure.css' %}">-->
+    <link rel="stylesheet" href="{% static 'css/secboard-tokens.css' %}">
+    <link rel="stylesheet" href="{% static 'css/secboard-components.css' %}">
+
+    {% block extra_css %}{% endblock %}
+    {% block styles %}{% endblock %}
+    <style>
+       :root {
+           --primary-color: #3498db;
+           --secondary-color: {{ navbar_color|default:"#2c3e50" }};
+           --text-light: #ecf0f1;
+           --hover-color: #2980b9;
+       }
+
+       body {
+           font-family: 'Roboto', sans-serif;
+           display: flex;
+           flex-direction: column;
+           min-height: 100vh;
+           margin: 0;
+           padding: 0;
+       }
+
+       .navbar {
+           background-color: var(--secondary-color);
+           padding: 1rem;
+           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+       }
+
+       .topbar {
+           border-bottom: 1px solid rgba(255,255,255,0.08);
+       }
+
+       .navbar-brand, .nav-link {
+           color: var(--text-light) !important;
+           transition: all 0.3s ease;
+       }
+
+       .navbar-brand:hover, .nav-link:hover {
+           color: var(--primary-color) !important;
+           transform: translateY(-2px);
+       }
+
+       .dropdown-menu {
+           background-color: var(--secondary-color);
+           border: none;
+           box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+       }
+
+       .dropdown-item {
+           color: var(--text-light);
+           transition: all 0.3s ease;
+       }
+
+       .dropdown-item:hover {
+           background-color: var(--hover-color);
+           color: white;
+       }
+
+       .sidebar-toggle {
+           display: inline-flex;
+           align-items: center;
+           justify-content: center;
+           width: 42px;
+           height: 42px;
+           border-radius: 50%;
+           border: 1px solid rgba(255,255,255,0.3);
+           color: var(--text-light);
+           background: transparent;
+           transition: all 0.3s ease;
+       }
+
+       .sidebar-toggle:hover {
+           background-color: rgba(255,255,255,0.15);
+           color: var(--primary-color);
+           transform: translateY(-1px);
+       }
+
+       .offcanvas.sidebar-offcanvas {
+           background-color: var(--secondary-color);
+           color: var(--text-light);
+           width: 280px;
+       }
+
+       .offcanvas.sidebar-offcanvas .btn-close {
+           filter: invert(1);
+       }
+
+       .sidebar-nav {
+           display: flex;
+           flex-direction: column;
+           gap: 0.25rem;
+           padding: 1rem;
+       }
+
+       .sidebar-link,
+       .sidebar-collapse-btn {
+           width: 100%;
+           display: inline-flex;
+           align-items: center;
+           justify-content: space-between;
+           gap: 0.75rem;
+           padding: 0.65rem 0.9rem;
+           color: var(--text-light);
+           background: transparent;
+           border: none;
+           border-radius: 0.5rem;
+           text-decoration: none;
+           font-weight: 500;
+           cursor: pointer;
+           transition: all 0.3s ease;
+       }
+
+       .sidebar-link span,
+       .sidebar-collapse-btn span {
+           display: inline-flex;
+           align-items: center;
+           gap: 0.75rem;
+       }
+
+       .sidebar-link i,
+       .sidebar-collapse-btn span i {
+           width: 1.2rem;
+           text-align: center;
+       }
+
+       .sidebar-link:hover,
+       .sidebar-collapse-btn:hover {
+           background-color: rgba(255,255,255,0.08);
+           color: var(--primary-color);
+       }
+
+       .sidebar-collapse-btn {
+           font-size: 1rem;
+       }
+
+       .sidebar-collapse-btn .toggle-icon {
+           transition: transform 0.3s ease;
+       }
+
+       .sidebar-collapse-btn[aria-expanded="true"] .toggle-icon {
+           transform: rotate(-180deg);
+       }
+
+       .sidebar-submenu {
+           display: flex;
+           flex-direction: column;
+           gap: 0.25rem;
+           padding: 0.35rem 0 0.75rem 0;
+       }
+
+       .sidebar-sublink {
+           display: inline-flex;
+           align-items: center;
+           gap: 0.75rem;
+           padding: 0.5rem 0.9rem 0.5rem 2.5rem;
+           color: rgba(236,240,241,0.9);
+           border-radius: 0.4rem;
+           text-decoration: none;
+           transition: all 0.3s ease;
+       }
+
+       .sidebar-sublink:hover {
+           background-color: rgba(255,255,255,0.05);
+           color: var(--primary-color);
+       }
+
+       .sidebar-meta {
+           color: rgba(236,240,241,0.7);
+       }
+
+       .topbar-actions {
+           gap: 0.75rem;
+       }
+
+       .language-switcher select {
+           background-color: transparent;
+           color: var(--text-light);
+           border: 1px solid var(--text-light);
+           border-radius: 4px;
+           padding: 5px 10px;
+           font-size: 14px;
+           transition: all 0.3s ease;
+           cursor: pointer;
+       }
+
+       .language-switcher select:hover {
+           background-color: var(--text-light);
+           color: var(--secondary-color);
+       }
+
+       main {
+           flex: 1;
+           padding: 2rem 0;
+       }
+
+       .footer {
+           background-color: var(--secondary-color);
+           color: var(--text-light);
+           padding: 1.5rem 0;
+           margin-top: auto;
+       }
+
+       .footer-content {
+           display: flex;
+           justify-content: space-between;
+           align-items: center;
+           flex-wrap: wrap;
+           gap: 1rem;
+       }
+
+       .contact-info {
+           display: flex;
+           align-items: center;
+           gap: 1rem;
+       }
+
+       .contact-item {
+           display: flex;
+           align-items: center;
+           gap: 0.5rem;
+       }
+
+       .contact-item i {
+           font-size: 1.2rem;
+       }
+
+       /* Alert styles */
+       .alert {
+           border-radius: 8px;
+           margin-bottom: 1rem;
+           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+       }
+
+       /* Popover styles */
+       .popover {
+           max-width: 300px;
+           box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+       }
+
+       .popover-body {
+           padding: 1rem;
+           font-size: 0.9rem;
+       }
+
+       .popover-body div {
+           margin-bottom: 0.5rem;
+       }
+
+       .popover-body div:last-child {
+           margin-bottom: 0;
+       }
+
+       /* Animation classes */
+       .fade-in {
+           animation: fadeIn 0.3s ease-in;
+       }
+
+       @keyframes fadeIn {
+           from { opacity: 0; }
+           to { opacity: 1; }
+       }
+
+       /* Cookie Notice Styles */
+       .cookie-notice {
+           position: fixed;
+           bottom: 0;
+           left: 0;
+           right: 0;
+           background: linear-gradient(135deg, var(--secondary-color) 0%, #34495e 100%);
+           color: var(--text-light);
+           padding: 1rem;
+           box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+           z-index: 9999;
+           transform: translateY(100%);
+           transition: transform 0.4s ease-in-out;
+           border-top: 3px solid var(--primary-color);
+       }
+
+       .cookie-notice.show {
+           transform: translateY(0);
+       }
+
+       .cookie-notice-content {
+           max-width: 1200px;
+           margin: 0 auto;
+           display: flex;
+           align-items: center;
+           justify-content: space-between;
+           flex-wrap: wrap;
+           gap: 1rem;
+       }
+
+       .cookie-notice-text {
+           flex: 1;
+           min-width: 300px;
+       }
+
+       .cookie-notice-text h5 {
+           color: var(--primary-color);
+           margin-bottom: 0.5rem;
+           font-weight: 600;
+       }
+
+       .cookie-notice-text p {
+           margin: 0;
+           font-size: 0.9rem;
+           line-height: 1.4;
+       }
+
+       .cookie-notice-actions {
+           display: flex;
+           gap: 0.75rem;
+           flex-wrap: wrap;
+       }
+
+       .cookie-notice-btn {
+           padding: 0.5rem 1.25rem;
+           border: none;
+           border-radius: 25px;
+           font-size: 0.9rem;
+           font-weight: 500;
+           cursor: pointer;
+           transition: all 0.3s ease;
+           text-decoration: none;
+           display: inline-flex;
+           align-items: center;
+           gap: 0.5rem;
+       }
+
+       .cookie-notice-btn.accept {
+           background: var(--primary-color);
+           color: white;
+       }
+
+       .cookie-notice-btn.accept:hover {
+           background: var(--hover-color);
+           transform: translateY(-2px);
+           box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+       }
+
+       .cookie-notice-btn.settings {
+           background: transparent;
+           color: var(--text-light);
+           border: 1px solid var(--text-light);
+       }
+
+       .cookie-notice-btn.settings:hover {
+           background: var(--text-light);
+           color: var(--secondary-color);
+       }
+
+       @media (max-width: 768px) {
+           .cookie-notice-content {
+               flex-direction: column;
+               text-align: center;
+           }
+           
+           .cookie-notice-text {
+               min-width: unset;
+           }
+       }
+
+       /* Cookie Settings Modal */
+       .cookie-settings-modal {
+           position: fixed;
+           top: 0;
+           left: 0;
+           width: 100%;
+           height: 100%;
+           background: rgba(0, 0, 0, 0.7);
+           z-index: 10000;
+           display: flex;
+           justify-content: center;
+           align-items: center;
+           opacity: 0;
+           visibility: hidden;
+           transition: all 0.3s ease;
+       }
+
+       .cookie-settings-modal.show {
+           opacity: 1;
+           visibility: visible;
+       }
+
+       .cookie-settings-content {
+           background: white;
+           border-radius: 12px;
+           max-width: 600px;
+           max-height: 80vh;
+           width: 90%;
+           overflow-y: auto;
+           box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+           transform: scale(0.9);
+           transition: transform 0.3s ease;
+       }
+
+       .cookie-settings-modal.show .cookie-settings-content {
+           transform: scale(1);
+       }
+
+       .cookie-settings-header {
+           background: var(--primary-color);
+           color: white;
+           padding: 1.5rem;
+           border-radius: 12px 12px 0 0;
+       }
+
+       .cookie-settings-body {
+           padding: 1.5rem;
+       }
+
+       .cookie-category {
+           border: 1px solid #e0e0e0;
+           border-radius: 8px;
+           margin-bottom: 1rem;
+           overflow: hidden;
+       }
+
+       .cookie-category-header {
+           background: #f8f9fa;
+           padding: 1rem;
+           display: flex;
+           justify-content: space-between;
+           align-items: center;
+           cursor: pointer;
+           border-bottom: 1px solid #e0e0e0;
+       }
+
+       .cookie-category-header:hover {
+           background: #e9ecef;
+       }
+
+       .cookie-category-title {
+           font-weight: 600;
+           margin: 0;
+           display: flex;
+           align-items: center;
+           gap: 0.5rem;
+       }
+
+       .cookie-category-toggle {
+           display: flex;
+           align-items: center;
+           gap: 0.5rem;
+       }
+
+       .cookie-toggle {
+           position: relative;
+           width: 50px;
+           height: 24px;
+           background: #ccc;
+           border-radius: 12px;
+           cursor: pointer;
+           transition: background 0.3s ease;
+       }
+
+       .cookie-toggle.active {
+           background: var(--primary-color);
+       }
+
+       .cookie-toggle.disabled {
+           background: #6c757d;
+           cursor: not-allowed;
+       }
+
+       .cookie-toggle::after {
+           content: '';
+           position: absolute;
+           top: 2px;
+           left: 2px;
+           width: 20px;
+           height: 20px;
+           background: white;
+           border-radius: 50%;
+           transition: transform 0.3s ease;
+       }
+
+       .cookie-toggle.active::after {
+           transform: translateX(26px);
+       }
+
+       .cookie-category-body {
+           padding: 1rem;
+           background: white;
+           display: none;
+       }
+
+       .cookie-category.expanded .cookie-category-body {
+           display: block;
+       }
+
+       .cookie-category-description {
+           color: #666;
+           font-size: 0.9rem;
+           line-height: 1.5;
+           margin-bottom: 1rem;
+       }
+
+       .cookie-examples {
+           background: #f8f9fa;
+           padding: 0.75rem;
+           border-radius: 6px;
+           border-left: 4px solid var(--primary-color);
+       }
+
+       .cookie-examples h6 {
+           margin: 0 0 0.5rem 0;
+           font-size: 0.85rem;
+           font-weight: 600;
+           color: var(--primary-color);
+       }
+
+       .cookie-examples ul {
+           margin: 0;
+           padding-left: 1.2rem;
+           font-size: 0.8rem;
+           color: #666;
+       }
+
+       .cookie-settings-footer {
+           padding: 1.5rem;
+           border-top: 1px solid #e0e0e0;
+           display: flex;
+           gap: 1rem;
+           justify-content: flex-end;
+       }
+
+       .cookie-btn {
+           padding: 0.75rem 1.5rem;
+           border: none;
+           border-radius: 6px;
+           font-weight: 500;
+           cursor: pointer;
+           transition: all 0.3s ease;
+           text-decoration: none;
+           display: inline-flex;
+           align-items: center;
+           gap: 0.5rem;
+       }
+
+       .cookie-btn.primary {
+           background: var(--primary-color);
+           color: white;
+       }
+
+       .cookie-btn.primary:hover {
+           background: var(--hover-color);
+       }
+
+       .cookie-btn.secondary {
+           background: #6c757d;
+           color: white;
+       }
+
+       .cookie-btn.secondary:hover {
+           background: #5a6268;
+       }
+
+       .cookie-btn.outline {
+           background: transparent;
+           color: var(--primary-color);
+           border: 1px solid var(--primary-color);
+       }
+
+       .cookie-btn.outline:hover {
+           background: var(--primary-color);
+           color: white;
+       }
+       
+       /* System status indicators */
+       .system-status {
+           display: flex;
+           align-items: center;
+       }
+
+       .service-status {
+           margin-right: 0.5rem;
+       }
+
+       .service-status .badge {
+           background-color: #2c3e50;
+           color: #ecf0f1;
+           border: 1px solid #34495e;
+           padding: 0.25rem 0.5rem;
+           font-size: 0.7rem;
+           font-weight: 400;
+           border-radius: 1rem;
+           display: inline-flex;
+           align-items: center;
+       }
+
+       .status-dot {
+           width: 6px;
+           height: 6px;
+           border-radius: 50%;
+           background-color: #6c757d;
+           display: inline-block;
+           margin-left: 0.25rem;
+       }
+
+                       .status-dot.active {
+            background-color: #198754;
+        }
+
+        .status-dot.error {
+            background-color: #dc3545;
+        }
+        
+        /* Project Type Badge in Navbar */
+        .project-type-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+            }
+        }
+   </style>
+    <!-- Load jQuery first -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Then load Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Toastr CSS and JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+    <script>
+        // Check if jQuery is loaded
+        window.addEventListener('DOMContentLoaded', (event) => {
+            if (typeof jQuery === 'undefined') {
+                console.error('jQuery is not loaded. Some features may not work correctly.');
+            }
+
+            if (typeof toastr !== 'undefined') {
+                toastr.options = {
+                    "closeButton": true,
+                    "progressBar": true,
+                    "positionClass": "toast-top-right",
+                    "timeOut": "3000"
+                };
+            } else {
+                console.warn('Toastr is not loaded');
+            }
+        });
+    </script>
+
+    <!-- Додайте ці скрипти перед закриваючим тегом head -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Google Analytics and Tag Manager -->
+    {% load google_tags %}
+    {% all_tracking_head_scripts %}
+  </head>
+  <body>
+      <!-- Google Tag Manager Body Scripts -->
+      {% all_tracking_body_scripts %}
+      
+      <header>
+        <nav class="navbar navbar-dark topbar">
+            <div class="container-fluid">
+                <button class="sidebar-toggle" type="button" data-bs-toggle="offcanvas" data-bs-target="#mainSidebar" aria-controls="mainSidebar" aria-label="{% trans 'Toggle navigation' %}">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <a class="navbar-brand ms-2 d-flex align-items-center" href="{% url 'index' %}">
+                    <i class="fas fa-shield-alt me-2"></i>{{ project_display_name|default:"SecBoard" }}
+                    {% if project_type and project_type != 'prod' %}
+                        <span class="project-type-badge">
+                            {% if project_type == 'demo' %}
+                                {% trans "DEMO" %}
+                            {% elif project_type == 'test' %}
+                                {% trans "TEST" %}
+                            {% endif %}
+                        </span>
+                    {% endif %}
+                </a>
+                <div class="d-flex align-items-center topbar-actions ms-auto">
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'personal_cabinet' %}#tasks" class="btn btn-outline-light btn-sm d-flex align-items-center ms-2" title="{% trans 'Tasks' %}" aria-label="{% trans 'Tasks' %}">
+                        <i class="fas fa-tasks me-1"></i>
+                        <span class="badge rounded-pill {% if header_tasks_count %}bg-danger{% else %}bg-secondary{% endif %}">{{ header_tasks_count|default:0 }}</span>
+                    </a>
+                    <div class="dropdown">
+                        <a class="btn btn-outline-light btn-sm dropdown-toggle d-flex align-items-center gap-2" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+                           data-bs-toggle="popover"
+                           data-bs-trigger="hover"
+                           data-bs-html="true"
+                           data-bs-placement="bottom"
+                           title="{{ user.get_full_name|default:user.username }}"
+                           data-bs-content="
+                               {% if user.cabinetser.company %}
+                                   <div><strong>{% trans 'Company' %}:</strong> {{ user.cabinetser.company }}</div>
+                               {% endif %}
+                               {% if user.cabinetser.department %}
+                                   <div><strong>{% trans 'Department' %}:</strong> {{ user.cabinetser.department }}</div>
+                               {% endif %}
+                               {% if user.cabinetser.position %}
+                                   <div><strong>{% trans 'Position' %}:</strong> {{ user.cabinetser.position }}</div>
+                               {% endif %}
+                           ">
+                            <i class="fas fa-user"></i>
+                            <span>{{ user.get_full_name|default:user.username }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end mt-2" aria-labelledby="userDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'personal_cabinet' %}">
+                                    <i class="fas fa-user-cog me-2"></i>{% trans "Personal Cabinet" %}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <a class="btn btn-outline-light btn-sm ms-2" href="{% url 'logout' %}">
+                        <i class="fas fa-sign-out-alt me-1"></i>{% trans "Logout" %}
+                    </a>
+                    {% else %}
+                    <a class="btn btn-outline-light btn-sm" href="{% url 'login' %}">
+                        <i class="fas fa-sign-in-alt me-1"></i>{% trans "Login" %}
+                    </a>
+                    {% endif %}
+                    <form action="{% url 'set_language' %}" method="post" class="language-switcher ms-2" id="language-form">
+                        {% csrf_token %}
+                        <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                        <select name="language" onchange="document.getElementById('language-form').submit();" aria-label="{% trans 'Select language' %}">
+                            {% get_current_language as current_lang %}
+                            {% get_available_languages as LANGUAGES %}
+                            {% get_language_info_list for LANGUAGES as languages %}
+                            {% for language in languages %}
+                                <option value="{{ language.code }}"{% if language.code == current_lang or language.code == current_lang|slice:":2" %} selected{% endif %}>
+                                    {{ language.name_local }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <button class="btn btn-outline-light btn-sm ms-2" onclick="openCookieSettings()" title="{% trans 'Cookie Settings' %}" aria-label="{% trans 'Cookie Settings' %}">
+                        <i class="fas fa-cookie-bite"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+      </header>
+
+      <div class="offcanvas offcanvas-start sidebar-offcanvas" tabindex="-1" id="mainSidebar" aria-labelledby="mainSidebarLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="mainSidebarLabel">
+                <i class="fas fa-compass me-2"></i>{% trans "Navigation" %}
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="{% trans 'Close' %}"></button>
+        </div>
+        <div class="offcanvas-body p-0">
+            <nav class="sidebar-nav">
+                <a class="sidebar-link" href="{% url 'index' %}">
+                    <span><i class="fas fa-home me-2"></i>{% trans "Home" %}</span>
+                </a>
+
+                {% if not site_settings or site_settings.show_about_page or site_settings.show_knowledge_base or site_settings.show_faq_page or site_settings.show_partnership_page or site_settings.show_contact_page %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarInfo" aria-expanded="false">
+                        <span><i class="fas fa-info-circle me-2"></i>{% trans "Info" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarInfo">
+                        <div class="sidebar-submenu">
+                            {% if not site_settings or site_settings.show_about_page %}
+                            <a class="sidebar-sublink" href="{% url 'app_conf:about' %}">
+                                <i class="fas fa-info-circle"></i>{% trans "About" %}
+                            </a>
+                            {% endif %}
+                            {% if not site_settings or site_settings.show_knowledge_base %}
+                            <a class="sidebar-sublink" href="{% url 'app_conf:knowledge_base_list' %}">
+                                <i class="fas fa-book-open"></i>{% trans "Knowledge Base" %}
+                            </a>
+                            {% endif %}
+                            {% if not site_settings or site_settings.show_faq_page %}
+                            <a class="sidebar-sublink" href="{% url 'app_conf:faq' %}">
+                                <i class="fas fa-question-circle"></i>{% trans "FAQ" %}
+                            </a>
+                            {% endif %}
+                            {% if not site_settings or site_settings.show_partnership_page %}
+                            <a class="sidebar-sublink" href="{% url 'app_conf:partnership' %}">
+                                <i class="fas fa-handshake"></i>{% trans "Partnership" %}
+                            </a>
+                            {% endif %}
+                            {% if not site_settings or site_settings.show_contact_page %}
+                            <a class="sidebar-sublink" href="{% url 'app_conf:contact' %}">
+                                <i class="fas fa-envelope"></i>{% trans "Contact" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <a class="sidebar-link" href="https://demo.secboard.online/" target="_blank" rel="noopener noreferrer">
+                    <span><i class="fas fa-external-link-alt me-2"></i>{% trans "Demo" %}</span>
+                </a>
+
+                {% if user.is_authenticated %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarLearn" aria-expanded="false">
+                        <span><i class="fas fa-graduation-cap me-2"></i>{% trans "Learn" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarLearn">
+                        <div class="sidebar-submenu">
+                            <a class="sidebar-sublink" href="{% url 'learning_hub' %}">
+                                <i class="fas fa-book"></i>{% trans "Learning Hub" %}
+                            </a>
+                            {% if show_gophish_link %}
+                            <a class="sidebar-sublink" href="{% url 'app_gophish:dashboard' %}">
+                                <i class="fas fa-fish"></i>{% trans "Gophish Dashboard" %}
+                            </a>
+                            {% endif %}
+                            {% if show_quiz_manager_link %}
+                            <a class="sidebar-sublink" href="{% url 'quiz_manager' %}">
+                                <i class="fas fa-cogs"></i>{% trans "Quiz Manager" %}
+                            </a>
+                            {% endif %}
+                            {% if show_page_manager_link %}
+                            <a class="sidebar-sublink" href="{% url 'page_manager' %}">
+                                <i class="fas fa-file-text"></i>{% trans "Page Manager" %}
+                            </a>
+                            {% endif %}
+                            {% if quiz_result_link %}
+                            <a class="sidebar-sublink" href="{% url 'quiz_results' %}">
+                                <i class="fas fa-chart-bar"></i>{% trans "Quiz Results" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if show_docs_link or show_legdocs_link or show_pcidss_link or show_iso27002_link %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarDocuments" aria-expanded="false">
+                        <span><i class="fas fa-file-contract me-2"></i>{% trans "Documents" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarDocuments">
+                        <div class="sidebar-submenu">
+                            {% if show_docs_link %}
+                            <a class="sidebar-sublink" href="{% url 'reg_docs' %}">
+                                <i class="fas fa-file-text"></i>{% trans "Document Register" %}
+                            </a>
+                            {% endif %}
+                            {% if show_legdocs_link %}
+                            <a class="sidebar-sublink" href="{% url 'legislative_docs' %}">
+                                <i class="fas fa-gavel"></i>{% trans "Legislative Documents" %}
+                            </a>
+                            {% endif %}
+                            {% if show_pcidss_link %}
+                            <a class="sidebar-sublink" href="{% url 'pcidss_requirements' %}">
+                                <i class="fas fa-credit-card"></i>{% trans "PCI DSS" %}
+                            </a>
+                            {% endif %}
+                            {% if show_iso27002_link %}
+                            <a class="sidebar-sublink" href="{% url 'iso27002_controls' %}">
+                                <i class="fas fa-shield-alt"></i>{% trans "ISO27002" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if user.is_authenticated %}
+                {% if not secboard_lite %}
+                {% if show_gdpr_compliance_link or compliance_has_access or local_compliance_has_access or internal_compliance_has_access or show_mandatory_processes_link %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarCompliance" aria-expanded="false">
+                        <span><i class="fas fa-check-circle me-2"></i>{% trans "Compliance" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarCompliance">
+                        <div class="sidebar-submenu">
+                            {% if show_gdpr_compliance_link %}
+                            <a class="sidebar-sublink" href="{% url 'app_gdpr:compliance_dashboard' %}">
+                                <i class="fas fa-user-shield"></i>{% trans "GDPR Compliance" %}
+                            </a>
+                            {% endif %}
+                            {% if compliance_has_access %}
+                            <a class="sidebar-sublink" href="{% url 'compliance:dashboard' %}">
+                                <i class="fas fa-tasks"></i>{% trans "Framework Compliance" %}
+                            </a>
+                            {% endif %}
+                            {% if local_compliance_has_access %}
+                            <a class="sidebar-sublink" href="{% url 'compliance:local_compliance' %}">
+                                <i class="fas fa-building"></i>{% trans "Local Compliance" %}
+                            </a>
+                            {% endif %}
+                            {% if internal_compliance_has_access %}
+                            <a class="sidebar-sublink" href="{% url 'compliance:internal_compliance' %}">
+                                <i class="fas fa-briefcase"></i>{% trans "Internal Compliance" %}
+                            </a>
+                            {% endif %}
+                            {% if show_mandatory_processes_link %}
+                            <a class="sidebar-sublink" href="{% url 'compliance:mandatory_processes' %}">
+                                <i class="fas fa-tasks"></i>{% trans "Mandatory Processes" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% endif %}
+
+                {% if user.is_authenticated %}
+                {% if show_assets_link or show_keys_cert_link or show_software_register_link %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarInventory" aria-expanded="false">
+                        <span><i class="fas fa-boxes me-2"></i>{% trans "Inventory" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarInventory">
+                        <div class="sidebar-submenu">
+                            {% if show_assets_link %}
+                            <a class="sidebar-sublink" href="{% url 'information_assets' %}">
+                                <i class="fas fa-database"></i>{% trans "Asset Inventory" %}
+                            </a>
+                            {% endif %}
+                            {% if show_software_register_link %}
+                            <a class="sidebar-sublink" href="{% url 'software_register' %}">
+                                <i class="fas fa-list-alt"></i>{% trans "Software Register" %}
+                            </a>
+                            {% endif %}
+                            {% if show_keys_cert_link %}
+                            <a class="sidebar-sublink" href="{% url 'keys_cert' %}">
+                                <i class="fas fa-key"></i>{% trans "Key/Certificate Inventory" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if user.is_authenticated %}
+                {% if show_risk_assessment_config_link or access_risk_assessment_show_link or show_risk_report_link or tprm_perms.has_access_dashboard %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarRisk" aria-expanded="false">
+                        <span><i class="fas fa-exclamation-triangle me-2"></i>{% trans "Risk" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarRisk">
+                        <div class="sidebar-submenu">
+                            {% if show_risk_assessment_config_link %}
+                            <a class="sidebar-sublink" href="{% url 'risk_assessment_config' %}">
+                                <i class="fas fa-cog"></i>{% trans "Risk Assessment Setup" %}
+                            </a>
+                            {% endif %}
+                            {% if access_risk_assessment_show_link %}
+                            <a class="sidebar-sublink" href="{% url 'risk_assessment' %}">
+                                <i class="fas fa-clipboard-data"></i>{% trans "Risk Evaluation" %}
+                            </a>
+                            {% endif %}
+                            {% if show_risk_report_link %}
+                            <a class="sidebar-sublink" href="{% url 'risk_report' %}">
+                                <i class="fas fa-file-alt"></i>{% trans "Risk Report" %}
+                            </a>
+                            {% endif %}
+                            {% if user.is_authenticated and tprm_perms.has_access_dashboard %}
+                            <a class="sidebar-sublink" href="{% url 'app_tprm:dashboard' %}">
+                                <i class="fas fa-tachometer-alt"></i>{% trans "TPRM" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if show_incidents_link or show_fim_dashboard_link %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarSoc" aria-expanded="false">
+                        <span><i class="fas fa-shield-virus me-2"></i>{% trans "SOC" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarSoc">
+                        <div class="sidebar-submenu">
+                            {% if show_incidents_link %}
+                            <a class="sidebar-sublink" href="{% url 'incident_register' %}">
+                                <i class="fas fa-bug"></i>{% trans "Incident Register" %}
+                            </a>
+                            {% endif %}
+                            {% if show_fim_dashboard_link %}
+                            <a class="sidebar-sublink" href="{% url 'app_soc:fim_dashboard' %}">
+                                <i class="fas fa-shield-check"></i>{% trans "FIM Dashboard" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if cif_has_access %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarCif" aria-expanded="false">
+                        <span><i class="fas fa-industry me-2"></i>{% trans "CIF" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarCif">
+                        <div class="sidebar-submenu">
+                            {% if cif_permissions.has_access or cif_permissions.can_view_objects %}
+                            <a class="sidebar-sublink" href="{% url 'app_cif:dashboard' %}">
+                                <i class="fas fa-chart-line"></i>{% trans "CIF Dashboard" %}
+                            </a>
+                            {% endif %}
+                            {% if cif_permissions.can_add_objects %}
+                            <a class="sidebar-sublink" href="{% url 'app_cif:cif_object_create' %}">
+                                <i class="fas fa-plus-circle"></i>{% trans "Create CIF Object" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if show_integration_link %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarIntegrations" aria-expanded="false">
+                        <span><i class="fas fa-plug me-2"></i>{% trans "Integrations" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarIntegrations">
+                        <div class="sidebar-submenu">
+                            <a class="sidebar-sublink" href="{% url 'app_integration:dashboard' %}">
+                                <i class="fas fa-tachometer-alt"></i>{% trans "Integrations Dashboard" %}
+                            </a>
+                            <a class="sidebar-sublink" href="{% url 'app_integration:telegram_bot_list' %}">
+                                <i class="fab fa-telegram"></i>{% trans "Telegram Bots" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if secboard_lite and user.is_authenticated %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarSubscription" aria-expanded="false">
+                        <span><i class="fas fa-star me-2"></i>{% trans "Full edition" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarSubscription">
+                        <div class="sidebar-submenu">
+                            <span class="sidebar-sublink text-muted opacity-50 pe-none d-block py-1 small">{% trans "Asset inventory, software & media registers — available with subscription" %}</span>
+                            <span class="sidebar-sublink text-muted opacity-50 pe-none d-block py-1 small">{% trans "Risk assessment & reports — available with subscription" %}</span>
+                            <span class="sidebar-sublink text-muted opacity-50 pe-none d-block py-1 small">{% trans "Compliance & GDPR — available with subscription" %}</span>
+                            <span class="sidebar-sublink text-muted opacity-50 pe-none d-block py-1 small">{% trans "Access management (ISAM) — available with subscription" %}</span>
+                            <span class="sidebar-sublink text-muted opacity-50 pe-none d-block py-1 small">{% trans "Incident register — available with subscription" %}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if user.is_authenticated %}
+                {% if show_access_matrix_link or show_access_records_link or show_access_config_is_link or show_user_access_request_link or show_manage_ar_link or show_notification_settings_link or show_api_link %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarAccess" aria-expanded="false">
+                        <span><i class="fas fa-shield-alt me-2"></i>{% trans "Access" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarAccess">
+                        <div class="sidebar-submenu">
+                            {% if show_access_matrix_link %}
+                            <a class="sidebar-sublink" href="{% url 'access_matrix_is' %}">
+                                <i class="fas fa-table"></i>{% trans "Access Matrix" %}
+                            </a>
+                            {% endif %}
+                            {% if show_access_records_link %}
+                            <a class="sidebar-sublink" href="{% url 'access_records' %}">
+                                <i class="fas fa-list-alt"></i>{% trans "Access Records" %}
+                            </a>
+                            {% endif %}
+                            {% if show_access_config_is_link %}
+                            <a class="sidebar-sublink" href="{% url 'access_config_is' %}">
+                                <i class="fas fa-cog"></i>{% trans "System Configuration" %}
+                            </a>
+                            {% endif %}
+                            {% if show_user_access_request_link %}
+                            <a class="sidebar-sublink" href="{% url 'user_access_request' %}">
+                                <i class="fas fa-file-alt"></i>{% trans "Access Requests" %}
+                            </a>
+                            {% endif %}
+                            {% if show_manage_ar_link %}
+                            <a class="sidebar-sublink" href="{% url 'manage_access_requests' %}">
+                                <i class="fas fa-tasks"></i>{% trans "Manage Requests" %}
+                            </a>
+                            {% endif %}
+                            {% if show_notification_settings_link %}
+                            <a class="sidebar-sublink" href="{% url 'access_notification' %}">
+                                <i class="fas fa-envelope-gear"></i>{% trans "Notification" %}
+                            </a>
+                            {% endif %}
+                            {% if show_api_link %}
+                            <a class="sidebar-sublink" href="{% url 'api_request_page' %}">
+                                <i class="fas fa-exchange-alt"></i>{% trans "API Integration" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if show_user_access_request_link and not user.is_authenticated %}
+                <a class="sidebar-link" href="{% url 'user_access_request' %}">
+                    <span><i class="fas fa-file-alt me-2"></i>{% trans "Access Requests" %}</span>
+                </a>
+                {% endif %}
+
+                {% if cabinet_access.has_access_users or cabinet_access.has_access_groups or cabinet_access.has_access_org_structure or cabinet_access.has_access_org_chart or cabinet_access.has_access_site_statistics or show_executive_view or is_Options_member %}
+                <div class="sidebar-section">
+                    <button class="sidebar-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarManagement" aria-expanded="false">
+                        <span><i class="fas fa-cogs me-2"></i>{% trans "Management" %}</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse" id="sidebarManagement">
+                        <div class="sidebar-submenu">
+                            {% if cabinet_access.has_access_users %}
+                            <a class="sidebar-sublink" href="{% url 'users' %}">
+                                <i class="fas fa-users"></i>{% trans "Users Management" %}
+                            </a>
+                            {% endif %}
+                            {% if cabinet_access.has_access_groups %}
+                            <a class="sidebar-sublink" href="{% url 'groups' %}">
+                                <i class="fas fa-user-friends"></i>{% trans "Groups Management" %}
+                            </a>
+                            {% endif %}
+                            {% if cabinet_access.has_access_org_structure %}
+                            <a class="sidebar-sublink" href="{% url 'org_structure' %}">
+                                <i class="fas fa-sitemap"></i>{% trans "Organization Structure" %}
+                            </a>
+                            {% endif %}
+                            {% if cabinet_access.has_access_org_chart %}
+                            <a class="sidebar-sublink" href="{% url 'org_chart' %}">
+                                <i class="fas fa-project-diagram"></i>{% trans "Organization Chart" %}
+                            </a>
+                            {% endif %}
+                            {% if cabinet_access.has_access_site_statistics %}
+                            <a class="sidebar-sublink" href="{% url 'app_conf:site_statistics' %}">
+                                <i class="fas fa-chart-bar"></i>{% trans "Site Statistics" %}
+                            </a>
+                            {% endif %}
+                            {% if show_executive_view %}
+                            <a class="sidebar-sublink" href="{% url 'personal_cabinet' %}#executive-view">
+                                <i class="fas fa-tachometer-alt"></i>{% trans "Executive View" %}
+                            </a>
+                            {% endif %}
+                            {% if is_Options_member %}
+                            <a class="sidebar-sublink" href="{% url 'app_conf:translate_po_page' %}">
+                                <i class="fas fa-language"></i>{% trans "Translate PO" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if user.is_authenticated %}
+                <hr class="text-white-50">
+                <div class="sidebar-meta px-2 text-white-50 small">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="fas fa-user"></i>
+                        <span>{{ user.get_full_name|default:user.username }}</span>
+                    </div>
+                    {% if user.cabinetser.company %}
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="fas fa-building"></i>
+                        <span>{{ user.cabinetser.company }}</span>
+                    </div>
+                    {% endif %}
+                    {% if user.cabinetser.department %}
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="fas fa-users-cog"></i>
+                        <span>{{ user.cabinetser.department }}</span>
+                    </div>
+                    {% endif %}
+                    {% if user.cabinetser.position %}
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-briefcase"></i>
+                        <span>{{ user.cabinetser.position }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </nav>
+        </div>
+      </div>
+
+    <main class="flex-shrink-0">
+       <div class="container-fluid">
+           <div class="row">
+               {% if show_sidebar %}
+                   <div class="col-md-3">
+                       {% block sidebar %}{% endblock %}
+                   </div>
+                   <div class="col-md-9">
+               {% else %}
+                   <div class="col-12">
+               {% endif %}
+                   {% if messages %}
+                       {% for message in messages %}
+                           <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                               {{ message }}
+                               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                           </div>
+                       {% endfor %}
+                   {% endif %}
+
+                   {% block content %}{% endblock %}
+               </div>
+           </div>
+       </div>
+   </main>
+
+   <footer class="footer" style="background-color: {{ navbar_color|default:'#2c3e50' }};">
+       <div class="container">
+           <div class="footer-content">
+               <div class="copyright">
+                   © {% now "Y" %} SDV {{ project_display_name|default:"SecBoard" }}. {% trans "All rights reserved." %}
+                   {% if build_name %}<span class="ms-2 text-muted" style="font-size: 0.85rem;">| Build: {{ build_name }}</span>{% endif %}
+                   <span class="ms-3">
+                       <button class="btn btn-link btn-sm p-0 text-light" onclick="openCookieSettings()" style="font-size: 0.8rem;">
+                           <i class="fas fa-cookie-bite me-1"></i>
+                           {% trans "Cookie Settings" %}
+                       </button>
+                   </span>
+               </div>
+               <div class="contact-info">
+                   <span>{% trans "Contact us" %}:</span>
+                   {% if contact_settings %}
+                        {% if contact_settings.contact_email %}
+                        <div class="contact-item">
+                            <i class="bi bi-envelope"></i>
+                            <a href="javascript:void(0)" class="text-light text-decoration-none footer-contact-link" data-type="email" data-contact="{{ contact_settings.contact_email }}" title="{% trans 'Click to show email' %}" style="cursor: pointer;">
+                                <i class="fas fa-lock me-1" style="font-size: 0.7rem;"></i><span class="footer-contact-text">{% trans "Email" %}</span>
+                            </a>
+                        </div>
+                        {% endif %}
+                        {% if contact_settings.contact_phone %}
+                        <div class="contact-item">
+                            <i class="bi bi-phone"></i>
+                            <a href="javascript:void(0)" class="text-light text-decoration-none footer-contact-link" data-type="phone" data-contact="{{ contact_settings.contact_phone }}" title="{% trans 'Click to show phone' %}" style="cursor: pointer;">
+                                <i class="fas fa-lock me-1" style="font-size: 0.7rem;"></i><span class="footer-contact-text">{% trans "Phone" %}</span>
+                            </a>
+                        </div>
+                        {% endif %}
+                       {% if footer_telegram_bot %}
+                       <div class="contact-item">
+                           <i class="bi bi-telegram"></i>
+                           <a href="{{ footer_telegram_bot.url }}" class="text-light text-decoration-none" target="_blank" rel="nofollow noopener noreferrer" title="{{ footer_telegram_bot.name }}">{{ footer_telegram_bot.username }}</a>
+                       </div>
+                       {% elif contact_settings.telegram_url %}
+                       <div class="contact-item">
+                           <i class="bi bi-telegram"></i>
+                           <a href="{{ contact_settings.telegram_url }}" class="text-light text-decoration-none" target="_blank" rel="nofollow noopener noreferrer">{% trans "Telegram" %}</a>
+                       </div>
+                       {% endif %}
+                   {% else %}
+                       <!-- Fallback if no contact settings -->
+                   <div class="contact-item">
+                       <i class="bi bi-envelope"></i>
+                       <span data-contact="&#105;&#110;&#102;&#111;&#64;&#115;&#101;&#99;&#98;&#111;&#97;&#114;&#100;&#46;&#111;&#110;&#108;&#105;&#110;&#101;"></span>
+                   </div>
+                   {% if footer_telegram_bot %}
+                   <div class="contact-item">
+                       <i class="bi bi-telegram"></i>
+                       <a href="{{ footer_telegram_bot.url }}" class="text-light text-decoration-none" target="_blank" rel="nofollow noopener noreferrer" title="{{ footer_telegram_bot.name }}">{{ footer_telegram_bot.username }}</a>
+                   </div>
+                   {% else %}
+                   <div class="contact-item">
+                       <i class="bi bi-telegram"></i>
+                       <span data-tg="&#64;&#115;&#101;&#99;&#98;&#111;&#97;&#114;&#100;&#95;&#97;&#100;&#109;&#105;&#110;"></span>
+                   </div>
+                   {% endif %}
+                   {% endif %}
+                   <div class="system-status ms-3">
+                       <div class="service-status" id="celeryStatus">
+                           <span class="badge">
+                               <i class="fas fa-tasks me-1"></i>
+                               <span>Celery</span>
+                               <span class="status-dot"></span>
+                           </span>
+                       </div>
+                       <div class="service-status" id="redisStatus">
+                           <span class="badge">
+                               <i class="fas fa-database me-1"></i>
+                               <span>Redis</span>
+                               <span class="status-dot"></span>
+                           </span>
+                       </div>
+                       <div class="service-status" id="beatStatus">
+                           <span class="badge">
+                               <i class="fas fa-clock me-1"></i>
+                               <span>Beat</span>
+                               <span class="status-dot"></span>
+                           </span>
+                       </div>
+                   </div>
+               </div>
+           </div>
+       </div>
+   </footer>
+
+   {% block scripts %}
+   <script>
+   document.addEventListener('DOMContentLoaded', function() {
+       // Initialize popovers
+       var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+       var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+           return new bootstrap.Popover(popoverTriggerEl, {
+               trigger: 'hover',
+               html: true,
+               delay: { show: 200, hide: 100 },
+               container: 'body'
+           });
+       });
+
+       // Initialize dropdowns
+       var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
+       var dropdownList = dropdownElementList.map(function (dropdownToggleEl) {
+           return new bootstrap.Dropdown(dropdownToggleEl);
+       });
+
+       // Hide popovers when clicking outside
+       document.addEventListener('click', function(e) {
+           popoverTriggerList.forEach(function(popoverTriggerEl) {
+               var popover = bootstrap.Popover.getInstance(popoverTriggerEl);
+               if (popover && !popoverTriggerEl.contains(e.target)) {
+                   popover.hide();
+               }
+           });
+       });
+
+       // Decode fallback contact information (if used)
+       const fallbackContact = document.querySelector('[data-contact]');
+       if (fallbackContact) {
+           fallbackContact.innerHTML = atob('aW5mb0BzZWNib2FyZC5vbmxpbmU=');
+       }
+       const fallbackTg = document.querySelector('[data-tg]');
+       if (fallbackTg) {
+           fallbackTg.innerHTML = atob('QHNlY2JvYXJkX2FkbWlu');
+       }
+       
+       // Handle footer contact links with bot protection
+       const footerContactLinks = document.querySelectorAll('.footer-contact-link');
+       console.log('Footer contact links found:', footerContactLinks.length); // Debug
+       
+       // Also check obfuscated-contact links in footer
+       const obfuscatedLinks = document.querySelectorAll('.obfuscated-contact');
+       console.log('Obfuscated contact links found:', obfuscatedLinks.length); // Debug
+       
+       footerContactLinks.forEach(function(link) {
+           let isRevealed = false;
+           
+           link.addEventListener('click', function(e) {
+               e.preventDefault();
+               e.stopPropagation();
+               
+               const type = this.dataset.type;
+               const contact = this.dataset.contact;
+               const textSpan = this.querySelector('.footer-contact-text');
+               const icon = this.querySelector('.fa-lock');
+               
+               // First click - reveal contact
+               if (!isRevealed) {
+                   if (type === 'email') {
+                       this.href = 'mailto:' + contact;
+                       if (textSpan) textSpan.textContent = contact;
+                       if (icon) {
+                           icon.classList.remove('fa-lock');
+                           icon.classList.add('fa-envelope');
+                       }
+                   } else if (type === 'phone') {
+                       this.href = 'tel:' + contact.replace(/\s/g, '');
+                       if (textSpan) textSpan.textContent = contact;
+                       if (icon) {
+                           icon.classList.remove('fa-lock');
+                           icon.classList.add('fa-phone');
+                       }
+                   }
+                   this.title = '{% trans "Click to copy" %}';
+                   isRevealed = true;
+                   console.log('Contact revealed:', contact); // Debug
+               } 
+               // Second click - copy to clipboard
+               else {
+                   if (navigator.clipboard && navigator.clipboard.writeText) {
+                       navigator.clipboard.writeText(contact).then(function() {
+                           if (textSpan) {
+                               const originalText = textSpan.textContent;
+                               textSpan.textContent = '{% trans "Copied!" %}';
+                               setTimeout(function() {
+                                   textSpan.textContent = contact;
+                               }, 2000);
+                           }
+                       }).catch(function(err) {
+                           console.error('Failed to copy:', err);
+                           alert('{% trans "Failed to copy to clipboard" %}');
+                       });
+                   } else {
+                       // Fallback for older browsers
+                       alert('Contact: ' + contact);
+                   }
+               }
+           });
+       });
+       
+       // Handle obfuscated contact links in footer (if any)
+       obfuscatedLinks.forEach(function(link) {
+           // Only handle if it's in footer (not in main content)
+           if (link.closest('footer')) {
+               console.log('Found obfuscated link in footer:', link.dataset.type, link.dataset.contact); // Debug
+               let isRevealed = false;
+               
+               link.addEventListener('click', function(e) {
+                   e.preventDefault();
+                   e.stopPropagation();
+                   
+                   const type = this.dataset.type;
+                   const contact = this.dataset.contact;
+                   const textSpan = this.querySelector('.contact-text') || this.querySelector('.footer-contact-text');
+                   const icon = this.querySelector('.fa-lock');
+                   
+                   // First click - reveal contact
+                   if (!isRevealed) {
+                       if (type === 'email') {
+                           this.href = 'mailto:' + contact;
+                           if (textSpan) textSpan.textContent = contact;
+                           if (icon) {
+                               icon.classList.remove('fa-lock');
+                               icon.classList.add('fa-envelope');
+                           }
+                       } else if (type === 'phone') {
+                           this.href = 'tel:' + contact.replace(/\s/g, '');
+                           if (textSpan) textSpan.textContent = contact;
+                           if (icon) {
+                               icon.classList.remove('fa-lock');
+                               icon.classList.add('fa-phone');
+                           }
+                       }
+                       
+                       this.title = '{% trans "Click to copy" %}';
+                       isRevealed = true;
+                       console.log('Footer obfuscated contact revealed:', contact); // Debug
+                   } 
+                   // Second click - copy to clipboard
+                   else {
+                       if (navigator.clipboard && navigator.clipboard.writeText) {
+                           navigator.clipboard.writeText(contact).then(function() {
+                               if (textSpan) {
+                                   const originalText = textSpan.textContent;
+                                   textSpan.textContent = '{% trans "Copied!" %}';
+                                   setTimeout(function() {
+                                       textSpan.textContent = contact;
+                                   }, 2000);
+                               }
+                           }).catch(function(err) {
+                               console.error('Failed to copy:', err);
+                               alert('{% trans "Failed to copy to clipboard" %}');
+                           });
+                       } else {
+                           // Fallback for older browsers
+                           alert('Contact: ' + contact);
+                       }
+                   }
+               });
+           }
+       });
+
+       // Check jQuery loading
+       if (typeof jQuery === 'undefined') {
+           console.error('jQuery is not loaded. Some features may not work correctly.');
+       } else {
+           console.log('jQuery is loaded successfully');
+       }
+       
+       // Only check API status if the user is authenticated
+       // Get the authentication status from meta tag
+       const isAuthenticated = document.querySelector('meta[name="user-id"]') !== null;
+       
+       // Check if on login page
+       const isLoginPage = window.location.pathname.includes('/login/') || 
+                           window.location.pathname.includes('/accounts/login/') ||
+                           window.location.pathname.includes('/password_reset/');
+       
+       // Only proceed with API checks if authenticated and not on login-related pages
+       if (isAuthenticated && !isLoginPage) {
+           // Check API service status
+           function checkAPIStatus() {
+               const supportsAbortController = typeof AbortController !== 'undefined';
+               const fetchOptions = {
+                   method: 'GET',
+                   headers: {
+                       'X-Requested-With': 'XMLHttpRequest',
+                   },
+                   credentials: 'same-origin'
+               };
+
+               let controller = null;
+               let timeoutId = null;
+
+               if (supportsAbortController) {
+                   controller = new AbortController();
+                   fetchOptions.signal = controller.signal;
+                   timeoutId = setTimeout(() => controller.abort(), 10000);
+               }
+
+               fetch('/service-status/', fetchOptions)
+               .then(response => {
+                   if (timeoutId) {
+                       clearTimeout(timeoutId);
+                   }
+                   if (!response.ok) {
+                       throw new Error(`HTTP error: ${response.status}`);
+                   }
+                   const contentType = response.headers.get('content-type');
+                   if (!contentType || !contentType.includes('application/json')) {
+                       throw new Error('Response is not JSON');
+                   }
+                   return response.json();
+               })
+               .then(data => {
+                   updateStatusIndicator('celeryStatus', data.celery_status);
+                   updateStatusIndicator('redisStatus', data.redis_status);
+                   updateStatusIndicator('beatStatus', data.beat_status);
+               })
+               .catch(error => {
+                   if (timeoutId) {
+                       clearTimeout(timeoutId);
+                   }
+                   if (error.name === 'AbortError') {
+                       error.name = 'TimeoutError';
+                   }
+                   if (error.name === 'TimeoutError') {
+                       console.log('API status check timed out - services may still be running');
+                   } else {
+                       console.warn('Error checking API status:', error);
+                       updateStatusIndicator('celeryStatus', false);
+                       updateStatusIndicator('redisStatus', false);
+                       updateStatusIndicator('beatStatus', false);
+                   }
+               });
+           }
+           
+           function updateStatusIndicator(elementId, isRunning) {
+               const statusElement = document.getElementById(elementId);
+               if (statusElement) {
+                   const statusDot = statusElement.querySelector('.status-dot');
+                   if (statusDot) {
+                       statusDot.classList.remove('active', 'error');
+                       statusDot.classList.add(isRunning ? 'active' : 'error');
+                   }
+               }
+           }
+           
+           // Initial check
+           checkAPIStatus();
+           
+           // Regular check every 60 seconds
+           setInterval(checkAPIStatus, 60000);
+       } else {
+           // If not authenticated or on login page, set status indicators to neutral
+           const statusDots = document.querySelectorAll('.status-dot');
+           statusDots.forEach(dot => {
+               dot.classList.remove('active', 'error');
+           });
+       }
+   });
+   </script>
+   {% endblock %}
+
+   <!-- Cookie Notice -->
+   <div id="cookieNotice" class="cookie-notice" data-privacy-url="{% url 'privacy_policy' %}">
+       <div class="cookie-notice-content">
+           <div class="cookie-notice-text">
+               <h5>
+                   <i class="fas fa-cookie-bite me-2"></i>
+                   {% trans "Cookies Notice" %}
+               </h5>
+               <p>
+                   {% blocktrans %}
+                   We use cookies to improve your experience on our platform. Cookies help us provide secure authentication, remember your preferences, and analyze site usage to enhance our cybersecurity training and risk management tools.
+                   {% endblocktrans %}
+                                       <a href="{% url 'privacy_policy' %}" class="text-primary">{% trans "Learn more" %}</a>
+               </p>
+           </div>
+           <div class="cookie-notice-actions">
+               <button class="cookie-notice-btn settings" onclick="openCookieSettings()">
+                   <i class="fas fa-cog"></i>
+                   {% trans "Settings" %}
+               </button>
+               <button class="cookie-notice-btn accept" onclick="acceptCookies()">
+                   <i class="fas fa-check"></i>
+                   {% trans "Accept All" %}
+               </button>
+           </div>
+       </div>
+   </div>
+
+   <!-- Cookie Settings Modal -->
+   <div id="cookieSettingsModal" class="cookie-settings-modal">
+       <div class="cookie-settings-content">
+           <div class="cookie-settings-header">
+               <h3 class="mb-0">
+                   <i class="fas fa-cog me-2"></i>
+                   {% trans "Cookie Preferences" %}
+               </h3>
+               <p class="mb-0 mt-2 opacity-75">
+                   {% trans "Manage your cookie preferences for a better experience" %}
+               </p>
+           </div>
+           
+           <div class="cookie-settings-body">
+               <p class="mb-4">
+                   {% blocktrans %}
+                   We use different types of cookies to enhance your experience on our cybersecurity platform. You can choose which categories to allow. Note that disabling some cookies may affect functionality.
+                   {% endblocktrans %}
+               </p>
+
+               <!-- Essential Cookies -->
+               <div class="cookie-category" data-category="essential">
+                   <div class="cookie-category-header" onclick="toggleCategoryExpansion('essential')">
+                       <h5 class="cookie-category-title">
+                           <i class="fas fa-shield-alt text-success"></i>
+                           {% trans "Essential Cookies" %}
+                           <span class="badge bg-success ms-2">{% trans "Required" %}</span>
+                       </h5>
+                       <div class="cookie-category-toggle">
+                           <span class="text-success fw-bold">{% trans "Always Active" %}</span>
+                           <div class="cookie-toggle active disabled" data-category="essential"></div>
+                       </div>
+                   </div>
+                   <div class="cookie-category-body">
+                       <div class="cookie-category-description">
+                           {% blocktrans %}
+                           These cookies are necessary for the website to function and cannot be switched off. They are usually only set in response to actions made by you such as logging in, filling in forms, and setting privacy preferences.
+                           {% endblocktrans %}
+                       </div>
+                       <div class="cookie-examples">
+                           <h6>{% trans "Examples:" %}</h6>
+                           <ul>
+                               <li>{% trans "Authentication and session management" %}</li>
+                               <li>{% trans "Security tokens and CSRF protection" %}</li>
+                               <li>{% trans "Language and accessibility preferences" %}</li>
+                               <li>{% trans "Load balancing and performance" %}</li>
+                           </ul>
+                       </div>
+                   </div>
+               </div>
+
+               <!-- Functional Cookies -->
+               <div class="cookie-category" data-category="functional">
+                   <div class="cookie-category-header" onclick="toggleCategoryExpansion('functional')">
+                       <h5 class="cookie-category-title">
+                           <i class="fas fa-tools text-primary"></i>
+                           {% trans "Functional Cookies" %}
+                       </h5>
+                       <div class="cookie-category-toggle">
+                           <div class="cookie-toggle" data-category="functional" onclick="toggleCookieCategory('functional', event)"></div>
+                       </div>
+                   </div>
+                   <div class="cookie-category-body">
+                       <div class="cookie-category-description">
+                           {% blocktrans %}
+                           These cookies enable enhanced functionality and personalization. They help us remember your preferences and provide improved features for your cybersecurity training experience.
+                           {% endblocktrans %}
+                       </div>
+                       <div class="cookie-examples">
+                           <h6>{% trans "Examples:" %}</h6>
+                           <ul>
+                               <li>{% trans "Training progress tracking" %}</li>
+                               <li>{% trans "Dashboard layout preferences" %}</li>
+                               <li>{% trans "Notification settings" %}</li>
+                               <li>{% trans "Theme and display preferences" %}</li>
+                           </ul>
+                       </div>
+                   </div>
+               </div>
+
+               <!-- Analytics Cookies -->
+               <div class="cookie-category" data-category="analytics">
+                   <div class="cookie-category-header" onclick="toggleCategoryExpansion('analytics')">
+                       <h5 class="cookie-category-title">
+                           <i class="fas fa-chart-line text-info"></i>
+                           {% trans "Analytics Cookies" %}
+                       </h5>
+                       <div class="cookie-category-toggle">
+                           <div class="cookie-toggle" data-category="analytics" onclick="toggleCookieCategory('analytics', event)"></div>
+                       </div>
+                   </div>
+                   <div class="cookie-category-body">
+                       <div class="cookie-category-description">
+                           {% blocktrans %}
+                           These cookies help us understand how visitors interact with our platform. We use this information to improve our cybersecurity training modules and platform performance.
+                           {% endblocktrans %}
+                       </div>
+                       <div class="cookie-examples">
+                           <h6>{% trans "Examples:" %}</h6>
+                           <ul>
+                               <li>{% trans "Platform usage statistics" %}</li>
+                               <li>{% trans "Training effectiveness metrics" %}</li>
+                               <li>{% trans "Performance monitoring" %}</li>
+                               <li>{% trans "Error tracking and debugging" %}</li>
+                           </ul>
+                       </div>
+                   </div>
+               </div>
+
+               <!-- Marketing Cookies -->
+               <div class="cookie-category" data-category="marketing">
+                   <div class="cookie-category-header" onclick="toggleCategoryExpansion('marketing')">
+                       <h5 class="cookie-category-title">
+                           <i class="fas fa-bullhorn text-warning"></i>
+                           {% trans "Marketing Cookies" %}
+                       </h5>
+                       <div class="cookie-category-toggle">
+                           <div class="cookie-toggle" data-category="marketing" onclick="toggleCookieCategory('marketing', event)"></div>
+                       </div>
+                   </div>
+                   <div class="cookie-category-body">
+                       <div class="cookie-category-description">
+                           {% blocktrans %}
+                           These cookies track your activity across websites to help deliver more relevant cybersecurity content and training recommendations that match your interests.
+                           {% endblocktrans %}
+                       </div>
+                       <div class="cookie-examples">
+                           <h6>{% trans "Examples:" %}</h6>
+                           <ul>
+                               <li>{% trans "Personalized training recommendations" %}</li>
+                               <li>{% trans "Cross-platform activity tracking" %}</li>
+                               <li>{% trans "Social media integration" %}</li>
+                               <li>{% trans "Targeted security content delivery" %}</li>
+                           </ul>
+                       </div>
+                   </div>
+               </div>
+           </div>
+
+           <div class="cookie-settings-footer">
+               <button class="cookie-btn outline" onclick="rejectOptionalCookies()">
+                   <i class="fas fa-times"></i>
+                   {% trans "Reject Optional" %}
+               </button>
+               <button class="cookie-btn secondary" onclick="acceptSelectedCookies()">
+                   <i class="fas fa-check"></i>
+                   {% trans "Save Preferences" %}
+               </button>
+               <button class="cookie-btn primary" onclick="acceptAllCookies()">
+                   <i class="fas fa-check-double"></i>
+                   {% trans "Accept All" %}
+               </button>
+           </div>
+       </div>
+   </div>
+
+      <script>
+   // GDPR-Compliant Cookie Management System
+   
+   const COOKIE_PREFERENCES_KEY = 'cookiePreferences';
+   const COOKIE_CONSENT_DATE_KEY = 'cookieConsentDate';
+   
+   // Default cookie preferences
+   const defaultPreferences = {
+       essential: true,    // Always required
+       functional: false,
+       analytics: false,
+       marketing: false
+   };
+
+   document.addEventListener('DOMContentLoaded', function() {
+       initializeCookieSystem();
+   });
+
+   function initializeCookieSystem() {
+       const preferences = getCookiePreferences();
+       
+       // If no preferences set, show banner
+       if (!preferences) {
+           setTimeout(() => {
+               document.getElementById('cookieNotice').classList.add('show');
+           }, 1000);
+       } else {
+           // Apply saved preferences
+           applyCookiePreferences(preferences);
+       }
+       
+       // Initialize modal toggles based on saved preferences
+       if (preferences) {
+           updateModalToggles(preferences);
+       }
+   }
+
+   function getCookiePreferences() {
+       const saved = localStorage.getItem(COOKIE_PREFERENCES_KEY);
+       return saved ? JSON.parse(saved) : null;
+   }
+
+   function saveCookiePreferences(preferences) {
+       localStorage.setItem(COOKIE_PREFERENCES_KEY, JSON.stringify(preferences));
+       localStorage.setItem(COOKIE_CONSENT_DATE_KEY, new Date().toISOString());
+       
+       // Apply preferences immediately
+       applyCookiePreferences(preferences);
+       
+       console.log('Cookie preferences saved:', preferences);
+   }
+
+   function applyCookiePreferences(preferences) {
+       // Apply Google Analytics consent
+       if (typeof gtag !== 'undefined') {
+           gtag('consent', 'update', {
+               'analytics_storage': preferences.analytics ? 'granted' : 'denied',
+               'ad_storage': preferences.marketing ? 'granted' : 'denied',
+               'functionality_storage': preferences.functional ? 'granted' : 'denied'
+           });
+       }
+       
+       // Apply other cookie-dependent functionality
+       if (!preferences.analytics) {
+           // Disable analytics scripts
+           disableAnalytics();
+       }
+       
+       if (!preferences.marketing) {
+           // Disable marketing scripts
+           disableMarketing();
+       }
+       
+       if (!preferences.functional) {
+           // Disable non-essential functional cookies
+           disableFunctionalCookies();
+       }
+   }
+
+   function disableAnalytics() {
+       // Disable Google Analytics
+       if (typeof gtag !== 'undefined') {
+           gtag('config', 'GA_MEASUREMENT_ID', {
+               'send_page_view': false
+           });
+       }
+       
+       // Remove analytics cookies if they exist
+       document.cookie = '_ga=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+       document.cookie = '_gid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+   }
+
+   function disableMarketing() {
+       // Remove marketing cookies and disable tracking
+       const marketingCookies = ['_fbp', '_fbc', '__utma', '__utmb', '__utmc', '__utmz'];
+       marketingCookies.forEach(cookie => {
+           document.cookie = `${cookie}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+       });
+   }
+
+   function disableFunctionalCookies() {
+       // Keep only essential functionality
+       // Remove preference cookies except language and accessibility
+       const functionalCookies = ['theme_preference', 'dashboard_layout'];
+       functionalCookies.forEach(cookie => {
+           document.cookie = `${cookie}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+       });
+   }
+
+   // Cookie Banner Functions
+   function acceptCookies() {
+       const allAccepted = {
+           essential: true,
+           functional: true,
+           analytics: true,
+           marketing: true
+       };
+       
+       saveCookiePreferences(allAccepted);
+       hideCookieBanner();
+   }
+
+   function acceptSelectedCookies() {
+       const preferences = getCurrentModalSelections();
+       saveCookiePreferences(preferences);
+       hideCookieBanner();
+       hideCookieModal();
+   }
+
+   function rejectOptionalCookies() {
+       saveCookiePreferences(defaultPreferences);
+       hideCookieBanner();
+       hideCookieModal();
+   }
+
+   function acceptAllCookies() {
+       acceptCookies();
+       hideCookieModal();
+   }
+
+   function openCookieSettings() {
+       showCookieModal();
+       
+       // Load current preferences into modal
+       const preferences = getCookiePreferences() || defaultPreferences;
+       updateModalToggles(preferences);
+   }
+
+   function hideCookieBanner() {
+       const notice = document.getElementById('cookieNotice');
+       notice.classList.remove('show');
+       setTimeout(() => {
+           notice.style.display = 'none';
+       }, 400);
+   }
+
+   function showCookieModal() {
+       document.getElementById('cookieSettingsModal').classList.add('show');
+       document.body.style.overflow = 'hidden';
+   }
+
+   function hideCookieModal() {
+       document.getElementById('cookieSettingsModal').classList.remove('show');
+       document.body.style.overflow = '';
+   }
+
+   // Modal Management Functions
+   function toggleCategoryExpansion(category) {
+       const categoryElement = document.querySelector(`[data-category="${category}"]`);
+       categoryElement.classList.toggle('expanded');
+   }
+
+   function toggleCookieCategory(category, event) {
+       event.stopPropagation();
+       
+       if (category === 'essential') return; // Essential cookies cannot be disabled
+       
+       const toggle = event.target;
+       toggle.classList.toggle('active');
+   }
+
+   function updateModalToggles(preferences) {
+       Object.keys(preferences).forEach(category => {
+           const toggle = document.querySelector(`[data-category="${category}"].cookie-toggle`);
+           if (toggle && !toggle.classList.contains('disabled')) {
+               if (preferences[category]) {
+                   toggle.classList.add('active');
+               } else {
+                   toggle.classList.remove('active');
+               }
+           }
+       });
+   }
+
+   function getCurrentModalSelections() {
+       const preferences = { essential: true }; // Essential always true
+       
+       ['functional', 'analytics', 'marketing'].forEach(category => {
+           const toggle = document.querySelector(`[data-category="${category}"].cookie-toggle`);
+           preferences[category] = toggle && toggle.classList.contains('active');
+       });
+       
+       return preferences;
+   }
+
+   // Public function to revoke consent (can be called from privacy page)
+   function revokeCookieConsent() {
+       localStorage.removeItem(COOKIE_PREFERENCES_KEY);
+       localStorage.removeItem(COOKIE_CONSENT_DATE_KEY);
+       
+       // Clear all non-essential cookies
+       disableAnalytics();
+       disableMarketing();
+       disableFunctionalCookies();
+       
+       // Reload page to reset state
+       location.reload();
+   }
+
+   // Close modal when clicking outside
+   document.addEventListener('click', function(event) {
+       const modal = document.getElementById('cookieSettingsModal');
+       if (event.target === modal) {
+           hideCookieModal();
+       }
+   });
+
+   // ESC key to close modal
+   document.addEventListener('keydown', function(event) {
+       if (event.key === 'Escape') {
+           hideCookieModal();
+       }
+   });
+   </script>
+
+  <!-- Extra JavaScript for child templates -->
+  {% block extra_js %}{% endblock %}
+
+  <!-- AI Assistant Widget -->
+  {% if user.is_authenticated %}
+    {% include 'app_ai/ai_assistant_widget.html' %}
+  {% endif %}
+
+</body>
+</html>

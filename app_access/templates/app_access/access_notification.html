@@ -1,0 +1,2505 @@
+<!-- SecBoard/app_access/templates/app_access/access_notification.html -->
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Access Notification Settings" %}{% endblock %}
+
+{% block styles %}
+{{ block.super }}
+{% include "app_access/includes/access_styles.html" %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<!-- Bootstrap Icons -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+    .nav-tabs .nav-link {
+        color: #495057 !important;
+        font-weight: 600 !important;
+        background-color: #f1f3f5 !important;
+        padding: 0.5rem 1rem !important;
+        border-radius: 0.25rem !important;
+        margin-right: 0.5rem !important;
+        transition: all 0.2s ease !important;
+        border: 1px solid #dee2e6 !important;
+        border-bottom: none !important;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        color: #0d6efd !important;
+        background-color: #e9f2ff !important;
+        border-bottom: none !important;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #ffffff !important;
+        background-color: #0d6efd !important;
+        font-weight: 600 !important;
+        border-bottom: none !important;
+        border-color: #0d6efd !important;
+    }
+    
+    .config-card {
+        transition: all 0.3s ease;
+        border: 1px solid #dee2e6;
+    }
+    
+    .config-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+    
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .priority-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 50%;
+        min-width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+    
+    .recipients-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    
+    .recipient-badge {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+    }
+    
+    .trigger-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    
+    .trigger-badge {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-label.required::after {
+        content: " *";
+        color: #dc3545;
+    }
+    
+    .template-editor {
+        min-height: 150px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+    }
+    
+    .variable-hint {
+        background-color: #e3f2fd;
+        border: 1px solid #90caf9;
+        border-radius: 4px;
+        padding: 0.5rem;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+    }
+    
+    .config-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    
+    .search-container {
+        position: relative;
+    }
+    
+    .search-container .bi-search {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+    
+    .search-input {
+        padding-left: 2.5rem;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6c757d;
+    }
+    
+    .empty-state .bi {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .section-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .section-actions .btn {
+        font-size: 0.8rem;
+    }
+
+    #history .table thead th {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 2;
+    }
+
+    .template-preset-card {
+        border-left: 4px solid #0d6efd;
+    }
+
+    .template-preset-card[data-preset-id="grant"] {
+        border-left-color: #198754;
+    }
+
+    .template-preset-card[data-preset-id="revoke"] {
+        border-left-color: #dc3545;
+    }
+
+    .recipient-preset-list .badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .template-preset-preview {
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+        max-height: 220px;
+        overflow: auto;
+        background: #fff;
+    }
+
+    .template-var-tag {
+        font-size: 0.72rem;
+        padding: 0.1rem 0.35rem;
+        background: #e7f1ff;
+        border: 1px solid #b6d4fe;
+        border-radius: 3px;
+        color: #084298;
+    }
+
+    .template-var-example {
+        font-size: 0.72rem;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        white-space: pre-wrap;
+    }
+
+    .email-template-variables-panel {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .email-preview-subject-bar {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        font-size: 0.95rem;
+    }
+
+    .email-preview-html-frame {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        min-height: 320px;
+        max-height: 65vh;
+        overflow: auto;
+        padding: 0;
+    }
+
+    .email-preview-html-frame iframe {
+        width: 100%;
+        min-height: 320px;
+        border: 0;
+    }
+
+    .email-preview-text-frame {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        min-height: 200px;
+        max-height: 50vh;
+        overflow: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+        padding: 1rem;
+        margin: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid access-page px-2 py-1">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">
+            <i class="bi bi-envelope-gear me-2"></i>
+            {% trans "Access Notification Settings" %}
+        </h1>
+        <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#accessNotificationGuideModal">
+            <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+        </button>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4" id="notificationTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="email-config-tab" data-bs-toggle="tab" 
+                    data-bs-target="#email-config" type="button" role="tab" 
+                    aria-controls="email-config" aria-selected="true">
+                <i class="bi bi-envelope-fill me-2"></i>
+                {% trans "Email Configuration" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="templates-tab" data-bs-toggle="tab" 
+                    data-bs-target="#templates" type="button" role="tab" 
+                    aria-controls="templates" aria-selected="false">
+                <i class="bi bi-file-text me-2"></i>
+                {% trans "Email Templates" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="history-tab" data-bs-toggle="tab" 
+                    data-bs-target="#history" type="button" role="tab" 
+                    aria-controls="history" aria-selected="false">
+                <i class="bi bi-clock-history me-2"></i>
+                {% trans "Notification History" %}
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="notificationTabsContent">
+        <!-- Email Configuration Tab -->
+        <div class="tab-pane fade show active" id="email-config" role="tabpanel" aria-labelledby="email-config-tab">
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">
+                                <i class="bi bi-gear-fill me-2"></i>
+                                {% trans "Email Notification Configurations" %}
+                            </h5>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            {% if can_add_notification_settings %}
+                            <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="addConfigBtn"
+                                    data-bs-toggle="tooltip" title="{% trans 'Add Configuration' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            {% else %}
+                            <div class="text-muted small">
+                                <i class="bi bi-info-circle me-1"></i>
+                                {% trans "No add permission" %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Search and Filters -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="search-container">
+                                <i class="bi bi-search"></i>
+                                <input type="text" class="form-control search-input" id="searchInput" 
+                                       placeholder="{% trans 'Search configurations...' %}">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="statusFilter">
+                                <option value="">{% trans "All Statuses" %}</option>
+                                <option value="active">{% trans "Active" %}</option>
+                                <option value="inactive">{% trans "Inactive" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="notificationTypeFilter">
+                                <option value="">{% trans "All Types" %}</option>
+                                <option value="grant">{% trans "Grant Access Request" %}</option>
+                                <option value="revoke">{% trans "Revoke Access Request" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="button" class="btn btn-outline-secondary me-2" id="resetFiltersBtn">
+                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                {% trans "Reset" %}
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" id="refreshBtn">
+                                <i class="bi bi-arrow-repeat me-1"></i>
+                                {% trans "Refresh" %}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Configurations List -->
+                    <div id="configurationsContainer">
+                        <div class="text-center py-4" id="loadingSpinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">{% trans "Loading..." %}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pagination -->
+                    <nav class="access-table-pagination" aria-label="{% trans 'Configurations pagination' %}" id="paginationContainer" style="display: none;">
+                        <ul class="pagination pagination-sm justify-content-end mb-0" id="paginationList">
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- Templates Tab -->
+        <div class="tab-pane fade" id="templates" role="tabpanel" aria-labelledby="templates-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-file-text-fill me-2"></i>
+                        {% trans "Email Templates Management" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">
+                        {% trans "Templates for Grant and Revoke notification types. Select a type below or in Email Configuration — matching preset templates are applied automatically." %}
+                    </p>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="templatePresetFilter" class="form-label">{% trans "Notification Type" %}</label>
+                            <select class="form-select" id="templatePresetFilter">
+                                <option value="">{% trans "All types" %}</option>
+                                <option value="grant">{% trans "Grant Access Request" %}</option>
+                                <option value="revoke">{% trans "Revoke Access Request" %}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {{ email_template_presets|json_script:"email-template-presets-data" }}
+
+                    <div class="accordion" id="emailTemplatePresetsAccordion">
+                        {% for preset in email_template_presets %}
+                        <div class="accordion-item template-preset-card" data-preset-id="{{ preset.id }}">
+                            <h2 class="accordion-header" id="presetHeading{{ preset.id }}">
+                                <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#presetCollapse{{ preset.id }}"
+                                        aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                                        aria-controls="presetCollapse{{ preset.id }}">
+                                    {% if preset.id == 'grant' %}
+                                    <i class="bi bi-plus-circle-fill text-success me-2"></i>
+                                    {% else %}
+                                    <i class="bi bi-dash-circle-fill text-danger me-2"></i>
+                                    {% endif %}
+                                    {{ preset.title }}
+                                </button>
+                            </h2>
+                            <div id="presetCollapse{{ preset.id }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+                                 aria-labelledby="presetHeading{{ preset.id }}" data-bs-parent="#emailTemplatePresetsAccordion">
+                                <div class="accordion-body">
+                                    <p class="text-muted">{{ preset.description }}</p>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <h6 class="fw-bold small text-uppercase text-muted mb-2">
+                                                <i class="bi bi-people me-1"></i>{% trans "Recommended Recipients" %}
+                                            </h6>
+                                            <div class="recipient-preset-list d-flex flex-wrap gap-1">
+                                                <span class="badge {% if preset.recipients.send_to_owners %}bg-primary{% else %}bg-light text-muted border{% endif %}">{% trans "Owners" %}</span>
+                                                <span class="badge {% if preset.recipients.send_to_administrators %}bg-primary{% else %}bg-light text-muted border{% endif %}">{% trans "Administrators" %}</span>
+                                                <span class="badge {% if preset.recipients.send_to_requested_by %}bg-primary{% else %}bg-light text-muted border{% endif %}">{% trans "Requested By" %}</span>
+                                                <span class="badge {% if preset.recipients.send_to_requested_for %}bg-primary{% else %}bg-light text-muted border{% endif %}">{% trans "Requested For" %}</span>
+                                                <span class="badge {% if preset.recipients.send_to_approving_persons %}bg-primary{% else %}bg-light text-muted border{% endif %}">{% trans "Approving Persons" %}</span>
+                                                <span class="badge {% if preset.recipients.send_to_third_party %}bg-primary{% else %}bg-light text-muted border{% endif %}">{% trans "Third Party" %}</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="fw-bold small text-uppercase text-muted mb-2">
+                                                <i class="bi bi-lightning me-1"></i>{% trans "Recommended Triggers" %}
+                                            </h6>
+                                            <div class="recipient-preset-list d-flex flex-wrap gap-1">
+                                                <span class="badge {% if preset.triggers.trigger_on_request_created %}bg-info text-dark{% else %}bg-light text-muted border{% endif %}">{% trans "Request Created" %}</span>
+                                                <span class="badge {% if preset.triggers.trigger_on_status_changed %}bg-info text-dark{% else %}bg-light text-muted border{% endif %}">{% trans "Status Changed" %}</span>
+                                                <span class="badge {% if preset.triggers.trigger_on_admin_status_changed %}bg-info text-dark{% else %}bg-light text-muted border{% endif %}">{% trans "Admin Status Changed" %}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small">{% trans "Subject (request created)" %}</label>
+                                        <input type="text" class="form-control form-control-sm preset-subject" readonly
+                                               value="{{ preset.request_created.subject }}">
+                                    </div>
+
+                                    <ul class="nav nav-tabs nav-tabs-sm mb-2" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active" data-bs-toggle="tab"
+                                                    data-bs-target="#presetHtml{{ preset.id }}" type="button" role="tab">
+                                                HTML
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" data-bs-toggle="tab"
+                                                    data-bs-target="#presetText{{ preset.id }}" type="button" role="tab">
+                                                Text
+                                            </button>
+                                        </li>
+                                    </ul>
+                                    <div class="tab-content border rounded p-2 mb-3">
+                                        <div class="tab-pane fade show active" id="presetHtml{{ preset.id }}" role="tabpanel">
+                                            <textarea class="form-control template-preset-preview preset-html" rows="10" readonly>{{ preset.request_created.html }}</textarea>
+                                        </div>
+                                        <div class="tab-pane fade" id="presetText{{ preset.id }}" role="tabpanel">
+                                            <textarea class="form-control template-preset-preview preset-text" rows="10" readonly>{{ preset.request_created.text }}</textarea>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary btn-preview-preset" data-preset-id="{{ preset.id }}">
+                                            <i class="bi bi-eye me-1"></i>{% trans "Preview" %}
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-copy-preset-subject">
+                                            <i class="bi bi-clipboard me-1"></i>{% trans "Copy subject" %}
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-copy-preset-html">
+                                            <i class="bi bi-clipboard me-1"></i>{% trans "Copy HTML" %}
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-copy-preset-text">
+                                            <i class="bi bi-clipboard me-1"></i>{% trans "Copy text" %}
+                                        </button>
+                                        {% if can_add_notification_settings %}
+                                        <button type="button" class="btn btn-sm btn-primary btn-apply-preset" data-preset-id="{{ preset.id }}">
+                                            <i class="bi bi-gear-wide-connected me-1"></i>{% trans "Create configuration from preset" %}
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="email-template-variables-panel mb-0">
+                        <h6 class="fw-bold mb-2">
+                            <i class="bi bi-braces me-1"></i>{% trans "Template variables reference" %}
+                        </h6>
+                        {% include 'app_access/includes/email_notification_template_variables.html' with show_status_variables=True %}
+                        <p class="text-muted mb-0 mt-2 small">
+                            {% trans "Choose Notification Type in configuration to load Grant or Revoke templates. Without custom templates, the matching preset files are used when sending email." %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="history-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        {% trans "Notification History" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Statistics Cards -->
+                    <div class="row mb-4" id="historyStatsContainer">
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-check-circle-fill text-success me-2 fs-4"></i>
+                                        <div>
+                                            <h4 class="mb-0" id="sentCount">-</h4>
+                                            <small class="text-muted">{% trans "Sent" %}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card border-danger">
+                                <div class="card-body text-center">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-x-circle-fill text-danger me-2 fs-4"></i>
+                                        <div>
+                                            <h4 class="mb-0" id="failedCount">-</h4>
+                                            <small class="text-muted">{% trans "Failed" %}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card border-warning">
+                                <div class="card-body text-center">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-hourglass-split text-warning me-2 fs-4"></i>
+                                        <div>
+                                            <h4 class="mb-0" id="pendingCount">-</h4>
+                                            <small class="text-muted">{% trans "Pending" %}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card border-primary">
+                                <div class="card-body text-center">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-envelope-fill text-primary me-2 fs-4"></i>
+                                        <div>
+                                            <h4 class="mb-0" id="totalCount">-</h4>
+                                            <small class="text-muted">{% trans "Total" %}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Search and Filters -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                                <input type="text" class="form-control" id="historySearch" 
+                                       placeholder="{% trans 'Search by subject, company, system, or recipients...' %}">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="historyStatusFilter">
+                                <option value="">{% trans "All Statuses" %}</option>
+                                <option value="sent">{% trans "Sent" %}</option>
+                                <option value="failed">{% trans "Failed" %}</option>
+                                <option value="pending">{% trans "Pending" %}</option>
+                                <option value="retrying">{% trans "Retrying" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="historyTypeFilter">
+                                <option value="">{% trans "All Types" %}</option>
+                                <option value="access_request_created">{% trans "Request Created" %}</option>
+                                <option value="access_request_status_changed">{% trans "Status Changed" %}</option>
+                                <option value="admin_status_changed">{% trans "Admin Status Changed" %}</option>
+                                <option value="access_granted">{% trans "Access Granted" %}</option>
+                                <option value="access_denied">{% trans "Access Denied" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="date" class="form-control" id="historyDateFrom" 
+                                   title="{% trans 'From date' %}" placeholder="{% trans 'From date' %}">
+                        </div>
+                        <div class="col-md-2">
+                            <input type="date" class="form-control" id="historyDateTo" 
+                                   title="{% trans 'To date' %}" placeholder="{% trans 'To date' %}">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="resetHistoryFiltersBtn">
+                            <i class="bi bi-arrow-clockwise me-1"></i>{% trans "Reset history filters" %}
+                        </button>
+                    </div>
+                    
+                    <!-- Notification History Table -->
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Date/Time" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Subject" %}</th>
+                                    <th>{% trans "Recipients" %}</th>
+                                    <th>{% trans "Access Request" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    <th>{% trans "Triggered By" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody">
+                                <tr>
+                                    <td colspan="8" class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                                            <span class="visually-hidden">{% trans "Loading..." %}</span>
+                                        </div>
+                                        {% trans "Loading notification history..." %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <nav class="access-table-pagination" aria-label="{% trans 'Notification history pagination' %}" id="historyPaginationContainer">
+                        <!-- Pagination will be populated by JavaScript -->
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Modal -->
+<div class="modal fade" id="configurationModal" tabindex="-1" aria-labelledby="configurationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="configurationModalLabel">
+                    {% trans "Email Configuration" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="configurationForm" class="needs-validation" novalidate>
+                    <input type="hidden" id="configId" value="">
+                    
+                    <!-- Basic Information -->
+                    <div class="form-section">
+                        <h6 class="fw-bold mb-3">
+                            <i class="bi bi-info-circle me-2"></i>
+                            {% trans "Basic Information" %}
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="configName" class="form-label required">{% trans "Configuration Name" %}</label>
+                                <input type="text" class="form-control" id="configName" required>
+                                <div class="invalid-feedback">
+                                    {% trans "Please provide a configuration name" %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="notificationType" class="form-label required">{% trans "Notification Type" %}</label>
+                                <select class="form-select" id="notificationType" required>
+                                    <option value="">{% trans "Select type..." %}</option>
+                                    <option value="grant">{% trans "Grant Access Request" %}</option>
+                                    <option value="revoke">{% trans "Revoke Access Request" %}</option>
+                                </select>
+                                <div class="form-text">{% trans "Must match the access request type (grant or revoke). Templates from Email Templates Management are applied automatically." %}</div>
+                                <div class="invalid-feedback">
+                                    {% trans "Please select a notification type" %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="priority" class="form-label">{% trans "Priority" %}</label>
+                                <input type="number" class="form-control" id="priority" min="1" max="100" value="10">
+                                <div class="form-text">{% trans "Lower numbers = higher priority" %}</div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <label for="configDescription" class="form-label">{% trans "Description" %}</label>
+                                <textarea class="form-control" id="configDescription" rows="2"></textarea>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="isActive" checked>
+                                    <label class="form-check-label" for="isActive">
+                                        {% trans "Active Configuration" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recipients Configuration -->
+                    <div class="form-section">
+                        <h6 class="fw-bold mb-3">
+                            <i class="bi bi-people me-2"></i>
+                            {% trans "Recipients Configuration" %}
+                        </h6>
+                        <div class="section-actions">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-recipient-preset="all">
+                                <i class="bi bi-check2-all me-1"></i>{% trans "Select all recipients" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-recipient-preset="default">
+                                <i class="bi bi-stars me-1"></i>{% trans "Recommended set" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-recipient-preset="none">
+                                <i class="bi bi-x-circle me-1"></i>{% trans "Clear recipients" %}
+                            </button>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="sendToOwners" checked>
+                                    <label class="form-check-label" for="sendToOwners">
+                                        {% trans "Owners" %}
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="sendToAdministrators" checked>
+                                    <label class="form-check-label" for="sendToAdministrators">
+                                        {% trans "Administrators" %}
+                                    </label>
+                                    <div class="form-text">{% trans "Notified only after all Approving Persons have fully approved (or immediately if no approvers are configured)." %}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="sendToRequestedBy" checked>
+                                    <label class="form-check-label" for="sendToRequestedBy">
+                                        {% trans "Requested By" %}
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="sendToRequestedFor">
+                                    <label class="form-check-label" for="sendToRequestedFor">
+                                        {% trans "Requested For" %}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="sendToApprovingPersons" checked>
+                                    <label class="form-check-label" for="sendToApprovingPersons">
+                                        {% trans "Approving Persons" %}
+                                    </label>
+                                    <div class="form-text">{% trans "Only approvers at the current approval level (sequential levels)." %}</div>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="sendToThirdParty" checked>
+                                    <label class="form-check-label" for="sendToThirdParty">
+                                        {% trans "Third Party" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Triggers Configuration -->
+                    <div class="form-section">
+                        <h6 class="fw-bold mb-3">
+                            <i class="bi bi-lightning me-2"></i>
+                            {% trans "Triggers Configuration" %}
+                        </h6>
+                        <div class="section-actions">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-trigger-preset="all">
+                                <i class="bi bi-check2-all me-1"></i>{% trans "Enable all triggers" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-trigger-preset="default">
+                                <i class="bi bi-stars me-1"></i>{% trans "Recommended set" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-trigger-preset="none">
+                                <i class="bi bi-x-circle me-1"></i>{% trans "Disable all triggers" %}
+                            </button>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="triggerOnRequestCreated" checked>
+                                    <label class="form-check-label" for="triggerOnRequestCreated">
+                                        {% trans "Request Created" %}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="triggerOnStatusChanged" checked>
+                                    <label class="form-check-label" for="triggerOnStatusChanged">
+                                        {% trans "Status Changed" %}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="triggerOnAdminStatusChanged" checked>
+                                    <label class="form-check-label" for="triggerOnAdminStatusChanged">
+                                        {% trans "Admin Status Changed" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom Templates Configuration -->
+                    <div class="form-section">
+                        <h6 class="fw-bold mb-3">
+                            <i class="bi bi-file-code me-2"></i>
+                            {% trans "Custom Templates" %}
+                        </h6>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="useCustomTemplates">
+                            <label class="form-check-label" for="useCustomTemplates">
+                                {% trans "Use Custom Templates" %}
+                            </label>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="loadTemplatesFromPresetBtn">
+                                <i class="bi bi-file-earmark-arrow-down me-1"></i>
+                                {% trans "Load templates for Notification Type" %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="openTemplatesTabBtn">
+                                <i class="bi bi-file-text me-1"></i>
+                                {% trans "View in Email Templates" %}
+                            </button>
+                        </div>
+                        
+                        <div id="customTemplatesSection" style="display: none;">
+                            <!-- Request Created Templates -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="text-primary mb-0">{% trans "Request Created Templates" %}</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="previewRequestCreatedBtn">
+                                        <i class="bi bi-eye me-1"></i>{% trans "Preview" %}
+                                    </button>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="customSubjectRequestCreated" class="form-label">{% trans "Subject Template" %}</label>
+                                    <input type="text" class="form-control" id="customSubjectRequestCreated">
+                                    <div class="variable-hint">
+                                        {% include 'app_access/includes/email_notification_template_variables.html' with show_status_variables=False %}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="customHtmlTemplateRequestCreated" class="form-label">{% trans "HTML Template" %}</label>
+                                    <textarea class="form-control template-editor" id="customHtmlTemplateRequestCreated" rows="8"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="customTextTemplateRequestCreated" class="form-label">{% trans "Text Template" %}</label>
+                                    <textarea class="form-control template-editor" id="customTextTemplateRequestCreated" rows="6"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Status Changed Templates -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="text-success mb-0">{% trans "Status Changed Templates" %}</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="previewStatusChangedBtn">
+                                        <i class="bi bi-eye me-1"></i>{% trans "Preview" %}
+                                    </button>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="customSubjectStatusChanged" class="form-label">{% trans "Subject Template" %}</label>
+                                    <input type="text" class="form-control" id="customSubjectStatusChanged">
+                                    <div class="variable-hint">
+                                        {% include 'app_access/includes/email_notification_template_variables.html' with show_status_variables=True %}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="customHtmlTemplateStatusChanged" class="form-label">{% trans "HTML Template" %}</label>
+                                    <textarea class="form-control template-editor" id="customHtmlTemplateStatusChanged" rows="8"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="customTextTemplateStatusChanged" class="form-label">{% trans "Text Template" %}</label>
+                                    <textarea class="form-control template-editor" id="customTextTemplateStatusChanged" rows="6"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-info me-2" id="testEmailBtn">
+                    <i class="bi bi-envelope-check me-1"></i>
+                    {% trans "Test Email" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="saveConfigBtn">
+                    <i class="bi bi-check-lg me-1"></i>
+                    {% trans "Save Configuration" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Email Template Preview Modal -->
+<div class="modal fade" id="emailTemplatePreviewModal" tabindex="-1" aria-labelledby="emailTemplatePreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="emailTemplatePreviewModalLabel">
+                    <i class="bi bi-eye me-2"></i>{% trans "Email Template Preview" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="previewConfigBanner" class="alert alert-secondary py-2 small d-none mb-3" role="status"></div>
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4">
+                        <label for="previewTemplateKind" class="form-label small mb-1">{% trans "Template" %}</label>
+                        <select class="form-select form-select-sm" id="previewTemplateKind">
+                            <option value="request_created">{% trans "Request Created" %}</option>
+                            <option value="status_changed">{% trans "Status Changed" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="previewSampleDataKind" class="form-label small mb-1">{% trans "Sample data" %}</label>
+                        <select class="form-select form-select-sm" id="previewSampleDataKind">
+                            <option value="grant">{% trans "Grant Access Request" %}</option>
+                            <option value="revoke">{% trans "Revoke Access Request" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="text-muted small mb-0">
+                            {% trans "Demo values (request #14, TEST). Rendered with Django templates." %}
+                        </p>
+                    </div>
+                </div>
+                <div id="previewLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted small">{% trans "Rendering preview..." %}</p>
+                </div>
+                <div id="previewContent" style="display: none;">
+                    <div class="mb-3">
+                        <div class="small text-muted text-uppercase fw-bold mb-1">{% trans "Subject" %}</div>
+                        <div class="email-preview-subject-bar" id="previewSubjectLine"></div>
+                    </div>
+                    <ul class="nav nav-tabs mb-2" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#previewHtmlPane" type="button" role="tab">
+                                HTML
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#previewTextPane" type="button" role="tab">
+                                {% trans "Plain text" %}
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="previewHtmlPane" role="tabpanel">
+                            <div class="email-preview-html-frame">
+                                <iframe id="previewHtmlIframe" title="{% trans 'HTML preview' %}"></iframe>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="previewTextPane" role="tabpanel">
+                            <pre class="email-preview-text-frame" id="previewTextBody"></pre>
+                        </div>
+                    </div>
+                </div>
+                <div id="previewError" class="alert alert-danger d-none" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" id="previewRefreshBtn">
+                    <i class="bi bi-arrow-repeat me-1"></i>{% trans "Refresh" %}
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Email Modal -->
+<div class="modal fade" id="testEmailModal" tabindex="-1" aria-labelledby="testEmailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="testEmailModalLabel">
+                    <i class="bi bi-envelope-check me-2"></i>
+                    {% trans "Test Email Send" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="testEmailAddress" class="form-label required">{% trans "Test Email Address" %}</label>
+                    <input type="email" class="form-control" id="testEmailAddress" required>
+                    <div class="form-text">
+                        {% trans "Enter the email address where you want to send the test email" %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="sendTestEmailBtn">
+                    <i class="bi bi-send me-1"></i>
+                    {% trans "Send Test Email" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Access Notification Guide Modal -->
+<div class="modal fade" id="accessNotificationGuideModal" tabindex="-1" aria-labelledby="accessNotificationGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'access_notification_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="accessNotificationGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Access Notification Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="accessNotificationGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('accessNotificationGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('accessNotificationGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+    // User permissions
+    const USER_PERMISSIONS = {
+        canAdd: {% if can_add_notification_settings %}true{% else %}false{% endif %},
+        canEdit: {% if can_edit_notification_settings %}true{% else %}false{% endif %},
+        canDelete: {% if can_delete_notification_settings %}true{% else %}false{% endif %}
+    };
+    const ENDPOINTS = {
+        configList: "{% url 'get_email_configurations' %}",
+        configDetail: "{% url 'get_email_configuration_detail' 0 %}",
+        configSave: "{% url 'save_email_configuration' %}",
+        configDelete: "{% url 'delete_email_configuration' 0 %}",
+        configToggle: "{% url 'toggle_configuration_status' 0 %}",
+        configTestSend: "{% url 'test_email_send' %}",
+        previewTemplate: "{% url 'preview_email_template' %}",
+        historyList: "{% url 'get_notification_history' %}",
+        historyRetry: "{% url 'retry_failed_notification' 0 %}"
+    };
+
+    let previewRequestPayload = null;
+    let previewConfigId = null;
+
+    let currentPage = 1;
+    let configurations = [];
+
+    // Initialize Select2
+    $('#notificationTypeFilter, #notificationType').select2({
+        theme: 'bootstrap-5',
+        width: '100%'
+    });
+
+    // Load configurations on page load
+    loadConfigurations();
+
+    // Event handlers
+    $('#addConfigBtn').on('click', function() {
+        openConfigurationModal();
+    });
+
+    $('#saveConfigBtn').on('click', function() {
+        saveConfiguration();
+    });
+
+    $('#testEmailBtn').on('click', function() {
+        openTestEmailModal();
+    });
+
+    $('#sendTestEmailBtn').on('click', function() {
+        sendTestEmail();
+    });
+
+    $('#useCustomTemplates').on('change', function() {
+        toggleCustomTemplatesSection();
+    });
+
+    $('#searchInput').on('input', debounce(function() {
+        currentPage = 1;
+        loadConfigurations();
+    }, 500));
+
+    $('#statusFilter, #notificationTypeFilter').on('change', function() {
+        currentPage = 1;
+        loadConfigurations();
+    });
+
+    $('#resetFiltersBtn').on('click', function() {
+        resetFilters();
+    });
+
+    $('#refreshBtn').on('click', function() {
+        loadConfigurations();
+    });
+    
+    $('[data-recipient-preset]').on('click', function() {
+        applyRecipientPreset($(this).data('recipient-preset'));
+    });
+    
+    $('[data-trigger-preset]').on('click', function() {
+        applyTriggerPreset($(this).data('trigger-preset'));
+    });
+    
+    $('#resetHistoryFiltersBtn').on('click', function() {
+        resetHistoryFilters();
+    });
+
+    // Load configurations function
+    function loadConfigurations() {
+        showLoadingSpinner();
+        
+        const params = new URLSearchParams({
+            page: currentPage,
+            search: $('#searchInput').val(),
+            status: $('#statusFilter').val(),
+            notification_type: $('#notificationTypeFilter').val()
+        });
+
+        fetch(`${ENDPOINTS.configList}?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayConfigurations(data.configurations);
+                    updatePagination(data.pagination);
+                } else {
+                    showError(data.message || '{% trans "Error loading configurations" %}');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('{% trans "Error loading configurations" %}');
+            })
+            .finally(() => {
+                hideLoadingSpinner();
+            });
+    }
+
+    // Display configurations
+    function displayConfigurations(configs) {
+        configurations = configs;
+        const container = $('#configurationsContainer');
+        
+        if (configs.length === 0) {
+            container.html(`
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <h5>{% trans "No configurations found" %}</h5>
+                    <p>{% trans "Create your first email notification configuration" %}</p>
+                    <button type="button" class="btn btn-primary" onclick="openConfigurationModal()">
+                        <i class="bi bi-plus-circle me-1"></i>
+                        {% trans "Add Configuration" %}
+                    </button>
+                </div>
+            `);
+            return;
+        }
+
+        let html = '<div class="row">';
+        configs.forEach(config => {
+            html += generateConfigurationCard(config);
+        });
+        html += '</div>';
+        container.html(html);
+    }
+
+    function notificationTypeBadgeClass(notificationType) {
+        return notificationType === 'revoke' ? 'bg-warning text-dark' : 'bg-success';
+    }
+
+    // Generate configuration card HTML
+    function generateConfigurationCard(config) {
+        const statusBadge = config.is_active ? 
+            '<span class="badge bg-success status-badge">{% trans "Active" %}</span>' :
+            '<span class="badge bg-secondary status-badge">{% trans "Inactive" %}</span>';
+
+        const typeBadgeClass = notificationTypeBadgeClass(config.notification_type);
+
+        const priorityColor = config.priority <= 5 ? 'bg-danger' : 
+                             config.priority <= 10 ? 'bg-warning' : 'bg-success';
+
+        const recipients = [];
+        if (config.recipients_config.owners) recipients.push('{% trans "Owners" %}');
+        if (config.recipients_config.administrators) recipients.push('{% trans "Admins" %}');
+        if (config.recipients_config.requested_by) recipients.push('{% trans "Requester" %}');
+        if (config.recipients_config.approving_persons) recipients.push('{% trans "Approvers" %}');
+
+        const triggers = [];
+        if (config.triggers.request_created) triggers.push('{% trans "Created" %}');
+        if (config.triggers.status_changed) triggers.push('{% trans "Status" %}');
+        if (config.triggers.admin_status_changed) triggers.push('{% trans "Admin" %}');
+
+        // Generate action buttons based on permissions
+        let actionButtons = `
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    onclick="previewConfiguration(${config.id}, '${config.notification_type}')"
+                    title="{% trans 'Preview email templates' %}">
+                <i class="bi bi-eye"></i>
+            </button>
+        `;
+        
+        if (USER_PERMISSIONS.canEdit) {
+            actionButtons += `
+                <button type="button" class="btn btn-sm btn-outline-primary" 
+                        onclick="editConfiguration(${config.id})"
+                        title="{% trans 'Edit Configuration' %}">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-info" 
+                        onclick="toggleConfigurationStatus(${config.id})"
+                        title="{% trans 'Toggle Status' %}">
+                    <i class="bi bi-power"></i>
+                </button>
+            `;
+        }
+        
+        if (USER_PERMISSIONS.canDelete) {
+            actionButtons += `
+                <button type="button" class="btn btn-sm btn-outline-danger" 
+                        onclick="deleteConfiguration(${config.id})"
+                        title="{% trans 'Delete Configuration' %}">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+        }
+        
+        if (!USER_PERMISSIONS.canEdit && !USER_PERMISSIONS.canDelete) {
+            actionButtons = '<small class="text-muted">{% trans "No edit permissions" %}</small>';
+        }
+
+        return `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card config-card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <span class="priority-badge ${priorityColor} text-white me-2">${config.priority}</span>
+                            <h6 class="mb-0">${config.name}</h6>
+                        </div>
+                        ${statusBadge}
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-2">${config.description || '{% trans "No description" %}'}</p>
+                        <div class="mb-2">
+                            <span class="badge ${typeBadgeClass}">${config.notification_type_display}</span>
+                            ${config.custom_templates ? '<span class="badge bg-info ms-1">{% trans "Custom" %}</span>' : ''}
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted d-block">{% trans "Recipients:" %}</small>
+                            <div class="recipients-list">
+                                ${recipients.map(r => `<span class="badge bg-secondary recipient-badge">${r}</span>`).join('')}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">{% trans "Triggers:" %}</small>
+                            <div class="trigger-list">
+                                ${triggers.map(t => `<span class="badge bg-info trigger-badge">${t}</span>`).join('')}
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            {% trans "Updated:" %} ${config.updated_at}
+                        </small>
+                    </div>
+                    <div class="card-footer">
+                        <div class="config-actions">
+                            ${actionButtons}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Open configuration modal
+    window.openConfigurationModal = function(configId = null) {
+        if (configId) {
+            loadConfigurationDetails(configId);
+        } else {
+            resetConfigurationForm();
+        }
+        $('#configurationModal').modal('show');
+    };
+
+    // Edit configuration
+    window.editConfiguration = function(configId) {
+        openConfigurationModal(configId);
+    };
+
+    // Toggle configuration status
+    window.toggleConfigurationStatus = function(configId) {
+        fetch(ENDPOINTS.configToggle.replace('/0/', `/${configId}/`), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess(data.message);
+                loadConfigurations();
+            } else {
+                showError(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('{% trans "Error changing configuration status" %}');
+        });
+    };
+
+    // Delete configuration
+    window.deleteConfiguration = function(configId) {
+        Swal.fire({
+            title: '{% trans "Delete Configuration" %}',
+            text: '{% trans "Are you sure you want to delete this configuration?" %}',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '{% trans "Yes, delete it!" %}',
+            cancelButtonText: '{% trans "Cancel" %}'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(ENDPOINTS.configDelete.replace('/0/', `/${configId}/`), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccess(data.message);
+                        loadConfigurations();
+                    } else {
+                        showError(data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showError('{% trans "Error deleting configuration" %}');
+                });
+            }
+        });
+    };
+
+    // Load configuration details
+    function loadConfigurationDetails(configId) {
+        fetch(ENDPOINTS.configDetail.replace('/0/', `/${configId}/`))
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    populateConfigurationForm(data.configuration);
+                } else {
+                    showError(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('{% trans "Error loading configuration details" %}');
+            });
+    }
+
+    let skipNotificationTypeTemplateApply = false;
+
+    // Populate configuration form
+    function populateConfigurationForm(config) {
+        $('#configId').val(config.id);
+        $('#configName').val(config.name);
+        $('#configDescription').val(config.description);
+        skipNotificationTypeTemplateApply = true;
+        $('#notificationType').val(config.notification_type).trigger('change');
+        skipNotificationTypeTemplateApply = false;
+        filterTemplatesTabPreset(config.notification_type);
+        $('#priority').val(config.priority);
+        $('#isActive').prop('checked', config.is_active);
+
+        // Recipients
+        $('#sendToOwners').prop('checked', config.send_to_owners);
+        $('#sendToAdministrators').prop('checked', config.send_to_administrators);
+        $('#sendToRequestedBy').prop('checked', config.send_to_requested_by);
+        $('#sendToRequestedFor').prop('checked', config.send_to_requested_for);
+        $('#sendToApprovingPersons').prop('checked', config.send_to_approving_persons);
+        $('#sendToThirdParty').prop('checked', config.send_to_third_party);
+
+        // Triggers
+        $('#triggerOnRequestCreated').prop('checked', config.trigger_on_request_created);
+        $('#triggerOnStatusChanged').prop('checked', config.trigger_on_status_changed);
+        $('#triggerOnAdminStatusChanged').prop('checked', config.trigger_on_admin_status_changed);
+
+        // Custom templates
+        $('#useCustomTemplates').prop('checked', config.use_custom_templates);
+        if (config.use_custom_templates) {
+            $('#customSubjectRequestCreated').val(config.custom_subject_request_created);
+            $('#customSubjectStatusChanged').val(config.custom_subject_status_changed);
+            $('#customHtmlTemplateRequestCreated').val(config.custom_html_template_request_created);
+            $('#customHtmlTemplateStatusChanged').val(config.custom_html_template_status_changed);
+            $('#customTextTemplateRequestCreated').val(config.custom_text_template_request_created);
+            $('#customTextTemplateStatusChanged').val(config.custom_text_template_status_changed);
+        }
+        
+        toggleCustomTemplatesSection();
+    }
+
+    // Reset configuration form
+    function resetConfigurationForm() {
+        $('#configurationForm')[0].reset();
+        $('#configId').val('');
+        $('#notificationType').val('').trigger('change');
+        $('#priority').val(10);
+        $('#isActive').prop('checked', true);
+        $('#useCustomTemplates').prop('checked', false);
+        toggleCustomTemplatesSection();
+    }
+
+    // Toggle custom templates section
+    function toggleCustomTemplatesSection() {
+        const useCustom = $('#useCustomTemplates').is(':checked');
+        $('#customTemplatesSection').toggle(useCustom);
+    }
+
+    function applyRecipientPreset(preset) {
+        const recipientCheckboxes = [
+            '#sendToOwners',
+            '#sendToAdministrators',
+            '#sendToRequestedBy',
+            '#sendToRequestedFor',
+            '#sendToApprovingPersons',
+            '#sendToThirdParty'
+        ];
+
+        if (preset === 'all') {
+            recipientCheckboxes.forEach(id => $(id).prop('checked', true));
+            return;
+        }
+
+        if (preset === 'none') {
+            recipientCheckboxes.forEach(id => $(id).prop('checked', false));
+            return;
+        }
+
+        recipientCheckboxes.forEach(id => $(id).prop('checked', id !== '#sendToRequestedFor'));
+    }
+
+    function applyTriggerPreset(preset) {
+        const triggerCheckboxes = [
+            '#triggerOnRequestCreated',
+            '#triggerOnStatusChanged',
+            '#triggerOnAdminStatusChanged'
+        ];
+
+        if (preset === 'all') {
+            triggerCheckboxes.forEach(id => $(id).prop('checked', true));
+            return;
+        }
+
+        if (preset === 'none') {
+            triggerCheckboxes.forEach(id => $(id).prop('checked', false));
+            return;
+        }
+
+        triggerCheckboxes.forEach(id => $(id).prop('checked', true));
+    }
+
+    function resetHistoryFilters() {
+        $('#historySearch').val('');
+        $('#historyStatusFilter').val('');
+        $('#historyTypeFilter').val('');
+        $('#historyDateFrom').val('');
+        $('#historyDateTo').val('');
+        currentHistoryPage = 1;
+        loadNotificationHistory();
+    }
+
+    // Save configuration
+    function saveConfiguration() {
+        const form = $('#configurationForm')[0];
+        if (!form.checkValidity()) {
+            form.classList.add('was-validated');
+            return;
+        }
+
+        const formData = {
+            id: $('#configId').val() || null,
+            name: $('#configName').val(),
+            description: $('#configDescription').val(),
+            notification_type: $('#notificationType').val(),
+            priority: parseInt($('#priority').val()),
+            is_active: $('#isActive').is(':checked'),
+
+            // Recipients
+            send_to_owners: $('#sendToOwners').is(':checked'),
+            send_to_administrators: $('#sendToAdministrators').is(':checked'),
+            send_to_requested_by: $('#sendToRequestedBy').is(':checked'),
+            send_to_requested_for: $('#sendToRequestedFor').is(':checked'),
+            send_to_approving_persons: $('#sendToApprovingPersons').is(':checked'),
+            send_to_third_party: $('#sendToThirdParty').is(':checked'),
+
+            // Triggers
+            trigger_on_request_created: $('#triggerOnRequestCreated').is(':checked'),
+            trigger_on_status_changed: $('#triggerOnStatusChanged').is(':checked'),
+            trigger_on_admin_status_changed: $('#triggerOnAdminStatusChanged').is(':checked'),
+
+            // Custom templates
+            use_custom_templates: $('#useCustomTemplates').is(':checked'),
+            custom_subject_request_created: $('#customSubjectRequestCreated').val(),
+            custom_subject_status_changed: $('#customSubjectStatusChanged').val(),
+            custom_html_template_request_created: $('#customHtmlTemplateRequestCreated').val(),
+            custom_html_template_status_changed: $('#customHtmlTemplateStatusChanged').val(),
+            custom_text_template_request_created: $('#customTextTemplateRequestCreated').val(),
+            custom_text_template_status_changed: $('#customTextTemplateStatusChanged').val()
+        };
+
+        fetch(ENDPOINTS.configSave, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess(data.message);
+                $('#configurationModal').modal('hide');
+                loadConfigurations();
+            } else {
+                showError(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('{% trans "Error saving configuration" %}');
+        });
+    }
+
+    // Open test email modal
+    function openTestEmailModal() {
+        const configId = $('#configId').val();
+        if (!configId) {
+            showError('{% trans "Please save the configuration first" %}');
+            return;
+        }
+        $('#testEmailModal').modal('show');
+    }
+
+    // Send test email
+    function sendTestEmail() {
+        const configId = $('#configId').val();
+        const testEmail = $('#testEmailAddress').val();
+
+        if (!testEmail) {
+            showError('{% trans "Please enter a test email address" %}');
+            return;
+        }
+
+        fetch(ENDPOINTS.configTestSend, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                config_id: configId,
+                test_email: testEmail
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess(data.message);
+                $('#testEmailModal').modal('hide');
+            } else {
+                showError(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('{% trans "Error sending test email" %}');
+        });
+    }
+
+    // Update pagination
+    function updatePagination(pagination) {
+        const container = $('#paginationContainer');
+        const list = $('#paginationList');
+        
+        if (pagination.total_pages <= 1) {
+            container.hide();
+            return;
+        }
+
+        container.show();
+        list.empty();
+
+        // Previous button
+        const prevDisabled = !pagination.has_previous ? 'disabled' : '';
+        list.append(`
+            <li class="page-item ${prevDisabled}">
+                <a class="page-link" href="#" onclick="changePage(${pagination.current_page - 1})">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+        `);
+
+        // Page numbers
+        for (let i = 1; i <= pagination.total_pages; i++) {
+            const active = i === pagination.current_page ? 'active' : '';
+            list.append(`
+                <li class="page-item ${active}">
+                    <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+                </li>
+            `);
+        }
+
+        // Next button
+        const nextDisabled = !pagination.has_next ? 'disabled' : '';
+        list.append(`
+            <li class="page-item ${nextDisabled}">
+                <a class="page-link" href="#" onclick="changePage(${pagination.current_page + 1})">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        `);
+    }
+
+    // Change page
+    window.changePage = function(page) {
+        currentPage = page;
+        loadConfigurations();
+    };
+
+    // Reset filters
+    function resetFilters() {
+        $('#searchInput').val('');
+        $('#statusFilter').val('');
+        $('#notificationTypeFilter').val('').trigger('change');
+        currentPage = 1;
+        loadConfigurations();
+    }
+
+    // Utility functions
+    function showLoadingSpinner() {
+        $('#loadingSpinner').show();
+    }
+
+    function hideLoadingSpinner() {
+        $('#loadingSpinner').hide();
+    }
+
+    function showSuccess(message) {
+        Swal.fire({
+            icon: 'success',
+            title: '{% trans "Success" %}',
+            text: message,
+            timer: 3000,
+            showConfirmButton: false
+        });
+    }
+
+    function showError(message) {
+        Swal.fire({
+            icon: 'error',
+            title: '{% trans "Error" %}',
+            text: message
+        });
+    }
+
+    function getCsrfToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Notification History functionality
+    let currentHistoryPage = 1;
+    
+    // Change history page
+    function changeHistoryPage(page) {
+        if (page < 1) return;
+        currentHistoryPage = page;
+        loadNotificationHistory();
+    }
+    
+    // Retry failed notification
+    function retryNotification(notificationId) {
+        if (!confirm('{% trans "Are you sure you want to retry sending this notification?" %}')) {
+            return;
+        }
+        
+        fetch(ENDPOINTS.historyRetry.replace('/0/', `/${notificationId}/`), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess(data.message);
+                loadNotificationHistory();
+            } else {
+                showError(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error retrying notification:', error);
+            showError('{% trans "Error retrying notification" %}');
+        });
+    };
+    
+    // Load notification history
+    function loadNotificationHistory() {
+        console.log('Loading notification history...');
+        
+        const search = $('#historySearch').val();
+        const status = $('#historyStatusFilter').val();
+        const notificationType = $('#historyTypeFilter').val();
+        const dateFrom = $('#historyDateFrom').val();
+        const dateTo = $('#historyDateTo').val();
+        
+        const params = new URLSearchParams({
+            page: currentHistoryPage,
+            search: search,
+            status: status,
+            notification_type: notificationType,
+            date_from: dateFrom,
+            date_to: dateTo
+        });
+        
+        const url = `${ENDPOINTS.historyList}?${params}`;
+        console.log('Fetching URL:', url);
+        
+        fetch(url)
+            .then(response => {
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if (data.status === 'success') {
+                    updateHistoryStatistics(data.statistics);
+                    updateHistoryTable(data.notifications);
+                    updateHistoryPagination(data.pagination);
+                } else {
+                    showError(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading notification history:', error);
+                showError(`{% trans "Error loading notification history" %}: ${error.message}`);
+            });
+    }
+    
+    // Update statistics
+    function updateHistoryStatistics(stats) {
+        $('#sentCount').text(stats.total_sent);
+        $('#failedCount').text(stats.total_failed);
+        $('#pendingCount').text(stats.total_pending + stats.total_retrying);
+        $('#totalCount').text(stats.total_notifications);
+    }
+    
+    // Update history table
+    function updateHistoryTable(notifications) {
+        const tbody = $('#historyTableBody');
+        tbody.empty();
+        
+        if (notifications.length === 0) {
+            tbody.append(`
+                <tr>
+                    <td colspan="8" class="text-center py-4">
+                        <div class="text-muted">
+                            <i class="bi bi-inbox fs-4 d-block mb-2"></i>
+                            <p>{% trans "No notification history found" %}</p>
+                        </div>
+                    </td>
+                </tr>
+            `);
+            return;
+        }
+        
+        notifications.forEach(notification => {
+            const row = createHistoryTableRow(notification);
+            tbody.append(row);
+        });
+    }
+    
+    // Create history table row
+    function createHistoryTableRow(notification) {
+        const createdAt = new Date(notification.created_at).toLocaleString();
+        const sentAt = notification.sent_at ? new Date(notification.sent_at).toLocaleString() : '-';
+        
+        // Status badge
+        let statusBadge = '';
+        switch (notification.status) {
+            case 'sent':
+                statusBadge = `<span class="badge bg-success">${notification.status_display}</span>`;
+                break;
+            case 'failed':
+                statusBadge = `<span class="badge bg-danger">${notification.status_display}</span>`;
+                break;
+            case 'pending':
+                statusBadge = `<span class="badge bg-warning text-dark">${notification.status_display}</span>`;
+                break;
+            case 'retrying':
+                statusBadge = `<span class="badge bg-info">${notification.status_display}</span>`;
+                break;
+            default:
+                statusBadge = `<span class="badge bg-secondary">${notification.status_display}</span>`;
+        }
+        
+        // Additional info for failed notifications
+        if (notification.status === 'failed' && notification.error_message) {
+            statusBadge += `<br><small class="text-danger" title="${notification.error_message}">
+                <i class="bi bi-exclamation-triangle"></i> ${notification.error_message.substring(0, 50)}${notification.error_message.length > 50 ? '...' : ''}
+            </small>`;
+        }
+        
+        // Access request info
+        let accessRequestInfo = '-';
+        if (notification.access_request) {
+            accessRequestInfo = `
+                <div>
+                    <strong>ID ${notification.access_request.id}</strong><br>
+                    <small class="text-muted">
+                        ${notification.access_request.company_name}<br>
+                        ${notification.access_request.system_name}<br>
+                        ${notification.access_request.requested_for}
+                    </small>
+                </div>
+            `;
+        }
+        
+        // Actions
+        let actions = '-';
+        if (notification.status === 'failed' && notification.can_retry) {
+            actions = `
+                <button class="btn btn-sm btn-outline-primary" 
+                        onclick="retryNotification(${notification.id})" 
+                        title="{% trans 'Retry sending this notification' %}">
+                    <i class="bi bi-arrow-clockwise"></i> {% trans "Retry" %}
+                </button>
+            `;
+        }
+        
+        return `
+            <tr>
+                <td>
+                    <div>${createdAt}</div>
+                    ${notification.sent_at ? `<small class="text-success">{% trans "Sent" %}: ${sentAt}</small>` : ''}
+                </td>
+                <td>
+                    <span class="badge bg-primary">${notification.notification_type_display}</span>
+                </td>
+                <td>
+                    <div title="${notification.subject}">
+                        ${notification.subject.length > 50 ? notification.subject.substring(0, 50) + '...' : notification.subject}
+                    </div>
+                </td>
+                <td>
+                    <div>
+                        <span class="badge bg-info">${notification.recipients_count}</span>
+                        <div class="small text-muted" title="${notification.recipients.join(', ')}">
+                            ${notification.recipients_display}
+                        </div>
+                    </div>
+                </td>
+                <td>${accessRequestInfo}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    ${notification.triggered_by ? 
+                        `<div class="small">${notification.triggered_by.name}<br><small class="text-muted">${notification.triggered_by.username}</small></div>` : 
+                        '-'
+                    }
+                </td>
+                <td>${actions}</td>
+            </tr>
+        `;
+    }
+    
+    // Update history pagination
+    function updateHistoryPagination(pagination) {
+        const container = $('#historyPaginationContainer');
+        
+        if (pagination.total_pages <= 1) {
+            container.html('');
+            return;
+        }
+        
+        let paginationHtml = `
+            <ul class="pagination pagination-sm justify-content-end mb-0">
+                <li class="page-item ${!pagination.has_previous ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changeHistoryPage(${pagination.current_page - 1})">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+        `;
+        
+        // Show page numbers
+        for (let i = 1; i <= pagination.total_pages; i++) {
+            const active = i === pagination.current_page ? 'active' : '';
+            paginationHtml += `
+                <li class="page-item ${active}">
+                    <a class="page-link" href="#" onclick="changeHistoryPage(${i})">${i}</a>
+                </li>
+            `;
+        }
+        
+        paginationHtml += `
+                <li class="page-item ${!pagination.has_next ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changeHistoryPage(${pagination.current_page + 1})">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        `;
+        
+        container.html(paginationHtml);
+    }
+    
+    // Change history page
+    window.changeHistoryPage = function(page) {
+        currentHistoryPage = page;
+        loadNotificationHistory();
+    };
+    
+    // Retry failed notification
+    window.retryNotification = function(notificationId) {
+        if (!confirm('{% trans "Are you sure you want to retry sending this notification?" %}')) {
+            return;
+        }
+        
+        fetch(ENDPOINTS.historyRetry.replace('/0/', `/${notificationId}/`), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess(data.message);
+                loadNotificationHistory();
+            } else {
+                showError(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error retrying notification:', error);
+            showError('{% trans "Error retrying notification" %}');
+        });
+    };
+    
+    // Setup history search and filters with debouncing
+    const debouncedHistoryLoad = debounce(loadNotificationHistory, 500);
+    
+    $('#historySearch').on('input', function() {
+        currentHistoryPage = 1;
+        debouncedHistoryLoad();
+    });
+    $('#historyStatusFilter, #historyTypeFilter, #historyDateFrom, #historyDateTo').on('change', function() {
+        currentHistoryPage = 1;
+        loadNotificationHistory();
+    });
+    
+    // Load history when the tab becomes active
+    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        console.log('Tab switched to:', e.target.getAttribute('data-bs-target'));
+        if (e.target.getAttribute('data-bs-target') === '#history') {
+            console.log('History tab activated, loading notification history...');
+            loadNotificationHistory();
+        }
+    });
+    
+    // Initialize history on page load if the history tab is active
+    if ($('#history').hasClass('active')) {
+        console.log('History tab is active on page load, loading notification history...');
+        loadNotificationHistory();
+    }
+    
+    // Default recommendations in new form
+    applyRecipientPreset('default');
+    applyTriggerPreset('default');
+
+    // Email template presets (Templates tab)
+    const presetsDataEl = document.getElementById('email-template-presets-data');
+    const EMAIL_TEMPLATE_PRESETS = presetsDataEl ? JSON.parse(presetsDataEl.textContent) : [];
+
+    function getEmailPresetById(presetId) {
+        return EMAIL_TEMPLATE_PRESETS.find(p => p.id === presetId);
+    }
+
+    function configFormHasCustomTemplateContent() {
+        return !!(
+            $('#customSubjectRequestCreated').val() ||
+            $('#customHtmlTemplateRequestCreated').val() ||
+            $('#customTextTemplateRequestCreated').val() ||
+            $('#customSubjectStatusChanged').val() ||
+            $('#customHtmlTemplateStatusChanged').val() ||
+            $('#customTextTemplateStatusChanged').val()
+        );
+    }
+
+    function applyEmailTemplatesFromPreset(presetId, options) {
+        const preset = getEmailPresetById(presetId);
+        if (!preset) {
+            return false;
+        }
+        options = Object.assign({
+            templates: true,
+            recipients: false,
+            triggers: false,
+            enableCustom: true,
+            silent: false
+        }, options || {});
+
+        if (options.recipients) {
+            $('#sendToOwners').prop('checked', !!preset.recipients.send_to_owners);
+            $('#sendToAdministrators').prop('checked', !!preset.recipients.send_to_administrators);
+            $('#sendToRequestedBy').prop('checked', !!preset.recipients.send_to_requested_by);
+            $('#sendToRequestedFor').prop('checked', !!preset.recipients.send_to_requested_for);
+            $('#sendToApprovingPersons').prop('checked', !!preset.recipients.send_to_approving_persons);
+            $('#sendToThirdParty').prop('checked', !!preset.recipients.send_to_third_party);
+        }
+
+        if (options.triggers) {
+            $('#triggerOnRequestCreated').prop('checked', !!preset.triggers.trigger_on_request_created);
+            $('#triggerOnStatusChanged').prop('checked', !!preset.triggers.trigger_on_status_changed);
+            $('#triggerOnAdminStatusChanged').prop('checked', !!preset.triggers.trigger_on_admin_status_changed);
+        }
+
+        if (options.templates) {
+            const rc = preset.request_created || {};
+            const sc = preset.status_changed || {};
+            $('#customSubjectRequestCreated').val(rc.subject || '');
+            $('#customHtmlTemplateRequestCreated').val(rc.html || '');
+            $('#customTextTemplateRequestCreated').val(rc.text || '');
+            $('#customSubjectStatusChanged').val(sc.subject || '');
+            $('#customHtmlTemplateStatusChanged').val(sc.html || '');
+            $('#customTextTemplateStatusChanged').val(sc.text || '');
+            if (options.enableCustom) {
+                $('#useCustomTemplates').prop('checked', true);
+                toggleCustomTemplatesSection();
+            }
+        }
+
+        if (!options.silent) {
+            showSuccess('{% trans "Templates loaded for selected Notification Type." %}');
+        }
+        return true;
+    }
+
+    function applyFullPresetToConfigurationForm(presetId) {
+        const preset = getEmailPresetById(presetId);
+        if (!preset) {
+            showError('{% trans "Preset not found" %}');
+            return;
+        }
+        $('#configName').val(preset.config_name_suggestion || '');
+        skipNotificationTypeTemplateApply = true;
+        $('#notificationType').val(presetId).trigger('change');
+        skipNotificationTypeTemplateApply = false;
+        applyEmailTemplatesFromPreset(presetId, {
+            templates: true,
+            recipients: true,
+            triggers: true,
+            enableCustom: true,
+            silent: true
+        });
+        filterTemplatesTabPreset(presetId);
+        showSuccess('{% trans "Preset applied. Review settings and save the configuration." %}');
+    }
+
+    function filterTemplatesTabPreset(presetId) {
+        $('#templatePresetFilter').val(presetId || '');
+        $('.template-preset-card').each(function() {
+            const cardId = $(this).data('preset-id');
+            if (!presetId || cardId === presetId) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+        if (presetId) {
+            const collapseEl = document.getElementById('presetCollapse' + presetId);
+            if (collapseEl) {
+                bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+            }
+        }
+    }
+
+    function onNotificationTypeChanged() {
+        const presetId = $('#notificationType').val();
+        filterTemplatesTabPreset(presetId);
+        if (!presetId || skipNotificationTypeTemplateApply) {
+            return;
+        }
+        const apply = () => applyEmailTemplatesFromPreset(presetId, {
+            templates: true,
+            enableCustom: true,
+            silent: true
+        });
+        if ($('#useCustomTemplates').is(':checked') && configFormHasCustomTemplateContent()) {
+            if (confirm('{% trans "Replace current custom templates with templates for this Notification Type?" %}')) {
+                apply();
+                showSuccess('{% trans "Templates updated for selected Notification Type." %}');
+            }
+        } else {
+            apply();
+            showSuccess('{% trans "Templates loaded for selected Notification Type." %}');
+        }
+    }
+
+    function copyTextToClipboard(text, successMessage) {
+        if (!text) {
+            showError('{% trans "Nothing to copy" %}');
+            return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text)
+                .then(() => showSuccess(successMessage || '{% trans "Copied to clipboard" %}'))
+                .catch(() => showError('{% trans "Failed to copy" %}'));
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showSuccess(successMessage || '{% trans "Copied to clipboard" %}');
+            } catch (e) {
+                showError('{% trans "Failed to copy" %}');
+            }
+            document.body.removeChild(ta);
+        }
+    }
+
+    $(document).on('click', '.btn-copy-preset-subject', function() {
+        const body = $(this).closest('.accordion-body');
+        copyTextToClipboard(body.find('.preset-subject').val(), '{% trans "Subject copied" %}');
+    });
+
+    $(document).on('click', '.btn-copy-preset-html', function() {
+        const body = $(this).closest('.accordion-body');
+        copyTextToClipboard(body.find('.preset-html').val(), '{% trans "HTML template copied" %}');
+    });
+
+    $(document).on('click', '.btn-copy-preset-text', function() {
+        const body = $(this).closest('.accordion-body');
+        copyTextToClipboard(body.find('.preset-text').val(), '{% trans "Text template copied" %}');
+    });
+
+    function showPreviewLoading() {
+        $('#previewLoading').show();
+        $('#previewContent').hide();
+        $('#previewError').addClass('d-none').text('');
+    }
+
+    function displayEmailPreview(preview, meta) {
+        meta = meta || {};
+        $('#previewSubjectLine').text(preview.subject || '—');
+        const iframe = document.getElementById('previewHtmlIframe');
+        if (iframe) {
+            iframe.srcdoc = preview.html || '<p style="padding:1rem;color:#666;">{% trans "No HTML content" %}</p>';
+        }
+        $('#previewTextBody').text(preview.text || '{% trans "No plain text content" %}');
+        const banner = $('#previewConfigBanner');
+        if (meta.config_name) {
+            const kindLabel = meta.template_kind === 'status_changed'
+                ? '{% trans "Status Changed" %}'
+                : '{% trans "Request Created" %}';
+            banner.removeClass('d-none').html(
+                '<i class="bi bi-gear me-1"></i><strong>' + meta.config_name + '</strong> — ' + kindLabel
+            );
+        } else {
+            banner.addClass('d-none').empty();
+        }
+        $('#previewLoading').hide();
+        $('#previewContent').show();
+    }
+
+    function fetchEmailPreview(payload) {
+        previewRequestPayload = payload;
+        if (payload.config_id) {
+            previewConfigId = payload.config_id;
+        } else if (!payload.keep_config_id) {
+            previewConfigId = null;
+        }
+        showPreviewLoading();
+        const modalEl = document.getElementById('emailTemplatePreviewModal');
+        if (modalEl) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+
+        return fetch(ENDPOINTS.previewTemplate, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayEmailPreview(data.preview, {
+                    config_name: data.config_name,
+                    template_kind: data.template_kind
+                });
+            } else {
+                $('#previewLoading').hide();
+                $('#previewError').removeClass('d-none').text(data.message || '{% trans "Preview failed" %}');
+            }
+        })
+        .catch(error => {
+            console.error('Preview error:', error);
+            $('#previewLoading').hide();
+            $('#previewError').removeClass('d-none').text('{% trans "Error rendering preview" %}');
+        });
+    }
+
+    function openEmailTemplatePreview(options) {
+        const presetId = options.presetId || $('#previewSampleDataKind').val() || 'grant';
+        $('#previewSampleDataKind').val(presetId);
+        if (options.lockPresetKind) {
+            $('#previewSampleDataKind').prop('disabled', true);
+        } else {
+            $('#previewSampleDataKind').prop('disabled', false);
+        }
+
+        if (options.templateKind) {
+            $('#previewTemplateKind').val(options.templateKind);
+        }
+
+        if (options.configId) {
+            previewConfigId = options.configId;
+        } else {
+            previewConfigId = null;
+        }
+
+        const payload = {
+            preset_id: presetId,
+            template_kind: $('#previewTemplateKind').val() || 'request_created',
+            subject: options.subject || '',
+            html: options.html || '',
+            text: options.text || ''
+        };
+        if (options.configId) {
+            payload.config_id = options.configId;
+        }
+        fetchEmailPreview(payload);
+    }
+
+    window.previewConfiguration = function(configId, notificationType) {
+        openEmailTemplatePreview({
+            configId: configId,
+            presetId: notificationType || 'grant',
+            templateKind: 'request_created',
+            lockPresetKind: true
+        });
+    };
+
+    $(document).on('click', '.btn-preview-preset', function() {
+        const presetId = $(this).data('preset-id');
+        openEmailTemplatePreview({ presetId: presetId, lockPresetKind: true });
+    });
+
+    $('#previewRequestCreatedBtn').on('click', function() {
+        const presetId = $('#notificationType').val() || 'grant';
+        if (!$('#useCustomTemplates').is(':checked')) {
+            openEmailTemplatePreview({
+                presetId: presetId,
+                templateKind: 'request_created',
+                lockPresetKind: true
+            });
+            return;
+        }
+        openEmailTemplatePreview({
+            presetId: presetId,
+            templateKind: 'request_created',
+            subject: $('#customSubjectRequestCreated').val(),
+            html: $('#customHtmlTemplateRequestCreated').val(),
+            text: $('#customTextTemplateRequestCreated').val(),
+            lockPresetKind: true
+        });
+    });
+
+    $('#previewStatusChangedBtn').on('click', function() {
+        const presetId = $('#notificationType').val() || 'grant';
+        if (!$('#useCustomTemplates').is(':checked')) {
+            openEmailTemplatePreview({
+                presetId: presetId,
+                templateKind: 'status_changed',
+                lockPresetKind: true
+            });
+            return;
+        }
+        openEmailTemplatePreview({
+            presetId: presetId,
+            templateKind: 'status_changed',
+            subject: $('#customSubjectStatusChanged').val(),
+            html: $('#customHtmlTemplateStatusChanged').val(),
+            text: $('#customTextTemplateStatusChanged').val(),
+            lockPresetKind: true
+        });
+    });
+
+    $('#previewRefreshBtn').on('click', function() {
+        if (!previewRequestPayload) {
+            return;
+        }
+        previewRequestPayload.preset_id = $('#previewSampleDataKind').val();
+        previewRequestPayload.template_kind = $('#previewTemplateKind').val();
+        if (previewConfigId) {
+            previewRequestPayload.config_id = previewConfigId;
+        }
+        fetchEmailPreview(previewRequestPayload);
+    });
+
+    function refreshPreviewIfOpen() {
+        if (!previewRequestPayload || !$('#emailTemplatePreviewModal').hasClass('show')) {
+            return;
+        }
+        previewRequestPayload.preset_id = $('#previewSampleDataKind').val();
+        previewRequestPayload.template_kind = $('#previewTemplateKind').val();
+        if (previewConfigId) {
+            previewRequestPayload.config_id = previewConfigId;
+            previewRequestPayload.subject = '';
+            previewRequestPayload.html = '';
+            previewRequestPayload.text = '';
+        }
+        fetchEmailPreview(previewRequestPayload);
+    }
+
+    $('#previewSampleDataKind').on('change', refreshPreviewIfOpen);
+    $('#previewTemplateKind').on('change', refreshPreviewIfOpen);
+
+    $('#notificationType').on('change', onNotificationTypeChanged);
+
+    $('#loadTemplatesFromPresetBtn').on('click', function() {
+        const presetId = $('#notificationType').val();
+        if (!presetId) {
+            showError('{% trans "Select Notification Type first." %}');
+            return;
+        }
+        applyEmailTemplatesFromPreset(presetId, { templates: true, enableCustom: true });
+    });
+
+    $('#openTemplatesTabBtn').on('click', function() {
+        const presetId = $('#notificationType').val();
+        const templatesTab = document.getElementById('templates-tab');
+        if (templatesTab) {
+            bootstrap.Tab.getOrCreateInstance(templatesTab).show();
+        }
+        filterTemplatesTabPreset(presetId || '');
+        if (presetId) {
+            $('#templatePresetFilter').val(presetId);
+        }
+    });
+
+    $('#templatePresetFilter').on('change', function() {
+        filterTemplatesTabPreset($(this).val());
+    });
+
+    $(document).on('click', '.btn-apply-preset', function() {
+        const presetId = $(this).data('preset-id');
+        if (!getEmailPresetById(presetId)) {
+            showError('{% trans "Preset not found" %}');
+            return;
+        }
+        if (!USER_PERMISSIONS.canAdd) {
+            showError('{% trans "No permission to add configurations" %}');
+            return;
+        }
+
+        const configTab = document.getElementById('email-config-tab');
+        if (configTab) {
+            bootstrap.Tab.getOrCreateInstance(configTab).show();
+        }
+
+        openConfigurationModal();
+        resetConfigurationForm();
+        applyFullPresetToConfigurationForm(presetId);
+    });
+});
+</script>
+{% endblock %}

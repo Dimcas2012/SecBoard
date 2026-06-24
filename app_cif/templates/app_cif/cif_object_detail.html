@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{{ cif_object.name }}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_cif/includes/cif_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 cif-page">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0"><i class="bi bi-building-gear me-2"></i>{{ cif_object.name }}</h2>
+        <div class="export-controls mb-0">
+            <div class="btn-group sb-toolbar" role="group">
+                <a href="{% url 'app_cif:dashboard' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                   title="{% trans 'Back to list' %}">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                {% if cif_permissions.can_export %}
+                <a href="{% url 'app_cif:cif_generate_report' cif_object.pk %}" class="btn btn-outline-success btn-sm btn-icon-action"
+                   title="{% trans 'Generate report' %}">
+                    <i class="bi bi-file-earmark-arrow-down"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs" id="cif-tabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#general">{% trans "General" %}</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#passport">{% trans "Passport" %}</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#functions">{% trans "Critical functions" %}</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#plan">{% trans "Protection plan" %}</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#incidents">{% trans "Incidents" %}</button></li>
+    </ul>
+
+    <div class="tab-content border border-top-0 p-3">
+        <div class="tab-pane fade show active" id="general">
+            <p><strong>{% trans "EDRPOU" %}:</strong> {{ cif_object.edrpou }}</p>
+            <p><strong>{% trans "Category" %}:</strong> {{ cif_object.category }}</p>
+            <p><strong>{% trans "Sector" %}:</strong> {{ cif_object.sector }}</p>
+            <p><strong>{% trans "Status" %}:</strong> {{ cif_object.get_status_display }}</p>
+        </div>
+        <div class="tab-pane fade" id="passport">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>{% trans "Status" %}:</strong> {{ passport.get_status_display }}</p>
+                    <p class="mb-1"><strong>{% trans "Version" %}:</strong> {{ passport.version|default:"-" }}</p>
+                    <p class="mb-1"><strong>{% trans "Approval date" %}:</strong> {{ passport.approval_date|default:"-" }}</p>
+                    <p class="mb-1"><strong>{% trans "Next review date" %}:</strong> {{ passport.next_review_date|default:"-" }}</p>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">{% trans "General info" %}</div>
+                <div class="card-body">
+                    {% if passport.general_info %}
+                        <pre class="mb-0"><code>{{ passport.general_info }}</code></pre>
+                    {% else %}
+                        <span class="text-muted">{% trans "No data" %}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">{% trans "Critical functions" %}</div>
+                <div class="card-body">
+                    {% if passport.critical_functions %}
+                        <pre class="mb-0"><code>{{ passport.critical_functions }}</code></pre>
+                    {% else %}
+                        <span class="text-muted">{% trans "No data" %}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">{% trans "Resources" %}</div>
+                <div class="card-body">
+                    {% if passport.resources %}
+                        <pre class="mb-0"><code>{{ passport.resources }}</code></pre>
+                    {% else %}
+                        <span class="text-muted">{% trans "No data" %}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">{% trans "Dependencies" %}</div>
+                <div class="card-body">
+                    {% if passport.dependencies %}
+                        <pre class="mb-0"><code>{{ passport.dependencies }}</code></pre>
+                    {% else %}
+                        <span class="text-muted">{% trans "No data" %}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">{% trans "Threats" %}</div>
+                <div class="card-body">
+                    {% if passport.threats %}
+                        <pre class="mb-0"><code>{{ passport.threats }}</code></pre>
+                    {% else %}
+                        <span class="text-muted">{% trans "No data" %}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if cif_permissions.can_edit_passports or cif_permissions.can_approve_passports %}
+            <div class="btn-group sb-toolbar d-inline-flex gap-1" role="group">
+                {% if cif_permissions.can_edit_passports %}
+                <a href="{% url 'app_cif:cif_passport_edit' cif_object.pk %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                   title="{% trans 'Edit' %}">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                {% endif %}
+                {% if cif_permissions.can_approve_passports %}
+                <a href="{% url 'app_cif:cif_passport_approve' cif_object.pk %}" class="btn btn-outline-success btn-sm btn-icon-action"
+                   title="{% trans 'Approve passport' %}">
+                    <i class="bi bi-check-circle"></i>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        <div class="tab-pane fade" id="functions">
+            <div class="table-responsive full-width-table">
+            <table class="table table-hover table-sm table-sm-font sb-data-table w-100 mb-0">
+                <thead class="table-light"><tr><th>{% trans "Name" %}</th><th>RTO</th><th>RPO</th><th>{% trans "Priority" %}</th></tr></thead>
+                <tbody>
+                {% for item in functions %}
+                    <tr><td>{{ item.name }}</td><td>{{ item.rto_hours }}</td><td>{{ item.rpo_hours }}</td><td>{{ item.priority }}</td></tr>
+                {% empty %}
+                    <tr><td colspan="4" class="text-muted">{% trans "No functions" %}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="plan">
+            <div class="mb-2">
+                <strong>{% trans "Implementation" %}: {{ plan.implementation_percent }}%</strong>
+            </div>
+            <div class="progress mb-3"><div class="progress-bar" style="width: {{ plan.implementation_percent }}%"></div></div>
+            {% if cif_permissions.can_edit_plans %}
+            <a href="{% url 'app_cif:cif_protection_plan_edit' cif_object.pk %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+               title="{% trans 'Edit plan' %}">
+                <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+        </div>
+        <div class="tab-pane fade" id="incidents">
+            <ul>
+                {% for incident in incidents %}
+                    <li>#{{ incident.id }} - {{ incident.description|truncatechars:100 }}</li>
+                {% empty %}
+                    <li class="text-muted">{% trans "No related incidents." %}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

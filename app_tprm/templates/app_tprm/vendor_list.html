@@ -1,0 +1,701 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Vendors" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_tprm/includes/tprm_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_tprm/css/tprm-vendor-owner.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 tprm-page">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2 class="mb-0"><i class="bi bi-building me-2"></i>{% trans "Vendors" %}</h2>
+        </div>
+    </div>
+
+    {% url 'app_tprm:vendor_list' as vendor_list_clear_url %}
+    <div class="card mb-2 filter-section access-request-filters" id="vendorListFiltersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="vendorListFiltersCollapse" toggle_id="toggleVendorListFilters" icon_id="vendorListFiltersToggleIcon" filter_clear_url=vendor_list_clear_url filters_expanded=True %}
+        <div class="collapse show" id="vendorListFiltersCollapse">
+            <div class="card-body py-2">
+                <form method="get" id="vendorFilterForm" class="row g-2 align-items-end">
+                    <div class="col-12">
+                        <div class="form-check">
+                            {{ filter_form.include_inactive }}
+                            <label class="form-check-label" for="{{ filter_form.include_inactive.id_for_label }}">{% trans "Show inactive vendors" %}</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="{{ filter_form.search.id_for_label }}" class="form-label">{% trans "Search" %}</label>
+                        {{ filter_form.search }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.company.id_for_label }}" class="form-label">{% trans "Company" %}</label>
+                        {{ filter_form.company }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.risk_level.id_for_label }}" class="form-label">{% trans "Risk" %}</label>
+                        {{ filter_form.risk_level }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.status.id_for_label }}" class="form-label">{% trans "Status" %}</label>
+                        {{ filter_form.status }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.nda_in_contract.id_for_label }}" class="form-label">{% trans "NDA" %}</label>
+                        {{ filter_form.nda_in_contract }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.is_active.id_for_label }}" class="form-label">{% trans "Active" %}</label>
+                        {{ filter_form.is_active }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.criticality_level.id_for_label }}" class="form-label">{% trans "Criticality" %}</label>
+                        {{ filter_form.criticality_level }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.sanctions_verification_status.id_for_label }}" class="form-label">{% trans "Sanctions" %}</label>
+                        {{ filter_form.sanctions_verification_status }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.data_access_level.id_for_label }}" class="form-label">{% trans "Data access" %}</label>
+                        {{ filter_form.data_access_level }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ filter_form.data_access_rights.id_for_label }}" class="form-label">{% trans "Access rights" %}</label>
+                        {{ filter_form.data_access_rights }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body p-0">
+                    <div class="export-controls px-3 pt-2 pb-0">
+                        <div class="row align-items-center g-1">
+                            <div class="col-md-6"></div>
+                            <div class="col-md-6 text-end">
+                                <div class="btn-group sb-toolbar" role="group">
+                                    {% if can_edit_vendors %}
+                                    <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="vendor-open-add-modal"
+                                            data-modal-url="{% url 'app_tprm:vendor_add' %}?modal=1"
+                                            data-modal-title="{% trans 'Add Vendor' %}"
+                                            title="{% trans 'Add' %}">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </button>
+                                    <a href="{% url 'app_tprm:import_vendors_xlsx' %}" class="btn btn-outline-warning btn-sm btn-icon-action"
+                                       title="{% trans 'Import XLSX' %}">
+                                        <i class="bi bi-file-earmark-arrow-up"></i>
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'app_tprm:export_vendors_xlsx' %}?{{ request.GET.urlencode }}"
+                                       class="btn btn-success btn-sm btn-icon-action"
+                                       title="{% trans 'Export XLSX' %}">
+                                        <i class="bi bi-file-earmark-excel"></i>
+                                    </a>
+                                    <a href="{% url 'app_tprm:dashboard' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                                       title="{% trans 'Back' %}">
+                                        <i class="bi bi-arrow-left"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if page_obj.paginator.count %}
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table vendor-table mb-0 w-100">
+                            <thead>
+                                <tr>
+                                    <th class="text-muted text-nowrap">{% trans "ID" %}</th>
+                                    <th>{% trans "Name" %}</th>
+                                    <th>{% trans "Company" %}</th>
+                                    <th>{% trans "Active" %}</th>
+                                    <th>{% trans "Risk" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    <th>{% trans "NDA" %}</th>
+                                    <th>{% trans "Criticality" %}</th>
+                                    <th>{% trans "Sanctions verification" %}</th>
+                                    <th>{% trans "Data Access" %}</th>
+                                    <th>{% trans "Data Access rights" %}</th>
+                                    <th>{% trans "Contact" %}</th>
+                                    <th>{% trans "Email" %}</th>
+                                    <th>{% trans "Contract ends" %}</th>
+                                    <th>{% trans "Actual" %}</th>
+                                    <th>{% trans "Owners" %}</th>
+                                    <th>{% trans "Created" %}</th>
+                                    <th width="150">{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vendor in vendors %}
+                                <tr>
+                                    <td class="text-muted small text-nowrap font-monospace">{{ vendor.pk }}</td>
+                                    <td>
+                                        <a href="{% url 'app_tprm:vendor_detail' vendor.pk %}">
+                                            <strong>{{ vendor.name }}</strong>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if vendor.company %}
+                                            <span class="badge bg-primary">{{ vendor.company.name|truncatechars:20 }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.is_active %}
+                                            <span class="badge bg-success" title="{% trans 'Active' %}">✓</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary" title="{% trans 'Inactive' %}">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.risk_level %}
+                                            <span class="badge" style="background-color: {{ vendor.risk_level.color }};">{{ vendor.risk_level.get_name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.status %}
+                                            <span class="badge" style="background-color: {{ vendor.status.color }};">{{ vendor.status.get_name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.nda_in_contract %}
+                                            <span class="badge bg-success" title="{% trans 'NDA in contract' %}">✓</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.criticality_level %}
+                                            <span class="badge" style="background-color: {{ vendor.criticality_level.color }};">{{ vendor.criticality_level.get_name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.sanctions_verification_status %}
+                                            <span class="badge" style="background-color: {{ vendor.sanctions_verification_status.color }};">{{ vendor.sanctions_verification_status.get_name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.data_access_level %}
+                                            <span class="badge" style="background-color: {{ vendor.data_access_level.color }};">{{ vendor.data_access_level.get_name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.data_access_rights %}
+                                            <span class="badge" style="background-color: {{ vendor.data_access_rights.color }};">{{ vendor.data_access_rights.get_name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ vendor.contact_person|default:"-"|truncatechars:25 }}</td>
+                                    <td>{{ vendor.contact_email|default:"-"|truncatechars:30 }}</td>
+                                    <td class="text-nowrap small">
+                                        {% if vendor.contract_end_date %}
+                                            <span class="{% if vendor.contract_end_date < today %}text-danger{% elif vendor.contract_end_date <= contract_warn_until %}text-warning{% endif %}" title="{{ vendor.contract_validity|default:''|truncatechars:80 }}">{{ vendor.contract_end_date|date:"d.m.Y" }}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="small">
+                                        <div style="display: flex; flex-direction: column; gap: 0.19rem; align-items: flex-start;">
+                                        {% if vendor.pk in actualize_vendor_ids %}
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button type="button"
+                                                        class="btn btn-sm {% if vendor.actualization_date %}btn-success{% else %}btn-outline-secondary{% endif %} vendor-tprm-actualize"
+                                                        data-url="{% url 'app_tprm:vendor_actualize' vendor.pk %}"
+                                                        data-action="actualize"
+                                                        data-actual-date="{% if vendor.actualization_date %}{{ vendor.actualization_date|date:'Y-m-d H:i:s' }}{% endif %}"
+                                                        title="{% if vendor.actualization_date %}{% trans 'Actualized' %}: {{ vendor.actualization_date|date:'d.m.Y H:i' }}{% if vendor.actualized_by %} — {% trans 'By' %}: {{ vendor.actualized_by.get_full_name|default:vendor.actualized_by.username }}{% endif %} — {% trans 'Click to actualize again' %}{% else %}{% trans 'Actualize' %}{% endif %}">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                                <button type="button"
+                                                        class="btn btn-sm {% if vendor.marked_no_longer_actual_at and not vendor.actualization_date %}btn-warning{% else %}btn-outline-secondary{% endif %} vendor-tprm-actualize"
+                                                        data-url="{% url 'app_tprm:vendor_actualize' vendor.pk %}"
+                                                        data-action="mark_inactive"
+                                                        title="{% if vendor.marked_no_longer_actual_at and not vendor.actualization_date %}{% trans 'No longer actual' %} — {% trans 'Click to actualize again' %}{% else %}{% trans 'Mark as no longer actual' %}{% endif %}">
+                                                    <i class="fas fa-times-circle"></i>
+                                                </button>
+                                            </div>
+                                        {% elif vendor.actualization_date %}
+                                            <span class="badge bg-success"
+                                                  style="padding: 0.19rem 0.375rem; font-size: 0.525rem; border-radius: 5px; min-width: 22px;"
+                                                  title="{% trans 'Actualized' %}: {{ vendor.actualization_date|date:'d.m.Y H:i' }}{% if vendor.actualized_by %} — {% trans 'By' %}: {{ vendor.actualized_by.get_full_name|default:vendor.actualized_by.username }}{% endif %}">
+                                                <i class="fas fa-clock"></i>
+                                            </span>
+                                        {% elif vendor.marked_no_longer_actual_at and not vendor.actualization_date %}
+                                            <span class="badge bg-warning text-dark">{% trans "Not actual" %}</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                        {% if vendor.pk in actualize_vendor_ids %}
+                                            {% if vendor.marked_no_longer_actual_at and not vendor.actualization_date %}
+                                            <div class="text-muted" style="font-size: 0.55rem; max-width: 12rem; line-height: 1.2;" {% if vendor.marked_no_longer_comment %}title="{{ vendor.marked_no_longer_comment|escape }}"{% endif %}>
+                                                {% trans "No longer actual" %}
+                                                {% if vendor.marked_no_longer_comment %} <i class="fas fa-comment text-muted" style="font-size: 0.5rem;"></i>{% endif %}
+                                            </div>
+                                            {% elif vendor.actualization_date %}
+                                            <div class="text-muted" style="font-size: 0.55rem;">{{ vendor.actualization_date|date:"d.m.y H:i" }}</div>
+                                            {% endif %}
+                                        {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="small" style="max-width: 220px;">
+                                        {% for o in vendor.owners.all %}
+                                            {% if not forloop.first %}<span class="text-muted">, </span>{% endif %}<span title="{{ o.name }}">{{ o.name|truncatechars:24 }}</span>
+                                        {% empty %}
+                                            <span class="text-muted">—</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>{{ vendor.created_at|date:"d.m.y" }}</td>
+                                    <td class="table-actions">
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <a href="{% url 'app_tprm:vendor_detail' vendor.pk %}" class="btn btn-outline-primary btn-sm btn-icon-action" title="{% trans 'View' %}">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary btn-sm btn-icon-action vendor-open-history-modal"
+                                                    data-vendor-id="{{ vendor.pk }}"
+                                                    data-vendor-name="{{ vendor.name }}"
+                                                    data-history-url="{% url 'app_tprm:get_vendor_history' vendor.pk %}"
+                                                    title="{% trans 'History' %}">
+                                                <i class="bi bi-clock-history"></i>
+                                            </button>
+                                            {% if can_edit_vendors %}
+                                            <button type="button" class="btn btn-outline-primary btn-sm btn-icon-action vendor-open-edit-modal"
+                                                    data-modal-url="{% url 'app_tprm:vendor_edit' vendor.pk %}?modal=1"
+                                                    data-modal-title="{% trans 'Edit Vendor' %}"
+                                                    title="{% trans 'Edit' %}">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% if can_delete_vendors %}
+                                            <form method="post" action="{% url 'app_tprm:vendor_delete' vendor.pk %}" class="d-inline" style="display: contents;">
+                                                {% csrf_token %}
+                                                <button type="button" class="btn btn-outline-danger btn-sm btn-icon-action vendor-list-delete" title="{% trans 'Delete' %}" data-vendor-name="{{ vendor.name }}">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% include "app_tprm/includes/tprm_table_pagination.html" with pagination_item_label=_("vendors") pagination_aria_label=_("Vendor pagination") %}
+                    {% else %}
+                    <p class="text-muted text-center py-3">{% trans "No vendors found." %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% if can_edit_vendors %}
+<div class="modal fade" id="vendorFormModal" tabindex="-1" aria-labelledby="vendorFormModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="vendorFormModalTitle">{% trans "Vendor" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body" id="vendorFormModalBody"></div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% include "app_tprm/modals/vendor_history_modal.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% if can_edit_vendors %}
+<script>
+if (typeof window.initVendorFormModal !== 'function') {
+    window.initVendorFormModal = function(root, cfg) {
+        if (!root || !cfg || !cfg.ownersUrl) return;
+        var ownersUrl = cfg.ownersUrl;
+        var msgSelectCompany = cfg.msgSelectCompany || 'Select a company to load owners.';
+        var msgLoading = cfg.msgLoading || 'Loading...';
+        var msgCouldNotLoad = cfg.msgCouldNotLoad || 'Could not load owners.';
+        var msgNoneSelected = cfg.msgNoneSelected || 'None - add owners from the list above.';
+        var ariaRemove = cfg.ariaRemove || 'Remove';
+        var companyField = root.querySelector('[name="company"]');
+        var poolWrap = root.querySelector('#vendor-owner-pool-wrap');
+        var poolEl = root.querySelector('#vendor-owner-pool');
+        var poolPh = root.querySelector('#vendor-owner-pool-placeholder');
+        var selectedEl = root.querySelector('#vendor-selected-owners');
+        var filterInput = root.querySelector('#vendor-owner-filter');
+        var hiddenOwners = root.querySelector('#vendor-owners-json');
+        var initialScript = root.querySelector('#vendor-owners-initial');
+        var selectedById = {};
+        var lastPool = [];
+
+        function parseInitial() {
+            if (!initialScript || !initialScript.textContent) return [];
+            try {
+                var data = JSON.parse(initialScript.textContent);
+                return Array.isArray(data) ? data : [];
+            } catch (e) { return []; }
+        }
+        function syncHidden() {
+            var ids = Object.keys(selectedById).map(function(k){ return parseInt(k, 10); }).filter(function(n){ return !isNaN(n); });
+            if (hiddenOwners) hiddenOwners.value = JSON.stringify(ids);
+        }
+        function renderSelected() {
+            if (!selectedEl) return;
+            selectedEl.innerHTML = '';
+            var keys = Object.keys(selectedById);
+            if (keys.length === 0) {
+                selectedEl.innerHTML = '<span class="text-muted">' + msgNoneSelected + '</span>';
+                syncHidden();
+                return;
+            }
+            keys.sort(function(a, b){ return selectedById[a].name.localeCompare(selectedById[b].name); });
+            keys.forEach(function(id) {
+                var o = selectedById[id];
+                var row = document.createElement('div');
+                row.className = 'd-flex justify-content-between align-items-start border-bottom py-1';
+                var info = document.createElement('div');
+                info.innerHTML = '<strong></strong><div class="text-muted"></div><div class="text-muted small"></div>';
+                info.querySelector('strong').textContent = o.name;
+                var sub = (o.department || o.position) ? ((o.department || '') + (o.department && o.position ? ' | ' : '') + (o.position || '')) : '';
+                info.querySelectorAll('div.text-muted')[0].textContent = sub;
+                info.querySelectorAll('div.text-muted')[1].textContent = o.email || o.phone || '';
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-outline-danger';
+                btn.setAttribute('aria-label', ariaRemove);
+                btn.innerHTML = '<i class="fas fa-times"></i>';
+                btn.addEventListener('click', function() { delete selectedById[id]; renderSelected(); renderPool(lastPool); });
+                row.appendChild(info);
+                row.appendChild(btn);
+                selectedEl.appendChild(row);
+            });
+            syncHidden();
+        }
+        function renderPool(owners) {
+            lastPool = owners || [];
+            if (!poolEl) return;
+            poolEl.innerHTML = '';
+            var q = (filterInput && filterInput.value) ? filterInput.value.trim().toLowerCase() : '';
+            var filtered = lastPool.filter(function(o) {
+                if (!q) return true;
+                var blob = [o.name, o.department, o.position, o.email, o.phone].join(' ').toLowerCase();
+                return blob.indexOf(q) !== -1;
+            });
+            filtered.forEach(function(o) {
+                var li = document.createElement('li');
+                li.className = 'list-group-item list-group-item-action py-2';
+                if (selectedById[o.id]) li.classList.add('bg-light');
+                li.innerHTML = '<div class="d-flex justify-content-between align-items-center"><div><strong></strong><div class="text-muted small"></div></div><div class="form-check"><input type="checkbox" class="form-check-input"></div></div>';
+                li.querySelector('strong').textContent = o.name;
+                var sm = o.department || o.position ? ((o.department || '') + (o.department && o.position ? ' | ' : '') + (o.position || '')) : '';
+                li.querySelector('.text-muted.small').textContent = sm + (o.email ? ' · ' + o.email : '');
+                var cb = li.querySelector('input[type="checkbox"]');
+                cb.checked = !!selectedById[o.id];
+                li.addEventListener('click', function(ev) {
+                    if (ev.target === cb) return;
+                    cb.checked = !cb.checked;
+                    toggleOwner(o, cb.checked);
+                });
+                cb.addEventListener('change', function() { toggleOwner(o, cb.checked); });
+                poolEl.appendChild(li);
+            });
+        }
+        function toggleOwner(o, on) {
+            if (on) {
+                selectedById[o.id] = { id: o.id, name: o.name || '', department: o.department || '', position: o.position || '', email: o.email || '', phone: o.phone || '' };
+            } else {
+                delete selectedById[o.id];
+            }
+            renderSelected();
+            renderPool(lastPool);
+        }
+        function getCompanySelection() {
+            if (!companyField) return { id: '', name: '' };
+            var id = '';
+            var name = '';
+            if (companyField.tagName === 'SELECT') {
+                id = companyField.value || '';
+                if (companyField.selectedIndex >= 0) {
+                    var selectedOption = companyField.options[companyField.selectedIndex];
+                    if (selectedOption) name = (selectedOption.textContent || '').trim();
+                }
+            } else {
+                id = (companyField.value || '').trim();
+                name = id;
+            }
+            return { id: id, name: name };
+        }
+        function loadOwnersForCompany(companyId, companyName) {
+            if (!poolWrap || !poolPh) return;
+            if (!companyId && !companyName) {
+                poolWrap.classList.add('d-none');
+                poolPh.classList.remove('d-none');
+                poolPh.textContent = msgSelectCompany;
+                lastPool = [];
+                selectedById = {};
+                renderSelected();
+                return;
+            }
+            poolPh.textContent = msgLoading;
+            var query = companyId ? 'company_id=' + encodeURIComponent(companyId) : 'company_name=' + encodeURIComponent(companyName);
+            fetch(ownersUrl + '?' + query, { credentials: 'same-origin' })
+                .then(function(r) { if (!r.ok) throw new Error('bad'); return r.json(); })
+                .then(function(data) {
+                    if (!Array.isArray(data)) throw new Error('bad');
+                    var seen = {};
+                    data.forEach(function(o) { seen[o.id] = true; });
+                    Object.keys(selectedById).forEach(function(kid) {
+                        var idNum = parseInt(kid, 10);
+                        if (isNaN(idNum) || seen[idNum]) return;
+                        var s = selectedById[kid];
+                        data.push({ id: idNum, name: (s && s.name) ? s.name : '', department: (s && s.department) ? s.department : '', position: (s && s.position) ? s.position : '', email: (s && s.email) ? s.email : '', phone: (s && s.phone) ? s.phone : '' });
+                        seen[idNum] = true;
+                    });
+                    poolPh.classList.add('d-none');
+                    poolWrap.classList.remove('d-none');
+                    poolPh.textContent = '';
+                    renderPool(data);
+                    renderSelected();
+                })
+                .catch(function() {
+                    poolPh.classList.remove('d-none');
+                    poolWrap.classList.add('d-none');
+                    poolPh.textContent = msgCouldNotLoad;
+                });
+        }
+        parseInitial().forEach(function(o) { if (o && o.id) selectedById[o.id] = o; });
+        renderSelected();
+        if (companyField) {
+            companyField.addEventListener('change', function() {
+                selectedById = {};
+                renderSelected();
+                var s = getCompanySelection();
+                loadOwnersForCompany(s.id, s.name);
+            });
+            var initialSelection = getCompanySelection();
+            if (initialSelection.id || initialSelection.name) {
+                loadOwnersForCompany(initialSelection.id, initialSelection.name);
+            } else {
+                if (poolPh) poolPh.classList.remove('d-none');
+                if (poolWrap) poolWrap.classList.add('d-none');
+            }
+        }
+        if (filterInput) filterInput.addEventListener('input', function(){ renderPool(lastPool); });
+        var form = root.querySelector('form[enctype="multipart/form-data"]');
+        if (form) form.addEventListener('submit', function(){ syncHidden(); });
+    };
+}
+</script>
+<script>
+(function() {
+    var vendorFormCfg = {
+        ownersUrl: "{% url 'app_tprm:get_all_tprm_owners' %}",
+        msgSelectCompany: "{% trans 'Select a company to load owners.'|escapejs %}",
+        msgLoading: "{% trans 'Loading…'|escapejs %}",
+        msgCouldNotLoad: "{% trans 'Could not load owners.'|escapejs %}",
+        msgNoneSelected: "{% trans 'None — add owners from the list above.'|escapejs %}",
+        ariaRemove: "{% trans 'Remove'|escapejs %}"
+    };
+
+    var modalEl = document.getElementById('vendorFormModal');
+    var modalBody = document.getElementById('vendorFormModalBody');
+    var titleEl = document.getElementById('vendorFormModalTitle');
+    if (!modalEl || !modalBody || typeof bootstrap === 'undefined') {
+        return;
+    }
+    var bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+    function openVendorModal(url, title) {
+        if (titleEl && title) {
+            titleEl.textContent = title;
+        }
+        modalBody.innerHTML = '<p class="text-muted small mb-0">' + vendorFormCfg.msgLoading + '</p>';
+        bsModal.show();
+        var listQ = window.location.search.replace(/^\?/, '');
+        var fetchUrl = url;
+        if (listQ) {
+            fetchUrl += (fetchUrl.indexOf('?') >= 0 ? '&' : '?') + 'list_q=' + encodeURIComponent(listQ);
+        }
+        fetch(fetchUrl, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) {
+                if (!r.ok) {
+                    throw new Error('bad');
+                }
+                return r.text();
+            })
+            .then(function(html) {
+                modalBody.innerHTML = html;
+                var root = modalBody.querySelector('.vendor-form-root');
+                if (root && typeof initVendorFormModal === 'function') {
+                    initVendorFormModal(root, vendorFormCfg);
+                }
+            })
+            .catch(function() {
+                modalBody.innerHTML = '<p class="text-danger mb-0">{% trans "Could not load form." %}</p>';
+                if (typeof toastr !== 'undefined') {
+                    toastr.error('{% trans "Could not load form." %}');
+                }
+            });
+    }
+
+    var addBtn = document.getElementById('vendor-open-add-modal');
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            openVendorModal(this.getAttribute('data-modal-url'), this.getAttribute('data-modal-title'));
+        });
+    }
+    document.querySelectorAll('.vendor-open-edit-modal').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            openVendorModal(this.getAttribute('data-modal-url'), this.getAttribute('data-modal-title'));
+        });
+    });
+
+    modalBody.addEventListener('submit', function(ev) {
+        var form = ev.target;
+        if (form.tagName !== 'FORM' || form.getAttribute('enctype') !== 'multipart/form-data') {
+            return;
+        }
+        if (!modalEl.contains(form)) {
+            return;
+        }
+        ev.preventDefault();
+        var fd = new FormData(form);
+        fetch(form.action, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function(r) {
+                return r.json().then(function(data) {
+                    return { ok: r.ok, data: data };
+                }).catch(function() {
+                    return { ok: false, data: null };
+                });
+            })
+            .then(function(result) {
+                var data = result.data;
+                if (!data || typeof data.success === 'undefined') {
+                    if (typeof toastr !== 'undefined') {
+                        toastr.error('{% trans "Unexpected response from server." %}');
+                    }
+                    return;
+                }
+                if (data.success) {
+                    bsModal.hide();
+                    if (data.message && typeof toastr !== 'undefined') {
+                        toastr.success(data.message);
+                    }
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                    }
+                    return;
+                }
+                if (data.html) {
+                    modalBody.innerHTML = data.html;
+                    var root = modalBody.querySelector('.vendor-form-root');
+                    if (root && typeof initVendorFormModal === 'function') {
+                        initVendorFormModal(root, vendorFormCfg);
+                    }
+                }
+            })
+            .catch(function() {
+                if (typeof toastr !== 'undefined') {
+                    toastr.error('{% trans "Network error" %}');
+                }
+            });
+    });
+})();
+</script>
+{% endif %}
+<script>
+(function() {
+    function getCsrfToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        return m ? m.getAttribute('content') : '';
+    }
+    document.querySelectorAll('.vendor-tprm-actualize').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var action = this.getAttribute('data-action');
+            var url = this.getAttribute('data-url');
+            var confirmMsg = action === 'mark_inactive'
+                ? '{% trans "Are you sure you want to mark this vendor as no longer actual?" %}'
+                : '{% trans "Are you sure you want to actualize this vendor?" %}';
+            if (!confirm(confirmMsg)) return;
+            var comment = '';
+            if (action === 'mark_inactive') {
+                var input = prompt('{% trans "Optional comment (leave empty to skip):" %}', '');
+                if (input === null) return;
+                comment = input || '';
+            }
+            var body = new URLSearchParams();
+            body.append('action', action);
+            if (action === 'mark_inactive' && comment) body.append('comment', comment);
+            var token = getCsrfToken();
+            if (!token) {
+                if (typeof toastr !== 'undefined') toastr.error('{% trans "CSRF token not found. Please refresh the page." %}');
+                return;
+            }
+            body.append('csrfmiddlewaretoken', token);
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': token,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: body.toString(),
+                credentials: 'same-origin'
+            }).then(function(r) {
+                return r.json().then(function(data) {
+                    return { httpOk: r.ok, data: data };
+                });
+            })
+            .then(function(result) {
+                if (result.httpOk && result.data.status === 'success') {
+                    if (typeof toastr !== 'undefined') toastr.success(result.data.message || 'OK');
+                    window.location.reload();
+                } else {
+                    var msg = (result.data && result.data.message) ? result.data.message : '{% trans "Error" %}';
+                    if (typeof toastr !== 'undefined') toastr.error(msg);
+                    else alert(msg);
+                }
+            }).catch(function() {
+                if (typeof toastr !== 'undefined') toastr.error('{% trans "Network error" %}');
+            });
+        });
+    });
+    document.querySelectorAll('.vendor-list-delete').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var name = this.getAttribute('data-vendor-name') || '';
+            var msg = name
+                ? '{% trans "Are you sure you want to delete the vendor" %} "' + name + '"?\n\n{% trans "This action cannot be undone." %}'
+                : '{% trans "Are you sure you want to delete this vendor?" %}\n\n{% trans "This action cannot be undone." %}';
+            if (!confirm(msg)) return;
+            var form = this.closest('form');
+            if (form) form.submit();
+        });
+    });
+})();
+</script>
+{% endblock %}

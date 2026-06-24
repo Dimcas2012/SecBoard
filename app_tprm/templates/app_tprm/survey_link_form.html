@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2><i class="fas fa-link"></i> {{ title }}</h2>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.vendor.id_for_label }}" class="form-label">
+                                {% trans "Vendor" %} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.vendor }}
+                            {% if form.vendor.errors %}
+                                <div class="text-danger small">{{ form.vendor.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.template.id_for_label }}" class="form-label">
+                                {% trans "Template" %}
+                            </label>
+                            {{ form.template }}
+                            {% if form.template.errors %}
+                                <div class="text-danger small">{{ form.template.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "Select a template to create a new questionnaire, or select an existing questionnaire below." %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.questionnaire.id_for_label }}" class="form-label">
+                                {% trans "Questionnaire" %}
+                            </label>
+                            {{ form.questionnaire }}
+                            {% if form.questionnaire.errors %}
+                                <div class="text-danger small">{{ form.questionnaire.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "Select an existing questionnaire, or leave empty to create from template." %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.expires_at.id_for_label }}" class="form-label">
+                                {% trans "Expires At" %}
+                            </label>
+                            {{ form.expires_at }}
+                            {% if form.expires_at.errors %}
+                                <div class="text-danger small">{{ form.expires_at.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "Leave empty for no expiration." %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.is_one_time_use }}
+                                <label class="form-check-label" for="{{ form.is_one_time_use.id_for_label }}">
+                                    {% trans "One-Time Use" %}
+                                </label>
+                            </div>
+                            {% if form.is_one_time_use.errors %}
+                                <div class="text-danger small">{{ form.is_one_time_use.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "Link can only be used once." %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.max_uses.id_for_label }}" class="form-label">
+                                {% trans "Maximum Uses" %}
+                            </label>
+                            {{ form.max_uses }}
+                            {% if form.max_uses.errors %}
+                                <div class="text-danger small">{{ form.max_uses.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "Maximum number of times the link can be accessed." %}
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                {% trans "Notes" %}
+                            </label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}
+                                <div class="text-danger small">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% trans "Save" %}
+                            </button>
+                            <a href="{% url 'app_tprm:survey_link_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> {% trans "Cancel" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Update questionnaire options when vendor changes
+document.addEventListener('DOMContentLoaded', function() {
+    const vendorSelect = document.getElementById('{{ form.vendor.id_for_label }}');
+    const questionnaireSelect = document.getElementById('{{ form.questionnaire.id_for_label }}');
+    
+    if (vendorSelect && questionnaireSelect) {
+        function updateQuestionnaires(vendorId) {
+            if (!vendorId) {
+                // Clear options if no vendor selected
+                questionnaireSelect.innerHTML = '<option value="">{% trans "Select a vendor first" %}</option>';
+                return;
+            }
+            
+            // Show loading state
+            questionnaireSelect.innerHTML = '<option value="">{% trans "Loading..." %}</option>';
+            questionnaireSelect.disabled = true;
+            
+            // Fetch questionnaires for selected vendor
+            fetch(`{% url 'app_tprm:survey_link_get_questionnaires' 0 %}`.replace('0', vendorId))
+                .then(response => response.json())
+                .then(data => {
+                    // Clear existing options
+                    questionnaireSelect.innerHTML = '<option value="">{% trans "Select an existing questionnaire, or leave empty to create from template" %}</option>';
+                    
+                    // Add new options
+                    if (data.questionnaires && data.questionnaires.length > 0) {
+                        data.questionnaires.forEach(function(q) {
+                            const option = document.createElement('option');
+                            option.value = q.id;
+                            option.textContent = q.text;
+                            questionnaireSelect.appendChild(option);
+                        });
+                    } else {
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = '{% trans "No questionnaires found for this vendor" %}';
+                        option.disabled = true;
+                        questionnaireSelect.appendChild(option);
+                    }
+                    
+                    questionnaireSelect.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error loading questionnaires:', error);
+                    questionnaireSelect.innerHTML = '<option value="">{% trans "Error loading questionnaires" %}</option>';
+                    questionnaireSelect.disabled = false;
+                });
+        }
+        
+        // Update on vendor change
+        vendorSelect.addEventListener('change', function() {
+            updateQuestionnaires(this.value);
+        });
+        
+        // Update on page load if vendor is already selected
+        // Use setTimeout to ensure DOM is fully ready
+        setTimeout(function() {
+            if (vendorSelect.value) {
+                updateQuestionnaires(vendorSelect.value);
+            }
+        }, 100);
+    }
+});
+</script>
+{% endblock %}

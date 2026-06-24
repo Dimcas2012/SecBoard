@@ -1,0 +1,2782 @@
+<!-- \SecBoard\SecBoard\templates\app_risk\risk_assessment.html-->
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_risk/includes/risk_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_risk/css/risk_assessment-page.css' %}">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.1.6/css/dataTables.bootstrap5.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/dt-2.1.6/sl-2.1.0/datatables.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/select/1.3.3/css/select.dataTables.min.css">
+{% endblock %}
+
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid mt-4 risk-page">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <h2 class="card-title m-0 h4 mb-0"><i class="bi bi-shield-exclamation me-2"></i>{% trans "Risk Assessment" %}</h2>
+                    <div class="btn-group sb-toolbar" role="group">
+                        <a href="{% url 'risk_report' %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                           title="{% trans 'Risk Report' %}">
+                            <i class="bi bi-file-earmark-text"></i>
+                        </a>
+                        <button id="acceptableRiskBtn" class="btn btn-outline-success btn-sm btn-icon-action"
+                                title="{% trans 'Acceptable Risk' %}">
+                            <i class="bi bi-check-circle"></i>
+                        </button>
+                        <button id="allowedSoftwareBtn" class="btn btn-outline-info btn-sm btn-icon-action"
+                                title="{% trans 'Allowed Software' %}">
+                            <i class="bi bi-box-seam"></i>
+                        </button>
+                        <button id="exportAssetVulnerabilities" class="btn btn-success btn-sm btn-icon-action"
+                                title="{% trans 'Export Selected' %}">
+                            <i class="bi bi-download"></i>
+                        </button>
+                        <button class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="guideBtn" type="button" data-bs-toggle="modal" data-bs-target="#riskAssessmentGuideModal"
+                                title="{% trans 'Guide' %}">
+                            <i class="bi bi-book"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Filters Section -->
+                    <div class="card mb-2 filter-section access-request-filters" id="riskFiltersCard">
+                        {% include "includes/sb_access_request_filters_header.html" with collapse_id="riskFiltersCollapse" toggle_id="toggleRiskFilters" icon_id="riskFiltersToggleIcon" clear_btn_id="clearRiskFilters" filters_expanded=False %}
+                        <div class="collapse" id="riskFiltersCollapse">
+                        <div class="card-body py-2" id="filtersContent">
+                                    <div class="row g-1 align-items-end">
+                                        <!-- Company Filter -->
+                                        <div class="col-md-3">
+                                            <label for="filterCompany" class="form-label">{% trans "Company" %}</label>
+                                            <select class="form-select form-select-sm" id="filterCompany">
+                                                <option value="">{% trans "All Companies" %}</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <!-- Criticality Level Filter -->
+                                        <div class="col-md-3">
+                                            <label for="filterCriticality" class="form-label">{% trans "Criticality Level" %}</label>
+                                            <select class="form-select form-select-sm" id="filterCriticality">
+                                                <option value="">{% trans "All Criticality Levels" %}</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <!-- Asset Group Filter -->
+                                        <div class="col-md-3">
+                                            <label for="filterAssetGroup" class="form-label">
+                                                {% trans "Asset Group" %}
+                                                <small class="text-muted" id="assetGroupCount"></small>
+                                                <small class="text-muted ms-1" id="assetGroupLoading" style="display: none;">
+                                                    <i class="fas fa-spinner fa-spin"></i>
+                                                </small>
+                                            </label>
+                                            <select class="form-select form-select-sm" id="filterAssetGroup">
+                                                <option value="">{% trans "All Asset Groups" %}</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <!-- Asset Type Filter -->
+                                        <div class="col-md-3">
+                                            <label for="filterAssetType" class="form-label">
+                                                {% trans "Asset Type" %}
+                                                <small class="text-muted" id="assetTypeCount"></small>
+                                                <small class="text-muted ms-1" id="assetTypeLoading" style="display: none;">
+                                                    <i class="fas fa-spinner fa-spin"></i>
+                                                </small>
+                                            </label>
+                                            <select class="form-select form-select-sm" id="filterAssetType">
+                                                <option value="">{% trans "All Asset Types" %}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row g-1 align-items-end mt-1">
+                                        <!-- Vulnerability Status Filter -->
+                                        <div class="col-md-3">
+                                            <label for="filterVulnerabilityStatus" class="form-label">{% trans "Vulnerability Status" %}</label>
+                                            <select class="form-select form-select-sm" id="filterVulnerabilityStatus">
+                                                <option value="">{% trans "All Statuses" %}</option>
+                                                <option value="Yes">{% trans "Vulnerable" %}</option>
+                                                <option value="No">{% trans "Not Vulnerable" %}</option>
+                                                <option value="Undefined">{% trans "Undefined" %}</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <!-- Risk Level Filter -->
+                                        <div class="col-md-3">
+                                            <label for="filterRiskLevel" class="form-label">{% trans "Risk Level" %}</label>
+                                            <select class="form-select form-select-sm" id="filterRiskLevel">
+                                                <option value="">{% trans "All Risk Levels" %}</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <!-- Treatment Status Filter -->
+                                        <div class="col-md-3">
+                                            <label for="filterTreatmentStatus" class="form-label">{% trans "Treatment Status" %}</label>
+                                            <select class="form-select form-select-sm" id="filterTreatmentStatus">
+                                                <option value="">{% trans "All Treatment Statuses" %}</option>
+                                                <option value="not_treated">{% trans "Not Treated" %}</option>
+                                                <option value="partially_treated">{% trans "Partially Treated" %}</option>
+                                                <option value="fully_treated">{% trans "Fully Treated" %}</option>
+                                            </select>
+                                        </div>
+                                        
+
+                                    </div>
+                                    
+                                    <!-- Search and saved filter presets -->
+                                    <div class="row g-1 align-items-end mt-1">
+                                        <div class="col-md-6">
+                                            <label for="filterSearch" class="form-label">{% trans "Search Assets" %}</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" class="form-control form-control-sm" id="filterSearch"
+                                                       placeholder="{% trans 'Search by Asset ID, Name, Description...' %}">
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" id="clearSearch" title="{% trans 'Clear search' %}">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 d-flex align-items-end">
+                                            <div class="btn-group sb-toolbar" role="group">
+                                                <button type="button" class="btn btn-outline-info btn-sm btn-icon-action" id="saveFilters"
+                                                        title="{% trans 'Save Filters' %}">
+                                                    <i class="bi bi-save"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="loadFilters"
+                                                        title="{% trans 'Load Filters' %}">
+                                                    <i class="bi bi-folder2-open"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Active Filters Display -->
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <div id="activeFilters" class="d-none">
+                                                <label class="form-label">
+                                                    <i class="fas fa-filter me-1"></i>{% trans "Active Filters" %}:
+                                                </label>
+                                                <div id="activeFiltersList" class="d-flex flex-wrap gap-2">
+                                                    <!-- Active filters will be displayed here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Filter Summary -->
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <div id="filterSummary" class="d-none">
+                                                <div class="alert alert-info alert-sm">
+                                                    <i class="fas fa-info-circle me-2"></i>
+                                                    <span id="filterSummaryText"></span>
+                                                    <span class="float-end">
+                                                        <i class="fas fa-table me-1"></i>
+                                                        <span id="recordCount">0</span> {% trans "records" %}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                        </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Filters -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="card border-secondary">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-bolt me-2 text-secondary"></i>{% trans "Quick Filters" %}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary quick-filter" data-filter="high-risk">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>{% trans "High Risk" %}
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning quick-filter" data-filter="vulnerable">
+                                            <i class="fas fa-shield-alt me-1"></i>{% trans "Vulnerable" %}
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success quick-filter" data-filter="treated">
+                                            <i class="fas fa-check-circle me-1"></i>{% trans "Fully Treated" %}
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info quick-filter" data-filter="recent">
+                                            <i class="fas fa-clock me-1"></i>{% trans "Recent" %}
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary quick-filter" data-filter="untreated">
+                                            <i class="fas fa-exclamation me-1"></i>{% trans "Untreated" %}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="showDeletedAssets">
+                        <label class="form-check-label" for="showDeletedAssets">
+                            <i class="fas fa-trash-alt me-1 text-danger"></i>{% trans "Show Inactive Assets" %}
+                        </label>
+                    </div>
+                    
+                    <div class="table-responsive table-fixed-header full-width-table">
+                        <table id="assetVulnerabilitiesTable" class="table table-hover table-sm table-sm-font sb-data-table table-striped w-100">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="30px"><input type="checkbox" id="selectAllAssetVulnerabilities"></th>
+                                    <th width="80px" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Unique identifier assigned to each information asset in the system' %}">
+                                        {% trans "ID" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                    <th width="100px" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Asset importance level based on confidentiality, integrity, and availability requirements' %}">
+                                        {% trans "Criticality" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                    <th data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Descriptive name or title of the information asset' %}">
+                                        {% trans "Name" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                    <th data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Organization or company that owns or manages this asset' %}">
+                                        {% trans "Company" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                    <th data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Asset category and specific type classification for organizational purposes' %}">
+                                        {% trans "Group/Type" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                    <th data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Detailed description of the asset, its purpose, and key characteristics' %}">
+                                        {% trans "Description" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                    <th width="280px" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Number of identified security vulnerabilities affecting this asset' %}">
+                                        {% trans "Vulnerabilities" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                    <th width="240px" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Risk levels with numbered indicators and counts for this asset' %}">
+                                        {% trans "Risk Levels" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                    <th width="100px" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                        title="{% trans 'Edit risk treatment plans or view complete treatment table with detailed information for this asset' %}">
+                                        {% trans "Treatment" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                    </th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                    {% include "app_risk/includes/risk_table_pagination_client.html" with pagination_id="assetVulnerabilitiesTablePagination" %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="alertContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1050"></div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="card-title m-0 h5">{% trans "Dashboard" %}</h3>
+                </div>
+                <div class="card-body p-0">
+                    {% include 'app_risk/risk_assessment_dashboard.html' %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'app_risk/modals/asset_vulnerabilities_modal.html' %}
+{% include 'app_risk/modals/vulnerabilities_details_modal.html' %}
+
+<!-- Acceptable Risk Modal -->
+<div class="modal fade" id="acceptableRiskModal" tabindex="-1" aria-labelledby="acceptableRiskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="acceptableRiskModalLabel">
+                    <i class="fas fa-check-circle me-2"></i>{% trans "Acceptable Risk Configuration" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-shield-alt me-2"></i>{% trans "Acceptable Risk Settings" %}
+                        </h5>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-light btn-sm" id="addAcceptableRiskBtn">
+                                <i class="fas fa-plus me-1"></i>{% trans "Add New" %}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive full-width-table">
+                            <table id="acceptableRiskTable" class="table table-hover table-sm table-sm-font sb-data-table table-striped w-100">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="30px">
+                                            <input type="checkbox" id="selectAllAcceptableRisk">
+                                        </th>
+                                        <th>{% trans "Company" %}</th>
+                                        <th>{% trans "Asset Group" %}</th>
+                                        <th>{% trans "Asset Type" %}</th>
+                                        <th>{% trans "Criticality Level" %}</th>
+                                        <th>{% trans "Acceptable Risk Level" %}</th>
+                                        <th>{% trans "Created" %}</th>
+                                        <th>{% trans "Updated" %}</th>
+                                        <th width="100px">{% trans "Actions" %}</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        {% include "app_risk/includes/risk_table_pagination_client.html" with pagination_id="acceptableRiskTablePagination" %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>{% trans "Close" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acceptable Risk Settings Modal -->
+<div class="modal fade" id="acceptableRiskSettingsModal" tabindex="-1" aria-labelledby="acceptableRiskSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="acceptableRiskSettingsModalLabel">
+                    <i class="fas fa-shield-alt me-2"></i>{% trans "Acceptable Risk Settings" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="acceptableRiskForm">
+                    <input type="hidden" id="acceptable-risk-id" name="id">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="acceptable-risk-company" class="form-label">{% trans "Company" %} *</label>
+                                <select class="form-select" id="acceptable-risk-company" name="company_id" required>
+                                    <option value="">{% trans "Select Company" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="acceptable-risk-asset-group" class="form-label">{% trans "Asset Group" %} *</label>
+                                <select class="form-select" id="acceptable-risk-asset-group" name="asset_group_id" required>
+                                    <option value="">{% trans "Select Asset Group" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="acceptable-risk-asset-type" class="form-label">{% trans "Asset Type" %}</label>
+                                <select class="form-select" id="acceptable-risk-asset-type" name="asset_type_id">
+                                    <option value="">{% trans "All Asset Types (Optional)" %}</option>
+                                </select>
+                                <div class="form-text">{% trans "Leave empty to apply to all asset types in the selected group" %}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="acceptable-risk-criticality" class="form-label">{% trans "Criticality Level" %} *</label>
+                                <select class="form-select" id="acceptable-risk-criticality" name="criticality_level_id" required>
+                                    <option value="">{% trans "Select Criticality Level" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="acceptable-risk-level" class="form-label">{% trans "Acceptable Risk Level" %} *</label>
+                                <select class="form-select" id="acceptable-risk-level" name="acceptable_risk_level_id" required>
+                                    <option value="">{% trans "Select Risk Level" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>{% trans "Note" %}:</strong> {% trans "This setting defines the maximum acceptable risk level for assets in the selected company and asset group with the specified criticality level." %}
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>{% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="saveAcceptableRiskBtn">
+                    <i class="fas fa-save me-1"></i>{% trans "Save" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% include 'app_risk/modals/risk_details_modal.html' %}
+{% include 'app_risk/modals/risk_treatment_modal.html' %}
+{% include 'app_risk/modals/view_risk_treatment_modal.html' %}
+
+<!-- Allowed Software Modal -->
+<div class="modal fade" id="allowedSoftwareModal" tabindex="-1" aria-labelledby="allowedSoftwareModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="allowedSoftwareModalLabel">
+                    <i class="fas fa-cubes me-2"></i>{% trans "Allowed Software Register" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-list me-2"></i>{% trans "Allowed Software Entries" %}
+                        </h5>
+                        <button type="button" class="btn btn-light btn-sm" id="addAllowedSoftwareBtn">
+                            <i class="fas fa-plus me-1"></i>{% trans "Add New" %}
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive full-width-table">
+                            <table id="allowedSoftwareTable" class="table table-hover table-sm table-sm-font sb-data-table table-striped w-100">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>{% trans "Company" %}</th>
+                                        <th>{% trans "ID" %}</th>
+                                        <th>{% trans "Software Name" %}</th>
+                                        <th>{% trans "Manufacturer" %}</th>
+                                        <th>{% trans "Group / Type" %}</th>
+                                        <th>{% trans "Status" %}</th>
+                                        <th>{% trans "Notes" %}</th>
+                                        <th>{% trans "Added" %}</th>
+                                        <th width="80px">{% trans "Actions" %}</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        {% include "app_risk/includes/risk_table_pagination_client.html" with pagination_id="allowedSoftwareTablePagination" %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>{% trans "Close" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Allowed Software Add/Edit Modal -->
+<div class="modal fade" id="allowedSoftwareFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="allowedSoftwareFormModalTitle">
+                    <i class="fas fa-plus me-2"></i>{% trans "Add Allowed Software" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="allowedSoftwareForm">
+                    <input type="hidden" id="allowed-sw-id" name="id">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="allowed-sw-company" class="form-label">{% trans "Company" %}</label>
+                            <select class="form-select" id="allowed-sw-company" name="company_id">
+                                <option value="">{% trans "All companies" %}</option>
+                            </select>
+                            <div class="form-text text-muted">{% trans "Leave blank to allow for all companies" %}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="allowed-sw-software" class="form-label">{% trans "Software" %} *</label>
+                            <select class="form-select" id="allowed-sw-software" name="software_register_id" required>
+                                <option value="">{% trans "Select Software" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="allowed-sw-notes" class="form-label">{% trans "Notes" %}</label>
+                        <textarea class="form-control" id="allowed-sw-notes" name="notes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="saveAllowedSoftwareBtn">
+                    <i class="fas fa-save me-1"></i>{% trans "Save" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Risk Assessment Guide Modal -->
+<div class="modal fade" id="riskAssessmentGuideModal" tabindex="-1" aria-labelledby="riskAssessmentGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'risk_assessment_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="riskAssessmentGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Risk Assessment Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="riskAssessmentGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'app_risk/css/risk_assessment-report-preview.css' %}">
+{% endblock %}
+
+{% block scripts %}
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/select/1.3.3/js/dataTables.select.min.js"></script>
+
+{{ can_edit|json_script:"can-edit" }}
+<script id="translations" type="application/json">
+{
+    "editVulnerabilities": "{% trans 'Edit Vulnerabilities' %}",
+    "viewVulnerabilities": "{% trans 'View Vulnerabilities' %}",
+    "editTreatment": "{% trans 'Edit Treatment' %}",
+    "viewRiskTreatment": "{% trans 'View Risk Treatment' %}",
+    "viewRiskDetails": "{% trans 'View Risk Details' %}",
+    "scope": "{% trans 'Scope' %}",
+    "riskMitigationControls": "{% trans 'Risk Mitigation Controls' %}",
+    "pciDssRequirement": "{% trans 'PCI DSS Requirement' %}",
+    "iso27001Requirement": "{% trans 'ISO 27001 Requirement' %}",
+    "note": "{% trans 'Note' %}",
+    "notSpecified": "{% trans 'Not specified' %}",
+    "no": "{% trans 'No' %}",
+    "undefined": "{% trans 'Undefined' %}",
+    "yes": "{% trans 'Yes' %}",
+    "comment": "{% trans 'Comment' %}",
+    "noVulnerabilities": "{% trans 'This Asset Type does not have any associated vulnerabilities.' %}",
+    "errorLoading": "{% trans 'Error loading vulnerabilities. Please try again.' %}",
+    "loadingRecords": "{% trans 'Loading...' %}",
+    "zeroRecords": "{% trans 'No records found' %}",
+    "emptyTable": "{% trans 'No data available in table' %}"
+}
+</script>
+<script id="language-config" type="application/json">
+{% if LANGUAGE_CODE == 'uk' %}{"url": "{% static 'js/dataTables.ukrainian.json'|escapejs %}"}{% elif LANGUAGE_CODE == 'ru' %}{"url": "{% static 'js/dataTables.russian.json'|escapejs %}"}{% else %}{}{% endif %}
+</script>
+<!-- Risk Assessment Guide modal: load content when shown -->
+<script>
+$(document).ready(function() {
+    var $guideModal = document.getElementById('riskAssessmentGuideModal');
+    if ($guideModal) {
+        $guideModal.addEventListener('show.bs.modal', function() {
+            var url = this.getAttribute('data-guide-url');
+            var body = document.getElementById('riskAssessmentGuideModalBody');
+            if (!body || !url) return;
+            body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .catch(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        });
+    }
+});
+</script>
+<script>
+$(document).ready(function() {
+
+    var riskDetailsTable;
+    var currentLanguage = '{{ LANGUAGE_CODE }}';
+    var canEdit = JSON.parse(document.getElementById('can-edit').textContent);
+    var translations = JSON.parse(document.getElementById('translations').textContent);
+    var languageConfig = {};
+    try {
+        languageConfig = JSON.parse(document.getElementById('language-config').textContent);
+    } catch (e) {
+        console.warn('Language config JSON invalid, using empty config:', e);
+    }
+    
+    // Initialize tooltips function
+    function initializeTooltips() {
+        // Dispose of existing tooltips first
+        var existingTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        existingTooltips.forEach(function(element) {
+            var tooltip = bootstrap.Tooltip.getInstance(element);
+            if (tooltip) {
+                tooltip.dispose();
+            }
+        });
+        
+        // Initialize new tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            // Check if the element has a valid title
+            var title = tooltipTriggerEl.getAttribute('title') || tooltipTriggerEl.getAttribute('data-bs-title');
+            if (title && title.trim() !== '') {
+                return new bootstrap.Tooltip(tooltipTriggerEl, {
+                    delay: { show: 500, hide: 100 },
+                    trigger: 'hover focus'
+                });
+            }
+            return null;
+        }).filter(function(tooltip) { return tooltip !== null; });
+        
+        return tooltipList;
+    }
+    
+    // Initialize tooltips on page load
+    initializeTooltips();
+    function getContrastColor(hexcolor) {
+        // If hexcolor is not provided or invalid, return black
+        if (!hexcolor || !/^#[0-9A-F]{6}$/i.test(hexcolor)) {
+            return '#000000';
+        }
+
+        // Convert hex to RGB
+        var r = parseInt(hexcolor.slice(1, 3), 16);
+        var g = parseInt(hexcolor.slice(3, 5), 16);
+        var b = parseInt(hexcolor.slice(5, 7), 16);
+
+        // Calculate luminance
+        var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+        // Return black for light colors, white for dark colors
+        return luminance > 0.5 ? '#000000' : '#FFFFFF';
+    }
+
+    // Встановлення CSRF-токену для всіх AJAX-запитів
+    $.ajaxSetup({
+        headers: { "X-CSRFToken": '{{ csrf_token }}' }
+    });
+
+    // Filter variables
+    var currentFilters = {};
+    var savedFilters = {};
+    
+    // Initialize filters
+    function initializeFilters() {
+        loadFilterData();
+        setupFilterEventHandlers();
+        loadSavedFilters();
+    }
+    
+    // Load filter data from server
+    function loadFilterData() {
+        // Load companies
+        $.get("{% url 'get_companies_api' %}")
+            .done(function(companies) {
+                const companySelect = $('#filterCompany');
+                companies.forEach(function(company) {
+                    companySelect.append(`<option value="${company.id}">${company.name}</option>`);
+                });
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Error loading companies:', error);
+            });
+        
+        // Load criticality levels
+        $.get("{% url 'get_acceptable_risk_reference_data' %}")
+            .done(function(data) {
+                const criticalitySelect = $('#filterCriticality');
+                data.criticality_levels.forEach(function(level) {
+                    criticalitySelect.append(`<option value="${level.id}">${level.name}</option>`);
+                });
+                
+                // Load risk levels
+                const riskLevelSelect = $('#filterRiskLevel');
+                data.risk_levels.forEach(function(level) {
+                    riskLevelSelect.append(`<option value="${level.id}">${level.name}</option>`);
+                });
+                
+                // Load initial asset groups and types (will be updated with available data)
+                loadAvailableAssetFilters();
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Error loading filter data:', error);
+            });
+    }
+    
+    // Load available asset filters based on current data
+    function loadAvailableAssetFilters() {
+        // Get current data to extract available asset groups and types
+        if (assetVulnerabilitiesTable && assetVulnerabilitiesTable.data().length > 0) {
+            updateAssetFiltersFromData(assetVulnerabilitiesTable.data().toArray());
+        } else {
+            // Load from reference data if no table data available
+            $.get("{% url 'get_acceptable_risk_reference_data' %}")
+                .done(function(data) {
+                    const assetGroupSelect = $('#filterAssetGroup');
+                    const assetTypeSelect = $('#filterAssetType');
+                    
+                    // Clear existing options except the first one
+                    assetGroupSelect.find('option:not(:first)').remove();
+                    assetTypeSelect.find('option:not(:first)').remove();
+                    
+                    // Load all asset groups
+                    data.asset_groups.forEach(function(group) {
+                        assetGroupSelect.append(`<option value="${group.id}">${group.name}</option>`);
+                    });
+                    
+                    // Load all asset types
+                    data.asset_types.forEach(function(assetType) {
+                        assetTypeSelect.append(`<option value="${assetType.id}" data-group="${assetType.group_id}">${assetType.name}</option>`);
+                    });
+                });
+        }
+    }
+    
+    // Update asset filters based on available data
+    function updateAssetFiltersFromData(data) {
+        // Show loading state
+        $('#filterAssetGroup').prop('disabled', true);
+        $('#filterAssetType').prop('disabled', true);
+        
+        // Update both filters using the new functions
+        updateAssetGroupFilter();
+        updateAssetTypeFilter();
+        
+        // Hide loading state
+        setTimeout(function() {
+            $('#filterAssetGroup').prop('disabled', false);
+            $('#filterAssetType').prop('disabled', false);
+        }, 100);
+    }
+    
+    // Setup filter event handlers
+    function setupFilterEventHandlers() {
+        // Asset group change handler to filter asset types
+        $('#filterAssetGroup').on('change', function() {
+            updateAssetTypeFilter();
+        });
+        
+        // Clear search
+        $('#clearSearch').on('click', function() {
+            $('#filterSearch').val('');
+            applyFilters();
+        });
+        
+        // Save filters
+        $('#saveFilters').on('click', function() {
+            saveCurrentFilters();
+        });
+        
+        // Load filters
+        $('#loadFilters').on('click', function() {
+            showSavedFiltersModal();
+        });
+        
+        // Search input with debounce
+        let searchTimeout;
+        $('#filterSearch').on('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                applyFilters();
+            }, 500);
+        });
+        
+        // Enter key in search
+        $('#filterSearch').on('keypress', function(e) {
+            if (e.which === 13) {
+                applyFilters();
+            }
+        });
+        
+        // Quick filter buttons
+        $('.quick-filter').on('click', function() {
+            const filterType = $(this).data('filter');
+            applyQuickFilter(filterType);
+        });
+    }
+    
+    // Helper function to check if asset type belongs to group
+    function checkAssetTypeBelongsToGroup(assetTypeName, groupName) {
+        // This is a simplified check - in a real implementation, you might want to use a mapping
+        // For now, we'll show all asset types when a group is selected
+        return true;
+    }
+    
+    // Update asset group filter to show only available groups
+    function updateAssetGroupFilter() {
+        const assetGroupSelect = $('#filterAssetGroup');
+        const currentValue = assetGroupSelect.val();
+        
+        // Show loading indicator
+        $('#assetGroupLoading').show();
+        $('#assetGroupCount').hide();
+        
+        // Get current data to extract available groups
+        if (assetVulnerabilitiesTable && assetVulnerabilitiesTable.data().length > 0) {
+            const data = assetVulnerabilitiesTable.data().toArray();
+            const availableGroups = new Set();
+            
+            data.forEach(function(row) {
+                if (row.group) {
+                    const groupParts = row.group.split('/');
+                    if (groupParts[0]) {
+                        availableGroups.add(groupParts[0]);
+                    }
+                }
+            });
+            
+            // Clear existing options except the first one
+            assetGroupSelect.find('option:not(:first)').remove();
+            
+            // Add available groups
+            availableGroups.forEach(function(groupName) {
+                assetGroupSelect.append(`<option value="${groupName}">${groupName}</option>`);
+            });
+            
+            // Restore selected value if it's still available
+            if (currentValue && availableGroups.has(currentValue)) {
+                assetGroupSelect.val(currentValue);
+            } else {
+                assetGroupSelect.val('');
+            }
+            
+            // Update count indicator
+            $('#assetGroupCount').text(`(${availableGroups.size})`);
+        }
+        
+        // Hide loading indicator and show count
+        setTimeout(function() {
+            $('#assetGroupLoading').hide();
+            $('#assetGroupCount').show();
+        }, 100);
+    }
+    
+    // Update asset type filter to show only available types
+    function updateAssetTypeFilter() {
+        const assetTypeSelect = $('#filterAssetType');
+        const currentValue = assetTypeSelect.val();
+        const selectedGroup = $('#filterAssetGroup').val();
+        
+        // Show loading indicator
+        $('#assetTypeLoading').show();
+        $('#assetTypeCount').hide();
+        
+        // Get current data to extract available types
+        if (assetVulnerabilitiesTable && assetVulnerabilitiesTable.data().length > 0) {
+            const data = assetVulnerabilitiesTable.data().toArray();
+            const availableTypes = new Set();
+            
+            data.forEach(function(row) {
+                if (row.group) {
+                    const groupParts = row.group.split('/');
+                    if (groupParts[1]) {
+                        // If a group is selected, only show types from that group
+                        if (!selectedGroup || groupParts[0] === selectedGroup) {
+                            availableTypes.add(groupParts[1]);
+                        }
+                    }
+                }
+            });
+            
+            // Clear existing options except the first one
+            assetTypeSelect.find('option:not(:first)').remove();
+            
+            // Add available types
+            availableTypes.forEach(function(typeName) {
+                assetTypeSelect.append(`<option value="${typeName}">${typeName}</option>`);
+            });
+            
+            // Restore selected value if it's still available
+            if (currentValue && availableTypes.has(currentValue)) {
+                assetTypeSelect.val(currentValue);
+            } else {
+                assetTypeSelect.val('');
+            }
+            
+            // Update count indicator
+            $('#assetTypeCount').text(`(${availableTypes.size})`);
+        }
+        
+        // Hide loading indicator and show count
+        setTimeout(function() {
+            $('#assetTypeLoading').hide();
+            $('#assetTypeCount').show();
+        }, 100);
+    }
+    
+    // Apply quick filter
+    function applyQuickFilter(filterType) {
+        // Clear existing filters first
+        clearAllFilters();
+        
+        // Remove active state from all quick filter buttons
+        $('.quick-filter').removeClass('active');
+        
+        // Add active state to clicked button
+        $(`.quick-filter[data-filter="${filterType}"]`).addClass('active');
+        
+        switch(filterType) {
+            case 'high-risk':
+                // Set risk level to high (you may need to adjust this based on your risk levels)
+                $('#filterRiskLevel').val('3'); // Assuming 3 is high risk level ID
+                break;
+            case 'vulnerable':
+                $('#filterVulnerabilityStatus').val('Yes');
+                break;
+            case 'treated':
+                $('#filterTreatmentStatus').val('fully_treated');
+                break;
+            case 'recent':
+                // Recent filter - could be based on last modified or other criteria
+                break;
+            case 'untreated':
+                $('#filterTreatmentStatus').val('not_treated');
+                break;
+        }
+        
+        applyFilters();
+    }
+    
+    // Apply current filters (also used by risk-assessment-filters.js on select change)
+    function applyFilters() {
+        currentFilters = {
+            company: $('#filterCompany').val(),
+            criticality: $('#filterCriticality').val(),
+            asset_group: $('#filterAssetGroup').val(),
+            asset_type: $('#filterAssetType').val(),
+            vulnerability_status: $('#filterVulnerabilityStatus').val(),
+            risk_level: $('#filterRiskLevel').val(),
+            treatment_status: $('#filterTreatmentStatus').val(),
+            search: $('#filterSearch').val(),
+            show_deleted: $('#showDeletedAssets').is(':checked')
+        };
+        
+        updateActiveFiltersDisplay();
+        
+        // Reload table with filters
+        assetVulnerabilitiesTable.ajax.reload(function() {
+            if (assetVulnerabilitiesTable.data().length > 0) {
+                updateAssetFiltersFromData(assetVulnerabilitiesTable.data().toArray());
+            }
+        });
+    }
+    window.applyFilters = applyFilters;
+
+    // Clear all filters
+    function clearAllFilters() {
+        $('#filterCompany').val('');
+        $('#filterCriticality').val('');
+        $('#filterAssetGroup').val('');
+        $('#filterAssetType').val('');
+        $('#filterVulnerabilityStatus').val('');
+        $('#filterRiskLevel').val('');
+        $('#filterTreatmentStatus').val('');
+        $('#filterRegistrationDate').val('');
+        $('#filterSearch').val('');
+        
+        // Clear quick filter active states
+        $('.quick-filter').removeClass('active');
+        
+        currentFilters = {};
+        updateActiveFiltersDisplay();
+        assetVulnerabilitiesTable.ajax.reload(function() {
+            if (assetVulnerabilitiesTable.data().length > 0) {
+                updateAssetFiltersFromData(assetVulnerabilitiesTable.data().toArray());
+            }
+        });
+    }
+    window.clearAllFilters = clearAllFilters;
+    
+    // Update active filters display
+    function updateActiveFiltersDisplay() {
+        const activeFiltersList = $('#activeFiltersList');
+        activeFiltersList.empty();
+        
+        let hasActiveFilters = false;
+        let activeFilterCount = 0;
+        
+        Object.keys(currentFilters).forEach(function(key) {
+            const value = currentFilters[key];
+            if (value && value !== '') {
+                hasActiveFilters = true;
+                activeFilterCount++;
+                const filterLabel = getFilterLabel(key, value);
+                const filterBadge = `
+                    <span class="badge bg-primary d-flex align-items-center">
+                        ${filterLabel}
+                        <button type="button" class="btn-close btn-close-white ms-2" 
+                                onclick="removeFilter('${key}')" style="font-size: 0.5rem;"></button>
+                    </span>
+                `;
+                activeFiltersList.append(filterBadge);
+            }
+        });
+        
+        if (hasActiveFilters) {
+            $('#activeFilters').removeClass('d-none');
+            updateFilterSummary(activeFilterCount);
+        } else {
+            $('#activeFilters').addClass('d-none');
+            $('#filterSummary').addClass('d-none');
+        }
+    }
+    
+    // Update filter summary
+    function updateFilterSummary(filterCount) {
+        const summaryText = `{% trans "Showing filtered results" %} (${filterCount} {% trans "active filters" %})`;
+        $('#filterSummaryText').text(summaryText);
+        $('#filterSummary').removeClass('d-none');
+    }
+    
+    // Get filter label for display
+    function getFilterLabel(key, value) {
+        const labels = {
+            company: 'Company',
+            criticality: 'Criticality',
+            asset_group: 'Asset Group',
+            asset_type: 'Asset Type',
+            vulnerability_status: 'Vulnerability Status',
+            risk_level: 'Risk Level',
+            treatment_status: 'Treatment Status',
+            search: 'Search'
+        };
+        
+        return `${labels[key] || key}: ${value}`;
+    }
+    
+    // Remove specific filter
+    function removeFilter(key) {
+        const filterId = 'filter' + key.charAt(0).toUpperCase() + key.slice(1);
+        $('#' + filterId).val('');
+        applyFilters();
+    }
+    
+    // Save current filters
+    function saveCurrentFilters() {
+        const filterName = prompt('{% trans "Enter a name for these filters" %}:');
+        if (filterName && filterName.trim() !== '') {
+            savedFilters[filterName] = {...currentFilters};
+            localStorage.setItem('riskAssessmentFilters', JSON.stringify(savedFilters));
+            showAlert('success', `{% trans "Filters saved as" %}: ${filterName}`);
+        }
+    }
+    
+    // Load saved filters
+    function loadSavedFilters() {
+        const saved = localStorage.getItem('riskAssessmentFilters');
+        if (saved) {
+            try {
+                savedFilters = JSON.parse(saved);
+            } catch (e) {
+                console.error('Error parsing saved filters:', e);
+                savedFilters = {};
+            }
+        }
+    }
+    
+    // Show saved filters modal
+    function showSavedFiltersModal() {
+        const filterNames = Object.keys(savedFilters);
+        
+        if (filterNames.length === 0) {
+            showAlert('info', '{% trans "No saved filters found" %}');
+            return;
+        }
+        
+        let modalHtml = `
+            <div class="modal fade" id="savedFiltersModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">{% trans "Saved Filters" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="list-group">
+        `;
+        
+        filterNames.forEach(function(name) {
+            modalHtml += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>${name}</span>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-primary" onclick="loadFilterSet('${name}')">
+                            <i class="fas fa-folder-open"></i> {% trans "Load" %}
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" onclick="deleteFilterSet('${name}')">
+                            <i class="fas fa-trash"></i> {% trans "Delete" %}
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        modalHtml += `
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        $('#savedFiltersModal').remove();
+        $('body').append(modalHtml);
+        $('#savedFiltersModal').modal('show');
+    }
+    
+    // Load a specific filter set
+    function loadFilterSet(filterName) {
+        const filterSet = savedFilters[filterName];
+        if (filterSet) {
+            $('#filterCompany').val(filterSet.company || '');
+            $('#filterCriticality').val(filterSet.criticality || '');
+            $('#filterAssetGroup').val(filterSet.asset_group || '');
+            $('#filterAssetType').val(filterSet.asset_type || '');
+            $('#filterVulnerabilityStatus').val(filterSet.vulnerability_status || '');
+            $('#filterRiskLevel').val(filterSet.risk_level || '');
+            $('#filterTreatmentStatus').val(filterSet.treatment_status || '');
+            $('#filterSearch').val(filterSet.search || '');
+            
+            currentFilters = {...filterSet};
+            updateActiveFiltersDisplay();
+            applyFilters();
+            
+            var savedModalEl = document.getElementById('savedFiltersModal');
+            if (savedModalEl && window.bootstrap && bootstrap.Modal) {
+                var inst = bootstrap.Modal.getInstance(savedModalEl);
+                if (inst) {
+                    inst.hide();
+                }
+            }
+            showAlert('success', `{% trans "Filters loaded" %}: ${filterName}`);
+        }
+    }
+    
+    // Delete a filter set
+    function deleteFilterSet(filterName) {
+        if (confirm(`{% trans "Are you sure you want to delete the filter set" %}: ${filterName}?`)) {
+            delete savedFilters[filterName];
+            localStorage.setItem('riskAssessmentFilters', JSON.stringify(savedFilters));
+            $('#savedFiltersModal').modal('hide');
+            showSavedFiltersModal(); // Refresh the modal
+            showAlert('success', `{% trans "Filter set deleted" %}: ${filterName}`);
+        }
+    }
+    
+    // Get risk level color
+    function getRiskLevelColor(levelName) {
+        const colorMap = {
+            'Critical': '#dc3545',
+            'High': '#fd7e14', 
+            'Medium': '#ffc107',
+            'Low': '#20c997',
+            'Minimal': '#6f42c1',
+            'Absent': '#6c757d'
+        };
+        return colorMap[levelName] || '#6c757d';
+    }
+    
+    // Global function to view risks for asset
+    window.viewRisksForAsset = function(assetId) {
+        if (typeof window.showRiskDetails === 'function') {
+            window.showRiskDetails(assetId);
+        } else {
+            console.error("showRiskDetails function is not available");
+        }
+    };
+    
+    // Make functions globally accessible
+    window.removeFilter = removeFilter;
+    window.loadFilterSet = loadFilterSet;
+    window.deleteFilterSet = deleteFilterSet;
+    
+    var assetVulnerabilitiesTable = $('#assetVulnerabilitiesTable').DataTable({
+        "serverSide": true,
+        "processing": true,
+        "dom": '<"row"<"col-sm-12"tr>>',
+        "lengthChange": false,
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "ajax": {
+            "url": "{% url 'asset_vulnerabilities_data' %}",
+            "data": function(d) {
+                d.showDeleted = $('#showDeletedAssets').is(':checked');
+                // Add filter parameters
+                Object.keys(currentFilters).forEach(function(key) {
+                    if (currentFilters[key] && currentFilters[key] !== '') {
+                        d[key] = currentFilters[key];
+                    }
+                });
+            }
+        },
+        "columns": [
+            {
+                "data": null,
+                "defaultContent": '',
+                "orderable": false,
+                "searchable": false,
+                "className": 'select-checkbox'
+            },
+            {"data": "asset_id", "name": "asset_id", "render": function(data, type, row) {
+                if (row.row_type === 'software') {
+                    return '<span class="badge bg-info me-1" title="{% trans "Software" %}">SW</span>' + data;
+                }
+                if (row.row_type === 'external_media') {
+                    return '<span class="badge bg-primary me-1" title="{% trans "External Media" %}">EM</span>' + data;
+                }
+                return data;
+            }},
+            {"data": "criticality", "name": "criticality", "render": function(data, type, row) {
+                if (type === 'display') {
+                    // Access the correct criticality name based on the language
+                    var criticalityName = data.text;
+
+                    // Create a span with improved styling:
+                    return '<span class="badge fw-medium" style="background-color: ' + data.color + 
+                           '; color: ' + getContrastColor(data.color) + 
+                           '; padding: 6px 10px; font-size: 0.875rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                           criticalityName + '</span>';
+                }
+                // For non-display cases (like sorting), use the cost
+                return data.cost;
+            }},
+            {"data": "name", "name": "name"},
+            {"data": "company", "name": "company__name"},
+            {"data": "group", "name": "group__name"},
+            {"data": "description", "name": "description"},
+            {
+                "data": null,
+                "name": "vulnerabilities",
+                "render": function(data, type, row) {
+                    var vulnerabilitiesContent = '';
+                    // Show "Undefined" only if there are no AssetVulnerability records at all (not assessed)
+                    // If there are records but all have status 'No' or 'Undefined', show 0
+                    var isSoftware = row.row_type === 'software';
+                    var isExternalMedia = row.row_type === 'external_media';
+                    if (data.total_vulnerabilities_count === 0 || data.total_vulnerabilities_count === undefined) {
+                        vulnerabilitiesContent = '<span class="badge bg-secondary">Undefined</span>';
+                    } else if (data.vulnerabilities > 0) {
+                        if (isSoftware) {
+                            vulnerabilitiesContent = '<a href="#" class="show-sw-vulnerabilities" data-sw-id="' + row.id + '">' +
+                                                     '<span class="badge bg-danger">' + data.vulnerabilities + '</span></a>';
+                        } else if (isExternalMedia) {
+                            vulnerabilitiesContent = '<a href="#" class="show-em-vulnerabilities" data-em-id="' + row.id + '">' +
+                                                     '<span class="badge bg-danger">' + data.vulnerabilities + '</span></a>';
+                        } else {
+                            vulnerabilitiesContent = '<a href="#" class="show-vulnerabilities" data-asset-id="' + row.id + '">' +
+                                                     '<span class="badge bg-danger">' + data.vulnerabilities + '</span></a>';
+                        }
+                    } else {
+                        // Has records but all are 'No' or 'Undefined', show 0
+                        vulnerabilitiesContent = '<span class="badge bg-secondary">0</span>';
+                    }
+                    if (canEdit) {
+                        if (isSoftware) {
+                            vulnerabilitiesContent += ' <button class="btn btn-sm btn-outline-primary btn-icon-action ms-1 open-sw-vulnerabilities-modal" data-sw-id="' + row.id + '" title="' + translations.editVulnerabilities + '">' +
+                                                      '<i class="bi bi-pencil"></i></button>';
+                        } else if (isExternalMedia) {
+                            vulnerabilitiesContent += ' <button class="btn btn-sm btn-outline-primary btn-icon-action ms-1 open-em-vulnerabilities-modal" data-em-id="' + row.id + '" title="' + translations.editVulnerabilities + '">' +
+                                                      '<i class="bi bi-pencil"></i></button>';
+                        } else {
+                            vulnerabilitiesContent += ' <button class="btn btn-sm btn-outline-primary btn-icon-action ms-1 open-vulnerabilities-modal" data-asset-id="' + row.id + '" title="' + translations.editVulnerabilities + '">' +
+                                                      '<i class="bi bi-pencil"></i></button>';
+                        }
+                    }
+
+                    return vulnerabilitiesContent;
+                }
+            },
+            {
+                "data": null,
+                "name": "risk_levels",
+                "orderable": false,
+                "searchable": false,
+                "render": function(data, type, row) {
+                    var riskLevelsHtml = '';
+                    
+                    if ((data.risk_levels_yes && Object.keys(data.risk_levels_yes).length > 0) || 
+                        (data.risk_levels_no && Object.keys(data.risk_levels_no).length > 0)) {
+                        
+                        riskLevelsHtml = '<div class="risk-levels-container">';
+
+                        var clickHandler = row.row_type === 'software'
+                            ? 'viewRisksForSoftware(' + row.id + ')'
+                            : (row.row_type === 'external_media'
+                                ? 'viewRisksForExternalMedia(' + row.id + ')'
+                                : 'viewRisksForAsset(' + row.id + ')');
+
+                        function buildRiskIndicator(levelName, count, color, statusLabel) {
+                            var abbr = levelName.replace(/\s+/g, '').substring(0, 3).toUpperCase();
+                            var textColor = getContrastColor(color);
+                            var tooltip = levelName + ': ' + count + ' — ' + statusLabel;
+                            return '<span class="risk-indicator-small"' +
+                                   ' style="background-color:' + color + ';color:' + textColor + ';"' +
+                                   ' data-bs-toggle="tooltip"' +
+                                   ' data-bs-placement="top"' +
+                                   ' title="' + tooltip + '"' +
+                                   ' onclick="' + clickHandler + '">' +
+                                   '<span class="risk-abbr">' + abbr + '</span>' +
+                                   '<span class="risk-count">' + count + '</span>' +
+                                   '</span>';
+                        }
+                        
+                        // Yes status row
+                        if (data.risk_levels_yes && Object.keys(data.risk_levels_yes).length > 0) {
+                            riskLevelsHtml += '<div class="risk-level-row">';
+                            riskLevelsHtml += '<span class="risk-level-label yes-label" title="{% trans "Vulnerability confirmed" %}"><i class="fas fa-check"></i></span>';
+                            
+                            var sortedRiskLevelsYes = Object.keys(data.risk_levels_yes).sort();
+                            sortedRiskLevelsYes.forEach(function(levelName) {
+                                var count = data.risk_levels_yes[levelName];
+                                var color = (data.risk_levels_colors && data.risk_levels_colors[levelName]) ? 
+                                           data.risk_levels_colors[levelName] : getRiskLevelColor(levelName);
+                                riskLevelsHtml += buildRiskIndicator(levelName, count, color, '{% trans "Yes" %}');
+                            });
+                            riskLevelsHtml += '</div>';
+                        }
+
+                        // Divider between Yes and No rows
+                        if (data.risk_levels_yes && Object.keys(data.risk_levels_yes).length > 0 &&
+                            data.risk_levels_no  && Object.keys(data.risk_levels_no).length > 0) {
+                            riskLevelsHtml += '<hr class="risk-levels-divider">';
+                        }
+                        
+                        // No status row
+                        if (data.risk_levels_no && Object.keys(data.risk_levels_no).length > 0) {
+                            riskLevelsHtml += '<div class="risk-level-row">';
+                            riskLevelsHtml += '<span class="risk-level-label no-label" title="{% trans "Vulnerability not confirmed" %}"><i class="fas fa-times"></i></span>';
+                            
+                            var sortedRiskLevelsNo = Object.keys(data.risk_levels_no).sort();
+                            sortedRiskLevelsNo.forEach(function(levelName) {
+                                var count = data.risk_levels_no[levelName];
+                                var color = (data.risk_levels_colors && data.risk_levels_colors[levelName]) ? 
+                                           data.risk_levels_colors[levelName] : getRiskLevelColor(levelName);
+                                riskLevelsHtml += buildRiskIndicator(levelName, count, color, '{% trans "No" %}');
+                            });
+                            riskLevelsHtml += '</div>';
+                        }
+                        
+                        riskLevelsHtml += '</div>';
+                        
+                        // Add Risk Details button
+                        var detailsBtnClass, detailsDataAttr;
+                        if (row.row_type === 'software') {
+                            detailsBtnClass = 'view-sw-risk-details';
+                            detailsDataAttr = 'data-sw-id="' + row.id + '"';
+                        } else if (row.row_type === 'external_media') {
+                            detailsBtnClass = 'view-em-risk-details';
+                            detailsDataAttr = 'data-em-id="' + row.id + '"';
+                        } else {
+                            detailsBtnClass = 'view-risk-details';
+                            detailsDataAttr = 'data-asset-id="' + row.id + '"';
+                        }
+                    } else {
+                        riskLevelsHtml = '<span class="text-muted">-</span>';
+                    }
+                    
+                    return riskLevelsHtml;
+                }
+            },
+            {
+                "data": null,
+                "orderable": false,
+                "searchable": false,
+                "render": function(data, type, row) {
+                    if (row.row_type === 'software') {
+                        return '<div class="d-flex gap-1 mb-1">' +
+                               '<button class="btn btn-sm btn-outline-secondary btn-icon-action view-risk-treatment" data-asset-id="' + row.asset_id + '" title="' + translations.editTreatment + '">' +
+                               '<i class="bi bi-pencil"></i></button>' +
+                               '<button class="btn btn-sm btn-outline-info btn-icon-action view-risk-treatment-table" data-asset-id="' + row.asset_id + '" title="' + translations.viewRiskTreatment + '">' +
+                               '<i class="bi bi-table"></i></button>' +
+                               '</div>' +
+                               '<small class="d-block text-muted mt-1">{% trans "Software Register" %}</small>';
+                    }
+                    if (row.row_type === 'external_media') {
+                        return '<div class="d-flex gap-1 mb-1">' +
+                               '<button class="btn btn-sm btn-outline-secondary btn-icon-action view-risk-treatment" data-asset-id="' + row.asset_id + '" title="' + translations.editTreatment + '">' +
+                               '<i class="bi bi-pencil"></i></button>' +
+                               '<button class="btn btn-sm btn-outline-info btn-icon-action view-risk-treatment-table" data-asset-id="' + row.asset_id + '" title="' + translations.viewRiskTreatment + '">' +
+                               '<i class="bi bi-table"></i></button>' +
+                               '</div>' +
+                               '<small class="d-block text-muted mt-1">{% trans "External Media Register" %}</small>';
+                    }
+                    var totalVulnerabilities = data.vulnerabilities || 0;
+                    var treatedVulnerabilities = data.treated_vulnerabilities || 0;
+                    
+                    var btnClass = treatedVulnerabilities === 0 ? 'btn-outline-secondary' : 
+                                  (treatedVulnerabilities < totalVulnerabilities ? 'btn-outline-warning' : 'btn-outline-success');
+                    
+                    if (canEdit) {
+                        return '<div class="d-flex gap-1 mb-1">' +
+                               '<button class="btn btn-sm ' + btnClass + ' btn-icon-action view-risk-treatment" data-asset-id="' + row.id + '" title="' + translations.editTreatment + '">' +
+                               '<i class="bi bi-pencil"></i></button>' +
+                               '<button class="btn btn-sm btn-outline-info btn-icon-action view-risk-treatment-table" data-asset-id="' + row.id + '" title="' + translations.viewRiskTreatment + '">' +
+                               '<i class="bi bi-table"></i></button>' +
+                               '</div>' +
+                               '<div class="progress mt-1" style="height: 6px;">' +
+                               '<div class="progress-bar bg-info" role="progressbar" style="width: ' + 
+                               (totalVulnerabilities > 0 ? (treatedVulnerabilities/totalVulnerabilities*100) : 0) + 
+                               '%"></div></div>' +
+                               '<small class="d-block text-center mt-1">' + treatedVulnerabilities + '/' + totalVulnerabilities + '</small>';
+                    } else {
+                        return '<div class="d-flex gap-1 mb-1">' +
+                               '<button class="btn btn-sm btn-outline-info btn-icon-action view-risk-treatment-table" data-asset-id="' + row.id + '" title="' + translations.viewRiskTreatment + '">' +
+                               '<i class="bi bi-table"></i></button>' +
+                               '</div>' +
+                               '<div class="progress mt-1" style="height: 6px;">' +
+                               '<div class="progress-bar bg-info" role="progressbar" style="width: ' + 
+                               (totalVulnerabilities > 0 ? (treatedVulnerabilities/totalVulnerabilities*100) : 0) + 
+                               '%"></div></div>' +
+                               '<small class="d-block text-center mt-1">' + treatedVulnerabilities + '/' + totalVulnerabilities + '</small>';
+                    }
+                }
+            }
+        ],
+        "createdRow": function(row, data, dataIndex) {
+            if (data.deletion_date) {
+                $(row).addClass('deleted-asset');
+                $('td', row).addClass('deleted-asset-cell');
+            }
+            if (data.row_type === 'software') {
+                $(row).addClass('software-register-row');
+            }
+            if (data.row_type === 'external_media') {
+                $(row).addClass('external-media-register-row');
+            }
+        },
+        "language": Object.assign({
+            "loadingRecords": translations.loadingRecords,
+            "zeroRecords": translations.zeroRecords,
+            "emptyTable": translations.emptyTable
+        }, languageConfig),
+        'select': {
+            'style': 'multi',
+            'selector': 'td:first-child'
+        },
+        'order': [[1, 'asc']],
+        'initComplete': function() {
+            if (window.initRiskDataTablePagination) {
+                window.initRiskDataTablePagination({
+                    api: this.api(),
+                    containerId: 'assetVulnerabilitiesTablePagination',
+                    paginationAriaLabel: '{% trans "Asset vulnerabilities pagination" %}',
+                    labels: {
+                        showing: '{% trans "Showing" %}',
+                        of: '{% trans "of" %}',
+                        items: '{% trans "records" %}',
+                        perPage: '{% trans "Per page" %}'
+                    }
+                });
+            }
+        },
+        'drawCallback': function() {
+            // Re-initialize tooltips after table redraw
+            setTimeout(function() {
+                initializeTooltips();
+            }, 100);
+            
+            // Update record count
+            const recordCount = this.api().data().length;
+            $('#recordCount').text(recordCount);
+            
+            // Update available asset filters based on current data
+            if (this.api().data().length > 0) {
+                updateAssetFiltersFromData(this.api().data().toArray());
+            }
+        }
+    });
+
+    function formatDateTime(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        return date.toLocaleString('uk-UA', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZone: 'Europe/Kiev'
+        });
+    }
+    // Додайте цю функцію, якщо ви хочете оновити відображення часу для існуючих рядків
+    function updateLastModifiedDisplay() {
+        assetVulnerabilitiesTable.rows().every(function(rowIdx, tableLoop, rowLoop) {
+            var data = this.data();
+            if (data.last_modified && data.last_modified.date && data.last_modified.time) {
+                var formattedTime = formatKyivTime(data.last_modified.date + 'T' + data.last_modified.time);
+                this.data().last_modified = formattedTime + '<br>' + data.last_modified.user;
+            }
+        });
+        assetVulnerabilitiesTable.draw();
+    }
+    // Handle "View Risks" button click
+    $('#assetVulnerabilitiesTable').on('click', '.view-risks', function() {
+        var assetId = $(this).data('asset-id');
+        if (typeof window.showRiskDetails === 'function') {
+            window.showRiskDetails(assetId);
+        } else {
+            console.error("showRiskDetails function is not available");
+            showAlert('error', 'Unable to show risk details: Function not available');
+        }
+    });
+
+
+    $('#assetVulnerabilitiesTable').on('click', '.view-risk-treatment', function() {
+        var assetId = $(this).data('asset-id');
+        console.log("Risk Treatment button clicked for asset ID:", assetId);
+        if (assetId) {
+            if (typeof window.loadRiskTreatmentData === 'function') {
+                window.loadRiskTreatmentData(assetId);
+            } else {
+                console.error("loadRiskTreatmentData function is not available");
+                showAlert('error', 'Unable to load risk treatment data: Function not available');
+            }
+        } else {
+            console.error("Asset ID is undefined");
+            showAlert('error', 'Unable to load risk treatment data: Asset ID is missing');
+        }
+    });
+
+    // Handle "View Risk Treatment Table" button click
+    $('#assetVulnerabilitiesTable').on('click', '.view-risk-treatment-table', function() {
+        var assetId = $(this).data('asset-id');
+        console.log("View Risk Treatment Table button clicked for asset ID:", assetId);
+        if (assetId) {
+            if (typeof window.showRiskTreatmentTable === 'function') {
+                window.showRiskTreatmentTable(assetId);
+            } else {
+                console.error("showRiskTreatmentTable function is not available");
+                showAlert('error', 'Unable to show risk treatment table: Function not available');
+            }
+        } else {
+            console.error("Asset ID is undefined");
+            showAlert('error', 'Unable to show risk treatment table: Asset ID is missing');
+        }
+    });
+
+    // Handle "View Risk Details" button click
+    $('#assetVulnerabilitiesTable').on('click', '.view-risk-details', function() {
+        var assetId = $(this).data('asset-id');
+        console.log("View Risk Details button clicked for asset ID:", assetId);
+        if (assetId) {
+            if (typeof window.viewRisksForAsset === 'function') {
+                window.viewRisksForAsset(assetId);
+            } else {
+                console.error("viewRisksForAsset function is not available");
+                showAlert('error', 'Unable to show risk details: Function not available');
+            }
+        } else {
+            console.error("Asset ID is undefined");
+            showAlert('error', 'Unable to show risk details: Asset ID is missing');
+        }
+    });
+
+
+
+
+
+    // Обробник подій для відкриття модального вікна
+    $('#assetVulnerabilitiesTable').on('click', '.open-vulnerabilities-modal', function() {
+        var assetId = $(this).data('asset-id');
+        console.log("Opening modal for asset ID:", assetId);
+        openVulnerabilitiesModal(assetId);
+    });
+
+    $('#assetVulnerabilitiesTable').on('click', '.show-vulnerabilities', function(e) {
+        e.preventDefault();
+        var assetId = $(this).data('asset-id');
+        if (typeof window.showVulnerabilitiesDetails === 'function') {
+            window.showVulnerabilitiesDetails(assetId);
+        } else {
+            console.error("showVulnerabilitiesDetails function is not available");
+            showAlert('error', 'Unable to show vulnerabilities details: Function not available');
+        }
+    });
+
+    // Software-specific handlers
+    $('#assetVulnerabilitiesTable').on('click', '.open-sw-vulnerabilities-modal', function() {
+        var swId = $(this).data('sw-id');
+        if (typeof window.openVulnerabilitiesModalForSoftware === 'function') {
+            window.openVulnerabilitiesModalForSoftware(swId);
+        }
+    });
+
+    $('#assetVulnerabilitiesTable').on('click', '.open-em-vulnerabilities-modal', function() {
+        var emId = $(this).data('em-id');
+        if (typeof window.openVulnerabilitiesModalForExternalMedia === 'function') {
+            window.openVulnerabilitiesModalForExternalMedia(emId);
+        }
+    });
+
+    $('#assetVulnerabilitiesTable').on('click', '.show-sw-vulnerabilities', function(e) {
+        e.preventDefault();
+        var swId = $(this).data('sw-id');
+        if (typeof window.openVulnerabilitiesModalForSoftware === 'function') {
+            window.openVulnerabilitiesModalForSoftware(swId);
+        }
+    });
+
+    $('#assetVulnerabilitiesTable').on('click', '.show-em-vulnerabilities', function(e) {
+        e.preventDefault();
+        var emId = $(this).data('em-id');
+        if (typeof window.openVulnerabilitiesModalForExternalMedia === 'function') {
+            window.openVulnerabilitiesModalForExternalMedia(emId);
+        }
+    });
+
+    $('#assetVulnerabilitiesTable').on('click', '.view-sw-risk-details', function() {
+        var swId = $(this).data('sw-id');
+        viewRisksForSoftware(swId);
+    });
+
+
+    $('#assetVulnerabilitiesTable').on('click', '.view-em-risk-details', function() {
+        var emId = $(this).data('em-id');
+        viewRisksForExternalMedia(emId);
+    });
+
+
+    function viewRisksForSoftware(swId) {
+        $.ajax({
+            url: "{% url 'get_software_risks' %}",
+            data: { software_id: swId },
+            success: function(response) {
+                if (typeof window.showRiskDetailsFromData === 'function') {
+                    window.showRiskDetailsFromData(response);
+                } else if (typeof window.viewRisksForAsset === 'function') {
+                    // Fallback: reuse asset risk modal with software data by passing via the same flow
+                    // Since the risks modal reads from get_asset_risks, we simulate it
+                    console.log("Software risk data:", response);
+                    showAlert('info', '{% trans "Risk details loaded. Please use the Risk Details modal." %}');
+                } else {
+                    console.log("Software risks:", response);
+                }
+            },
+            error: function(xhr) {
+                showAlert('error', '{% trans "Error loading risk details for software." %}');
+            }
+        });
+    }
+
+    function viewRisksForExternalMedia(emId) {
+        $.ajax({
+            url: "{% url 'get_external_media_risks' %}",
+            data: { external_media_id: emId },
+            success: function(response) {
+                if (typeof window.showRiskDetailsFromData === 'function') {
+                    window.showRiskDetailsFromData(response);
+                } else {
+                    console.log("External media risks:", response);
+                }
+            },
+            error: function() {
+                showAlert('error', '{% trans "Error loading risk details for external media." %}');
+            }
+        });
+    }
+    // Expose for inline onclick in risk indicators
+    window.viewRisksForSoftware = viewRisksForSoftware;
+    window.viewRisksForExternalMedia = viewRisksForExternalMedia;
+
+    $('#showDeletedAssets').on('change', function() {
+        applyFilters();
+    });
+    
+    // Initialize filters when document is ready
+    initializeFilters();
+    
+    // Keyboard shortcuts
+    $(document).on('keydown', function(e) {
+        // Ctrl/Cmd + F to toggle filters
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            document.getElementById('toggleRiskFilters')?.click();
+        }
+        
+        // Escape to clear all filters
+        if (e.key === 'Escape') {
+            clearAllFilters();
+        }
+    });
+
+    function openVulnerabilitiesModal(assetId) {
+        $.ajax({
+            url: "{% url 'get_asset_vulnerabilities' %}",
+            data: {asset_id: assetId},
+            success: function(response) {
+                console.log("Received vulnerabilities data:", response);
+                if (response.vulnerabilities && response.vulnerabilities.length > 0) {
+                    let html = '';
+                    response.vulnerabilities.forEach(function(vulnerability) {
+                        const av = response.asset_vulnerabilities[vulnerability.id];
+                        html += `
+                            <div class="mb-3">
+                                <h5>${vulnerability.vulnerability}</h5>
+                                <p><strong>{% trans "Scope" %}:</strong> ${vulnerability.scope || "{% trans 'Not specified' %}"}</p>
+                                <p><strong>{% trans "Risk Mitigation Controls" %}:</strong> ${vulnerability.risk_mitigation_controls || "{% trans 'Not specified' %}"}</p>
+                                <p><strong>{% trans "PCI DSS Requirement" %}:</strong> ${vulnerability.pci_dss_requirement || "{% trans 'Not specified' %}"}</p>
+                                <p><strong>{% trans "ISO 27001 Requirement" %}:</strong> ${vulnerability.iso27001_requirement || "{% trans 'Not specified' %}"}</p>
+                                <p><strong>{% trans "Note" %}:</strong> ${vulnerability.note || "{% trans 'Not specified' %}"}</p>
+                                <div class="d-flex align-items-center">
+                                    <div class="btn-group" role="group">
+                                        <input type="radio" class="btn-check vulnerability-toggle" name="vuln_${vulnerability.id}" id="vuln_${vulnerability.id}_no" value="No" ${(!av || av.status === 'No') ? 'checked' : ''}>
+                                        <label class="btn btn-outline-danger" for="vuln_${vulnerability.id}_no">{% trans "No" %}</label>
+
+                                        <input type="radio" class="btn-check vulnerability-toggle" name="vuln_${vulnerability.id}" id="vuln_${vulnerability.id}_undefined" value="Undefined" ${(!av || av.status === 'Undefined') ? 'checked' : ''}>
+                                        <label class="btn btn-outline-warning" for="vuln_${vulnerability.id}_undefined">{% trans "Undefined" %}</label>
+
+                                        <input type="radio" class="btn-check vulnerability-toggle" name="vuln_${vulnerability.id}" id="vuln_${vulnerability.id}_yes" value="Yes" ${(av && av.status === 'Yes') ? 'checked' : ''}>
+                                        <label class="btn btn-outline-success" for="vuln_${vulnerability.id}_yes">{% trans "Yes" %}</label>
+                                    </div>
+                                    <input type="text" class="form-control ms-2 vulnerability-comment" placeholder="{% trans 'Comment' %}" value="${av ? av.comment : ''}">
+                                </div>
+                            </div>
+                        `;
+                    });
+                    $('#vulnerabilitiesForm').html(html);
+                } else {
+                    $('#vulnerabilitiesForm').html('<div class="alert alert-info">{% trans "This Asset Type does not have any associated vulnerabilities." %}</div>');
+                }
+                $('#assetVulnerabilitiesModal').modal('show');
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading vulnerabilities:", error);
+                let errorMessage = '{% trans "Error loading vulnerabilities. Please try again." %}';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage += ' ' + xhr.responseJSON.error;
+                }
+                $('#vulnerabilitiesForm').html('<div class="alert alert-danger">' + errorMessage + '</div>');
+                $('#assetVulnerabilitiesModal').modal('show');
+            }
+        });
+    }
+
+
+    // Save vulnerabilities: handled in asset_vulnerabilities_modal.html (asset + software_register)
+
+    // Handle "Select All" checkbox
+    $('#selectAllAssetVulnerabilities').on('click', function(){
+        if(this.checked){
+            assetVulnerabilitiesTable.rows().select();
+        } else {
+            assetVulnerabilitiesTable.rows().deselect();
+        }
+    });
+
+    // Оновлення стану "Select All" чекбоксу
+    assetVulnerabilitiesTable.on('select deselect', function () {
+        var selectedRows = assetVulnerabilitiesTable.rows({ selected: true }).count();
+        var totalRows = assetVulnerabilitiesTable.rows().count();
+        $('#selectAllAssetVulnerabilities').prop('checked', selectedRows === totalRows);
+    });
+
+    // Export function for Asset Vulnerabilities
+    $('#exportAssetVulnerabilities').on('click', function(){
+        var selectedRows = assetVulnerabilitiesTable.rows({selected: true}).data();
+        if(selectedRows.length === 0) {
+            alert("{% trans 'Please select at least one row to export.' %}");
+            return;
+        }
+        var ids = $.map(selectedRows, function(row){ return row.id; });
+        window.location.href = "{% url 'export_asset_vulnerabilities' %}?ids=" + ids.join(',');
+    });
+
+    function showAlert(type, message) {
+        var alertClass = type === 'success' ? 'alert-success' :
+                         type === 'error' ? 'alert-danger' :
+                         'alert-info';
+        
+        var icon = type === 'success' ? '<i class="fas fa-check-circle me-2"></i>' :
+                   type === 'error' ? '<i class="fas fa-exclamation-circle me-2"></i>' :
+                   '<i class="fas fa-info-circle me-2"></i>';
+        
+        var alertHtml = `
+            <div class="alert ${alertClass} alert-dismissible fade show shadow-sm" role="alert">
+                ${icon}${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        
+        $('#alertContainer').append(alertHtml);
+        
+        // Auto-dismiss (Bootstrap 5: avoid jQuery .alert('close') — it can throw if element is gone)
+        setTimeout(function() {
+            var el = document.querySelector('#alertContainer .alert');
+            if (!el) return;
+            if (window.bootstrap && bootstrap.Alert) {
+                try {
+                    (bootstrap.Alert.getInstance(el) || bootstrap.Alert.getOrCreateInstance(el)).close();
+                } catch (e) {
+                    el.remove();
+                }
+            } else {
+                el.remove();
+            }
+        }, 5000);
+    }
+
+    // Make showAlert globally accessible
+    window.showAlert = showAlert;
+
+    window.addEventListener('unhandledrejection', function(event) {
+        console.error('Unhandled promise rejection:', event.reason);
+    });
+
+    window.updateMainTable = function() {
+        if (typeof assetVulnerabilitiesTable !== 'undefined' && assetVulnerabilitiesTable.ajax && typeof assetVulnerabilitiesTable.ajax.reload === 'function') {
+            assetVulnerabilitiesTable.ajax.reload();
+        } else {
+            console.log("Asset vulnerabilities table is not available or doesn't have a reload method.");
+        }
+    };
+
+    // Acceptable Risk Modal Functionality
+    var acceptableRiskTable = null;
+    var acceptableRiskManager = null;
+
+    // Initialize Acceptable Risk functionality
+    function initAcceptableRisk() {
+        if ($('#acceptableRiskTable').length === 0) return;
+
+        acceptableRiskTable = $('#acceptableRiskTable').DataTable({
+            "dom": '<"row"<"col-sm-12"tr>>',
+            "lengthChange": false,
+            "processing": true,
+            "serverSide": false,
+            "ajax": {
+                "url": "{% url 'get_acceptable_risk_data' %}",
+                "type": "GET",
+                "data": function(d) {
+                    d.language = '{{ request.LANGUAGE_CODE|default:"uk" }}';
+                }
+            },
+            "columns": [
+                {
+                    "data": null,
+                    "defaultContent": '',
+                    "orderable": false,
+                    "searchable": false,
+                    "className": 'select-checkbox'
+                },
+                {"data": "company"},
+                {"data": "asset_group"},
+                {"data": "asset_type"},
+                {
+                    "data": "criticality_level",
+                    "render": function(data, type, row) {
+                        if (type === 'display') {
+                            return '<span class="impact-text" style="color: ' + row.criticality_color + ';">' + data + '</span>';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    "data": "acceptable_risk_level",
+                    "render": function(data, type, row) {
+                        if (type === 'display') {
+                            return '<span class="impact-text" style="color: ' + row.acceptable_risk_color + ';">' + data + '</span>';
+                        }
+                        return data;
+                    }
+                },
+                {"data": "created_at"},
+                {"data": "updated_at"},
+                {
+                    "data": null,
+                    "orderable": false,
+                    "searchable": false,
+                    "render": function(data, type, row) {
+                        return '<div class="btn-group btn-group-sm table-actions">' +
+                               '<button class="btn btn-outline-primary btn-sm btn-icon-action edit-acceptable-risk" data-id="' + row.id + '" title="{% trans "Edit" %}">' +
+                               '<i class="bi bi-pencil"></i></button>' +
+                               '<button class="btn btn-outline-danger btn-sm btn-icon-action delete-acceptable-risk" data-id="' + row.id + '" title="{% trans "Delete" %}">' +
+                               '<i class="bi bi-trash"></i></button>' +
+                               '</div>';
+                    }
+                }
+            ],
+            "language": {
+                "processing": "{% trans 'Loading...' %}",
+                "search": "{% trans 'Search:' %}",
+                "lengthMenu": "{% trans 'Show _MENU_ entries' %}",
+                "info": "{% trans 'Showing _START_ to _END_ of _TOTAL_ entries' %}",
+                "infoEmpty": "{% trans 'Showing 0 to 0 of 0 entries' %}",
+                "infoFiltered": "{% trans '(filtered from _MAX_ total entries)' %}",
+                "emptyTable": "{% trans 'No data available in table' %}",
+                "zeroRecords": "{% trans 'No matching records found' %}"
+            },
+            "order": [[1, 'asc']],
+            "pageLength": 25,
+            "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+            "select": {
+                'style': 'multi',
+                'selector': 'td:first-child'
+            },
+            "initComplete": function() {
+                if (window.initRiskDataTablePagination) {
+                    window.initRiskDataTablePagination({
+                        api: this.api(),
+                        containerId: 'acceptableRiskTablePagination',
+                        paginationAriaLabel: '{% trans "Acceptable risk pagination" %}',
+                        labels: {
+                            showing: '{% trans "Showing" %}',
+                            of: '{% trans "of" %}',
+                            items: '{% trans "records" %}',
+                            perPage: '{% trans "Per page" %}'
+                        }
+                    });
+                }
+            }
+        });
+
+        // Load reference data
+        loadAcceptableRiskReferenceData();
+    }
+
+    // Load reference data for dropdowns
+    function loadAcceptableRiskReferenceData(companyId = null) {
+        const params = companyId ? { company_id: companyId } : {};
+        $.get("{% url 'get_acceptable_risk_reference_data' %}", params)
+            .done(function(data) {
+                window.acceptableRiskReferenceData = data;
+                populateAcceptableRiskSelects();
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Error loading reference data:', error);
+                showAlert('error', '{% trans "Error loading reference data" %}');
+            });
+    }
+
+    // Populate select dropdowns
+    function populateAcceptableRiskSelects() {
+        if (!window.acceptableRiskReferenceData) return;
+
+        // Populate company select
+        const companySelect = $('#acceptable-risk-company');
+        companySelect.empty().append('<option value="">{% trans "Select Company" %}</option>');
+        window.acceptableRiskReferenceData.companies.forEach(function(company) {
+            companySelect.append('<option value="' + company.id + '">' + company.name + '</option>');
+        });
+
+        // Populate asset group select
+        const assetGroupSelect = $('#acceptable-risk-asset-group');
+        assetGroupSelect.empty().append('<option value="">{% trans "Select Asset Group" %}</option>');
+        window.acceptableRiskReferenceData.asset_groups.forEach(function(group) {
+            assetGroupSelect.append('<option value="' + group.id + '">' + group.name + '</option>');
+        });
+
+        // Populate asset type select
+        const assetTypeSelect = $('#acceptable-risk-asset-type');
+        assetTypeSelect.empty().append('<option value="">{% trans "All Asset Types (Optional)" %}</option>');
+        window.acceptableRiskReferenceData.asset_types.forEach(function(assetType) {
+            assetTypeSelect.append('<option value="' + assetType.id + '" data-group="' + assetType.group_id + '">' + assetType.name + '</option>');
+        });
+
+        // Populate criticality level select
+        const criticalitySelect = $('#acceptable-risk-criticality');
+        criticalitySelect.empty().append('<option value="">{% trans "Select Criticality Level" %}</option>');
+        window.acceptableRiskReferenceData.criticality_levels.forEach(function(level) {
+            criticalitySelect.append('<option value="' + level.id + '">' + level.name + ' (Cost: ' + level.cost + ')</option>');
+        });
+
+        // Populate risk level select
+        const riskLevelSelect = $('#acceptable-risk-level');
+        riskLevelSelect.empty().append('<option value="">{% trans "Select Risk Level" %}</option>');
+        window.acceptableRiskReferenceData.risk_levels.forEach(function(level) {
+            riskLevelSelect.append('<option value="' + level.id + '">' + level.name + '</option>');
+        });
+    }
+
+    // Show Acceptable Risk Settings Modal
+    function showAcceptableRiskSettingsModal(data) {
+        if (data) {
+            // Edit mode
+            $('#acceptable-risk-id').val(data.id);
+            $('#acceptable-risk-company').val(data.company_id);
+            $('#acceptable-risk-asset-group').val(data.asset_group_id);
+            $('#acceptable-risk-asset-type').val(data.asset_type_id || '');
+            $('#acceptable-risk-criticality').val(data.criticality_level_id);
+            $('#acceptable-risk-level').val(data.acceptable_risk_level_id);
+            $('#acceptableRiskSettingsModalLabel').html('<i class="fas fa-edit me-2"></i>{% trans "Edit Acceptable Risk Settings" %}');
+        } else {
+            // Add mode
+            resetAcceptableRiskForm();
+            $('#acceptableRiskSettingsModalLabel').html('<i class="fas fa-plus me-2"></i>{% trans "Add Acceptable Risk Settings" %}');
+        }
+
+        $('#acceptableRiskSettingsModal').modal('show');
+    }
+
+    // Reset form
+    function resetAcceptableRiskForm() {
+        $('#acceptable-risk-id').val('');
+        $('#acceptable-risk-company').val('');
+        $('#acceptable-risk-asset-group').val('');
+        $('#acceptable-risk-asset-type').val('');
+        $('#acceptable-risk-criticality').val('');
+        $('#acceptable-risk-level').val('');
+        $('#acceptableRiskForm')[0].reset();
+    }
+
+    // Save Acceptable Risk
+    function saveAcceptableRisk() {
+        const formData = {
+            company_id: $('#acceptable-risk-company').val(),
+            asset_group_id: $('#acceptable-risk-asset-group').val(),
+            asset_type_id: $('#acceptable-risk-asset-type').val() || null,
+            criticality_level_id: $('#acceptable-risk-criticality').val(),
+            acceptable_risk_level_id: $('#acceptable-risk-level').val()
+        };
+
+        // Validate required fields
+        if (!formData.company_id || !formData.asset_group_id ||
+            !formData.criticality_level_id || !formData.acceptable_risk_level_id) {
+            showAlert('warning', '{% trans "Please fill in all required fields" %}');
+            return;
+        }
+
+        const id = $('#acceptable-risk-id').val();
+        const url = "{% url 'save_acceptable_risk' %}";
+
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: JSON.stringify(formData),
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            }
+        })
+        .done(function(response) {
+            if (response.status === 'success') {
+                showAlert('success', response.message);
+                $('#acceptableRiskSettingsModal').modal('hide');
+                if (acceptableRiskTable) {
+                    acceptableRiskTable.ajax.reload();
+                }
+            } else {
+                showAlert('error', response.message);
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Error saving acceptable risk:', error);
+            showAlert('error', '{% trans "Error saving acceptable risk settings" %}');
+        });
+    }
+
+    // Event handlers for Acceptable Risk
+    $('#acceptableRiskBtn').on('click', function() {
+        $('#acceptableRiskModal').modal('show');
+        if (!acceptableRiskTable) {
+            initAcceptableRisk();
+        }
+    });
+
+    $('#addAcceptableRiskBtn').on('click', function() {
+        showAcceptableRiskSettingsModal();
+    });
+
+    $('#saveAcceptableRiskBtn').on('click', function() {
+        saveAcceptableRisk();
+    });
+
+    $('#acceptable-risk-company').on('change', function() {
+        const companyId = $(this).val();
+        const previouslySelectedRiskLevelId = $('#acceptable-risk-level').val();
+        $.get("{% url 'get_acceptable_risk_reference_data' %}", companyId ? { company_id: companyId } : {})
+            .done(function(data) {
+                const riskLevelSelect = $('#acceptable-risk-level');
+                riskLevelSelect.empty().append('<option value="">{% trans "Select Risk Level" %}</option>');
+                (data.risk_levels || []).forEach(function(level) {
+                    riskLevelSelect.append('<option value="' + level.id + '">' + level.name + '</option>');
+                });
+                if (previouslySelectedRiskLevelId) {
+                    riskLevelSelect.val(previouslySelectedRiskLevelId);
+                }
+            });
+    });
+
+    // Edit button
+    $(document).on('click', '.edit-acceptable-risk', function(e) {
+        const id = $(e.currentTarget).data('id');
+        const rowData = acceptableRiskTable.rows().data().toArray().find(function(row) {
+            return row.id === id;
+        });
+        if (rowData) {
+            const company = window.acceptableRiskReferenceData.companies.find(function(c) {
+                return c.name === rowData.company;
+            });
+            const asset_group = window.acceptableRiskReferenceData.asset_groups.find(function(ag) {
+                return ag.name === rowData.asset_group;
+            });
+            const asset_type = window.acceptableRiskReferenceData.asset_types.find(function(at) {
+                return at.name === rowData.asset_type;
+            });
+            const criticality_level = window.acceptableRiskReferenceData.criticality_levels.find(function(cl) {
+                return cl.name === rowData.criticality_level;
+            });
+            const acceptable_risk_level = window.acceptableRiskReferenceData.risk_levels.find(function(rl) {
+                return rl.name === rowData.acceptable_risk_level;
+            });
+
+            const mappedData = {
+                id: rowData.id,
+                company_id: company ? company.id : '',
+                asset_group_id: asset_group ? asset_group.id : '',
+                asset_type_id: asset_type ? asset_type.id : '',
+                criticality_level_id: criticality_level ? criticality_level.id : '',
+                acceptable_risk_level_id: acceptable_risk_level ? acceptable_risk_level.id : ''
+            };
+            showAcceptableRiskSettingsModal(mappedData);
+        } else {
+            showAlert('error', '{% trans "Could not find acceptable risk data for editing" %}');
+        }
+    });
+
+    // Delete button
+    $(document).on('click', '.delete-acceptable-risk', function(e) {
+        const id = $(e.currentTarget).data('id');
+        if (confirm('{% trans "Are you sure you want to delete this acceptable risk setting?" %}')) {
+            $.ajax({
+                url: "{% url 'delete_acceptable_risk' 0 %}".replace('0', id),
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+                }
+            })
+            .done(function(response) {
+                if (response.status === 'success') {
+                    showAlert('success', response.message);
+                    if (acceptableRiskTable) {
+                        acceptableRiskTable.ajax.reload();
+                    }
+                } else {
+                    showAlert('error', response.message);
+                }
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Error deleting acceptable risk:', error);
+                showAlert('error', '{% trans "Error deleting acceptable risk setting" %}');
+            });
+        }
+    });
+
+    // Select all checkbox
+    $(document).on('click', '#selectAllAcceptableRisk', function(e) {
+        if (e.target.checked) {
+            acceptableRiskTable.rows().select();
+        } else {
+            acceptableRiskTable.rows().deselect();
+        }
+    });
+
+
+
+    // Asset group change handler to filter asset types
+    $(document).on('change', '#acceptable-risk-asset-group', function() {
+        const selectedGroupId = $(this).val();
+        const assetTypeSelect = $('#acceptable-risk-asset-type');
+        
+        // Show/hide asset type options based on selected group
+        assetTypeSelect.find('option').each(function() {
+            const option = $(this);
+            if (option.val() === '') {
+                // Always show the "All Asset Types" option
+                option.show();
+            } else {
+                const groupId = option.data('group');
+                if (selectedGroupId && groupId == selectedGroupId) {
+                    option.show();
+                } else {
+                    option.hide();
+                }
+            }
+        });
+        
+        // Reset asset type selection when group changes
+        assetTypeSelect.val('');
+    });
+
+    // Modal events
+    $('#acceptableRiskSettingsModal').on('hidden.bs.modal', function() {
+        resetAcceptableRiskForm();
+    });
+
+});
+
+// Global variables for risk level editing
+var availableRiskLevels = [];
+var currentEditingRisk = null;
+
+// Function to load available risk levels for editing
+function loadRiskLevelsForEditing(assetId = null) {
+        $.ajax({
+            url: "{% url 'get_risk_levels_for_editing' %}",
+            method: "GET",
+            data: assetId ? { asset_id: assetId } : {},
+            success: function(response) {
+                availableRiskLevels = response.risk_levels;
+                console.log("Available risk levels loaded:", availableRiskLevels);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading risk levels:", error);
+            }
+        });
+    }
+
+// Function to edit risk level
+function editRiskLevel(assetId, vulnerabilityId, threatId, currentRiskLevel, currentColor, isManualOverride, currentJustification) {
+        if (!availableRiskLevels || availableRiskLevels.length === 0) {
+            loadRiskLevelsForEditing(assetId);
+            setTimeout(() => editRiskLevel(assetId, vulnerabilityId, threatId, currentRiskLevel, currentColor, isManualOverride, currentJustification), 500);
+            return;
+        }
+        
+        currentEditingRisk = {
+            asset_id: assetId,
+            vulnerability_id: vulnerabilityId,
+            threat_id: threatId,
+            current_risk_level: currentRiskLevel,
+            current_color: currentColor,
+            is_manual_override: isManualOverride === 'true',
+            current_justification: currentJustification || ''
+        };
+        
+        showRiskLevelEditModal();
+    }
+
+// Function to show risk level edit modal
+function showRiskLevelEditModal() {
+        if (!currentEditingRisk) return;
+        
+        // Create modal HTML
+        var modalHtml = `
+            <div class="modal fade" id="riskLevelEditModal" tabindex="-1" aria-labelledby="riskLevelEditModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title" id="riskLevelEditModalLabel">
+                                <i class="fas fa-edit me-2"></i>${currentEditingRisk.is_manual_override ? '{% trans "Edit Manual Override" %}' : '{% trans "Edit Risk Level" %}'}
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="newRiskLevelSelect" class="form-label">{% trans "New Risk Level" %} *</label>
+                                <select class="form-select" id="newRiskLevelSelect" required>
+                                    <option value="">{% trans "Select Risk Level" %}</option>
+                                    ${availableRiskLevels.map(level => `
+                                        <option value="${level.id}" data-color="${level.color}" 
+                                                ${level.name === currentEditingRisk.current_risk_level ? 'selected' : ''}>
+                                            ${level.name} (${level.min_value}-${level.max_value})
+                                        </option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="justificationText" class="form-label">{% trans "Justification" %}</label>
+                                <textarea class="form-control" id="justificationText" rows="3" 
+                                          placeholder="{% trans 'Please provide justification for this manual risk level change...' }">${currentEditingRisk.current_justification || ''}</textarea>
+                            </div>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>{% trans "Note" %}:</strong> {% trans "This will override the automatically calculated risk level. Please provide a clear justification for this change." %}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-1"></i>{% trans "Cancel" %}
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="saveRiskLevelChange()">
+                                <i class="fas fa-save me-1"></i>{% trans "Save Changes" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        $('#riskLevelEditModal').remove();
+        
+        // Add modal to body
+        $('body').append(modalHtml);
+        
+        // Show modal
+        $('#riskLevelEditModal').modal('show');
+        
+        // Handle risk level selection change
+        $('#newRiskLevelSelect').on('change', function() {
+            var selectedOption = $(this).find('option:selected');
+            var color = selectedOption.data('color');
+            if (color) {
+                $(this).css('border-color', color);
+            }
+        });
+    }
+
+// Function to save risk level change
+function saveRiskLevelChange() {
+        if (!currentEditingRisk) return;
+        
+        var newRiskLevelId = $('#newRiskLevelSelect').val();
+        var justification = $('#justificationText').val();
+        
+        if (!newRiskLevelId) {
+            alert('{% trans "Please select a new risk level" %}');
+            return;
+        }
+        
+        // Show loading state
+        var saveBtn = $('#riskLevelEditModal .btn-primary');
+        var originalText = saveBtn.html();
+        saveBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Saving..." %}');
+        saveBtn.prop('disabled', true);
+        
+        // Prepare data
+        var requestData = {
+            asset_id: currentEditingRisk.asset_id,
+            vulnerability_id: currentEditingRisk.vulnerability_id,
+            threat_id: currentEditingRisk.threat_id,
+            risk_level_id: newRiskLevelId,
+            justification: justification
+        };
+        
+        $.ajax({
+            url: "{% url 'update_risk_level_manual' %}",
+            method: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(requestData),
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Show success message
+                    showAlert('success', response.message);
+                    
+                    // Close modal
+                    $('#riskLevelEditModal').modal('hide');
+                    
+                    // Refresh risk details if modal is open
+                    var assetId = $('#riskDetailsModal').data('asset-id');
+                    if (assetId && typeof showRiskDetails === 'function') {
+                        showRiskDetails(assetId);
+                    }
+                } else {
+                    showAlert('error', response.message || '{% trans "Error updating risk level" %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error updating risk level:", error);
+                var errorMessage = '{% trans "Error updating risk level" %}';
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.message) {
+                        errorMessage = response.message;
+                    }
+                } catch (e) {
+                    // Use default error message
+                }
+                showAlert('error', errorMessage);
+            },
+            complete: function() {
+                // Restore button state
+                saveBtn.html(originalText);
+                saveBtn.prop('disabled', false);
+            }
+        });
+    }
+
+// Function to get CSRF token
+function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+// Function to show enhanced treatment alert
+function showEnhancedTreatmentAlert(type, message) {
+    var alertClass = type === 'success' ? 'alert-success' :
+                     type === 'error' ? 'alert-danger' :
+                     type === 'warning' ? 'alert-warning' :
+                     'alert-info';
+    
+    var icon = type === 'success' ? '<i class="fas fa-check-circle me-2"></i>' :
+               type === 'error' ? '<i class="fas fa-exclamation-circle me-2"></i>' :
+               type === 'warning' ? '<i class="fas fa-exclamation-triangle me-2"></i>' :
+               '<i class="fas fa-info-circle me-2"></i>';
+    
+    var alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show shadow-sm" role="alert">
+            ${icon}${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    $('#alertContainer').append(alertHtml);
+    
+    // Remove the alert after 5 seconds
+    setTimeout(function() {
+        $('#alertContainer .alert:first-child').alert('close');
+    }, 5000);
+}
+
+// Function to show treatment history
+function showTreatmentHistory(treatmentId) {
+    $.ajax({
+        url: "{% url 'get_treatment_history' %}",
+        method: 'POST',
+        data: JSON.stringify({
+            treatment_id: treatmentId
+        }),
+        contentType: 'application/json',
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        },
+        success: function(response) {
+            if (response.success) {
+                displayTreatmentHistory(response.history);
+            } else {
+                showEnhancedTreatmentAlert('danger', response.message || '{% trans "Error loading history." %}');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error("Error loading treatment history:", error);
+            showEnhancedTreatmentAlert('danger', '{% trans "Error loading treatment history. Please try again." %}');
+        }
+    });
+}
+
+// Function to display treatment history in modal
+function displayTreatmentHistory(history) {
+    let historyHtml = '';
+    
+    if (history && history.length > 0) {
+        historyHtml = `
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "Field" %}</th>
+                            <th>{% trans "Old Value" %}</th>
+                            <th>{% trans "New Value" %}</th>
+                            <th>{% trans "Changed At" %}</th>
+                            <th>{% trans "Changed By" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        history.forEach(function(record) {
+            historyHtml += `
+                <tr>
+                    <td><span class="badge bg-primary">${record.field_name}</span></td>
+                    <td>${record.old_value}</td>
+                    <td>${record.new_value}</td>
+                    <td><small class="text-muted">${record.changed_at}</small></td>
+                    <td><small>${record.changed_by}</small></td>
+                </tr>
+            `;
+        });
+        
+        historyHtml += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } else {
+        historyHtml = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "No history records found for this treatment." %}
+            </div>
+        `;
+    }
+    
+    // Show the history in a modal
+    const historyModal = `
+        <div class="modal fade" id="treatmentHistoryModal" tabindex="-1" aria-labelledby="treatmentHistoryModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-secondary text-white">
+                        <h5 class="modal-title" id="treatmentHistoryModalLabel">
+                            <i class="fas fa-history me-2"></i>{% trans "Treatment History" %}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+                    </div>
+                    <div class="modal-body">
+                        ${historyHtml}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i>{% trans "Close" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    $('#treatmentHistoryModal').remove();
+    
+    // Add new modal to body
+    $('body').append(historyModal);
+    
+    // Show the modal
+    $('#treatmentHistoryModal').modal('show');
+}
+
+// Load risk levels when document is ready
+$(document).ready(function() {
+    loadRiskLevelsForEditing();
+});
+
+// ── Allowed Software ────────────────────────────────────────────────────────
+var allowedSoftwareTable = null;
+var allowedSoftwareRefData = null;
+
+function initAllowedSoftware() {
+    if ($('#allowedSoftwareTable').length === 0 || allowedSoftwareTable) return;
+
+    allowedSoftwareTable = $('#allowedSoftwareTable').DataTable({
+        dom: '<"row"<"col-sm-12"tr>>',
+        lengthChange: false,
+        processing: true,
+        serverSide: false,
+        ajax: {
+            url: "{% url 'get_allowed_software_data' %}",
+            type: 'GET'
+        },
+        columns: [
+            { data: 'company' },
+            { data: 'software_id', render: function(d) {
+                return `<code style="color:#667eea;">${d}</code>`;
+            }},
+            { data: 'software_name', render: function(d) {
+                return `<strong>${d}</strong>`;
+            }},
+            { data: 'manufacturer', defaultContent: '—' },
+            { data: 'group', render: function(d, t, row) {
+                return row.asset_type ? `${d} / ${row.asset_type}` : (d || '—');
+            }},
+            { data: 'status_name', render: function(d, t, row) {
+                return d ? `<span style="color:${row.status_color}"><i class="fas fa-circle me-1" style="font-size:0.5rem;"></i>${d}</span>` : '—';
+            }},
+            { data: 'notes', defaultContent: '—', render: function(d) {
+                return d ? `<small class="text-muted">${d}</small>` : '—';
+            }},
+            { data: 'created_at', defaultContent: '—' },
+            { data: null, orderable: false, render: function(d, t, row) {
+                return `<div class="btn-group btn-group-sm">
+                    <button class="btn btn-sm btn-outline-primary btn-icon-action edit-allowed-sw" data-id="${row.id}" title="{% trans 'Edit' %}"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger btn-icon-action delete-allowed-sw" data-id="${row.id}" title="{% trans 'Delete' %}"><i class="bi bi-trash"></i></button>
+                </div>`;
+            }}
+        ],
+        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/uk.json' },
+        order: [[0, 'asc'], [2, 'asc']],
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+        initComplete: function() {
+            if (window.initRiskDataTablePagination) {
+                window.initRiskDataTablePagination({
+                    api: this.api(),
+                    containerId: 'allowedSoftwareTablePagination',
+                    paginationAriaLabel: '{% trans "Allowed software pagination" %}',
+                    labels: {
+                        showing: '{% trans "Showing" %}',
+                        of: '{% trans "of" %}',
+                        items: '{% trans "records" %}',
+                        perPage: '{% trans "Per page" %}'
+                    }
+                });
+            }
+        }
+    });
+
+    loadAllowedSoftwareReferenceData();
+}
+
+function loadAllowedSoftwareReferenceData(companyId) {
+    const params = companyId ? { company_id: companyId } : {};
+    $.get("{% url 'get_allowed_software_reference_data' %}", params)
+        .done(function(data) {
+            allowedSoftwareRefData = data;
+            populateAllowedSoftwareCompanySelect();
+            populateAllowedSoftwareSelect(data.software);
+        })
+        .fail(function() { showAlert('error', '{% trans "Error loading reference data" %}'); });
+}
+
+function populateAllowedSoftwareCompanySelect() {
+    if (!allowedSoftwareRefData) return;
+    const sel = $('#allowed-sw-company');
+    const cur = sel.val();
+    sel.empty().append('<option value="">{% trans "All companies" %}</option>');
+    allowedSoftwareRefData.companies.forEach(function(c) {
+        sel.append(`<option value="${c.id}">${c.name}</option>`);
+    });
+    if (cur) sel.val(cur);
+}
+
+function populateAllowedSoftwareSelect(software) {
+    const sel = $('#allowed-sw-software');
+    const cur = sel.val();
+    sel.empty().append('<option value="">{% trans "Select Software" %}</option>');
+    (software || []).forEach(function(sw) {
+        sel.append(`<option value="${sw.id}">${sw.label}</option>`);
+    });
+    if (cur) sel.val(cur);
+}
+
+function showAllowedSoftwareForm(row) {
+    $('#allowedSoftwareForm')[0].reset();
+    $('#allowed-sw-id').val('');
+    if (row) {
+        $('#allowedSoftwareFormModalTitle').html('<i class="fas fa-edit me-2"></i>{% trans "Edit Allowed Software" %}');
+        $('#allowed-sw-id').val(row.id);
+        $('#allowed-sw-company').val(row.company_id || '');
+        $('#allowed-sw-software').val(row.software_register_id || '');
+        $('#allowed-sw-notes').val(row.notes || '');
+    } else {
+        $('#allowedSoftwareFormModalTitle').html('<i class="fas fa-plus me-2"></i>{% trans "Add Allowed Software" %}');
+    }
+    $('#allowedSoftwareFormModal').modal('show');
+}
+
+function saveAllowedSoftware() {
+    const swId = $('#allowed-sw-software').val();
+    if (!swId) { showAlert('error', '{% trans "Please select a software entry" %}'); return; }
+
+    const payload = {
+        id: $('#allowed-sw-id').val() || null,
+        company_id: $('#allowed-sw-company').val() || null,
+        software_register_id: swId,
+        notes: $('#allowed-sw-notes').val(),
+    };
+
+    $.ajax({
+        url: "{% url 'save_allowed_software' %}",
+        type: 'POST',
+        data: JSON.stringify(payload),
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() }
+    })
+    .done(function(response) {
+        if (response.status === 'success') {
+            showAlert('success', response.message);
+            $('#allowedSoftwareFormModal').modal('hide');
+            if (allowedSoftwareTable) allowedSoftwareTable.ajax.reload();
+        } else {
+            showAlert('error', response.message);
+        }
+    })
+    .fail(function(xhr) {
+        showAlert('error', xhr.responseJSON?.message || '{% trans "Error saving" %}');
+    });
+}
+
+// Event handlers
+$('#allowedSoftwareBtn').on('click', function() {
+    $('#allowedSoftwareModal').modal('show');
+    initAllowedSoftware();
+});
+
+$('#addAllowedSoftwareBtn').on('click', function() {
+    showAllowedSoftwareForm(null);
+});
+
+$('#saveAllowedSoftwareBtn').on('click', function() {
+    saveAllowedSoftware();
+});
+
+$('#allowed-sw-company').on('change', function() {
+    const companyId = $(this).val();
+    if (allowedSoftwareRefData) {
+        const filtered = companyId
+            ? allowedSoftwareRefData.software.filter(function(sw) {
+                return !sw.company_id || String(sw.company_id) === String(companyId);
+              })
+            : allowedSoftwareRefData.software;
+        populateAllowedSoftwareSelect(filtered);
+    }
+});
+
+$(document).on('click', '.delete-allowed-sw', function() {
+    const swId = $(this).data('id');
+    if (!confirm('{% trans "Are you sure you want to remove this software entry?" %}')) return;
+    $.ajax({
+        url: "{% url 'delete_allowed_software' 0 %}".replace('0', swId),
+        type: 'POST',
+        data: { csrfmiddlewaretoken: $('[name=csrfmiddlewaretoken]').val() }
+    })
+    .done(function(response) {
+        if (response.status === 'success') {
+            showAlert('success', response.message);
+            if (allowedSoftwareTable) allowedSoftwareTable.ajax.reload();
+        } else {
+            showAlert('error', response.message);
+        }
+    });
+});
+
+$(document).on('click', '.edit-allowed-sw', function() {
+    const swId = $(this).data('id');
+    showAllowedSoftwareForm({ id: swId });
+});
+</script>
+{% endblock %}

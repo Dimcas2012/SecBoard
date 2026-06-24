@@ -1,0 +1,586 @@
+<!-- SecBoard\SecBoard\templates\app_asset\modals\edit_asset_modal.html-->
+{% load i18n %}
+{% load asset_custom_filters %}
+<!-- Edit Asset Modal -->
+<div class="modal fade" id="editAssetModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="editAssetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editAssetModalLabel">{% trans "Edit Asset" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Last Modified Information Banner -->
+                <div id="lastModifiedBanner" class="alert alert-info" style="display: none; border-left: 4px solid #667eea; background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-info-circle me-3" style="font-size: 1.5rem; color: #667eea;"></i>
+                        <div>
+                            <h6 class="mb-1" style="color: #374151; font-weight: 600;">{% trans "Last Modified" %}</h6>
+                            <div class="d-flex gap-4">
+                                <div>
+                                    <i class="fas fa-clock me-1" style="color: #667eea;"></i>
+                                    <span id="lastModifiedDateTime" style="font-size: 0.9rem; color: #4b5563;"></span>
+                                </div>
+                                <div>
+                                    <i class="fas fa-user me-1" style="color: #667eea;"></i>
+                                    <span id="lastModifiedUser" style="font-size: 0.9rem; color: #4b5563;"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <form id="editAssetForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="edit_asset_id" name="asset_id">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="editName" class="form-label">{% trans "Name" %}</label>
+                            <input type="text" class="form-control" id="editName" name="name" required
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Enter the name of the asset' %}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="editCompany" class="form-label">{% trans "Company" %}</label>
+                            <select class="form-select" id="editCompany" name="company" required
+                                    data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Select the company the asset belongs to' %}">
+                                <option value="">{% trans "Select company" %}</option>
+                                {% for company in allowed_companies %}
+                                    <option value="{{ company.id }}">{{ company.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="editLocation" class="form-label">{% trans "Location" %}</label>
+                            <input type="text" class="form-control" id="editLocation" name="location" required
+                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                   title="{% trans 'Specify the physical location of the asset' %}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editGroupAssetType" class="form-label">{% trans "Group / Type of Asset" %}</label>
+                        <div class="group-select-container">
+                            {% for group in groups %}
+                            <div class="group-section mb-3">
+                                <div class="group-header" data-group-id="{{ group.id }}">
+                                    <div class="d-flex justify-content-between align-items-center p-2 bg-light cursor-pointer">
+                                        <span class="group-name">{{ group.display_name|default:group.get_name }}</span>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                    <div class="group-description p-2 border-bottom d-none">
+                                        {{ group.description|default:'' }}
+                                    </div>
+                                </div>
+                                <div class="group-types d-none">
+                                    {% for asset_type in group.asset_types.all %}
+                                    <div class="type-option p-2 border-bottom">
+                                        <label class="d-flex align-items-center">
+                                            <input type="radio" name="group_asset_type"
+                                                   value="{{ group.id }},{{ asset_type.id }}"
+                                                   class="me-2">
+                                            <span>{{ asset_type.display_name|default:asset_type.get_name }}</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <input type="hidden" id="editGroupAssetType" name="group_asset_type" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="editDescription" name="description" rows="3"
+                                  data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Provide a detailed description of the asset' %}"></textarea>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Confidentiality" %}</label>
+                            <div class="criticality-grid" id="editConfidentialityGrid">
+                                <input type="hidden" id="editConfidentiality" name="confidentiality" value="">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Integrity" %}</label>
+                            <div class="criticality-grid" id="editIntegrityGrid">
+                                <input type="hidden" id="editIntegrity" name="integrity" value="">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Availability" %}</label>
+                            <div class="criticality-grid" id="editAvailabilityGrid">
+                                <input type="hidden" id="editAvailability" name="availability" value="">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="editRegistrationDate" class="form-label">{% trans "Registration Date" %}</label>
+                            <input type="text" class="form-control datepicker-input" id="editRegistrationDate" name="registrationDate"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Enter the date when the asset was registered (optional)' %}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="editDeletionDate" class="form-label">{% trans "Deletion Date" %}</label>
+                            <input type="text" class="form-control datepicker-input" id="editDeletionDate" name="deletionDate"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Enter the date when the asset was deleted (optional)' %}">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editNotes" class="form-label">{% trans "Notes" %}</label>
+                        <textarea class="form-control" id="editNotes" name="notes" rows="3"
+                                  data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Add any additional notes or comments about the asset' %}"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editAccessManage" name="access_manage"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Check this box if this asset can be used in access management' %}">
+                            <label class="form-check-label" for="editAccessManage">
+                                {% trans "Access Manage" %}
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">{% trans "Indicates if this asset can be used in access management" %}</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editIsActive" name="is_active"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Uncheck to mark the asset as inactive' %}">
+                            <label class="form-check-label" for="editIsActive">
+                                {% trans "Active" %}
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <label class="form-label mb-0 fw-semibold" style="font-size:0.8rem;">
+                                <i class="fas fa-cubes me-1" style="color:#667eea;"></i>{% trans "Linked Software" %}
+                            </label>
+                            <span id="editSwCountBadge" class="sw-count-badge" style="display:none;"></span>
+                        </div>
+                        <!-- Filters -->
+                        <div class="sw-filter-row row g-1 mb-2">
+                            <div class="col">
+                                <input type="text" class="form-control form-control-sm" id="editSoftwareSearch" placeholder="{% trans 'Search software...' %}">
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="editSoftwareFilterGroup" style="min-width:110px;">
+                                    <option value="">{% trans "Group" %}</option>
+                                    {% for g in sw_groups %}
+                                        <option value="{{ g.id }}">{{ g.display_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="editSoftwareFilterType" style="min-width:110px;" disabled>
+                                    <option value="">{% trans "Type" %}</option>
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="editSoftwareFilterStatus" style="min-width:100px;">
+                                    <option value="">{% trans "Status" %}</option>
+                                    {% for st in software_statuses %}
+                                        <option value="{{ st.id }}">{{ st.get_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="editSoftwareFilterLicenseType" style="min-width:110px;">
+                                    <option value="">{% trans "License" %}</option>
+                                    {% for lt in software_license_types %}
+                                        <option value="{{ lt.code }}">{{ lt.get_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <!-- Custom list panel -->
+                        <div class="sw-available-panel" id="editSoftwareListPanel" data-empty="{% trans 'No software found' %}"></div>
+                        <!-- Hidden native select (data source) -->
+                        <select id="editSoftwareEntriesSelect" multiple style="display:none;">
+                            {% for sw in software_register_entries %}
+                                <option value="{{ sw.id }}"
+                                        data-name="{{ sw.name|escape }}"
+                                        data-status-name="{{ sw.status.get_name|escape }}"
+                                        data-status-color="{{ sw.status.color }}"
+                                        data-license-type-name="{{ sw.get_license_type_name|default:''|escape }}"
+                                        data-company-name="{% if sw.company %}{{ sw.company.name|escape }}{% else %}{% trans 'Org-wide' %}{% endif %}"
+                                        data-company-id="{% if sw.company %}{{ sw.company.id }}{% endif %}"
+                                        data-group-id="{% if sw.group %}{{ sw.group.id }}{% endif %}"
+                                        data-type-id="{% if sw.asset_type %}{{ sw.asset_type.id }}{% endif %}"
+                                        data-status-id="{% if sw.status %}{{ sw.status.id }}{% endif %}"
+                                        data-license-type="{{ sw.license_type|default:'' }}"
+                                        data-version="{{ sw.version_pattern|default:'' }}"
+                                        data-license-qty="{{ sw.license_quantity|default:'' }}"
+                                        data-license-free="{{ sw.free_license_quantity|default:'' }}"
+                                        data-license-valid-until="{% if sw.license_valid_until %}{{ sw.license_valid_until|date:'Y-m-d' }}{% endif %}">
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" id="editSoftwareEntries" name="software_entries" value="[]">
+                        <!-- Selection cards -->
+                        <div id="editSoftwareSelections" class="sw-selections-wrap mt-2"></div>
+                    </div>
+
+                    <!-- Owners & Administrators Side by Side -->
+                    <div class="row mb-3">
+                        <!-- Owners Section -->
+                        <div class="col-md-6">
+                            <h6>{% trans "Asset Owners" %}</h6>
+                            <label for="editOwners" class="form-label">{% trans "Select Owners" %}</label>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="editOwnerSearchInput"
+                                       placeholder="{% trans 'Search owners...' %}">
+                            </div>
+                            <div id="editOwnerSearchResults" class="border rounded mb-2" style="max-height: 180px; overflow-y: auto;"></div>
+                            <div id="editSelectedOwnersContainer">
+                                <h6 class="mt-2">{% trans "Selected Owners" %}</h6>
+                                <div id="editSelectedOwners" class="border rounded p-2">
+                                    <div class="text-muted text-center p-2">{% trans "No owners selected" %}</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="editOwners" name="owners" value="">
+                        </div>
+
+                        <!-- Administrators Section -->
+                        <div class="col-md-6">
+                            <h6>{% trans "Asset Administrators" %}</h6>
+                            <label for="editAdministrators" class="form-label">{% trans "Select Administrators" %}</label>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="editAdminSearchInput"
+                                       placeholder="{% trans 'Search administrators...' %}">
+                            </div>
+                            <div id="editAdminSearchResults" class="border rounded mb-2" style="max-height: 180px; overflow-y: auto;"></div>
+                            <div id="editSelectedAdminsContainer">
+                                <h6 class="mt-2">{% trans "Selected Administrators" %}</h6>
+                                <div id="editSelectedAdmins" class="border rounded p-2">
+                                    <div class="text-muted text-center p-2">{% trans "No administrators selected" %}</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="editAdministrators" name="administrators" value="">
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                        <button type="submit" class="btn btn-primary">{% trans "Save Changes" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block edit_modal_scripts %}
+<script>
+$(document).ready(function() {
+    // Initialize tooltips and criticality tracking
+    initializeCriticalityTracking();
+
+    // Initialize Select2
+    $('.select2-basic').select2({
+        dropdownParent: $('#editAssetModal'),
+        width: '100%'
+    });
+
+    // Initialize datepicker
+    $('.datepicker-input').datepicker({
+        format: 'dd.mm.yyyy',
+        autoclose: true,
+        todayHighlight: true,
+        language: '{{ LANGUAGE_CODE }}'
+    });
+
+    // Function to get localized description for edit modal
+    function getEditDescription(level, type) {
+        if (!level || !type) {
+            console.debug('Level or type is missing:', { level, type });
+            return '';
+        }
+
+        let description = '';
+        switch (type) {
+            case 'editConfidentialityGrid':
+                description = level.description_confid || '';
+                break;
+            case 'editIntegrityGrid':
+                description = level.description_integ || '';
+                break;
+            case 'editAvailabilityGrid':
+                description = level.description_avail || '';
+                break;
+            default:
+                description = '';
+        }
+
+        return description || '';
+    }
+
+    // Function to render criticality levels for edit modal
+    function renderEditCriticalityLevels(type, selectedValue) {
+        const grid = $(`#${type}Grid`);
+        const gridId = grid.attr('id');
+
+        console.log(`Rendering ${type} with selectedValue:`, selectedValue);
+
+        const lang = document.documentElement.lang || '{{ request.LANGUAGE_CODE|default:"en" }}';
+        const companyId = ($('#editCompany').val() || '').toString();
+        $.get("{% url 'get_criticality_levels' %}", { lang: lang, company_id: companyId })
+            .done(function(response) {
+                grid.empty();
+
+                if (!response.levels || !response.levels.length) {
+                    grid.append('<div class="alert alert-warning">{% trans "No levels available" %}</div>');
+                    return;
+                }
+
+                response.levels.forEach(level => {
+                    const description = getEditDescription(level, gridId);
+                    const isSelected = Number(selectedValue) === Number(level.id);
+
+                    console.log(`Level ${level.id} selected:`, isSelected,
+                              'selectedValue:', selectedValue,
+                              'level.id:', level.id,
+                              'comparison:', Number(selectedValue) === Number(level.id));
+
+                    const levelElement = $(`
+                        <div class="criticality-level ${isSelected ? 'selected' : ''}"
+                             data-level-id="${level.id}"
+                             data-bs-toggle="tooltip"
+                             data-bs-placement="right"
+                             title="${description}">
+                            <div class="d-flex align-items-center">
+                                <div class="criticality-color me-2"
+                                     style="background-color: ${level.color || '#ccc'}">
+                                </div>
+                                <div>
+                                    <div class="criticality-name fw-bold">${level.name}</div>
+                                    <div class="criticality-cost small text-muted">
+                                        ${level.cost ? `Cost: ${level.cost}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `);
+
+                    grid.append(levelElement);
+
+                    if (description) {
+                        levelElement.tooltip({
+                            container: 'body',
+                            html: true,
+                            trigger: 'hover'
+                        });
+                    }
+
+                    // Add click handler for criticality selection
+                    levelElement.on('click', function() {
+                        grid.find('.criticality-level').removeClass('selected');
+                        $(this).addClass('selected');
+                        $(`#${type}`).val(level.id);
+                        grid.removeClass('is-invalid');
+                        console.log(`Selected ${type} value:`, level.id);
+                    });
+                });
+
+                // Make sure the hidden input has the correct value
+                $(`#${type}`).val(selectedValue);
+                console.log(`Set ${type} input value to:`, selectedValue);
+            })
+            .fail(function(error) {
+                console.error('Error loading criticality levels:', error);
+                grid.append('<div class="alert alert-danger">{% trans "Error loading criticality levels" %}</div>');
+            });
+    }
+
+    // Initialize when modal is shown
+    $('#editAssetModal').on('shown.bs.modal', function(e) {
+        const assetId = $('#edit_asset_id').val();
+        if (!assetId) return;
+
+        // Get asset data from the server
+        $.get(`/app_asset/get_asset/${assetId}/`)
+            .done(function(response) {
+                console.log('Asset data loaded:', response);
+
+                // Map the criticality data
+                const criticalityMap = {
+                    editConfidentiality: response.confidentiality,
+                    editIntegrity: response.integrity,
+                    editAvailability: response.availability
+                };
+
+                console.log('Criticality map:', criticalityMap);
+
+                // Render each criticality grid with its value
+                Object.entries(criticalityMap).forEach(([type, value]) => {
+                    renderEditCriticalityLevels(type, value);
+                });
+            })
+            .fail(function(error) {
+                console.error('Error loading asset data:', error);
+            });
+    });
+
+    // Function to handle criticality level selection
+    function initializeCriticalityTracking() {
+        $(document).on('click', '.criticality-grid .criticality-level', function() {
+            const grid = $(this).closest('.criticality-grid');
+            const levelId = $(this).data('level-id');
+            const gridId = grid.attr('id');
+            const inputId = gridId.replace('Grid', '');
+
+            grid.find('.criticality-level').removeClass('selected');
+            $(this).addClass('selected');
+            $(`#${inputId}`).val(levelId);
+            grid.removeClass('is-invalid');
+            $(`#${inputId}`).removeClass('is-invalid');
+
+            console.log(`Updated ${inputId} value to:`, levelId);
+        });
+    }
+
+    // Group/Type selection handling
+    $('.group-header').click(function() {
+        const groupSection = $(this).closest('.group-section');
+        const description = $(this).find('.group-description');
+        const types = groupSection.find('.group-types');
+        const chevron = $(this).find('.fa-chevron-down');
+
+        description.toggleClass('d-none');
+        types.toggleClass('d-none');
+        chevron.toggleClass('fa-rotate-180');
+    });
+
+    // Handle type selection
+    $('input[name="group_asset_type"]').change(function() {
+        $('#editGroupAssetType').val($(this).val());
+        $('.type-option').removeClass('selected-type');
+        $(this).closest('.type-option').addClass('selected-type');
+    });
+
+    // Search input handlers
+    $('#editOwnerSearchInput, #editAdminSearchInput').on('input', function() {
+        const query = $(this).val().trim();
+        const isOwner = this.id === 'editOwnerSearchInput';
+        if (isOwner) {
+            searchEditOwners(query);
+        } else {
+            searchEditAdministrators(query);
+        }
+    });
+
+    // Company change handler
+    $('#editCompany').change(function() {
+        window.selectedEditOwners.clear();
+        window.selectedEditAdmins.clear();
+        updateEditSelectedOwners();
+        updateEditSelectedAdmins();
+        const currentValues = {
+            editConfidentiality: $('#editConfidentiality').val(),
+            editIntegrity: $('#editIntegrity').val(),
+            editAvailability: $('#editAvailability').val()
+        };
+        Object.entries(currentValues).forEach(([type, value]) => {
+            renderEditCriticalityLevels(type, value);
+        });
+        searchEditOwners();
+        searchEditAdministrators();
+    });
+
+    // Click handlers for owners/admins
+    $(document).on('click', '.search-result-item', function(e) {
+        e.stopPropagation();
+        if (!$(e.target).is('input[type="checkbox"]')) {
+            const checkbox = $(this).find('input[type="checkbox"]');
+            checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+        }
+    });
+
+    $(document).on('change', '#editOwnerSearchResults input[type="checkbox"]', function(e) {
+        e.stopPropagation();
+        const item = $(this).closest('.search-result-item');
+        const userData = JSON.parse(item.attr('data-user'));
+        const userId = userData.id;
+
+        window.selectedEditOwners = new Set(
+            [...window.selectedEditOwners].filter(owner => owner.id !== userId)
+        );
+
+        if (this.checked) {
+            window.selectedEditOwners.add(userData);
+        }
+
+        updateEditSelectedOwners();
+    });
+
+    $(document).on('change', '#editAdminSearchResults input[type="checkbox"]', function(e) {
+        e.stopPropagation();
+        const item = $(this).closest('.search-result-item');
+        const userData = JSON.parse(item.attr('data-user'));
+        const userId = userData.id;
+
+        window.selectedEditAdmins = new Set(
+            [...window.selectedEditAdmins].filter(admin => admin.id !== userId)
+        );
+
+        if (this.checked) {
+            window.selectedEditAdmins.add(userData);
+        }
+
+        updateEditSelectedAdmins();
+    });
+
+    // Remove handlers
+    $(document).on('click', '.remove-edit-owner', function() {
+        const ownerId = $(this).data('id');
+        window.selectedEditOwners.delete([...window.selectedEditOwners].find(o => o.id === ownerId));
+        updateEditSelectedOwners();
+        $('#editOwnerSearchResults').find(`[data-user]`).each(function() {
+            const userData = JSON.parse($(this).attr('data-user'));
+            if (userData.id === ownerId) {
+                $(this).find('input[type="checkbox"]').prop('checked', false);
+            }
+        });
+    });
+
+    $(document).on('click', '.remove-edit-admin', function() {
+        const adminId = $(this).data('id');
+        window.selectedEditAdmins.delete([...window.selectedEditAdmins].find(a => a.id === adminId));
+        updateEditSelectedAdmins();
+        $('#editAdminSearchResults').find(`[data-user]`).each(function() {
+            const userData = JSON.parse($(this).attr('data-user'));
+            if (userData.id === adminId) {
+                $(this).find('input[type="checkbox"]').prop('checked', false);
+            }
+        });
+    });
+
+    // Modal cleanup
+    $('#editAssetModal').on('hidden.bs.modal', function() {
+        initializeCriticalityTracking();
+        $(this).removeAttr('aria-hidden');
+        const form = $('#editAssetForm');
+        form[0].reset();
+        form.removeClass('was-validated');
+        $('.is-invalid').removeClass('is-invalid');
+        $('.select2-basic').val('').trigger('change');
+
+        window.selectedEditOwners.clear();
+        window.selectedEditAdmins.clear();
+        updateEditSelectedOwners();
+        updateEditSelectedAdmins();
+        $('#editOwnerSearchResults, #editAdminSearchResults').empty();
+
+        $('.criticality-grid').removeClass('is-invalid');
+        $('[id^=edit][id$=Grid]').find('.criticality-level').removeClass('selected');
+        $('[id^=edit][id$=ty]').val('');
+        $('.type-option').removeClass('selected-type');
+
+        $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+    });
+});
+</script>
+{% endblock %}

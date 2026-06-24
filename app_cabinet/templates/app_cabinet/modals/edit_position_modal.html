@@ -1,0 +1,412 @@
+<!--SecBoard/templates/app_cabinet/modals/edit_position_modal.html-->
+{% load i18n %}
+<!-- Edit Position Modal -->
+<div class="modal fade" id="editPositionModal" tabindex="-1" aria-labelledby="editPositionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPositionModalLabel">{% trans "Edit Position" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editPositionForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" id="editPosId" name="position_id">
+
+                    <!-- Company Selection -->
+                    <div class="mb-3">
+                        <label for="editPosCompany" class="form-label">{% trans "Company" %} *</label>
+                        <select class="form-select" id="editPosCompany" name="company" required>
+                            <option value="">{% trans "Select Company" %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select a company" %}
+                        </div>
+                    </div>
+
+                    <!-- Department Selection -->
+                    <div class="mb-3">
+                        <label for="editPosDepartment" class="form-label">{% trans "Department" %}</label>
+                        <select class="form-select" id="editPosDepartment" name="department">
+                            <option value="">{% trans "Select Department" %}</option>
+                        </select>
+                        <div class="form-text">{% trans "Select either Department or Parent Position (not both)" %}</div>
+                    </div>
+
+                    <!-- Parent Position Selection -->
+                    <div class="mb-3">
+                        <label for="editPosParentPosition" class="form-label">{% trans "Parent Position" %}</label>
+                        <select class="form-select" id="editPosParentPosition" name="parent_position">
+                            <option value="">{% trans "None" %}</option>
+                        </select>
+                        <div class="form-text">{% trans "Select either Department or Parent Position (not both)" %}</div>
+                    </div>
+
+                    <!-- Position Name (default English; other languages = Translations, like Department) -->
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Name" %}</label>
+                        {% for lang_code, lang_name in position_form_languages %}
+                        <input type="text" class="form-control mb-2" id="editPosName_{{ lang_code }}" name="name_{{ lang_code }}" placeholder="{{ lang_name }}" {% if forloop.first %}required{% endif %}>
+                        {% endfor %}
+                        <div class="invalid-feedback">{% trans "Please enter position name (English)." %}</div>
+                    </div>
+
+                    <!-- Position Description (default English; other languages = Translations) -->
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        {% for lang_code, lang_name in position_form_languages %}
+                        <textarea class="form-control mb-2" id="editPosDesc_{{ lang_code }}" name="description_{{ lang_code }}" rows="3" placeholder="{{ lang_name }}"></textarea>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Color Selection -->
+                    <div class="mb-3">
+                        <label for="editPosColor" class="form-label">{% trans "Color (HEX)" %}</label>
+                        <div class="input-group">
+                            <input type="color" class="form-control form-control-color" id="editPosColor" name="color" value="#2e6da4" style="max-width: 60px;">
+                            <input type="text" class="form-control" id="editPosColorHex" name="color_hex" value="#2e6da4" maxlength="7" pattern="^#([A-Fa-f0-9]{6})$" title="{% trans 'Please enter a valid HEX color code.' %}">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger me-2" id="editPositionDelete">{% trans "Delete" %}</button>
+                <button type="button" class="btn btn-primary" id="editPositionSubmit">{% trans "Save Changes" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block edit_position_modal_scripts %}
+<script>
+window.positionFormLanguages = [{% for lang_code, lang_name in position_form_languages %}'{{ lang_code }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+if (!window.positionFormLanguages.length) window.positionFormLanguages = ['en', 'uk', 'ru', 'de'];
+document.addEventListener('DOMContentLoaded', function() {
+    const editPositionForm = document.getElementById('editPositionForm');
+    const editPositionSubmit = document.getElementById('editPositionSubmit');
+    const editPositionDelete = document.getElementById('editPositionDelete');
+    const editPosCompany = document.getElementById('editPosCompany');
+    const editPosDepartment = document.getElementById('editPosDepartment');
+    const editPosParentPosition = document.getElementById('editPosParentPosition');
+    const editPosColor = document.getElementById('editPosColor');
+    const editPosColorHex = document.getElementById('editPosColorHex');
+    const modalElement = document.getElementById('editPositionModal');
+    const editPositionModal = new bootstrap.Modal(modalElement);
+
+    function cleanupModal() {
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }
+
+    // Color input synchronization
+    editPosColor.addEventListener('input', function() {
+        editPosColorHex.value = this.value;
+    });
+
+    editPosColorHex.addEventListener('input', function() {
+        if (/^#([A-Fa-f0-9]{6})$/.test(this.value)) {
+            editPosColor.value = this.value;
+        }
+    });
+
+    // Build department tree options
+    function buildTreeOptions(departments, parentId = null, prefix = '') {
+        let html = '';
+        departments.filter(dept => dept.parent_id === parentId).forEach(dept => {
+            html += `<option value="${dept.id}">${prefix} ${dept.name}</option>`;
+            html += buildTreeOptions(departments, dept.id, prefix + '--');
+        });
+        return html;
+    }
+
+    // Load departments when company is selected
+    async function loadDepartments(companyId, selectedDepartmentId = null) {
+        if (!companyId) {
+            editPosDepartment.innerHTML = '<option value="">{% trans "Select Department" %}</option>';
+            return;
+        }
+
+        try {
+            const response = await fetch(`{% url 'get_company_departments' '0' %}`.replace('0', companyId));
+            if (!response.ok) {
+                throw new Error('Failed to load departments');
+            }
+
+            const departments = await response.json();
+            let options = '<option value="">{% trans "Select Department" %}</option>';
+            options += buildTreeOptions(departments);
+            editPosDepartment.innerHTML = options;
+
+            if (selectedDepartmentId) {
+                editPosDepartment.value = selectedDepartmentId;
+            }
+        } catch (error) {
+            console.error('Error loading departments:', error);
+            alert('{% trans "Error loading departments. Please try again." %}');
+        }
+    }
+
+    // Helper function to get localized position name
+    function getLocalizedPositionName(pos) {
+        // Try multiple ways to get current language
+        let currentLanguage = $('html').attr('lang') || 
+                             (window.location.pathname.match(/^\/([a-z]{2})\//) ? window.location.pathname.match(/^\/([a-z]{2})\//)[1] : null) ||
+                             'uk';
+        
+        // Normalize language code (en, ru, uk)
+        if (currentLanguage && currentLanguage.length > 2) {
+            currentLanguage = currentLanguage.substring(0, 2);
+        }
+        
+        if (pos.name) return pos.name;
+        if (currentLanguage === 'ru' && pos.position_name_ru) return pos.position_name_ru;
+        if (currentLanguage === 'en' && pos.position_name_en) return pos.position_name_en;
+        if (pos.position_name_ua) return pos.position_name_ua;
+        return `Position ${pos.id}`;
+    }
+
+    // Заповнення випадаючого списку позицій
+    async function loadParentPositions(companyId, selectedPositionId = null) {
+        if (!companyId) {
+            editPosParentPosition.innerHTML = '<option value="">{% trans "None" %}</option>';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/companies/${companyId}/positions/`);
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}: Failed to load positions.`);
+            }
+
+            const positions = await response.json();
+            let options = '<option value="">{% trans "None" %}</option>';
+            if (Array.isArray(positions)) {
+                positions.forEach(pos => {
+                    const positionName = getLocalizedPositionName(pos);
+                    options += `<option value="${pos.id}">${positionName}</option>`;
+                });
+            }
+            editPosParentPosition.innerHTML = options;
+
+            if (selectedPositionId) {
+                editPosParentPosition.value = selectedPositionId;
+            }
+        } catch (error) {
+            console.error('Error loading parent positions:', error);
+            editPosParentPosition.innerHTML = '<option value="">{% trans "None" %}</option>';
+        }
+    }
+
+    // Load position data
+
+    async function loadPositionData(positionId) {
+        try {
+            const response = await fetch(`{% url 'get_position' '0' %}`.replace('0', positionId));
+            if (!response.ok) {
+                throw new Error('Failed to load position data');
+            }
+
+            const data = await response.json();
+            if (data.status === 'success' && data.position) {
+                const position = data.position;
+
+                // Fill form fields
+                document.getElementById('editPosId').value = position.id;
+
+                // Set company first
+                const companySelect = document.getElementById('editPosCompany');
+                companySelect.value = position.company_id;
+
+                // Load departments and positions
+                await Promise.all([
+                    loadDepartments(position.company_id, position.department_id),
+                    loadParentPositions(position.company_id, position.parent_position_id)
+                ]);
+
+                // Set department and parent position after they are loaded
+                const departmentSelect = document.getElementById('editPosDepartment');
+                departmentSelect.value = position.department_id || '';
+                
+                const parentPositionSelect = document.getElementById('editPosParentPosition');
+                parentPositionSelect.value = position.parent_position_id || '';
+
+                // Fill dynamic Name/Description by language
+                (window.positionFormLanguages || ['en', 'uk', 'ru', 'de']).forEach(function(lang) {
+                    const nameEl = document.getElementById('editPosName_' + lang);
+                    const descEl = document.getElementById('editPosDesc_' + lang);
+                    if (nameEl) nameEl.value = position['name_' + lang] || '';
+                    if (descEl) descEl.value = position['description_' + lang] || '';
+                });
+                document.getElementById('editPosColor').value = position.color;
+                document.getElementById('editPosColorHex').value = position.color;
+
+                editPositionModal.show();
+            } else {
+                throw new Error('Invalid position data received');
+            }
+        } catch (error) {
+            console.error('Error loading position data:', error);
+            alert('{% trans "Error loading position data. Please try again." %}');
+        }
+    }
+
+    // Company change handler
+    editPosCompany.addEventListener('change', function() {
+        const companyId = this.value;
+        loadDepartments(companyId);
+        loadParentPositions(companyId);
+    });
+
+    // Валідація: можна вибрати лише одне - Department або Parent Position
+    editPosDepartment.addEventListener('change', function() {
+        if (this.value) {
+            // Якщо вибрано Department, очищаємо Parent Position
+            editPosParentPosition.value = '';
+        }
+    });
+
+    editPosParentPosition.addEventListener('change', function() {
+        if (this.value) {
+            // Якщо вибрано Parent Position, очищаємо Department
+            editPosDepartment.value = '';
+        }
+    });
+
+    // Edit button click handler
+    $(document).on('click', '.edit-pos-btn', function() {
+        const positionId = $(this).data('id');
+        loadPositionData(positionId);
+    });
+
+    // Form submission handler
+
+    editPositionSubmit.addEventListener('click', async function() {
+        // Перевірка, що вибрано щонайменше одне - Department або Parent Position
+        if (!editPosDepartment.value && !editPosParentPosition.value) {
+            alert('{% trans "Please select either Department or Parent Position" %}');
+            return;
+        }
+
+        if (editPosDepartment.value && editPosParentPosition.value) {
+            alert('{% trans "You can select either Department or Parent Position, but not both" %}');
+            return;
+        }
+
+        if (!editPositionForm.checkValidity()) {
+            editPositionForm.classList.add('was-validated');
+            return;
+        }
+
+        const formData = new FormData(editPositionForm);
+        const positionId = document.getElementById('editPosId').value;
+
+        try {
+            const response = await fetch(`{% url 'edit_position' '0' %}`.replace('0', positionId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // Show success message
+                alert(result.message);
+
+                // Close modal
+                editPositionModal.hide();
+
+                // Clean up modal artifacts
+                cleanupModal();
+
+                // Reset form
+                editPositionForm.reset();
+                editPositionForm.classList.remove('was-validated');
+                editPosDepartment.innerHTML = '<option value="">{% trans "Select Department" %}</option>';
+                editPosParentPosition.innerHTML = '<option value="">{% trans "None" %}</option>';
+
+                // Refresh the organization structure
+                const companyId = document.getElementById('companySelect').value;
+                if (window.loadOrgStructure && companyId) {
+                    await window.loadOrgStructure(companyId);
+                }
+            } else {
+                if (result.errors) {
+                    let errorMessage = '{% trans "Please correct the following errors:" %}\n';
+                    Object.entries(result.errors).forEach(([field, errors]) => {
+                        errorMessage += `\n${field}: ${errors.join(', ')}`;
+                    });
+                    alert(errorMessage);
+                } else {
+                    alert(result.message || '{% trans "An error occurred while updating the position." %}');
+                }
+            }
+        } catch (error) {
+            console.error('Error updating position:', error);
+            alert('{% trans "An unexpected error occurred. Please try again later." %}');
+        }
+    });
+
+    // Delete button handler
+    editPositionDelete.addEventListener('click', async function() {
+        const positionId = document.getElementById('editPosId').value;
+        const positionName = document.getElementById('editPosName_en')?.value || document.querySelector('[id^="editPosName_"]')?.value || '';
+
+        if (confirm(`{% trans "Are you sure you want to delete position" %} "${positionName}"? {% trans "This action cannot be undone." %}`)) {
+            try {
+                const response = await fetch(`{% url 'delete_position' '0' %}`.replace('0', positionId), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Show success message
+                    alert(result.message);
+
+                    // Close modal
+                    editPositionModal.hide();
+
+                    // Clean up modal artifacts
+                    cleanupModal();
+
+                    // Refresh the organization structure
+                    const companyId = document.getElementById('companySelect').value;
+                    if (window.loadOrgStructure && companyId) {
+                        await window.loadOrgStructure(companyId);
+                    }
+                } else {
+                    alert(result.message || '{% trans "Error deleting position" %}');
+                }
+            } catch (error) {
+                console.error('Error deleting position:', error);
+                alert('{% trans "An unexpected error occurred. Please try again later." %}');
+            }
+        }
+    });
+
+    // Reset form when modal is hidden
+    modalElement.addEventListener('hidden.bs.modal', function() {
+        editPositionForm.reset();
+        editPositionForm.classList.remove('was-validated');
+        editPosDepartment.innerHTML = '<option value="">{% trans "Select Department" %}</option>';
+        editPosParentPosition.innerHTML = '<option value="">{% trans "None" %}</option>';
+        cleanupModal();
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,461 @@
+<!-- SecBoard\SecBoard\templates\app_std\modals\edit_pcidss_modal.html-->
+
+{% load i18n %}
+{% load std_custom_filters %}
+
+<div class="modal fade" id="editPCIDSSModal" tabindex="-1" aria-labelledby="editPCIDSSModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editPCIDSSModalLabel">{% trans "Edit PCI DSS Requirement" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editPCIDSSForm">
+          {% csrf_token %}
+          <input type="hidden" id="requirement-id" name="requirement_id">
+
+          <!-- Category fields -->
+          <div class="mb-3">
+            <label for="category-modal" class="form-label">{% trans "Category" %}</label>
+
+            <!-- Ukrainian -->
+            <div class="form-group">
+              <label for="category-modal-uk">{% trans "Ukrainian" %}</label>
+              <input type="text" class="form-control" id="category-modal-uk" name="category_uk">
+            </div>
+
+            <!-- Russian -->
+            <div class="form-group">
+              <label for="category-modal-ru">{% trans "Russian" %}</label>
+              <input type="text" class="form-control" id="category-modal-ru" name="category_ru">
+            </div>
+
+            <!-- English -->
+            <div class="form-group">
+              <label for="category-modal-en">{% trans "English" %}</label>
+              <input type="text" class="form-control" id="category-modal-en" name="category_en">
+            </div>
+          </div>
+
+          {% for field in 'title,description,testing_procedures,further_information,applicability_notes,customized_approach_objective,definitions,examples,good_practice,purpose'|split:',' %}
+          <div class="mb-3">
+            <label for="{{ field }}-modal" class="form-label">{% trans field|title %}</label>
+
+            <!-- Ukrainian -->
+            <div class="form-group">
+              <label for="{{ field }}-modal-uk">{% trans "Ukrainian" %}</label>
+              {% if field == 'title' %}
+                <input type="text" class="form-control" id="{{ field }}-modal-uk" name="{{ field }}_uk">
+              {% else %}
+                <textarea class="form-control" id="{{ field }}-modal-uk" name="{{ field }}_uk" rows="3"></textarea>
+              {% endif %}
+            </div>
+
+            <!-- Russian -->
+            <div class="form-group">
+              <label for="{{ field }}-modal-ru">{% trans "Russian" %}</label>
+              {% if field == 'title' %}
+                <input type="text" class="form-control" id="{{ field }}-modal-ru" name="{{ field }}_ru">
+              {% else %}
+                <textarea class="form-control" id="{{ field }}-modal-ru" name="{{ field }}_ru" rows="3"></textarea>
+              {% endif %}
+            </div>
+
+            <!-- English -->
+            <div class="form-group">
+              <label for="{{ field }}-modal-en">{% trans "English" %}</label>
+              {% if field == 'title' %}
+                <input type="text" class="form-control" id="{{ field }}-modal-en" name="{{ field }}_en">
+              {% else %}
+                <textarea class="form-control" id="{{ field }}-modal-en" name="{{ field }}_en" rows="3"></textarea>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+        <button type="button" class="btn btn-info" id="translateModalFields">{% trans "Translate" %}</button>
+        <button type="button" class="btn btn-primary" id="saveChanges">{% trans "Save changes" %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Edit modal script initialized");
+
+    // Constants and state
+    const currentLanguage = '{{ LANGUAGE_CODE }}';
+    const FIELDS = [
+        'title', 'description', 'testing_procedures', 'further_information',
+        'applicability_notes', 'customized_approach_objective', 'definitions',
+        'examples', 'good_practice', 'purpose'
+    ];
+    const LANGUAGES = ['uk', 'ru', 'en'];
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const canEdit = {{ can_edit|yesno:"true,false" }};
+
+    let currentRequirementId = null;
+    let isProcessing = false;
+
+    // Setup AJAX defaults
+    $.ajaxSetup({
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader('X-CSRFToken', csrfToken);
+        }
+    });
+
+    // Initialize Bootstrap modal
+    const editModal = new bootstrap.Modal(document.getElementById('editPCIDSSModal'));
+
+    // Helper Functions
+    function getFieldValue(field, lang) {
+        const elementId = field === 'category' ? `category-modal-${lang}` : `${field}-modal-${lang}`;
+        return document.getElementById(elementId)?.value || '';
+    }
+
+    function setFieldValue(field, lang, value) {
+        const elementId = field === 'category' ? `category-modal-${lang}` : `${field}-modal-${lang}`;
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.value = value || '';
+        }
+    }
+
+    function populateModalFields(data) {
+        console.log("Populating modal fields with data:", data);
+
+        try {
+            $('#requirement-id').val(data.id);
+            currentRequirementId = data.id;
+
+            // Populate category fields
+            if (data.category) {
+                LANGUAGES.forEach(lang => {
+                    setFieldValue('category', lang, data.category[`category_${lang}`]);
+                });
+            }
+
+            // Populate other fields
+            FIELDS.forEach(field => {
+                LANGUAGES.forEach(lang => {
+                    setFieldValue(field, lang, data[`${field}_${lang}`]);
+                });
+            });
+        } catch (error) {
+            console.error('Error populating modal fields:', error);
+            showAlert('error', '{% trans "Error loading requirement data" %}');
+        }
+    }
+
+    function collectFormData() {
+        const formData = new FormData(document.getElementById('editPCIDSSForm'));
+
+        // Add category fields
+        LANGUAGES.forEach(lang => {
+            formData.append(`category_${lang}`, getFieldValue('category', lang));
+        });
+
+        return formData;
+    }
+
+    function showAlert(type, message, timeout = 3000) {
+        console.log(`${type} alert:`, message);
+
+        // Create alert element
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+        alertDiv.style.zIndex = '9999';
+
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+
+        document.body.appendChild(alertDiv);
+
+        // Auto dismiss
+        setTimeout(() => {
+            alertDiv.remove();
+        }, timeout);
+    }
+
+    // Event Handlers
+    document.getElementById('saveChanges').addEventListener('click', async function() {
+        if (isProcessing || !currentRequirementId) {
+            return;
+        }
+
+        isProcessing = true;
+        this.disabled = true;
+
+        try {
+            const formData = collectFormData();
+
+            const response = await fetch(
+                '{% url "edit_pcidss_requirement" 0 %}'.replace('0', currentRequirementId),
+                {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                }
+            );
+
+            const data = await response.json();
+
+            if (data.success) {
+                showAlert('success', '{% trans "Requirement updated successfully" %}');
+                editModal.hide();
+                location.reload();
+            } else {
+                throw new Error(data.error || '{% trans "Error updating requirement" %}');
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            showAlert('danger', error.message || '{% trans "Error saving changes" %}');
+        } finally {
+            isProcessing = false;
+            this.disabled = false;
+        }
+    });
+
+    // Translate button handler for modal
+    document.getElementById('translateModalFields').addEventListener('click', async function() {
+        if (isProcessing || !currentRequirementId || !canEdit) {
+            if (!canEdit) {
+                showAlert('error', '{% trans "You do not have permission to translate" %}');
+            }
+            return;
+        }
+
+        isProcessing = true;
+        this.disabled = true;
+
+        try {
+            // Collect data from the modal fields
+            const translationData = {
+                [currentRequirementId]: {}
+            };
+
+            // Only collect English fields for translation
+            ['category', ...FIELDS].forEach(field => {
+                const enValue = getFieldValue(field, 'en');
+                if (enValue && enValue.trim() !== '') {
+                    translationData[currentRequirementId][`${field}_en`] = enValue;
+                }
+            });
+
+            console.log('Translation data:', translationData);
+
+            const response = await fetch('{% url "translate_pcidss_fields" %}', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: JSON.stringify(translationData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success && data.translations[currentRequirementId]) {
+                const translations = data.translations[currentRequirementId];
+
+                // Update modal fields with translations
+                Object.entries(translations).forEach(([key, value]) => {
+                    const [field, lang] = key.split('_');
+                    if (lang !== 'en') { // Don't overwrite English source
+                        setFieldValue(field, lang, value);
+                    }
+                });
+
+                showAlert('success', '{% trans "Fields translated successfully" %}');
+            } else {
+                throw new Error(data.error || '{% trans "No translations returned" %}');
+            }
+        } catch (error) {
+            console.error('Translation error:', error);
+            showAlert('danger', error.message || '{% trans "Translation failed. Please try again." %}');
+        } finally {
+            isProcessing = false;
+            this.disabled = false;
+        }
+    });
+
+    // Modal Events
+    const editPCIDSSModal = document.getElementById('editPCIDSSModal');
+
+    editPCIDSSModal.addEventListener('show.bs.modal', async function(event) {
+        const button = event.relatedTarget;
+        const id = button.getAttribute('data-id');
+
+        if (!id) {
+            console.error('No id provided for the requirement');
+            showAlert('danger', '{% trans "Error: No requirement selected" %}');
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                '{% url "get_pcidss_requirement" 0 %}'.replace('0', id),
+                {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error('{% trans "Error fetching requirement data" %}');
+            }
+
+            const data = await response.json();
+            populateModalFields(data);
+        } catch (error) {
+            console.error('Fetch error:', error);
+            showAlert('danger', error.message);
+            editModal.hide();
+        }
+    });
+
+    editPCIDSSModal.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('editPCIDSSForm').reset();
+        currentRequirementId = null;
+        isProcessing = false;
+
+        // Clear all fields
+        ['category', ...FIELDS].forEach(field => {
+            LANGUAGES.forEach(lang => {
+                setFieldValue(field, lang, '');
+            });
+        });
+    });
+
+    // Table Translation Button
+    $('#translatePCIDSSBtn').on('click', async function(e) {
+        if (!canEdit) {
+            showAlert('error', '{% trans "You do not have permission to translate requirements" %}');
+            return;
+        }
+
+        const selectedIds = $('.requirement-checkbox:checked')
+            .map(function() { return $(this).data('id').toString(); })
+            .get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', '{% trans "Please select at least one requirement to translate" %}');
+            return;
+        }
+
+        $(this).prop('disabled', true);
+        $('#translationStatus').text('{% trans "Fetching requirements data..." %}').show();
+
+        try {
+            // Fetch requirements data
+            const results = await Promise.all(selectedIds.map(id =>
+                fetch('{% url "get_pcidss_requirement" 0 %}'.replace('0', id), {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                }).then(response => {
+                    if (!response.ok) throw new Error('Fetch failed');
+                    return response.json();
+                })
+            ));
+
+            const translationData = {};
+            results.forEach(data => {
+                const id = data.id.toString();
+                translationData[id] = {};
+
+                // Only include non-empty English fields
+                FIELDS.forEach(field => {
+                    const enField = `${field}_en`;
+                    if (data[enField]?.trim()) {
+                        translationData[id][enField] = data[enField];
+                    }
+                });
+
+                // Handle category separately
+                if (data.category?.category_en) {
+                    translationData[id]['category_en'] = data.category.category_en;
+                }
+            });
+
+            $('#translationStatus').text('{% trans "Translation in progress..." %}');
+
+            const response = await fetch('{% url "translate_pcidss_fields" %}', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: JSON.stringify(translationData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || '{% trans "Translation failed" %}');
+            }
+
+            showAlert('success', '{% trans "Translation completed successfully" %}');
+            location.reload();
+
+        } catch (error) {
+            console.error('Translation error:', error);
+            showAlert('error', error.message || '{% trans "Translation failed. Please try again." %}');
+        } finally {
+            $(this).prop('disabled', false);
+            $('#translationStatus').hide();
+        }
+    });
+
+    // CSRF token utility
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>

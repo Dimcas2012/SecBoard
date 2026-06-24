@@ -1,0 +1,242 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }} - {% trans "Server" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3 mb-0">{{ title }}</h1>
+            <div class="btn-group sb-toolbar" role="group">
+                <a href="{% url 'app_gophish:server_list' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                   title="{% trans 'Back to List' %}">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Display form errors -->
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        <strong>Form Errors:</strong>
+                        {{ form.non_field_errors }}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Debug information -->
+                    {% if form.errors %}
+                    <div class="alert alert-warning">
+                        <strong>Field Errors:</strong>
+                        <ul>
+                        {% for field, errors in form.errors.items %}
+                            <li><strong>{{ field }}:</strong> {{ errors }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">{{ form.name.label }}</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                        <div class="text-danger">{{ form.name.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">{% trans "A friendly name for this Gophish server" %}</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.base_url.id_for_label }}" class="form-label">{{ form.base_url.label }}</label>
+                        {{ form.base_url }}
+                        {% if form.base_url.errors %}
+                        <div class="text-danger">{{ form.base_url.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">{% trans "The full URL to your Gophish server (e.g., https://gophish.example.com)" %}</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.api_key.id_for_label }}" class="form-label">{{ form.api_key.label }}</label>
+                        <div class="input-group">
+                            {{ form.api_key }}
+                            {% if form.instance.pk %}
+                            <button class="btn btn-outline-secondary" type="button" onclick="toggleApiKey()">
+                                <i class="fas fa-eye" id="api-key-toggle-icon"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% if form.api_key.errors %}
+                        <div class="text-danger">{{ form.api_key.errors }}</div>
+                        {% endif %}
+                        {% if form.api_key.help_text %}
+                        <div class="form-text text-muted">{{ form.api_key.help_text }}</div>
+                        {% else %}
+                        <small class="form-text text-muted">{% trans "API key from your Gophish server settings" %}</small>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.company.id_for_label }}" class="form-label">{{ form.company.label }}</label>
+                        {{ form.company }}
+                        {% if form.company.errors %}
+                        <div class="text-danger">{{ form.company.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">{% trans "Select the company this server belongs to" %}</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active.label }}
+                            </label>
+                        </div>
+                        {% if form.is_active.errors %}
+                        <div class="text-danger">{{ form.is_active.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">{% trans "Only active servers will be synchronized" %}</small>
+                    </div>
+                    
+                    <div class="btn-group sb-toolbar d-inline-flex gap-1" role="group">
+                        <button type="submit" class="btn btn-outline-success btn-sm btn-icon-action" title="{% trans 'Save Server' %}">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
+                        <a href="{% url 'app_gophish:server_list' %}" class="btn btn-outline-secondary btn-sm btn-icon-action" title="{% trans 'Cancel' %}">
+                            <i class="bi bi-x-lg"></i>
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Getting Started" %}</h5>
+            </div>
+            <div class="card-body">
+                <h6>{% trans "1. Get API Key" %}</h6>
+                <p class="small text-muted">
+                    {% trans "Log into your Gophish server and go to Settings > API to generate an API key." %}
+                </p>
+                
+                <h6>{% trans "2. Test Connection" %}</h6>
+                <p class="small text-muted">
+                    {% trans "The system will automatically test the connection when you save the server." %}
+                </p>
+                
+                <h6>{% trans "3. Synchronize Data" %}</h6>
+                <p class="small text-muted">
+                    {% trans "After saving, use the Sync feature to import existing campaigns, templates, and groups." %}
+                </p>
+                
+                <h6>{% trans "4. Create Campaigns" %}</h6>
+                <p class="small text-muted">
+                    {% trans "Start creating and managing phishing campaigns through this interface." %}
+                </p>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Troubleshooting" %}</h5>
+            </div>
+            <div class="card-body">
+                <h6>{% trans "Common Connection Issues:" %}</h6>
+                <ul class="list-unstyled small">
+                    <li class="mb-2">
+                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                        <strong>{% trans "SSL Certificate Error" %}</strong><br>
+                        <span class="text-muted">{% trans "Use HTTPS and ensure the certificate is valid, or use HTTP for testing" %}</span>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-key text-danger"></i>
+                        <strong>{% trans "Invalid API Key" %}</strong><br>
+                        <span class="text-muted">{% trans "Check the API key in Gophish Settings > Account Settings" %}</span>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-network-wired text-info"></i>
+                        <strong>{% trans "Network Issues" %}</strong><br>
+                        <span class="text-muted">{% trans "Ensure the Gophish server is running and accessible" %}</span>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-server text-secondary"></i>
+                        <strong>{% trans "Wrong URL" %}</strong><br>
+                        <span class="text-muted">{% trans "Use the full URL including protocol (http:// or https://)" %}</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Security Notes" %}</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small">
+                    <li class="mb-2">
+                        <i class="fas fa-shield-alt text-success"></i>
+                        {% trans "API keys are encrypted in the database" %}
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-shield-alt text-success"></i>
+                        {% trans "SSL verification is disabled for self-signed certificates" %}
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-shield-alt text-success"></i>
+                        {% trans "All communication uses secure API calls" %}
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-shield-alt text-success"></i>
+                        {% trans "Sensitive data is not logged" %}
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleApiKey() {
+    var apiKeyField = document.getElementById('{{ form.api_key.id_for_label }}');
+    var toggleIcon = document.getElementById('api-key-toggle-icon');
+    
+    if (apiKeyField.type === 'password' || apiKeyField.readOnly) {
+        // Show the API key
+        apiKeyField.type = 'text';
+        apiKeyField.readOnly = false;
+        apiKeyField.value = '';
+        apiKeyField.placeholder = 'Enter new API key';
+        toggleIcon.className = 'fas fa-eye-slash';
+        toggleIcon.title = 'Hide API key';
+    } else {
+        // Hide the API key
+        apiKeyField.type = 'password';
+        apiKeyField.readOnly = true;
+        apiKeyField.value = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
+        apiKeyField.placeholder = 'Enter new API key or leave unchanged';
+        toggleIcon.className = 'fas fa-eye';
+        toggleIcon.title = 'Show API key';
+    }
+}
+
+// Initialize the API key field state
+$(document).ready(function() {
+    var apiKeyField = document.getElementById('{{ form.api_key.id_for_label }}');
+    if (apiKeyField && apiKeyField.value === '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••') {
+        apiKeyField.type = 'password';
+    }
+});
+</script>
+{% endblock %}

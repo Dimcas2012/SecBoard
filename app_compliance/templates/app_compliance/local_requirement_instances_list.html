@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Local Company Requirements" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_compliance/includes/compliance_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 compliance-page">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1><i class="bi bi-building me-2"></i>{% trans "Local Company Requirements" %}</h1>
+            <p class="text-muted">{% trans "Local Requirements applied to specific companies" %}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            {% include "app_compliance/includes/compliance_local_nav_toolbar.html" with active="applications" %}
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        {% trans "Applications inherit their structure from templates. Apply or edit templates to propagate updates to companies." %}
+    </div>
+
+    {% with filters_expanded=search or selected_company or selected_template or selected_status %}
+    <div class="card mb-2 filter-section access-request-filters compliance-filters-card">
+        {% url 'compliance:local_requirement_instances_list' as local_instances_clear_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="localInstanceFiltersCollapse" toggle_id="toggleLocalInstanceFilters" icon_id="localInstanceFiltersToggleIcon" filter_clear_url=local_instances_clear_url filters_expanded=filters_expanded %}
+        <div class="collapse{% if filters_expanded %} show{% endif %}" id="localInstanceFiltersCollapse">
+        <div class="card-body py-2">
+            <form method="get" id="filterForm" class="row g-1 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Search" %}</label>
+                    <input type="text" name="search" class="form-control form-control-sm" value="{{ search }}" placeholder="{% trans 'Code, name, company...' %}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Company" %}</label>
+                    <select name="company" class="form-select form-select-sm">
+                        <option value="">{% trans "All Companies" %}</option>
+                        {% for comp in companies %}
+                        <option value="{{ comp.id }}" {% if selected_company == comp.id|stringformat:"s" %}selected{% endif %}>{{ comp.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Template" %}</label>
+                    <select name="template" class="form-select form-select-sm">
+                        <option value="">{% trans "All Templates" %}</option>
+                        {% for tmpl in templates %}
+                        <option value="{{ tmpl.id }}" {% if selected_template == tmpl.id|stringformat:"s" %}selected{% endif %}>{{ tmpl.code }} — {{ tmpl.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Status" %}</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">{% trans "All Statuses" %}</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-list-ul me-1"></i>{% trans "Local Company Requirements" %} ({{ instances.paginator.count }})
+            </h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "Company" %}</th>
+                        <th>{% trans "Requirement" %}</th>
+                        <th>{% trans "Template" %}</th>
+                        <th>{% trans "Regulator" %}</th>
+                        <th>{% trans "Controls" %}</th>
+                        <th>{% trans "Status" %}</th>
+                        <th>{% trans "Dates" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for instance in instances %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ instance.company.name }}</div>
+                            {% if instance.is_mandatory %}
+                            <span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> {% trans "Mandatory" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'compliance:local_requirement_instance_detail' instance.id %}" class="fw-semibold text-decoration-none">
+                                {{ instance.code }}
+                            </a>
+                            <div class="text-muted small">{{ instance.name }}</div>
+                            {% if instance.company_types.all %}
+                            <div class="mt-1">
+                                {% for ctype in instance.company_types.all %}
+                                <span class="badge bg-secondary">{{ ctype.name }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if instance.template %}
+                            <div class="fw-semibold">{{ instance.template.code }}</div>
+                            <div class="text-muted small">{{ instance.template.name }}</div>
+                            <a href="{% url 'compliance:local_requirement_template_detail' instance.template.id %}" class="btn btn-link btn-sm p-0">
+                                {% trans "View template" %} <i class="fas fa-arrow-right"></i>
+                            </a>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-semibold">{{ instance.regulator.name }}</div>
+                            <div class="text-muted small">{{ instance.regulator.country.name }}</div>
+                        </td>
+                        <td>
+                            {% if instance.controls_summary.total %}
+                            <div class="d-flex align-items-center mb-1">
+                                <div class="progress w-100" style="height: 8px;">
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ instance.completion }}%;" aria-valuenow="{{ instance.completion }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <span class="ms-2 small fw-semibold">{{ instance.completion }}%</span>
+                            </div>
+                            <div class="controls-badge small text-muted">
+                                <span><i class="fas fa-check-circle text-success"></i> {{ instance.controls_summary.completed }}</span>
+                                <span><i class="fas fa-spinner text-warning"></i> {{ instance.controls_summary.in_progress }}</span>
+                                <span><i class="fas fa-circle text-secondary"></i> {{ instance.controls_summary.not_started }}</span>
+                                <span>/ {{ instance.controls_summary.total }}</span>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if instance.status == 'active' %}bg-success{% elif instance.status == 'draft' %}bg-warning text-dark{% elif instance.status == 'suspended' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                {{ instance.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if instance.effective_date %}
+                            <div class="small text-muted"><i class="fas fa-calendar"></i> {% trans "Effective" %}: {{ instance.effective_date|date:"d.m.Y" }}</div>
+                            {% endif %}
+                            {% if instance.deadline_date %}
+                            <div class="small text-danger"><i class="fas fa-clock"></i> {% trans "Deadline" %}: {{ instance.deadline_date|date:"d.m.Y" }}</div>
+                            {% endif %}
+                            {% if not instance.effective_date and not instance.deadline_date %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                            <div class="h5 text-muted">{% trans "No requirement instances found" %}</div>
+                            <p class="text-muted">{% trans "Apply templates to companies to generate instances." %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if instances.has_other_pages %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if instances.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ instances.previous_page_number }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link"><i class="fas fa-chevron-left"></i></span></li>
+                    {% endif %}
+
+                    {% for num in instances.paginator.page_range %}
+                        {% if instances.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > instances.number|add:'-3' and num < instances.number|add:'3' %}
+                        <li class="page-item"><a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if instances.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ instances.next_page_number }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link"><i class="fas fa-chevron-right"></i></span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            <div class="text-center text-muted">
+                {% trans "Page" %} {{ instances.number }} {% trans "of" %} {{ instances.paginator.num_pages }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal fade" id="localComplianceGuideModal" tabindex="-1" aria-labelledby="localComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:local_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="localComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Local Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="localComplianceGuideModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('localComplianceGuideModal').addEventListener('show.bs.modal', function() {
+    var body = document.getElementById('localComplianceGuideModalBody');
+    var url = this.getAttribute('data-guide-url');
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+    fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+        })
+        .catch(function() {
+            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+        });
+});
+</script>
+{% endblock %}
+

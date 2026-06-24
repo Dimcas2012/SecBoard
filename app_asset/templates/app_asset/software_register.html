@@ -1,0 +1,1666 @@
+<!-- SecBoard app_asset: Software Register (Allowed/Forbidden) -->
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Software Register" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_asset/includes/asset_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_asset/css/software_register-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid software-register-page asset-page px-2 py-1">
+    <div class="mb-2">
+        <h1 class="sw-page-title mb-1"><i class="bi bi-list-ul me-2"></i>{% trans "Software Register" %}</h1>
+        <p class="text-muted mb-0">{% trans "Manage and track software in your organization" %}</p>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="card mb-2 filter-section access-request-filters asset-filters-card">
+            {% include "includes/sb_access_request_filters_header.html" with collapse_id="softwareFiltersCollapse" toggle_id="toggleSoftwareFilters" icon_id="softwareFiltersToggleIcon" clear_btn_id="btnResetFilters" %}
+            <div class="collapse" id="softwareFiltersCollapse">
+            <div class="card-body py-2">
+        <div class="software-filters">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-3">
+                    <label class="form-label">{% trans "Status" %}</label>
+                    <select class="form-select form-select-sm" id="filterStatus">
+                        <option value="">{% trans "All" %}</option>
+                        {% for st in software_statuses %}
+                        <option value="{{ st.code }}">{{ st.get_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label">{% trans "Company" %}</label>
+                    <select class="form-select form-select-sm" id="filterCompany">
+                        <option value="">{% trans "All" %}</option>
+                        {% for company in allowed_companies %}
+                        <option value="{{ company.id }}">{{ company.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label">{% trans "Search" %}</label>
+                    <input type="text" class="form-control form-control-sm" id="filterSearch" placeholder="{% trans 'Name, version, description, hash...' %}">
+                </div>
+                <div class="col-12 col-md-3 d-flex align-items-end">
+                    <div class="form-check filter-option-check filter-option-check--info mb-0">
+                        <input class="form-check-input" type="checkbox" id="filterHasFiles" value="1">
+                        <label class="form-check-label" for="filterHasFiles">{% trans "Has files" %}</label>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-2 align-items-center mt-1">
+                <div class="col-12 col-md-auto">
+                    <div class="form-check filter-option-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="showInactiveSoftware" value="1">
+                        <label class="form-check-label" for="showInactiveSoftware">{% trans "Show Inactive Software" %}</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+            </div>
+            </div>
+        </div>
+
+        <div class="export-controls mb-2">
+            <div class="row align-items-center">
+                <div class="col-md-6"></div>
+                <div class="col-md-6 text-end">
+                    <div class="btn-group sb-toolbar" role="group">
+                        {% if can_edit %}
+                        <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="btnAddSoftware"
+                                data-bs-toggle="modal" data-bs-target="#softwareFormModal"
+                                title="{% trans 'Add Software' %}">
+                            <i class="bi bi-plus-circle"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm btn-icon-action" id="btnImportSoftware"
+                                data-bs-toggle="modal" data-bs-target="#importSoftwareModal"
+                                title="{% trans 'Import' %}">
+                            <i class="bi bi-file-earmark-arrow-up"></i>
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-success btn-sm btn-icon-action" id="btnExportSoftware"
+                                data-bs-toggle="modal" data-bs-target="#exportSoftwareModal"
+                                title="{% trans 'Export' %}">
+                            <i class="bi bi-file-earmark-excel"></i>
+                        </button>
+                        {% if manage_types %}
+                        <button type="button" class="btn btn-outline-warning btn-sm btn-icon-action" id="btnManageGroupsTypes"
+                                title="{% trans 'Groups & Types' %}">
+                            <i class="bi bi-tags"></i>
+                        </button>
+                        {% endif %}
+                        <a href="{% url 'information_assets' %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                           title="{% trans 'Asset Inventory' %}">
+                            <i class="bi bi-hdd-stack"></i>
+                        </a>
+                        <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="guideBtn"
+                                data-bs-toggle="modal" data-bs-target="#softwareGuideModal"
+                                title="{% trans 'Guide' %}">
+                            <i class="bi bi-book"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="bulkSoftwareActionsToolbar" class="alert alert-info mb-3" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-check-square me-2"></i>
+                    <span id="selectedSoftwareCount">0</span> {% trans "entries selected" %}
+                </div>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-success" id="bulkActualizeSoftwareBtn">
+                        <i class="fas fa-sync-alt me-1"></i>{% trans "Bulk Actualize" %}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="clearSoftwareSelectionBtn">
+                        <i class="fas fa-times me-1"></i>{% trans "Clear Selection" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive full-width-table">
+            <table id="softwareTable" class="table table-hover table-sm table-sm-font sb-data-table table-software mb-0">
+            <thead>
+                <tr>
+                    <th class="sortable" data-col="0"><span>{% trans "ID" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="1"><span>{% trans "Status" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="2" data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Created date and inactive date (if applicable)' %}"><span>{% trans "Date" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="3"><span>{% trans "Company" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="4"><span>{% trans "Name" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="5"><span>{% trans "Manufacturer" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="6"><span>{% trans "URL" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="7"><span>{% trans "Group/Type" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="8"><span>{% trans "Version" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="9"><span>{% trans "License" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="10"><span>{% trans "Description" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="11"><span>{% trans "Notes" %}</span><span class="sort-icon"></span></th>
+                    <th class="sortable" data-col="12"><span>{% trans "Files" %}</span><span class="sort-icon"></span></th>
+                    <th data-col="13"><span>{% trans "CIA" %}</span></th>
+                    <th class="sortable" data-col="14"><span>{% trans "Actual" %}</span><span class="sort-icon"></span></th>
+                    <th style="width:32px;"><input type="checkbox" id="selectAllSoftwareEntries" title="{% trans 'Select all own entries' %}"></th>
+                    <th class="sortable" data-col="15"><span>{% trans "Owners" %}</span><span class="sort-icon"></span></th>
+                    <th class="text-end">{% trans "Actions" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in software_list %}
+                <tr class="{% if not item.is_active %}software-row-inactive{% endif %}" data-id="{{ item.id }}" data-is-active="{% if item.is_active %}1{% else %}0{% endif %}" data-status="{{ item.status.code }}" data-company-id="{% if item.company %}{{ item.company.id }}{% endif %}" data-name="{{ item.name|escape }}" data-version="{{ item.version_pattern|default:''|escape }}" data-description="{{ item.description|default:''|escape }}" data-manufacturer="{{ item.manufacturer|default:''|escape }}" data-notes="{{ item.notes|default:''|escape }}" data-files-count="{{ item.files.count }}" data-file-hashes="{% for f in item.files.all %}{{ f.file_hash|default:'' }}{% if not forloop.last %} {% endif %}{% endfor %}">
+                    <td class="text-muted" style="font-size:0.78rem;white-space:nowrap;font-family:monospace;">S{{ item.id|stringformat:"06d" }}</td>
+                    <td><span style="color: {{ item.status.color }}"><i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i>{{ item.status.get_name }}</span></td>
+                    <td>
+                        <div style="display:flex;flex-direction:column;gap:0.19rem;min-width:78px;">
+                            <div style="display:flex;align-items:center;">
+                                <span class="badge bg-success" style="padding:0.19rem 0.375rem;font-size:0.525rem;border-radius:5px;min-width:22px;" data-bs-toggle="tooltip" title="{% trans 'Created Date' %}"><i class="fas fa-plus"></i></span>
+                                <span style="margin-left:0.375rem;font-family:'Courier New',monospace;font-size:0.6rem;">{{ item.created_date|date:"Y-m-d" }}</span>
+                            </div>
+                            {% if not item.is_active %}
+                            <div style="display:flex;align-items:center;">
+                                <span class="badge bg-secondary" style="padding:0.19rem 0.375rem;font-size:0.525rem;border-radius:5px;min-width:22px;" data-bs-toggle="tooltip" title="{% trans 'Inactive' %}"><i class="fas fa-power-off"></i></span>
+                                <span style="margin-left:0.375rem;font-family:'Courier New',monospace;font-size:0.6rem;">{{ item.updated_date|date:"Y-m-d" }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>{% if item.company %}{{ item.company.name }}{% else %}—{% endif %}</td>
+                    <td><strong>{{ item.name }}</strong></td>
+                    <td>{{ item.manufacturer|default:"—" }}</td>
+                    <td>{% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener">{% trans "Link" %}</a>{% else %}—{% endif %}</td>
+                    <td>{% if item.group %}{{ item.group.get_name }}{% if item.asset_type %} / {{ item.asset_type.get_name }}{% endif %}{% elif item.category %}{{ item.category.get_name }}{% else %}—{% endif %}</td>
+                    <td {% if item.version_usage_tooltip %}title="{{ item.version_usage_tooltip }}"{% endif %}>{{ item.version_pattern|default:"—" }}</td>
+                    <td {% if item.license_usage_tooltip %}title="{{ item.license_usage_tooltip }}"{% endif %}><small class="{% if item.license_expires_soon %}text-danger fw-bold{% endif %}">{% if item.license_type %}{{ item.get_license_type_name }}{% if item.license_quantity %} ({{ item.license_quantity }}){% endif %}{% if item.license_valid_until %} {% trans "until" %} {{ item.license_valid_until|date:"d.m.Y" }}{% endif %}{% else %}—{% endif %}</small></td>
+                    <td><small class="text-muted">{{ item.description|truncatewords:12|default:"—" }}</small></td>
+                    <td><small class="text-muted">{{ item.notes|truncatewords:12|default:"—" }}</small></td>
+                    <td>
+                        {% if item.files.all %}
+                        <span title="{% for f in item.files.all %}{{ f.file.name|default:''|slice:':50' }}{% if f.file_hash %} — {{ f.file_hash }}{% endif %}{% if not forloop.last %}&#10;{% endif %}{% endfor %}">
+                            <i class="fas fa-paperclip me-1"></i>{{ item.files.count }}
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex;flex-direction:column;gap:2px;min-width:60px;">
+                        {% if item.confidentiality %}
+                        <div style="display:flex;align-items:center;gap:3px;">
+                            <span class="cia-label">C</span>
+                            <span class="cia-badge" style="background-color:{{ item.confidentiality.color }};color:#000;"
+                                  title="C: {{ item.confidentiality.get_name }}{% if item.confidentiality.get_description_confid %} — {{ item.confidentiality.get_description_confid }}{% endif %}">{{ item.confidentiality.get_name }}</span>
+                        </div>
+                        {% endif %}
+                        {% if item.integrity %}
+                        <div style="display:flex;align-items:center;gap:3px;">
+                            <span class="cia-label">I</span>
+                            <span class="cia-badge" style="background-color:{{ item.integrity.color }};color:#000;"
+                                  title="I: {{ item.integrity.get_name }}{% if item.integrity.get_description_integ %} — {{ item.integrity.get_description_integ }}{% endif %}">{{ item.integrity.get_name }}</span>
+                        </div>
+                        {% endif %}
+                        {% if item.availability %}
+                        <div style="display:flex;align-items:center;gap:3px;">
+                            <span class="cia-label">A</span>
+                            <span class="cia-badge" style="background-color:{{ item.availability.color }};color:#000;"
+                                  title="A: {{ item.availability.get_name }}{% if item.availability.get_description_avail %} — {{ item.availability.get_description_avail }}{% endif %}">{{ item.availability.get_name }}</span>
+                        </div>
+                        {% endif %}
+                        {% if not item.confidentiality and not item.integrity and not item.availability %}—{% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if item.id in software_owner_entry_ids %}
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary actualize-action"
+                                        data-action="actualize"
+                                        data-id="{{ item.id }}"
+                                        data-actual-date="{% if item.actualization_date %}{{ item.actualization_date|date:'Y-m-d H:i:s' }}{% endif %}"
+                                        title="{% trans 'Actualize' %}">
+                                    <i class="fas fa-clock"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm {% if item.marked_no_longer_actual_at and not item.actualization_date %}btn-warning{% else %}btn-outline-secondary{% endif %} actualize-action"
+                                        data-action="mark_inactive"
+                                        data-id="{{ item.id }}"
+                                        title="{% trans 'Mark as no longer actual' %}">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            {% if item.marked_no_longer_actual_at and not item.actualization_date %}
+                                <div class="small text-muted mt-1" {% if item.marked_no_longer_comment %}title="{{ item.marked_no_longer_comment|escape }}"{% endif %}>
+                                    {% trans "No longer actual" %}
+                                </div>
+                            {% elif item.actualization_date %}
+                                <div class="small text-muted mt-1 actual-time-ago"
+                                     data-actual-date="{{ item.actualization_date|date:'Y-m-d H:i:s' }}"
+                                     title="{{ item.actualization_date|date:'d.m.Y H:i' }}">
+                                    {{ item.actualization_date|date:"d.m.Y H:i" }}
+                                </div>
+                            {% endif %}
+                        {% elif item.actualization_date %}
+                            <span class="text-success actual-time-ago"
+                                  data-actual-date="{{ item.actualization_date|date:'Y-m-d H:i:s' }}"
+                                  title="{{ item.actualization_date|date:'d.m.Y H:i' }}">
+                                {{ item.actualization_date|date:"d.m.Y H:i" }}
+                            </span>
+                        {% elif item.marked_no_longer_actual_at %}
+                            <span class="text-muted" {% if item.marked_no_longer_comment %}title="{{ item.marked_no_longer_comment|escape }}"{% endif %}>
+                                {% trans "No longer actual" %}
+                            </span>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if item.id in software_owner_entry_ids %}
+                            <input type="checkbox" class="software-entry-checkbox" value="{{ item.id }}" title="{% trans 'Select for bulk actualization' %}">
+                        {% endif %}
+                    </td>
+                    <td><small>{% for o in item.owners.all %}{{ o.name }}{% if o.department or o.position %} <span class="text-muted">({{ o.department|default:"" }}{% if o.department and o.position %} / {% endif %}{{ o.position|default:"" }})</span>{% endif %}{% if not forloop.last %}; {% endif %}{% empty %}—{% endfor %}</small></td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-outline-secondary btn-software-action btn-history-software" data-id="{{ item.id }}" title="{% trans 'History' %}"><i class="fas fa-history"></i></button>
+                        {% if can_edit %}
+                        <button type="button" class="btn btn-outline-primary btn-sm btn-software-action btn-edit-software" data-id="{{ item.id }}" title="{% trans 'Edit' %}"><i class="bi bi-pencil"></i></button>
+                        <button type="button" class="btn btn-outline-secondary btn-software-action btn-duplicate-software" data-id="{{ item.id }}" data-name="{{ item.name|escape }}" title="{% trans 'Duplicate' %}"><i class="fas fa-copy"></i></button>
+                        <button type="button" class="btn btn-outline-danger btn-software-action btn-delete-software" data-id="{{ item.id }}" data-name="{{ item.name|escape }}" title="{% trans 'Delete' %}"><i class="fas fa-trash-alt"></i></button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr class="empty-state"><td colspan="18">{% trans "No software entries." %}</td></tr>
+                {% endfor %}
+            </tbody>
+            </table>
+        </div>
+        {% include "app_asset/includes/asset_table_pagination_client.html" with pagination_id="softwareTablePagination" pagination_aria_label=_("Software register pagination") %}
+        <p class="text-muted mt-3 mb-0" style="font-size:0.675rem;">
+            <i class="fas fa-info-circle me-1"></i>
+            {% trans "Empty company means organization-wide rule." %}
+        </p>
+      </div><!-- /card-body -->
+    </div><!-- /card -->
+</div>
+
+{% if manage_types %}
+{% include 'app_asset/modals/asset_type_modal.html' %}
+{% endif %}
+
+<!-- Add/Edit Software Modal -->
+<div class="modal fade" id="softwareFormModal" tabindex="-1" aria-labelledby="softwareFormModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="softwareFormModalLabel">{% trans "Add Software" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="softwareForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="softwareEntryId" name="id" value="">
+                    <div class="mb-3">
+                        <label for="softwareName" class="form-label">{% trans "Software Name" %} *</label>
+                        <input type="text" class="form-control" id="softwareName" name="name" required maxlength="255" placeholder="{% trans 'e.g. Microsoft Office' %}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="softwareStatus" class="form-label">{% trans "Status" %} *</label>
+                            <select class="form-select" id="softwareStatus" name="status">
+                                {% for st in software_statuses %}
+                                <option value="{{ st.id }}">{{ st.get_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{% trans "Group / Type" %}</label>
+                            <div class="sw-group-select-container">
+                                {% for group in groups %}
+                                <div class="sw-group-section">
+                                    <div class="sw-group-header" data-group-id="{{ group.id }}">
+                                        <span style="font-size:0.7rem;font-weight:600;">{{ group.display_name|default:group.get_name }}</span>
+                                        <i class="fas fa-chevron-down" style="font-size:0.6rem;transition:transform 0.2s;"></i>
+                                    </div>
+                                    <div class="sw-group-types d-none">
+                                        {% for asset_type in group.asset_types.all %}
+                                        <div class="sw-type-option">
+                                            <label class="d-flex align-items-center">
+                                                <input type="radio" name="sw_group_asset_type"
+                                                       value="{{ group.id }},{{ asset_type.id }}"
+                                                       class="me-2">
+                                                {{ asset_type.display_name|default:asset_type.get_name }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="p-3 text-muted small">{% trans "No asset groups defined." %}</div>
+                                {% endfor %}
+                            </div>
+                            <input type="hidden" id="softwareGroupAssetType" name="sw_group_asset_type" value="">
+                            <input type="hidden" id="softwareGroup" name="group" value="">
+                            <input type="hidden" id="softwareAssetType" name="asset_type" value="">
+                            <div class="invalid-feedback" id="softwareGroupTypeError" style="display:none;">{% trans "Please select a group and type." %}</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="softwareManufacturer" class="form-label">{% trans "Manufacturer" %}</label>
+                            <input type="text" class="form-control" id="softwareManufacturer" name="manufacturer" maxlength="255" placeholder="{% trans 'Vendor / manufacturer' %}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="softwareUrl" class="form-label">{% trans "URL" %}</label>
+                            <input type="url" class="form-control" id="softwareUrl" name="url" maxlength="500" placeholder="https://">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="softwareCompany" class="form-label">{% trans "Company" %}</label>
+                        <select class="form-select" id="softwareCompany" name="company">
+                            <option value="">{% trans "— Organization-wide —" %}</option>
+                            {% for company in allowed_companies %}
+                            <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">{% trans "Leave empty for organization-wide rule." %}</small>
+                    </div>
+                    <div class="mb-3" id="softwareOwnersWrap">
+                        <label class="form-label">{% trans "Owners" %}</label>
+                        <div id="softwareOwnersPlaceholder" class="text-muted small">{% trans "Select company to choose owners." %}</div>
+                        <div id="softwareOwnersList" class="border rounded p-2 bg-light mb-2" style="max-height: 120px; overflow-y: auto; display: none;"></div>
+                        <div id="softwareOwnersAvailableWrap" class="mb-2" style="display: none;">
+                            <small class="text-muted">{% trans "Add from company owners:" %}</small>
+                            <div id="softwareOwnersAvailable" class="small border rounded p-2 bg-white mt-1" style="max-height: 120px; overflow-y: auto;"></div>
+                        </div>
+                        <input type="text" class="form-control form-control-sm mb-2" id="softwareOwnerSearch" placeholder="{% trans 'Search to add other users...' %}" style="max-width: 280px; display: none;">
+                        <div id="softwareOwnerSearchResults" class="small border rounded p-2 bg-white" style="max-height: 120px; overflow-y: auto; display: none;"></div>
+                        <input type="hidden" id="softwareOwners" name="owners" value="[]">
+                    </div>
+                    <div class="mb-3">
+                        <label for="softwareVersionInput" class="form-label">{% trans "Versions" %}</label>
+                        <div id="softwareVersionTags" class="form-control d-flex flex-wrap align-items-center gap-1" style="min-height: 38px;">
+                            <input type="text" class="border-0 flex-grow-1 p-0" id="softwareVersionInput" maxlength="100" placeholder="{% trans 'Type version and press comma' %}" style="outline: none; min-width: 180px;">
+                        </div>
+                        <input type="hidden" id="softwareVersion" name="version_pattern" value="">
+                        <small class="text-muted">{% trans "Add multiple versions separated by comma." %}</small>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="softwareLicenseType" class="form-label">{% trans "License Type" %}</label>
+                            <select class="form-select" id="softwareLicenseType" name="license_type">
+                                <option value="">—</option>
+                                {% for lt in software_license_types %}
+                                <option value="{{ lt.code }}">{{ lt.get_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="softwareLicenseQuantity" class="form-label">{% trans "License Quantity" %}</label>
+                            <input type="number" class="form-control" id="softwareLicenseQuantity" name="license_quantity" min="0" placeholder="">
+                            <small id="softwareLicenseUsageHint" class="text-muted d-block mt-1">{% trans "Used" %}: 0, {% trans "Free" %}: —</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="softwareLicenseValidUntil" class="form-label">{% trans "License Valid Until" %}</label>
+                            <input type="date" class="form-control" id="softwareLicenseValidUntil" name="license_valid_until">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="softwareDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="softwareDescription" name="description" rows="2" placeholder="{% trans 'Optional description' %}"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="softwareNotes" class="form-label">{% trans "Notes" %}</label>
+                        <textarea class="form-control" id="softwareNotes" name="notes" rows="2" placeholder="{% trans 'Additional notes' %}"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" style="font-size:0.75rem;">{% trans "CIA (Confidentiality / Integrity / Availability)" %}</label>
+                        <div id="swCiaLoadingMsg" class="small text-muted mb-1" style="display:none;"><i class="fas fa-spinner fa-spin me-1"></i>{% trans "Loading levels..." %}</div>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <div class="form-label" style="font-size:0.68rem;color:#374151;">{% trans "Confidentiality" %}</div>
+                                <div class="sw-criticality-grid" id="swConfidentialityGrid"></div>
+                                <input type="hidden" id="softwareConfidentiality" name="confidentiality" value="">
+                                <div class="sw-cia-desc mt-1" id="swConfidentialityDesc" style="display:none;"></div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-label" style="font-size:0.68rem;color:#374151;">{% trans "Integrity" %}</div>
+                                <div class="sw-criticality-grid" id="swIntegrityGrid"></div>
+                                <input type="hidden" id="softwareIntegrity" name="integrity" value="">
+                                <div class="sw-cia-desc mt-1" id="swIntegrityDesc" style="display:none;"></div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-label" style="font-size:0.68rem;color:#374151;">{% trans "Availability" %}</div>
+                                <div class="sw-criticality-grid" id="swAvailabilityGrid"></div>
+                                <input type="hidden" id="softwareAvailability" name="availability" value="">
+                                <div class="sw-cia-desc mt-1" id="swAvailabilityDesc" style="display:none;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="softwareDisplayOrder" class="form-label">{% trans "Display Order" %}</label>
+                            <input type="number" class="form-control" id="softwareDisplayOrder" name="display_order" value="0" min="0">
+                        </div>
+                        <div class="col-md-6 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="softwareIsActive" name="is_active" value="true" checked>
+                                <label class="form-check-label" for="softwareIsActive">{% trans "Active" %}</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="softwareFilesSection" class="mb-3" style="display: none;">
+                        <label class="form-label">{% trans "Attached Files" %} <span class="badge bg-secondary" id="softwareFilesCount">0</span></label>
+                        <div id="softwareFilesList" class="small mb-2 border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;"></div>
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <input type="file" id="softwareFilesUpload" class="form-control form-control-sm" style="max-width: 220px;" multiple>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="softwareFilesUploadBtn"><i class="fas fa-upload me-1"></i>{% trans "Upload" %}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="softwareFormSubmit">{% trans "Save" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Software Modal -->
+<div class="modal fade" id="exportSoftwareModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Export Software Register" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">{% trans "Format" %}</label>
+                    <select class="form-select" id="exportSoftwareFormat">
+                        <option value="xlsx">Excel (.xlsx)</option>
+                        <option value="csv">CSV</option>
+                    </select>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="exportSoftwareIncludeFiles" value="1">
+                    <label class="form-check-label" for="exportSoftwareIncludeFiles">{% trans "Include attached files (name, hash, date)" %}</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-success" id="exportSoftwareSubmit"><i class="fas fa-download me-1"></i>{% trans "Download" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Software Modal -->
+<div class="modal fade" id="importSoftwareModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Import Software Register" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">{% trans "Upload CSV (delimiter ;) or Excel (.xlsx). First row = headers. Column 'Name' is required. Matching by Name + Company updates existing entries." %}</p>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <a class="btn btn-outline-primary btn-sm" href="{% url 'download_software_register_import_template' %}?format=csv">
+                        <i class="fas fa-download me-1"></i>{% trans "Download template CSV" %}
+                    </a>
+                    <a class="btn btn-outline-primary btn-sm" href="{% url 'download_software_register_import_template' %}?format=xlsx">
+                        <i class="fas fa-download me-1"></i>{% trans "Download template XLSX" %}
+                    </a>
+                </div>
+                <div class="small text-muted mb-2">
+                    <strong>{% trans "Template columns:" %}</strong>
+                    <code>Name; Status; Company; Owners; Manufacturer; URL; Version; License Type; License Qty; License Until; Description; Notes; Actualized At; Actualized By; No longer actual at; No longer actual comment; Active; Display Order</code>
+                </div>
+                <input type="file" id="importSoftwareFile" class="form-control" accept=".csv,.xlsx,.xls">
+                <div id="importSoftwareResult" class="mt-2 small"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="importSoftwareSubmit"><i class="fas fa-upload me-1"></i>{% trans "Import" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- History Modal -->
+<div class="modal fade" id="historySoftwareModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Change History" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="historySoftwareList" class="small"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Software Guide Modal -->
+<div class="modal fade" id="softwareGuideModal" tabindex="-1" aria-labelledby="softwareGuideModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="softwareGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Software Register Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="softwareGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="{% static 'app_asset/js/asset-table-pagination.js' %}"></script>
+<script>
+(function() {
+    const modal = document.getElementById('softwareFormModal');
+    const form = document.getElementById('softwareForm');
+    const formLabel = document.getElementById('softwareFormModalLabel');
+    const entryIdInput = document.getElementById('softwareEntryId');
+    const getCsrf = () => document.querySelector('[name=csrfmiddlewaretoken]').value;
+    var _base = "{% url 'software_register' %}".replace(/\/?$/, '');
+    let currentModalFiles = [];
+    let selectedSoftwareOwners = [];
+    let softwareAvailableOwners = [];
+    const urlGetAllOwners = "{% url 'get_all_asset_owners' %}";
+    const urlSearchCabinet = "{% url 'search_cabinet_users' %}";
+    const urlGetOrCreateOwner = "{% url 'get_or_create_asset_owner' %}";
+    const softwareVersionInput = document.getElementById('softwareVersionInput');
+    const softwareVersionHidden = document.getElementById('softwareVersion');
+    const softwareVersionTagsWrap = document.getElementById('softwareVersionTags');
+    let softwareVersions = [];
+    const urls = {
+        get: _base + '/get/',
+        add: _base + '/add/',
+        edit: _base + '/edit/',
+        delete: _base + '/delete/',
+        duplicate: _base + '/duplicate/',
+        actualize: "{% url 'actualize_software_register' 0 %}".replace('/0/', '/'),
+        bulkActualize: "{% url 'bulk_actualize_software_register' %}",
+        history: _base + '/history/',
+        upload: _base + '/upload/',
+        fileDelete: "{% url 'delete_software_register_file' 0 %}".replace('/0/', '/'),
+        import: "{% url 'import_software_register' %}",
+        export: "{% url 'export_software_register' %}"
+    };
+    let lockedSoftwareVersions = [];
+
+    function formatUploadedAt(iso) {
+        if (!iso) return '—';
+        try {
+            const d = new Date(iso);
+            return isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+        } catch (e) { return iso; }
+    }
+    function copyHashToClipboard(hash, btnEl) {
+        if (!hash) return;
+        navigator.clipboard.writeText(hash).then(function() {
+            var orig = btnEl.textContent;
+            btnEl.textContent = '{% trans "Copied!" %}';
+            btnEl.classList.add('text-success');
+            setTimeout(function() { btnEl.textContent = orig; btnEl.classList.remove('text-success'); }, 1500);
+        }).catch(function() { alert('{% trans "Copy failed." %}'); });
+    }
+    function getActualizeButtonClass(actualDate) {
+        if (!actualDate) return 'btn-outline-secondary';
+        const dt = new Date(actualDate.replace(' ', 'T'));
+        if (isNaN(dt.getTime())) return 'btn-success';
+        const now = new Date();
+        const diffDays = (now.getTime() - dt.getTime()) / (1000 * 60 * 60 * 24);
+        if (diffDays >= 365) return 'btn-outline-danger';
+        if (diffDays >= 180) return 'btn-outline-warning';
+        if (diffDays >= 90) return 'btn-warning';
+        return 'btn-success';
+    }
+    function getTimeAgo(actualDateStr) {
+        if (!actualDateStr) return null;
+        const actualDate = new Date(actualDateStr.replace(' ', 'T'));
+        if (isNaN(actualDate.getTime())) return null;
+        const now = new Date();
+        const diffMs = now - actualDate;
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const diffMonths = Math.floor(diffDays / 30);
+        const diffYears = Math.floor(diffDays / 365);
+
+        if (diffYears > 0) return `${diffYears} ${diffYears === 1 ? '{% trans "year" %}' : '{% trans "years" %}'} {% trans "ago" %}`;
+        if (diffMonths > 0) return `${diffMonths} ${diffMonths === 1 ? '{% trans "month" %}' : '{% trans "months" %}'} {% trans "ago" %}`;
+        if (diffDays > 0) return `${diffDays} ${diffDays === 1 ? '{% trans "day" %}' : '{% trans "days" %}'} {% trans "ago" %}`;
+        if (diffHours > 0) return `${diffHours} ${diffHours === 1 ? '{% trans "hour" %}' : '{% trans "hours" %}'} {% trans "ago" %}`;
+        if (diffMinutes > 0) return `${diffMinutes} ${diffMinutes === 1 ? '{% trans "minute" %}' : '{% trans "minutes" %}'} {% trans "ago" %}`;
+        return '{% trans "Just now" %}';
+    }
+    function updateActualTimeAgoDisplay() {
+        document.querySelectorAll('.actual-time-ago[data-actual-date]').forEach(function(el) {
+            const actualDate = el.getAttribute('data-actual-date');
+            const timeAgo = getTimeAgo(actualDate);
+            if (timeAgo) el.textContent = timeAgo;
+        });
+    }
+    function refreshActualizeButtons() {
+        document.querySelectorAll('.actualize-action[data-action="actualize"]').forEach(function(btn) {
+            const actualDate = btn.getAttribute('data-actual-date');
+            btn.classList.remove('btn-outline-secondary', 'btn-outline-danger', 'btn-outline-warning', 'btn-warning', 'btn-success');
+            btn.classList.add(getActualizeButtonClass(actualDate));
+        });
+    }
+    function updateSoftwareLicenseUsageHint(usedQty, totalQty) {
+        const hintEl = document.getElementById('softwareLicenseUsageHint');
+        const qtyEl = document.getElementById('softwareLicenseQuantity');
+        if (!hintEl || !qtyEl) return;
+        const used = (usedQty == null || usedQty === '') ? 0 : (parseInt(usedQty, 10) || 0);
+        qtyEl.setAttribute('data-used-qty', String(used));
+        const total = (totalQty == null || totalQty === '') ? null : parseInt(totalQty, 10);
+        const free = (total == null || isNaN(total)) ? '—' : String(Math.max(total - used, 0));
+        hintEl.textContent = '{% trans "Used" %}: ' + used + ', {% trans "Free" %}: ' + free;
+    }
+    function normalizeSoftwareVersions(value) {
+        return (value || '')
+            .split(',')
+            .map(function(v) { return v.trim(); })
+            .filter(function(v) { return !!v; });
+    }
+    function syncSoftwareVersionHidden() {
+        softwareVersionHidden.value = softwareVersions.join(', ');
+    }
+    function renderSoftwareVersionTags() {
+        if (!softwareVersionTagsWrap || !softwareVersionInput) return;
+        softwareVersionTagsWrap.querySelectorAll('.software-version-tag').forEach(function(el) { el.remove(); });
+        softwareVersions.forEach(function(version, idx) {
+            const tagEl = document.createElement('span');
+            tagEl.className = 'badge text-bg-primary software-version-tag d-inline-flex align-items-center';
+            tagEl.textContent = version;
+            const isLocked = lockedSoftwareVersions.indexOf(version) !== -1;
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn-close btn-close-white ms-2';
+            removeBtn.style.fontSize = '0.6rem';
+            removeBtn.style.float = 'none';
+            removeBtn.setAttribute('aria-label', '{% trans "Remove" %}');
+            if (isLocked) {
+                removeBtn.disabled = true;
+                removeBtn.title = '{% trans "Version is used in Linked Software and cannot be removed." %}';
+                tagEl.classList.remove('text-bg-primary');
+                tagEl.classList.add('text-bg-secondary');
+            } else {
+                removeBtn.addEventListener('click', function() {
+                    softwareVersions.splice(idx, 1);
+                    syncSoftwareVersionHidden();
+                    renderSoftwareVersionTags();
+                });
+            }
+            tagEl.appendChild(removeBtn);
+            softwareVersionTagsWrap.insertBefore(tagEl, softwareVersionInput);
+        });
+    }
+    function addSoftwareVersionTag(value) {
+        const candidate = (value || '').trim();
+        if (!candidate) return;
+        if (!softwareVersions.includes(candidate)) softwareVersions.push(candidate);
+        syncSoftwareVersionHidden();
+        renderSoftwareVersionTags();
+    }
+    function setSoftwareVersions(value) {
+        softwareVersions = normalizeSoftwareVersions(value);
+        syncSoftwareVersionHidden();
+        renderSoftwareVersionTags();
+    }
+    function renderFilesList(files) {
+        const listEl = document.getElementById('softwareFilesList');
+        const countEl = document.getElementById('softwareFilesCount');
+        if (!listEl) return;
+        countEl.textContent = files.length;
+        if (files.length === 0) {
+            listEl.innerHTML = '<span class="text-muted">{% trans "No files attached." %}</span>';
+            return;
+        }
+        listEl.innerHTML = files.map(function(f) {
+            const name = (f.label || f.name || '').trim() || f.name || ('ID ' + f.id);
+            const hash = (f.hash || '').trim();
+            const escapedName = (name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            const link = f.url ? '<a href="' + (f.url || '').replace(/"/g, '&quot;') + '" target="_blank" class="me-2" title="{% trans "Download" %}"><i class="fas fa-download"></i></a>' : '';
+            const dateStr = formatUploadedAt(f.uploaded_at);
+            const hashBlock = hash
+                ? '<div class="small mt-1"><span class="text-muted">SHA256:</span> <code class="file-hash-full d-block bg-dark text-light p-1 rounded small" style="word-break:break-all;">' + (hash.replace(/</g, '&lt;')) + '</code><button type="button" class="btn btn-outline-secondary btn-sm mt-1 copy-hash-btn" data-hash="' + (hash.replace(/"/g, '&quot;')) + '" title="{% trans "Copy hash" %}"><i class="fas fa-copy me-1"></i>{% trans "Copy" %}</button></div>'
+                : '<span class="text-muted small">—</span>';
+            const delBtn = '<button type="button" class="btn btn-outline-danger btn-sm py-0 px-1" data-file-id="' + f.id + '" title="{% trans "Delete file" %}"><i class="fas fa-trash-alt"></i></button>';
+            return '<div class="border-bottom py-2 file-row"><div class="d-flex justify-content-between align-items-start"><div class="text-truncate flex-grow-1">' + link + '<span>' + escapedName + '</span><div class="text-muted small">' + dateStr + '</div>' + hashBlock + '</div><div>' + delBtn + '</div></div>';
+        }).join('');
+        listEl.querySelectorAll('[data-file-id]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const fileId = this.getAttribute('data-file-id');
+                if (!confirm('{% trans "Delete this file?" %}')) return;
+                fetch(urls.fileDelete + fileId + '/', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+                    body: 'csrfmiddlewaretoken=' + encodeURIComponent(getCsrf())
+                }).then(function(r) { return r.json(); }).then(function(data) {
+                    if (data.status === 'success') {
+                        currentModalFiles = currentModalFiles.filter(function(x) { return String(x.id) !== String(fileId); });
+                        renderFilesList(currentModalFiles);
+                    } else { alert(data.message || '{% trans "Error" %}'); }
+                }).catch(function() { alert('{% trans "Error deleting file." %}'); });
+            });
+        });
+        listEl.querySelectorAll('.copy-hash-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() { copyHashToClipboard(this.getAttribute('data-hash'), this); });
+        });
+    }
+
+    function renderSoftwareSelectedOwners() {
+        const listEl = document.getElementById('softwareOwnersList');
+        const hid = document.getElementById('softwareOwners');
+        if (!listEl || !hid) return;
+        hid.value = JSON.stringify(selectedSoftwareOwners.map(function(o) { return o.id; }));
+        if (selectedSoftwareOwners.length === 0) {
+            listEl.innerHTML = '<span class="text-muted">{% trans "No owners selected." %}</span>';
+            listEl.style.display = 'block';
+        } else {
+            listEl.innerHTML = selectedSoftwareOwners.map(function(o) {
+                var dept = (o.department || '').replace(/</g, '&lt;');
+                var pos = (o.position || '').replace(/</g, '&lt;');
+                var sub = (dept || pos) ? '<br><small class="opacity-90">' + dept + (dept && pos ? ' / ' : '') + pos + '</small>' : '';
+                return '<span class="badge bg-primary me-1 mb-1 d-inline-flex align-items-center">' + (o.name || '').replace(/</g, '&lt;') + sub + ' <button type="button" class="btn-close btn-close-white ms-1" style="font-size: 0.6rem;" data-owner-id="' + o.id + '" aria-label="Remove"></button></span>';
+            }).join('');
+            listEl.style.display = 'block';
+            listEl.querySelectorAll('[data-owner-id]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const id = parseInt(this.getAttribute('data-owner-id'), 10);
+                    selectedSoftwareOwners = selectedSoftwareOwners.filter(function(o) { return o.id !== id; });
+                    renderSoftwareSelectedOwners();
+                    renderSoftwareAvailableOwners();
+                });
+            });
+        }
+        renderSoftwareAvailableOwners();
+    }
+
+    function renderSoftwareAvailableOwners() {
+        const wrap = document.getElementById('softwareOwnersAvailableWrap');
+        const listEl = document.getElementById('softwareOwnersAvailable');
+        if (!wrap || !listEl) return;
+        if (softwareAvailableOwners.length === 0) {
+            wrap.style.display = 'none';
+            return;
+        }
+        const selectedIds = selectedSoftwareOwners.map(function(o) { return o.id; });
+        const notSelected = softwareAvailableOwners.filter(function(o) { return selectedIds.indexOf(o.id) === -1; });
+        wrap.style.display = 'block';
+        if (notSelected.length === 0) {
+            listEl.innerHTML = '<span class="text-muted">{% trans "All company owners are selected." %}</span>';
+            return;
+        }
+        listEl.innerHTML = notSelected.map(function(o) {
+            var dept = (o.department || '').replace(/</g, '&lt;');
+            var pos = (o.position || '').replace(/</g, '&lt;');
+            var sub = (dept || pos) ? '<div class="text-muted" style="font-size: 0.85em;">' + dept + (dept && pos ? ' / ' : '') + pos + '</div>' : '';
+            return '<div class="p-2 border-bottom software-owner-available-item" style="cursor: pointer;" data-owner-id="' + o.id + '" data-owner-name="' + (o.name || '').replace(/"/g, '&quot;') + '">' + (o.name || '').replace(/</g, '&lt;') + sub + '</div>';
+        }).join('');
+        listEl.querySelectorAll('.software-owner-available-item').forEach(function(el) {
+            el.addEventListener('click', function() {
+                const id = parseInt(this.getAttribute('data-owner-id'), 10);
+                const owner = softwareAvailableOwners.find(function(o) { return o.id === id; });
+                if (owner && !selectedSoftwareOwners.some(function(o) { return o.id === id; })) {
+                    selectedSoftwareOwners.push(owner);
+                    renderSoftwareSelectedOwners();
+                }
+            });
+        });
+    }
+
+    function loadSoftwareOwnersForCompany(companyId, preselectIds) {
+        const placeholder = document.getElementById('softwareOwnersPlaceholder');
+        const listEl = document.getElementById('softwareOwnersList');
+        const searchEl = document.getElementById('softwareOwnerSearch');
+        const resultsEl = document.getElementById('softwareOwnerSearchResults');
+        const availableWrap = document.getElementById('softwareOwnersAvailableWrap');
+        if (!companyId) {
+            placeholder.style.display = 'block';
+            if (listEl) listEl.style.display = 'none';
+            if (searchEl) searchEl.style.display = 'none';
+            if (resultsEl) resultsEl.style.display = 'none';
+            if (availableWrap) availableWrap.style.display = 'none';
+            selectedSoftwareOwners = [];
+            softwareAvailableOwners = [];
+            renderSoftwareSelectedOwners();
+            return;
+        }
+        placeholder.style.display = 'none';
+        if (searchEl) searchEl.style.display = 'block';
+        searchEl.value = '';
+        if (resultsEl) resultsEl.style.display = 'none';
+        fetch(urlGetAllOwners + '?company_id=' + encodeURIComponent(companyId), { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function(r) { return r.json(); })
+            .then(function(owners) {
+                if (!Array.isArray(owners)) { softwareAvailableOwners = []; return; }
+                softwareAvailableOwners = owners;
+                if (preselectIds && preselectIds.length) {
+                    selectedSoftwareOwners = owners.filter(function(o) { return preselectIds.indexOf(o.id) !== -1; });
+                }
+                renderSoftwareSelectedOwners();
+            }).catch(function() { softwareAvailableOwners = []; renderSoftwareSelectedOwners(); });
+    }
+
+    document.getElementById('softwareCompany').addEventListener('change', function() {
+        const companyId = this.value;
+        selectedSoftwareOwners = [];
+        loadSoftwareOwnersForCompany(companyId, null);
+        // Reload CIA levels for selected company (clears cache to always reflect current company)
+        _swCiaLevelsCache = {};
+        loadSwCiaLevels(companyId, '', '', '');
+    });
+
+    var ownerSearchTimeout;
+    if (document.getElementById('softwareOwnerSearch')) {
+        document.getElementById('softwareOwnerSearch').addEventListener('input', function() {
+            const companyId = document.getElementById('softwareCompany').value;
+            const q = this.value.trim();
+            const resultsEl = document.getElementById('softwareOwnerSearchResults');
+            if (!companyId) { resultsEl.style.display = 'none'; return; }
+            clearTimeout(ownerSearchTimeout);
+            if (!q) { resultsEl.style.display = 'none'; return; }
+            ownerSearchTimeout = setTimeout(function() {
+                fetch(urlSearchCabinet + '?company_id=' + encodeURIComponent(companyId) + '&query=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        const users = (data && data.users) ? data.users : [];
+                        if (users.length === 0) {
+                            resultsEl.innerHTML = '<span class="text-muted">{% trans "No users found." %}</span>';
+                        } else {
+                            resultsEl.innerHTML = users.map(function(u) {
+                                const name = (u.user && (u.user.first_name || u.user.last_name)) ? (u.user.first_name + ' ' + u.user.last_name).trim() : (u.user && u.user.email) || '';
+                                return '<div class="p-2 border-bottom cursor-pointer software-owner-search-item" data-cabinet-id="' + (u.id || '') + '">' + (name || '').replace(/</g, '&lt;') + '</div>';
+                            }).join('');
+                            resultsEl.querySelectorAll('.software-owner-search-item').forEach(function(el) {
+                                el.addEventListener('click', function() {
+                                    const cabinetId = this.getAttribute('data-cabinet-id');
+                                    if (!cabinetId || !companyId) return;
+                                    fetch(urlGetOrCreateOwner + '?cabinet_user_id=' + encodeURIComponent(cabinetId) + '&company_id=' + encodeURIComponent(companyId), { headers: { 'Accept': 'application/json' } })
+                                        .then(function(r) { return r.json(); })
+                                        .then(function(owner) {
+                                            if (owner.error) return;
+                                            if (!selectedSoftwareOwners.some(function(o) { return o.id === owner.id; })) {
+                                                selectedSoftwareOwners.push(owner);
+                                                renderSoftwareSelectedOwners();
+                                            }
+                                            document.getElementById('softwareOwnerSearchResults').style.display = 'none';
+                                            document.getElementById('softwareOwnerSearch').value = '';
+                                        }).catch(function() {});
+                                });
+                            });
+                        }
+                        resultsEl.style.display = 'block';
+                    }).catch(function() { resultsEl.style.display = 'none'; });
+            }, 300);
+        });
+    }
+
+    // Group/Type selector logic
+    function initSwGroupTypeHandlers() {
+        document.querySelectorAll('.sw-group-header').forEach(function(header) {
+            header.addEventListener('click', function() {
+                const section = this.closest('.sw-group-section');
+                const types = section.querySelector('.sw-group-types');
+                const chevron = this.querySelector('.fa-chevron-down');
+                types.classList.toggle('d-none');
+                if (chevron) chevron.style.transform = types.classList.contains('d-none') ? '' : 'rotate(180deg)';
+            });
+        });
+        document.querySelectorAll('input[name="sw_group_asset_type"]').forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                document.querySelectorAll('.sw-type-option').forEach(function(opt) { opt.classList.remove('selected-type'); });
+                this.closest('.sw-type-option').classList.add('selected-type');
+                var val = this.value;
+                document.getElementById('softwareGroupAssetType').value = val;
+                var parts = val.split(',');
+                document.getElementById('softwareGroup').value = parts[0] || '';
+                document.getElementById('softwareAssetType').value = parts[1] || '';
+                document.getElementById('softwareGroupTypeError').style.display = 'none';
+            });
+        });
+    }
+    initSwGroupTypeHandlers();
+
+    // CIA criticality grid — dynamic AJAX-based loading
+    var swCiaGridMap = {
+        'swConfidentialityGrid': 'softwareConfidentiality',
+        'swIntegrityGrid': 'softwareIntegrity',
+        'swAvailabilityGrid': 'softwareAvailability'
+    };
+    var swCiaDescMap = {
+        'swConfidentialityGrid': 'swConfidentialityDesc',
+        'swIntegrityGrid': 'swIntegrityDesc',
+        'swAvailabilityGrid': 'swAvailabilityDesc'
+    };
+    var swCiaDescField = {
+        'swConfidentialityGrid': 'description_confid',
+        'swIntegrityGrid': 'description_integ',
+        'swAvailabilityGrid': 'description_avail'
+    };
+    var urlGetCriticalityLevels = "{% url 'get_criticality_levels' %}";
+
+    function _showSwCiaDesc(gridId, color, text) {
+        var descEl = document.getElementById(swCiaDescMap[gridId]);
+        if (!descEl) return;
+        if (text) {
+            descEl.textContent = text;
+            descEl.style.borderLeftColor = color || '#667eea';
+            descEl.style.display = 'block';
+        } else {
+            descEl.style.display = 'none';
+        }
+    }
+
+    function _bindSwCiaLevel(el) {
+        el.addEventListener('click', function() {
+            var gridId = this.getAttribute('data-grid');
+            var levelId = this.getAttribute('data-level-id');
+            var grid = document.getElementById(gridId);
+            var hidden = document.getElementById(swCiaGridMap[gridId]);
+            var descField = swCiaDescField[gridId];
+            var color = this.getAttribute('data-color') || '#ccc';
+            var desc = this.getAttribute('data-desc') || '';
+            if (this.classList.contains('selected')) {
+                this.classList.remove('selected');
+                if (hidden) hidden.value = '';
+                _showSwCiaDesc(gridId, color, '');
+            } else {
+                grid.querySelectorAll('.sw-criticality-level').forEach(function(l) { l.classList.remove('selected'); });
+                this.classList.add('selected');
+                if (hidden) hidden.value = levelId;
+                _showSwCiaDesc(gridId, color, desc);
+            }
+        });
+    }
+
+    function _renderSwCiaGrid(gridEl, levels, selectedId) {
+        gridEl.innerHTML = '';
+        var descField = swCiaDescField[gridEl.id];
+        // hide desc panel while re-rendering
+        var descEl = document.getElementById(swCiaDescMap[gridEl.id]);
+        if (descEl) descEl.style.display = 'none';
+        if (!levels || !levels.length) {
+            gridEl.innerHTML = '<span class="text-muted small">{% trans "No levels." %}</span>';
+            return;
+        }
+        levels.forEach(function(level) {
+            var isSelected = String(level.id) === String(selectedId);
+            var desc = (descField && level[descField]) ? level[descField] : '';
+            var color = level.color || '#ccc';
+            var div = document.createElement('div');
+            div.className = 'sw-criticality-level' + (isSelected ? ' selected' : '');
+            div.setAttribute('data-level-id', level.id);
+            div.setAttribute('data-grid', gridEl.id);
+            div.setAttribute('data-color', color);
+            div.setAttribute('data-desc', desc);
+            div.innerHTML = '<div class="sw-criticality-color" style="background-color:' + color + ';"></div><span>' + (level.name || '') + '</span>';
+            if (isSelected) {
+                var hidden = document.getElementById(swCiaGridMap[gridEl.id]);
+                if (hidden) hidden.value = level.id;
+                _showSwCiaDesc(gridEl.id, color, desc);
+            }
+            _bindSwCiaLevel(div);
+            gridEl.appendChild(div);
+        });
+    }
+
+    var _swCiaLevelsCache = {};
+
+    function loadSwCiaLevels(companyId, preselectConf, preselectInt, preselectAvail) {
+        var cacheKey = companyId || '__global__';
+        var loadMsg = document.getElementById('swCiaLoadingMsg');
+        if (loadMsg) loadMsg.style.display = 'block';
+
+        function doRender(levels) {
+            if (loadMsg) loadMsg.style.display = 'none';
+            _renderSwCiaGrid(document.getElementById('swConfidentialityGrid'), levels, preselectConf || '');
+            _renderSwCiaGrid(document.getElementById('swIntegrityGrid'), levels, preselectInt || '');
+            _renderSwCiaGrid(document.getElementById('swAvailabilityGrid'), levels, preselectAvail || '');
+        }
+
+        if (_swCiaLevelsCache[cacheKey]) {
+            doRender(_swCiaLevelsCache[cacheKey]);
+            return;
+        }
+        var url = urlGetCriticalityLevels + (companyId ? '?company_id=' + encodeURIComponent(companyId) : '');
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var levels = data.levels || [];
+                _swCiaLevelsCache[cacheKey] = levels;
+                doRender(levels);
+            })
+            .catch(function() {
+                if (loadMsg) loadMsg.style.display = 'none';
+                ['swConfidentialityGrid', 'swIntegrityGrid', 'swAvailabilityGrid'].forEach(function(id) {
+                    var g = document.getElementById(id);
+                    if (g) g.innerHTML = '<span class="text-danger small">{% trans "Error loading." %}</span>';
+                });
+            });
+    }
+
+    function resetSwCia() {
+        ['softwareConfidentiality', 'softwareIntegrity', 'softwareAvailability'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        ['swConfidentialityGrid', 'swIntegrityGrid', 'swAvailabilityGrid'].forEach(function(id) {
+            var g = document.getElementById(id);
+            if (g) g.querySelectorAll('.sw-criticality-level').forEach(function(l) { l.classList.remove('selected'); });
+            var descEl = document.getElementById(swCiaDescMap[id]);
+            if (descEl) descEl.style.display = 'none';
+        });
+    }
+
+    function preselectSwCia(confId, intId, availId) {
+        var companyId = document.getElementById('softwareCompany').value || '';
+        loadSwCiaLevels(companyId, confId, intId, availId);
+    }
+
+    function resetSwGroupType() {
+        document.querySelectorAll('input[name="sw_group_asset_type"]').forEach(function(r) { r.checked = false; });
+        document.querySelectorAll('.sw-type-option').forEach(function(opt) { opt.classList.remove('selected-type'); });
+        document.querySelectorAll('.sw-group-types').forEach(function(t) { t.classList.add('d-none'); });
+        document.querySelectorAll('.sw-group-header .fa-chevron-down').forEach(function(c) { c.style.transform = ''; });
+        document.getElementById('softwareGroupAssetType').value = '';
+        document.getElementById('softwareGroup').value = '';
+        document.getElementById('softwareAssetType').value = '';
+    }
+
+    function preselectSwGroupType(groupId, assetTypeId) {
+        resetSwGroupType();
+        if (!groupId || !assetTypeId) return;
+        var val = groupId + ',' + assetTypeId;
+        var radio = document.querySelector('input[name="sw_group_asset_type"][value="' + val + '"]');
+        if (radio) {
+            radio.checked = true;
+            radio.closest('.sw-type-option').classList.add('selected-type');
+            var groupHeader = document.querySelector('.sw-group-header[data-group-id="' + groupId + '"]');
+            if (groupHeader) {
+                var section = groupHeader.closest('.sw-group-section');
+                var types = section.querySelector('.sw-group-types');
+                var chevron = groupHeader.querySelector('.fa-chevron-down');
+                types.classList.remove('d-none');
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
+            }
+            document.getElementById('softwareGroupAssetType').value = val;
+            document.getElementById('softwareGroup').value = groupId;
+            document.getElementById('softwareAssetType').value = assetTypeId;
+        }
+    }
+
+    if (document.getElementById('btnAddSoftware')) {
+        document.getElementById('btnAddSoftware').addEventListener('click', function() {
+            form.reset();
+            lockedSoftwareVersions = [];
+            entryIdInput.value = '';
+            formLabel.textContent = '{{ "Add Software"|escapejs }}';
+            document.getElementById('softwareIsActive').checked = true;
+            document.getElementById('softwareDisplayOrder').value = '0';
+            document.getElementById('softwareFilesSection').style.display = 'none';
+            document.getElementById('softwareFilesUpload').value = '';
+            selectedSoftwareOwners = [];
+            document.getElementById('softwareOwners').value = '[]';
+            loadSoftwareOwnersForCompany(document.getElementById('softwareCompany').value, null);
+            setSoftwareVersions('');
+            if (softwareVersionInput) softwareVersionInput.value = '';
+            updateSoftwareLicenseUsageHint(0, document.getElementById('softwareLicenseQuantity').value);
+            resetSwGroupType();
+            _swCiaLevelsCache = {};
+            loadSwCiaLevels(document.getElementById('softwareCompany').value || '', '', '', '');
+        });
+    }
+
+    document.querySelectorAll('.btn-edit-software').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            fetch(urls.get + id + '/', {
+                method: 'GET',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            }).then(r => r.json()).then(function(data) {
+                if (data.error) { alert(data.error); return; }
+                lockedSoftwareVersions = (data.used_versions && Array.isArray(data.used_versions)) ? data.used_versions : [];
+                entryIdInput.value = data.id;
+                currentModalFiles = data.files || [];
+                document.getElementById('softwareName').value = data.name || '';
+                document.getElementById('softwareStatus').value = data.status || '';
+                preselectSwGroupType(data.group ? String(data.group) : '', data.asset_type ? String(data.asset_type) : '');
+                preselectSwCia(
+                    data.confidentiality ? String(data.confidentiality) : '',
+                    data.integrity ? String(data.integrity) : '',
+                    data.availability ? String(data.availability) : ''
+                );
+                document.getElementById('softwareManufacturer').value = data.manufacturer || '';
+                document.getElementById('softwareUrl').value = data.url || '';
+                document.getElementById('softwareCompany').value = data.company || '';
+                var ownerIds = (data.owners && Array.isArray(data.owners)) ? data.owners.map(function(o) { return o.id; }) : [];
+                loadSoftwareOwnersForCompany(data.company || '', ownerIds);
+                _swCiaLevelsCache = {};
+                setSoftwareVersions(data.version_pattern || '');
+                if (softwareVersionInput) softwareVersionInput.value = '';
+                var softwareLicenseTypeEl = document.getElementById('softwareLicenseType');
+                if (softwareLicenseTypeEl) {
+                    softwareLicenseTypeEl.value = data.license_type || '';
+                    if (data.license_type && !softwareLicenseTypeEl.querySelector('option[value="' + String(data.license_type).replace(/"/g, '&quot;') + '"]')) {
+                        var legacyOption = document.createElement('option');
+                        legacyOption.value = data.license_type;
+                        legacyOption.textContent = data.license_type;
+                        softwareLicenseTypeEl.appendChild(legacyOption);
+                        softwareLicenseTypeEl.value = data.license_type;
+                    }
+                }
+                document.getElementById('softwareLicenseQuantity').value = data.license_quantity != null ? data.license_quantity : '';
+                updateSoftwareLicenseUsageHint(data.used_license_quantity || 0, data.license_quantity);
+                document.getElementById('softwareLicenseValidUntil').value = data.license_valid_until || '';
+                document.getElementById('softwareDescription').value = data.description || '';
+                document.getElementById('softwareNotes').value = data.notes || '';
+                document.getElementById('softwareDisplayOrder').value = data.display_order || 0;
+                document.getElementById('softwareIsActive').checked = !!data.is_active;
+                formLabel.textContent = '{{ "Edit Software"|escapejs }}';
+                document.getElementById('softwareFilesSection').style.display = 'block';
+                renderFilesList(currentModalFiles);
+                document.getElementById('softwareFilesUpload').value = '';
+                new bootstrap.Modal(modal).show();
+            }).catch(function() { alert('{{ "Error loading entry."|escapejs }}'); });
+        });
+    });
+    if (document.getElementById('softwareLicenseQuantity')) {
+        document.getElementById('softwareLicenseQuantity').addEventListener('input', function() {
+            const used = parseInt(this.getAttribute('data-used-qty') || '0', 10) || 0;
+            updateSoftwareLicenseUsageHint(used, this.value);
+        });
+    }
+
+    if (document.getElementById('softwareFilesUploadBtn')) {
+        document.getElementById('softwareFilesUploadBtn').addEventListener('click', function() {
+            const entryId = entryIdInput.value;
+            if (!entryId) { alert('{{ "Save the entry first, then you can attach files."|escapejs }}'); return; }
+            const input = document.getElementById('softwareFilesUpload');
+            if (!input.files || input.files.length === 0) { alert('{{ "Select one or more files."|escapejs }}'); return; }
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', getCsrf());
+            for (var i = 0; i < input.files.length; i++) formData.append('files', input.files[i]);
+            fetch(urls.upload + entryId + '/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.status === 'success' && data.files && data.files.length) {
+                    data.files.forEach(function(f) { currentModalFiles.push(f); });
+                    renderFilesList(currentModalFiles);
+                    input.value = '';
+                } else if (data.status === 'error') { alert(data.message || '{% trans "Upload failed." %}'); }
+            }).catch(function() { alert('{{ "Error uploading files."|escapejs }}'); });
+        });
+    }
+
+    document.getElementById('softwareFormSubmit').addEventListener('click', function() {
+        const name = document.getElementById('softwareName').value.trim();
+        if (!name) { alert('{{ "Name is required."|escapejs }}'); return; }
+        const isEdit = !!entryIdInput.value;
+        const url = isEdit ? urls.edit : urls.add;
+        const formData = new FormData(form);
+        if (!isEdit) formData.delete('id');
+        formData.set('is_active', document.getElementById('softwareIsActive').checked ? 'true' : 'false');
+        formData.set('owners', document.getElementById('softwareOwners').value || '[]');
+        formData.set('version_pattern', softwareVersionHidden.value || '');
+        formData.set('group', document.getElementById('softwareGroup').value || '');
+        formData.set('asset_type', document.getElementById('softwareAssetType').value || '');
+        formData.delete('sw_group_asset_type');
+        formData.set('confidentiality', document.getElementById('softwareConfidentiality').value || '');
+        formData.set('integrity', document.getElementById('softwareIntegrity').value || '');
+        formData.set('availability', document.getElementById('softwareAvailability').value || '');
+        formData.set('csrfmiddlewaretoken', getCsrf());
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(r => r.json()).then(function(data) {
+            if (data.status === 'success') {
+                bootstrap.Modal.getInstance(modal).hide();
+                window.location.reload();
+            } else {
+                alert(data.message || '{{ "Error saving."|escapejs }}');
+            }
+        }).catch(function() { alert('{{ "Error saving."|escapejs }}'); });
+    });
+
+    document.querySelectorAll('.btn-delete-software').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const name = this.getAttribute('data-name') || id;
+            if (!confirm('{{ "Delete software entry"|escapejs }}: ' + name + '?')) return;
+            fetch(urls.delete + id + '/', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json'
+                },
+                body: 'csrfmiddlewaretoken=' + encodeURIComponent(getCsrf())
+            }).then(r => r.json()).then(function(data) {
+                if (data.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert(data.message || '{{ "Error deleting."|escapejs }}');
+                }
+            }).catch(function() { alert('{{ "Error deleting."|escapejs }}'); });
+        });
+    });
+
+    document.querySelectorAll('.btn-duplicate-software').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const name = this.getAttribute('data-name') || id;
+            const copyFiles = confirm('{{ "Duplicate entry"|escapejs }}: ' + name + '\n\n{{ "Copy attached files too?"|escapejs }}');
+            fetch(urls.duplicate + id + '/', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json'
+                },
+                body: 'csrfmiddlewaretoken=' + encodeURIComponent(getCsrf()) + '&copy_files=' + (copyFiles ? '1' : '0')
+            }).then(r => r.json()).then(function(data) {
+                if (data.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert(data.message || '{{ "Error duplicating."|escapejs }}');
+                }
+            }).catch(function() { alert('{{ "Error duplicating."|escapejs }}'); });
+        });
+    });
+
+    document.querySelectorAll('.btn-history-software').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const listEl = document.getElementById('historySoftwareList');
+            listEl.innerHTML = '<span class="text-muted">{% trans "Loading..." %}</span>';
+            const histModal = new bootstrap.Modal(document.getElementById('historySoftwareModal'));
+            histModal.show();
+            fetch(urls.history + id + '/', {
+                method: 'GET',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                credentials: 'same-origin'
+            }).then(function(r) {
+                return r.json().then(function(data) {
+                    if (!r.ok) {
+                        listEl.innerHTML = '<span class="text-danger">' + (data.error || '{% trans "Error loading history." %}') + '</span>';
+                        return;
+                    }
+                    if (data.error) {
+                        listEl.innerHTML = '<span class="text-danger">' + (data.error || '') + '</span>';
+                        return;
+                    }
+                    const history = data.history || [];
+                    if (history.length === 0) {
+                        listEl.innerHTML = '<span class="text-muted">{% trans "No history." %}</span>';
+                        return;
+                    }
+                    listEl.innerHTML = '<table class="table table-hover table-sm table-sm-font sb-data-table"><thead><tr><th>{% trans "Date" %}</th><th>{% trans "Action" %}</th><th>{% trans "By" %}</th><th>{% trans "Details" %}</th></tr></thead><tbody>' +
+                        history.map(function(h) {
+                            var details = (h.details || '');
+                            if (h.changes_display && Array.isArray(h.changes_display) && h.changes_display.length) {
+                                details += '<ul class="mb-0 mt-1 ps-3">' + h.changes_display.map(function(line) {
+                                    return '<li>' + String(line || '').replace(/</g, '&lt;') + '</li>';
+                                }).join('') + '</ul>';
+                            } else if (h.changes && typeof h.changes === 'object' && Object.keys(h.changes).length) {
+                                details += '<pre class="small mb-0">' + JSON.stringify(h.changes, null, 2) + '</pre>';
+                            }
+                            return '<tr><td>' + (h.timestamp || '') + '</td><td>' + (h.action || '') + '</td><td>' + (h.action_by || '') + '</td><td>' + details + '</td></tr>';
+                        }).join('') + '</tbody></table>';
+                });
+            }).catch(function() { listEl.innerHTML = '<span class="text-danger">{% trans "Error loading history." %}</span>'; });
+        });
+    });
+
+    if (document.getElementById('importSoftwareSubmit')) {
+        document.getElementById('importSoftwareSubmit').addEventListener('click', function() {
+            var fileInput = document.getElementById('importSoftwareFile');
+            var resultEl = document.getElementById('importSoftwareResult');
+            if (!fileInput.files || !fileInput.files[0]) {
+                resultEl.innerHTML = '<span class="text-danger">{% trans "Select a file." %}</span>';
+                return;
+            }
+            var formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('csrfmiddlewaretoken', getCsrf());
+            resultEl.innerHTML = '<span class="text-muted">{% trans "Importing..." %}</span>';
+            fetch(urls.import, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(r => r.json()).then(function(data) {
+                if (data.status === 'success') {
+                    resultEl.innerHTML = '<span class="text-success">' + (data.message || '') + ' — {% trans "Created" %}: ' + (data.created || 0) + ', {% trans "Updated" %}: ' + (data.updated || 0) + (data.errors && data.errors.length ? '<br><span class="text-warning">' + data.errors.join('<br>') + '</span>' : '') + '</span>';
+                    setTimeout(function() { window.location.reload(); }, 2000);
+                } else {
+                    resultEl.innerHTML = '<span class="text-danger">' + (data.message || '{% trans "Import failed." %}') + '</span>';
+                }
+            }).catch(function() { resultEl.innerHTML = '<span class="text-danger">{% trans "Import failed." %}</span>'; });
+        });
+    }
+
+    if (document.getElementById('exportSoftwareSubmit')) {
+        document.getElementById('exportSoftwareSubmit').addEventListener('click', function() {
+            var format = (document.getElementById('exportSoftwareFormat') && document.getElementById('exportSoftwareFormat').value) || 'xlsx';
+            var includeFiles = document.getElementById('exportSoftwareIncludeFiles') && document.getElementById('exportSoftwareIncludeFiles').checked;
+            var params = new URLSearchParams();
+            params.set('format', format);
+            if (includeFiles) params.set('include_files', '1');
+            var exportUrl = urls.export + '?' + params.toString();
+            bootstrap.Modal.getInstance(document.getElementById('exportSoftwareModal')).hide();
+            window.open(exportUrl, '_blank');
+        });
+    }
+
+    document.querySelectorAll('.actualize-action').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const entryId = this.getAttribute('data-id');
+            const action = this.getAttribute('data-action');
+            const isMarkInactive = action === 'mark_inactive';
+            const confirmMsg = isMarkInactive
+                ? '{% trans "Are you sure you want to mark this entry as no longer actual?" %}'
+                : '{% trans "Are you sure you want to actualize this entry?" %}';
+            if (!confirm(confirmMsg)) return;
+
+            let comment = '';
+            if (isMarkInactive) {
+                comment = prompt('{% trans "Optional comment for marking no longer actual:" %}', '') || '';
+            }
+
+            fetch(urls.actualize + entryId + '/', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json'
+                },
+                body: 'csrfmiddlewaretoken=' + encodeURIComponent(getCsrf()) +
+                    '&action=' + encodeURIComponent(action) +
+                    '&comment=' + encodeURIComponent(comment)
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert(data.message || '{% trans "Error actualizing entry." %}');
+                }
+            }).catch(function() { alert('{% trans "Error actualizing entry." %}'); });
+        });
+    });
+
+    const selectedSoftwareEntryIds = new Set();
+    const selectAllSoftwareEntriesEl = document.getElementById('selectAllSoftwareEntries');
+    const softwareToolbarEl = document.getElementById('bulkSoftwareActionsToolbar');
+    const selectedSoftwareCountEl = document.getElementById('selectedSoftwareCount');
+
+    function updateSoftwareBulkToolbar() {
+        const count = selectedSoftwareEntryIds.size;
+        if (selectedSoftwareCountEl) selectedSoftwareCountEl.textContent = String(count);
+        if (softwareToolbarEl) softwareToolbarEl.style.display = count > 0 ? '' : 'none';
+
+        if (!selectAllSoftwareEntriesEl) return;
+        const checkboxes = Array.from(document.querySelectorAll('.software-entry-checkbox'));
+        const checked = checkboxes.filter(function(cb) { return cb.checked; }).length;
+        if (checked === 0) {
+            selectAllSoftwareEntriesEl.indeterminate = false;
+            selectAllSoftwareEntriesEl.checked = false;
+        } else if (checked === checkboxes.length) {
+            selectAllSoftwareEntriesEl.indeterminate = false;
+            selectAllSoftwareEntriesEl.checked = true;
+        } else {
+            selectAllSoftwareEntriesEl.indeterminate = true;
+        }
+    }
+
+    if (selectAllSoftwareEntriesEl) {
+        selectAllSoftwareEntriesEl.addEventListener('change', function() {
+            const checked = this.checked;
+            document.querySelectorAll('.software-entry-checkbox').forEach(function(cb) {
+                cb.checked = checked;
+                if (checked) selectedSoftwareEntryIds.add(cb.value);
+                else selectedSoftwareEntryIds.delete(cb.value);
+            });
+            updateSoftwareBulkToolbar();
+        });
+    }
+
+    document.querySelectorAll('.software-entry-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            if (this.checked) selectedSoftwareEntryIds.add(this.value);
+            else selectedSoftwareEntryIds.delete(this.value);
+            updateSoftwareBulkToolbar();
+        });
+    });
+
+    if (document.getElementById('clearSoftwareSelectionBtn')) {
+        document.getElementById('clearSoftwareSelectionBtn').addEventListener('click', function() {
+            selectedSoftwareEntryIds.clear();
+            document.querySelectorAll('.software-entry-checkbox').forEach(function(cb) { cb.checked = false; });
+            if (selectAllSoftwareEntriesEl) {
+                selectAllSoftwareEntriesEl.checked = false;
+                selectAllSoftwareEntriesEl.indeterminate = false;
+            }
+            updateSoftwareBulkToolbar();
+        });
+    }
+
+    if (document.getElementById('bulkActualizeSoftwareBtn')) {
+        document.getElementById('bulkActualizeSoftwareBtn').addEventListener('click', function() {
+            const entryIds = Array.from(selectedSoftwareEntryIds);
+            if (entryIds.length === 0) {
+                alert('{% trans "Please select at least one software entry." %}');
+                return;
+            }
+            if (!confirm('{% trans "Are you sure you want to actualize selected software entries?" %}')) return;
+
+            const btn = this;
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Processing..." %}';
+
+            fetch(urls.bulkActualize, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': getCsrf(),
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ entry_ids: entryIds })
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.status === 'success') {
+                    window.location.reload();
+                    return;
+                }
+                alert(data.message || '{% trans "Error during bulk actualization." %}');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }).catch(function() {
+                alert('{% trans "Error during bulk actualization." %}');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            });
+        });
+    }
+
+    refreshActualizeButtons();
+    updateActualTimeAgoDisplay();
+    setInterval(refreshActualizeButtons, 60000);
+    setInterval(updateActualTimeAgoDisplay, 60000);
+
+    var tablePagination = null;
+    if (typeof window.initAssetClientTablePagination === 'function') {
+        tablePagination = window.initAssetClientTablePagination({
+            tableSelector: '#softwareTable',
+            containerId: 'softwareTablePagination',
+            paginationAriaLabel: '{% trans "Software register pagination" %}',
+            labels: {
+                showing: '{% trans "Showing" %}',
+                of: '{% trans "of" %}',
+                items: '{% trans "entries" %}',
+                perPage: '{% trans "Per page" %}'
+            }
+        });
+    } else {
+        console.error('asset-table-pagination.js is not loaded');
+    }
+
+    // Filters
+    function applyFilters() {
+        const statusVal = (document.getElementById('filterStatus') && document.getElementById('filterStatus').value) || '';
+        const companyVal = (document.getElementById('filterCompany') && document.getElementById('filterCompany').value) || '';
+            const searchVal = (document.getElementById('filterSearch') && document.getElementById('filterSearch').value.trim().toLowerCase()) || '';
+            const hasFilesOnly = document.getElementById('filterHasFiles') && document.getElementById('filterHasFiles').checked;
+            const showInactiveSoftware = document.getElementById('showInactiveSoftware') && document.getElementById('showInactiveSoftware').checked;
+            document.querySelectorAll('.table-software tbody tr[data-id]').forEach(function(tr) {
+                const showStatus = !statusVal || tr.getAttribute('data-status') === statusVal;
+                const showCompany = !companyVal || (tr.getAttribute('data-company-id') || '') === companyVal;
+                const showHasFiles = !hasFilesOnly || parseInt(tr.getAttribute('data-files-count') || '0', 10) > 0;
+                const isRowActive = (tr.getAttribute('data-is-active') || '1') === '1';
+                const showInactiveOk = showInactiveSoftware || isRowActive;
+                const name = (tr.getAttribute('data-name') || '').toLowerCase();
+                const version = (tr.getAttribute('data-version') || '').toLowerCase();
+                const desc = (tr.getAttribute('data-description') || '').toLowerCase();
+                const manufacturer = (tr.getAttribute('data-manufacturer') || '').toLowerCase();
+                const notes = (tr.getAttribute('data-notes') || '').toLowerCase();
+                const filesCount = (tr.getAttribute('data-files-count') || '').toLowerCase();
+                const fileHashes = (tr.getAttribute('data-file-hashes') || '').toLowerCase();
+                const showSearch = !searchVal || name.indexOf(searchVal) >= 0 || version.indexOf(searchVal) >= 0 || desc.indexOf(searchVal) >= 0 || manufacturer.indexOf(searchVal) >= 0 || notes.indexOf(searchVal) >= 0 || filesCount.indexOf(searchVal) >= 0 || fileHashes.indexOf(searchVal) >= 0;
+                const match = showStatus && showCompany && showHasFiles && showSearch && showInactiveOk;
+                if (tablePagination) {
+                    tablePagination.setRowFilterMatch(tr, match);
+                } else {
+                    tr.style.display = match ? '' : 'none';
+                }
+            });
+            if (tablePagination) {
+                tablePagination.resetPage();
+                tablePagination.refresh();
+            }
+    }
+    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    if (document.getElementById('filterCompany')) document.getElementById('filterCompany').addEventListener('change', applyFilters);
+    if (document.getElementById('filterSearch')) document.getElementById('filterSearch').addEventListener('input', applyFilters);
+    if (document.getElementById('filterHasFiles')) document.getElementById('filterHasFiles').addEventListener('change', applyFilters);
+    if (document.getElementById('showInactiveSoftware')) document.getElementById('showInactiveSoftware').addEventListener('change', applyFilters);
+    if (document.getElementById('btnResetFilters')) {
+        document.getElementById('btnResetFilters').addEventListener('click', function() {
+            if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = '';
+            if (document.getElementById('filterCompany')) document.getElementById('filterCompany').value = '';
+            if (document.getElementById('filterSearch')) document.getElementById('filterSearch').value = '';
+            if (document.getElementById('filterHasFiles')) document.getElementById('filterHasFiles').checked = false;
+            if (document.getElementById('showInactiveSoftware')) document.getElementById('showInactiveSoftware').checked = false;
+            applyFilters();
+            document.querySelectorAll('.table-software thead th.sortable').forEach(function(th) { th.classList.remove('sort-asc', 'sort-desc'); });
+        });
+    }
+
+    // Sortable columns
+    document.querySelectorAll('.table-software thead th.sortable').forEach(function(th) {
+        th.addEventListener('click', function() {
+            const table = th.closest('table');
+            const col = parseInt(th.getAttribute('data-col'), 10);
+            const tbody = table.querySelector('tbody');
+            const dir = th.classList.contains('sort-asc') ? -1 : 1;
+            table.querySelectorAll('thead th.sortable').forEach(function(h) { h.classList.remove('sort-asc', 'sort-desc'); });
+            th.classList.add(dir === 1 ? 'sort-asc' : 'sort-desc');
+            const rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
+            const emptyRow = tbody.querySelector('tr.empty-state');
+            rows.sort(function(a, b) {
+                const aText = (a.cells[col] && a.cells[col].textContent.trim()) || '';
+                const bText = (b.cells[col] && b.cells[col].textContent.trim()) || '';
+                const cmp = aText.localeCompare(bText, undefined, { numeric: true });
+                return dir * cmp;
+            });
+            if (emptyRow) emptyRow.remove();
+            rows.forEach(function(r) { tbody.appendChild(r); });
+            if (emptyRow) tbody.appendChild(emptyRow);
+            if (tablePagination) {
+                tablePagination.refresh();
+            }
+        });
+    });
+
+    if (softwareVersionInput) {
+        softwareVersionInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                addSoftwareVersionTag(softwareVersionInput.value);
+                softwareVersionInput.value = '';
+                return;
+            }
+            if (e.key === 'Backspace' && !softwareVersionInput.value.trim() && softwareVersions.length) {
+                softwareVersions.pop();
+                syncSoftwareVersionHidden();
+                renderSoftwareVersionTags();
+            }
+        });
+        softwareVersionInput.addEventListener('blur', function() {
+            if (softwareVersionInput.value.trim()) {
+                addSoftwareVersionTag(softwareVersionInput.value);
+                softwareVersionInput.value = '';
+            }
+        });
+    }
+    if (softwareVersionTagsWrap && softwareVersionInput) {
+        softwareVersionTagsWrap.addEventListener('click', function() { softwareVersionInput.focus(); });
+    }
+    setSoftwareVersions(softwareVersionHidden ? softwareVersionHidden.value : '');
+    applyFilters();
+})();
+</script>
+
+{% if manage_types %}
+<script>
+$(document).ready(function() {
+    $('#btnManageGroupsTypes').on('click', function() {
+        $('#assetTypeModal').modal('show');
+    });
+});
+</script>
+{% endif %}
+
+<script>
+$(document).ready(function() {
+    $('#softwareGuideModal').on('show.bs.modal', function() {
+        const $body = $('#softwareGuideModalBody');
+        $body.html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>');
+        fetch("{% url 'software_guide' %}")
+            .then(r => r.json())
+            .then(data => {
+                if (data.content) {
+                    $body.html(data.content);
+                } else {
+                    $body.html('<p class="text-muted">{% trans "No guide available." %}</p>');
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load software guide:', err);
+                $body.html('<p class="text-danger">{% trans "Failed to load guide." %}</p>');
+            });
+    });
+});
+</script>
+{% endblock %}

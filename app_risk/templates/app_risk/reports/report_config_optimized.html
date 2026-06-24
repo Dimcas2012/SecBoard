@@ -1,0 +1,778 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Optimized Risk Reports" %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reports.css' %}">
+<style>
+    .cache-stats {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .cache-stats .stat-item {
+        display: inline-block;
+        margin-right: 1rem;
+        padding: 0.5rem;
+        background: white;
+        border-radius: 0.25rem;
+        border: 1px solid #e9ecef;
+    }
+    
+    .cache-stats .stat-value {
+        font-weight: bold;
+        color: #28a745;
+    }
+    
+    .async-controls {
+        background: #e3f2fd;
+        border: 1px solid #bbdefb;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .progress-container {
+        display: none;
+        margin-top: 1rem;
+    }
+    
+    .progress {
+        height: 20px;
+        background-color: #f8f9fa;
+        border-radius: 0.375rem;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background-color: #007bff;
+        transition: width 0.3s ease;
+    }
+    
+    .job-status {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .job-status.pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    
+    .job-status.processing {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .job-status.completed {
+        background-color: #d1ecf1;
+        color: #0c5460;
+    }
+    
+    .job-status.failed {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    
+    .optimization-info {
+        background: #f0f8ff;
+        border-left: 4px solid #007bff;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .btn-clear-cache {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #212529;
+    }
+    
+    .btn-clear-cache:hover {
+        background-color: #e0a800;
+        border-color: #d39e00;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-chart-line"></i>
+                        {% trans "Optimized Risk Reports" %}
+                    </h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-sm btn-outline-info" id="refreshStats">
+                            <i class="fas fa-sync-alt"></i>
+                            {% trans "Refresh Stats" %}
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Optimization Info -->
+                    <div class="optimization-info">
+                        <h5><i class="fas fa-rocket"></i> {% trans "Performance Optimizations" %}</h5>
+                        <p>{% trans "This optimized version includes:" %}</p>
+                        <ul>
+                            <li>{% trans "Multi-level caching for faster report generation" %}</li>
+                            <li>{% trans "Asynchronous processing for large reports" %}</li>
+                            <li>{% trans "Real-time progress tracking" %}</li>
+                            <li>{% trans "Performance monitoring and statistics" %}</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Cache Statistics -->
+                    <div class="cache-stats">
+                        <h5><i class="fas fa-database"></i> {% trans "Cache Statistics" %}</h5>
+                        <div id="cacheStatsContainer">
+                            {% if cache_stats %}
+                                <div class="stat-item">
+                                    <div class="stat-label">{% trans "Hit Rate" %}</div>
+                                    <div class="stat-value">{{ cache_stats.hit_rate|floatformat:1 }}%</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">{% trans "Total Hits" %}</div>
+                                    <div class="stat-value">{{ cache_stats.total_hits }}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">{% trans "Total Misses" %}</div>
+                                    <div class="stat-value">{{ cache_stats.total_misses }}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">{% trans "Cached Items" %}</div>
+                                    <div class="stat-value">{{ cache_stats.cached_items }}</div>
+                                </div>
+                            {% else %}
+                                <div class="text-muted">{% trans "Loading cache statistics..." %}</div>
+                            {% endif %}
+                        </div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-clear-cache" id="clearCache">
+                                <i class="fas fa-trash"></i>
+                                {% trans "Clear Cache" %}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Async Processing Controls -->
+                    {% if async_enabled %}
+                    <div class="async-controls">
+                        <h5><i class="fas fa-clock"></i> {% trans "Asynchronous Processing" %}</h5>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="enableAsync" value="true">
+                            <label class="form-check-label" for="enableAsync">
+                                {% trans "Enable asynchronous processing for large reports" %}
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            {% trans "Recommended for reports with more than 1000 records or complex calculations" %}
+                        </small>
+                        
+                        <!-- Progress tracking -->
+                        <div class="progress-container" id="progressContainer">
+                            <div class="progress">
+                                <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div class="job-status" id="jobStatus"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Report Generation Form -->
+                    <form id="reportForm" method="post" action="{% url 'generate_risk_report_optimized' %}">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="reportType">{% trans "Report Type" %}</label>
+                                    <select class="form-control" id="reportType" name="reportType" required>
+                                        <option value="full">{% trans "Full Risk Assessment Report" %}</option>
+                                        <option value="summary">{% trans "Executive Summary" %}</option>
+                                        <option value="compliance">{% trans "Compliance Report" %}</option>
+                                        <option value="technical">{% trans "Technical Details" %}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="reportFormat">{% trans "Format" %}</label>
+                                    <select class="form-control" id="reportFormat" name="reportFormat" required>
+                                        {% for format_key, format_name in available_formats.items %}
+                                            <option value="{{ format_key }}">{{ format_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="reportLanguage">{% trans "Language" %}</label>
+                                    <select class="form-control" id="reportLanguage" name="reportLanguage">
+                                        <option value="en">English</option>
+                                        <option value="uk">Українська</option>
+                                        <option value="ru">Русский</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="reportCompany">{% trans "Company" %}</label>
+                                    <select class="form-control" id="reportCompany" name="reportCompany">
+                                        <option value="">{% trans "All Companies" %}</option>
+                                        {% for company in companies %}
+                                            <option value="{{ company.id }}">{{ company.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="startDate">{% trans "Start Date" %}</label>
+                                    <input type="date" class="form-control" id="startDate" name="startDate">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="endDate">{% trans "End Date" %}</label>
+                                    <input type="date" class="form-control" id="endDate" name="endDate">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="reportNotes">{% trans "Notes" %}</label>
+                            <textarea class="form-control" id="reportNotes" name="reportNotes" rows="3" 
+                                      placeholder="{% trans 'Optional notes for the report...' %}"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="btn-group" role="group">
+                                <button type="submit" class="btn btn-primary" id="generateBtn">
+                                    <i class="fas fa-file-alt"></i>
+                                    {% trans "Generate Report" %}
+                                </button>
+                                
+                                <button type="button" class="btn btn-outline-secondary" id="previewBtn">
+                                    <i class="fas fa-eye"></i>
+                                    {% trans "Preview" %}
+                                </button>
+                                
+                                {% if async_enabled %}
+                                <button type="button" class="btn btn-outline-info" id="generateAsyncBtn">
+                                    <i class="fas fa-clock"></i>
+                                    {% trans "Generate Async" %}
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Report Preview" %}</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="previewContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">{% trans "Loading..." %}</span>
+                        </div>
+                        <p class="mt-2">{% trans "Generating preview..." %}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    {% trans "Close" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Job Status Modal -->
+<div class="modal fade" id="jobStatusModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Report Generation Status" %}</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="jobStatusContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">{% trans "Processing..." %}</span>
+                        </div>
+                        <p class="mt-2">{% trans "Starting report generation..." %}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    {% trans "Close" %}
+                </button>
+                <button type="button" class="btn btn-danger" id="cancelJobBtn" style="display: none;">
+                    {% trans "Cancel" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    let currentJobId = null;
+    let statusCheckInterval = null;
+    
+    // Initialize date inputs with default values
+    const today = new Date();
+    const lastYear = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+    
+    $('#endDate').val(today.toISOString().split('T')[0]);
+    $('#startDate').val(lastYear.toISOString().split('T')[0]);
+    
+    // Handle form submission
+    $('#reportForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const useAsync = $('#enableAsync').is(':checked');
+        
+        if (useAsync) {
+            generateAsyncReport();
+        } else {
+            generateSyncReport();
+        }
+    });
+    
+    // Handle async generation button
+    $('#generateAsyncBtn').on('click', function() {
+        $('#enableAsync').prop('checked', true);
+        generateAsyncReport();
+    });
+    
+    // Handle preview button
+    $('#previewBtn').on('click', function() {
+        generatePreview();
+    });
+    
+    // Handle cache clear button
+    $('#clearCache').on('click', function() {
+        clearCache();
+    });
+    
+    // Handle refresh stats button
+    $('#refreshStats').on('click', function() {
+        refreshCacheStats();
+    });
+    
+    // Handle job cancellation
+    $('#cancelJobBtn').on('click', function() {
+        if (currentJobId) {
+            cancelJob(currentJobId);
+        }
+    });
+    
+    function generateSyncReport() {
+        const formData = new FormData($('#reportForm')[0]);
+        
+        showLoading('#generateBtn');
+        
+        $.ajax({
+            url: '{% url "generate_risk_report_optimized" %}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            xhrFields: {
+                responseType: 'blob'
+            },
+            success: function(response, status, xhr) {
+                hideLoading('#generateBtn');
+                
+                // Create download link
+                const blob = new Blob([response]);
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                // Get filename from response headers
+                const disposition = xhr.getResponseHeader('Content-Disposition');
+                let filename = 'report.pdf';
+                if (disposition && disposition.indexOf('filename=') !== -1) {
+                    filename = disposition.split('filename=')[1].replace(/"/g, '');
+                }
+                
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showSuccess('{% trans "Report generated successfully!" %}');
+            },
+            error: function(xhr) {
+                hideLoading('#generateBtn');
+                
+                let errorMessage = '{% trans "Error generating report" %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                
+                showError(errorMessage);
+            }
+        });
+    }
+    
+    function generateAsyncReport() {
+        const formData = new FormData($('#reportForm')[0]);
+        formData.append('async', 'true');
+        
+        showLoading('#generateAsyncBtn');
+        
+        $.ajax({
+            url: '{% url "generate_risk_report_optimized" %}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                hideLoading('#generateAsyncBtn');
+                
+                if (response.status === 'accepted') {
+                    currentJobId = response.job_id;
+                    showJobStatusModal(currentJobId);
+                    startStatusChecking(currentJobId);
+                } else {
+                    showError(response.message || '{% trans "Error starting async report generation" %}');
+                }
+            },
+            error: function(xhr) {
+                hideLoading('#generateAsyncBtn');
+                
+                let errorMessage = '{% trans "Error starting async report generation" %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                
+                showError(errorMessage);
+            }
+        });
+    }
+    
+    function generatePreview() {
+        const formData = new FormData($('#reportForm')[0]);
+        
+        $('#previewModal').modal('show');
+        $('#previewContent').html(`
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="sr-only">{% trans "Loading..." %}</span>
+                </div>
+                <p class="mt-2">{% trans "Generating preview..." %}</p>
+            </div>
+        `);
+        
+        $.ajax({
+            url: '{% url "preview_risk_report_optimized" %}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.status === 'success') {
+                    $('#previewContent').html(response.html);
+                    
+                    if (response.cached) {
+                        showInfo('{% trans "Preview loaded from cache" %}');
+                    }
+                } else {
+                    $('#previewContent').html(`
+                        <div class="alert alert-danger">
+                            ${response.message || '{% trans "Error generating preview" %}'}
+                        </div>
+                    `);
+                }
+            },
+            error: function(xhr) {
+                let errorMessage = '{% trans "Error generating preview" %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                
+                $('#previewContent').html(`
+                    <div class="alert alert-danger">
+                        ${errorMessage}
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    function showJobStatusModal(jobId) {
+        $('#jobStatusModal').modal('show');
+        $('#jobStatusContent').html(`
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="sr-only">{% trans "Processing..." %}</span>
+                </div>
+                <p class="mt-2">{% trans "Starting report generation..." %}</p>
+                <p class="text-muted">Job ID: ${jobId}</p>
+            </div>
+        `);
+        $('#cancelJobBtn').show();
+    }
+    
+    function startStatusChecking(jobId) {
+        statusCheckInterval = setInterval(function() {
+            checkJobStatus(jobId);
+        }, 2000); // Check every 2 seconds
+    }
+    
+    function stopStatusChecking() {
+        if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
+            statusCheckInterval = null;
+        }
+    }
+    
+    function checkJobStatus(jobId) {
+        $.ajax({
+            url: `/app_risk/reports/async-status/${jobId}/`,
+            type: 'GET',
+            success: function(response) {
+                if (response.status === 'success') {
+                    updateJobStatus(response.job);
+                    
+                    if (response.job.status === 'completed' || response.job.status === 'failed') {
+                        stopStatusChecking();
+                        $('#cancelJobBtn').hide();
+                    }
+                }
+            },
+            error: function(xhr) {
+                stopStatusChecking();
+                $('#cancelJobBtn').hide();
+                
+                $('#jobStatusContent').html(`
+                    <div class="alert alert-danger">
+                        {% trans "Error checking job status" %}
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    function updateJobStatus(job) {
+        let statusClass = 'pending';
+        let statusText = '{% trans "Pending" %}';
+        
+        switch (job.status) {
+            case 'processing':
+                statusClass = 'processing';
+                statusText = '{% trans "Processing" %}';
+                break;
+            case 'completed':
+                statusClass = 'completed';
+                statusText = '{% trans "Completed" %}';
+                break;
+            case 'failed':
+                statusClass = 'failed';
+                statusText = '{% trans "Failed" %}';
+                break;
+        }
+        
+        let content = `
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" style="width: ${job.progress}%">
+                    ${job.progress}%
+                </div>
+            </div>
+            <div class="job-status ${statusClass}">
+                <strong>{% trans "Status" %}:</strong> ${statusText}
+            </div>
+            <div class="mt-2">
+                <small class="text-muted">Job ID: ${job.id}</small>
+            </div>
+        `;
+        
+        if (job.status === 'completed' && job.result) {
+            content += `
+                <div class="alert alert-success mt-3">
+                    <i class="fas fa-check-circle"></i>
+                    {% trans "Report generated successfully!" %}
+                </div>
+            `;
+        } else if (job.status === 'failed' && job.error) {
+            content += `
+                <div class="alert alert-danger mt-3">
+                    <i class="fas fa-exclamation-circle"></i>
+                    ${job.error}
+                </div>
+            `;
+        }
+        
+        $('#jobStatusContent').html(content);
+    }
+    
+    function cancelJob(jobId) {
+        $.ajax({
+            url: `/app_risk/reports/cancel-job/${jobId}/`,
+            type: 'POST',
+            data: {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if (response.status === 'success') {
+                    stopStatusChecking();
+                    $('#cancelJobBtn').hide();
+                    showInfo('{% trans "Job cancelled successfully" %}');
+                } else {
+                    showError(response.message || '{% trans "Error cancelling job" %}');
+                }
+            },
+            error: function() {
+                showError('{% trans "Error cancelling job" %}');
+            }
+        });
+    }
+    
+    function clearCache() {
+        showLoading('#clearCache');
+        
+        $.ajax({
+            url: '{% url "clear_report_cache" %}',
+            type: 'POST',
+            data: {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                hideLoading('#clearCache');
+                
+                if (response.status === 'success') {
+                    showSuccess(response.message);
+                    refreshCacheStats();
+                } else {
+                    showError(response.message || '{% trans "Error clearing cache" %}');
+                }
+            },
+            error: function() {
+                hideLoading('#clearCache');
+                showError('{% trans "Error clearing cache" %}');
+            }
+        });
+    }
+    
+    function refreshCacheStats() {
+        $.ajax({
+            url: '{% url "get_cache_stats" %}',
+            type: 'GET',
+            success: function(response) {
+                if (response.status === 'success') {
+                    updateCacheStats(response.stats);
+                }
+            },
+            error: function() {
+                console.error('Error refreshing cache stats');
+            }
+        });
+    }
+    
+    function updateCacheStats(stats) {
+        const statsHtml = `
+            <div class="stat-item">
+                <div class="stat-label">{% trans "Hit Rate" %}</div>
+                <div class="stat-value">${stats.hit_rate.toFixed(1)}%</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">{% trans "Total Hits" %}</div>
+                <div class="stat-value">${stats.total_hits}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">{% trans "Total Misses" %}</div>
+                <div class="stat-value">${stats.total_misses}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">{% trans "Cached Items" %}</div>
+                <div class="stat-value">${stats.cached_items}</div>
+            </div>
+        `;
+        
+        $('#cacheStatsContainer').html(statsHtml);
+    }
+    
+    // Utility functions
+    function showLoading(selector) {
+        const $btn = $(selector);
+        $btn.prop('disabled', true);
+        $btn.find('i').removeClass().addClass('fas fa-spinner fa-spin');
+    }
+    
+    function hideLoading(selector) {
+        const $btn = $(selector);
+        $btn.prop('disabled', false);
+        $btn.find('i').removeClass('fa-spinner fa-spin');
+        
+        // Restore original icon
+        if (selector === '#generateBtn') {
+            $btn.find('i').addClass('fas fa-file-alt');
+        } else if (selector === '#generateAsyncBtn') {
+            $btn.find('i').addClass('fas fa-clock');
+        } else if (selector === '#clearCache') {
+            $btn.find('i').addClass('fas fa-trash');
+        }
+    }
+    
+    function showSuccess(message) {
+        toastr.success(message);
+    }
+    
+    function showError(message) {
+        toastr.error(message);
+    }
+    
+    function showInfo(message) {
+        toastr.info(message);
+    }
+    
+    // Auto-refresh cache stats every 30 seconds
+    setInterval(refreshCacheStats, 30000);
+});
+</script>
+{% endblock %}

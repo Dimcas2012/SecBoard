@@ -1,0 +1,766 @@
+<!-- Interactive Dashboard Enhancements for Risk Assessment -->
+{% load i18n %}
+
+<!-- Enhanced Dashboard Controls -->
+<div class="dashboard-controls mb-4">
+    <div class="row g-3">
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-filter text-primary me-1"></i>
+                        {% trans "Time Range" %}
+                    </label>
+                    <select id="timeRangeFilter" class="form-select form-select-sm">
+                        <option value="7">{% trans "Last 7 days" %}</option>
+                        <option value="30" selected>{% trans "Last 30 days" %}</option>
+                        <option value="90">{% trans "Last 90 days" %}</option>
+                        <option value="365">{% trans "Last year" %}</option>
+                        <option value="all">{% trans "All time" %}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-building text-success me-1"></i>
+                        {% trans "Company Filter" %}
+                    </label>
+                    <select id="companyFilter" class="form-select form-select-sm">
+                        <option value="all">{% trans "All Companies" %}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-layer-group text-warning me-1"></i>
+                        {% trans "Risk Level" %}
+                    </label>
+                    <select id="riskLevelFilter" class="form-select form-select-sm">
+                        <option value="all">{% trans "All Levels" %}</option>
+                        <option value="critical">{% trans "Critical" %}</option>
+                        <option value="high">{% trans "High" %}</option>
+                        <option value="medium">{% trans "Medium" %}</option>
+                        <option value="low">{% trans "Low" %}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-eye text-info me-1"></i>
+                        {% trans "View Mode" %}
+                    </label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="viewMode" id="gridView" checked>
+                        <label class="btn btn-outline-primary btn-sm" for="gridView">
+                            <i class="fas fa-th"></i>
+                        </label>
+                        <input type="radio" class="btn-check" name="viewMode" id="listView">
+                        <label class="btn btn-outline-primary btn-sm" for="listView">
+                            <i class="fas fa-list"></i>
+                        </label>
+                        <input type="radio" class="btn-check" name="viewMode" id="fullscreenView">
+                        <label class="btn btn-outline-primary btn-sm" for="fullscreenView">
+                            <i class="fas fa-expand"></i>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-compress-arrows-alt text-secondary me-1"></i>
+                        {% trans "Chart Size" %}
+                    </label>
+                    <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="interactiveDashboard.setChartSize('compact')">
+                            <i class="fas fa-compress"></i> {% trans "Compact" %}
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="interactiveDashboard.setChartSize('normal')">
+                            <i class="fas fa-expand-arrows-alt"></i> {% trans "Normal" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Notifications Panel -->
+<div id="notificationsPanel" class="position-fixed top-0 end-0 p-3" style="z-index: 1050; max-width: 350px;">
+    <!-- Notifications will be dynamically added here -->
+</div>
+
+<!-- Interactive Chart Modal -->
+<div class="modal fade" id="chartModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chartModalTitle">
+                    <i class="fas fa-chart-line me-2"></i>
+                    {% trans "Interactive Chart View" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="btn-toolbar justify-content-between" role="toolbar">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="changeChartType('line')">
+                                    <i class="fas fa-chart-line me-1"></i>{% trans "Line" %}
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="changeChartType('bar')">
+                                    <i class="fas fa-chart-bar me-1"></i>{% trans "Bar" %}
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="changeChartType('pie')">
+                                    <i class="fas fa-chart-pie me-1"></i>{% trans "Pie" %}
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="changeChartType('radar')">
+                                    <i class="fas fa-chart-area me-1"></i>{% trans "Radar" %}
+                                </button>
+                            </div>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="exportChart()">
+                                    <i class="fas fa-download me-1"></i>{% trans "Export" %}
+                                </button>
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="shareChart()">
+                                    <i class="fas fa-share me-1"></i>{% trans "Share" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-container" style="height: 500px;">
+                    <canvas id="modalChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Drill-down Modal -->
+<div class="modal fade" id="drilldownModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-search-plus me-2"></i>
+                    {% trans "Detailed Analysis" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="drilldownContent">
+                    <!-- Dynamic content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced JavaScript for Interactive Features -->
+<script>
+// Enhanced Dashboard Functionality
+class InteractiveDashboard {
+    constructor() {
+        this.filters = {
+            timeRange: '30',
+            company: 'all',
+            riskLevel: 'all'
+        };
+        this.notifications = [];
+        this.realTimeEnabled = true;
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.startRealTimeUpdates();
+        this.loadCompanyFilter();
+    }
+
+    setupEventListeners() {
+        // Filter change listeners
+        document.getElementById('timeRangeFilter').addEventListener('change', (e) => {
+            this.filters.timeRange = e.target.value;
+            this.applyFilters();
+        });
+
+        document.getElementById('companyFilter').addEventListener('change', (e) => {
+            this.filters.company = e.target.value;
+            this.applyFilters();
+        });
+
+        document.getElementById('riskLevelFilter').addEventListener('change', (e) => {
+            this.filters.riskLevel = e.target.value;
+            this.applyFilters();
+        });
+
+        // View mode listeners
+        document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.changeViewMode(e.target.id);
+            });
+        });
+
+        // Chart click listeners for drill-down
+        this.setupChartClickHandlers();
+    }
+
+    setupChartClickHandlers() {
+        // Add click handlers to existing charts for drill-down functionality
+        Object.keys(charts).forEach(chartKey => {
+            if (charts[chartKey]) {
+                charts[chartKey].options.onClick = (event, elements) => {
+                    if (elements.length > 0) {
+                        this.handleChartClick(chartKey, elements[0]);
+                    }
+                };
+            }
+        });
+    }
+
+    handleChartClick(chartType, element) {
+        const chart = charts[chartType];
+        const dataIndex = element.index;
+        const label = chart.data.labels[dataIndex];
+        const value = chart.data.datasets[0].data[dataIndex];
+
+        this.showDrilldownModal(chartType, label, value);
+    }
+
+    showDrilldownModal(chartType, label, value) {
+        const modal = new bootstrap.Modal(document.getElementById('drilldownModal'));
+        const content = document.getElementById('drilldownContent');
+
+        // Generate detailed analysis content
+        content.innerHTML = `
+            <div class="row">
+                <div class="col-12">
+                    <h6 class="text-primary">${label}</h6>
+                    <p class="text-muted">{% trans "Detailed breakdown for" %} ${chartType}</p>
+                </div>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title">${value}</h5>
+                            <p class="card-text text-muted">{% trans "Total Count" %}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title">${this.calculatePercentage(chartType, value)}%</h5>
+                            <p class="card-text text-muted">{% trans "Percentage of Total" %}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <h6>{% trans "Related Assets" %}</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Asset ID" %}</th>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Risk Level" %}</th>
+                                <th>{% trans "Status" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drilldownTable">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        this.loadDrilldownData(chartType, label);
+        modal.show();
+    }
+
+    calculatePercentage(chartType, value) {
+        const chart = charts[chartType];
+        if (!chart) return 0;
+        
+        const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+        return ((value * 100) / total).toFixed(1);
+    }
+
+    loadDrilldownData(chartType, label) {
+        // Load real drilldown data from API
+        const params = new URLSearchParams({
+            chart_type: chartType,
+            label: label
+        });
+        
+        fetch(`{% url "get_drilldown_data" %}?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                const tableBody = document.getElementById('drilldownTable');
+                if (data.assets && data.assets.length > 0) {
+                    tableBody.innerHTML = data.assets.map(item => `
+                        <tr>
+                            <td><span class="badge bg-secondary">${item.id}</span></td>
+                            <td>${item.name}</td>
+                            <td><span class="badge bg-${this.getRiskBadgeColor(item.risk)}">${item.risk}</span></td>
+                            <td><span class="badge bg-${this.getStatusBadgeColor(item.status)}">${item.status}</span></td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">{% trans "No data available" %}</td></tr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading drilldown data:', error);
+                const tableBody = document.getElementById('drilldownTable');
+                tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">{% trans "Error loading data" %}</td></tr>';
+            });
+    }
+
+    getRiskBadgeColor(risk) {
+        const colors = {
+            'Critical': 'danger',
+            'High': 'warning',
+            'Medium': 'info',
+            'Low': 'success'
+        };
+        return colors[risk] || 'secondary';
+    }
+
+    getStatusBadgeColor(status) {
+        const colors = {
+            'Active': 'danger',
+            'Under Review': 'warning',
+            'Treated': 'success'
+        };
+        return colors[status] || 'secondary';
+    }
+
+    applyFilters() {
+        this.showNotification('{% trans "Applying filters..." %}', 'info');
+        
+        // Apply filters to dashboard data
+        const params = new URLSearchParams({
+            time_range: this.filters.timeRange,
+            company: this.filters.company,
+            risk_level: this.filters.riskLevel
+        });
+        
+        fetch(`{% url "get_dashboard_filtered_data" %}?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                dashboardData = data;
+                updateSummaryCards(data);
+                createAllCharts(data);
+                this.showNotification('{% trans "Filters applied successfully" %}', 'success');
+            })
+            .catch(error => {
+                console.error('Error applying filters:', error);
+                this.showNotification('{% trans "Error applying filters" %}', 'danger');
+            });
+    }
+
+    changeViewMode(mode) {
+        const dashboard = document.getElementById('dashboardContent');
+        
+        switch(mode) {
+            case 'gridView':
+                dashboard.className = 'row g-4';
+                this.resetChartsToNormalSize();
+                break;
+            case 'listView':
+                dashboard.className = 'row g-2';
+                this.adjustChartsForListView();
+                break;
+            case 'fullscreenView':
+                this.enterFullscreenMode();
+                break;
+        }
+    }
+
+    resetChartsToNormalSize() {
+        // Reset chart heights to normal
+        document.querySelectorAll('canvas').forEach(canvas => {
+            const chartId = canvas.id;
+            if (chartId.includes('riskMatrix') || chartId.includes('trends')) {
+                canvas.style.height = '200px';
+                canvas.style.maxHeight = '200px';
+            } else if (chartId.includes('assetType') || chartId.includes('effectiveness')) {
+                canvas.style.height = '220px';
+                canvas.style.maxHeight = '220px';
+            } else {
+                canvas.style.height = '250px';
+                canvas.style.maxHeight = '250px';
+            }
+        });
+        
+        // Reset card layout
+        document.querySelectorAll('.card').forEach(card => {
+            card.style.marginBottom = '1rem';
+        });
+        
+        document.querySelectorAll('.card-body').forEach(body => {
+            body.style.padding = '1rem';
+        });
+        
+        // Update all charts
+        Object.values(charts).forEach(chart => {
+            if (chart) {
+                chart.resize();
+                chart.update('none');
+            }
+        });
+    }
+
+    adjustChartsForListView() {
+        // Adjust chart heights for list view
+        document.querySelectorAll('canvas').forEach(canvas => {
+            canvas.style.height = '150px';
+            canvas.style.maxHeight = '150px';
+        });
+        
+        // Adjust card layout for list view
+        document.querySelectorAll('.card').forEach(card => {
+            card.style.marginBottom = '0.5rem';
+        });
+        
+        document.querySelectorAll('.card-body').forEach(body => {
+            body.style.padding = '0.75rem';
+        });
+        
+        // Update all charts
+        Object.values(charts).forEach(chart => {
+            if (chart) {
+                chart.resize();
+                chart.update('none'); // Update without animation for faster response
+            }
+        });
+    }
+
+    enterFullscreenMode() {
+        const dashboard = document.getElementById('riskAssessmentDashboard');
+        if (dashboard.requestFullscreen) {
+            dashboard.requestFullscreen();
+        }
+    }
+
+    setChartSize(size) {
+        let heights = {};
+        
+        if (size === 'compact') {
+            heights = {
+                default: '180px',
+                small: '150px',
+                medium: '160px'
+            };
+        } else { // normal
+            heights = {
+                default: '250px',
+                small: '200px',
+                medium: '220px'
+            };
+        }
+        
+        document.querySelectorAll('canvas').forEach(canvas => {
+            const chartId = canvas.id;
+            if (chartId.includes('riskMatrix') || chartId.includes('trends')) {
+                canvas.style.height = heights.small;
+                canvas.style.maxHeight = heights.small;
+            } else if (chartId.includes('assetType') || chartId.includes('effectiveness')) {
+                canvas.style.height = heights.medium;
+                canvas.style.maxHeight = heights.medium;
+            } else {
+                canvas.style.height = heights.default;
+                canvas.style.maxHeight = heights.default;
+            }
+        });
+        
+        // Update all charts
+        Object.values(charts).forEach(chart => {
+            if (chart) {
+                chart.resize();
+                chart.update('none');
+            }
+        });
+        
+        this.showNotification(
+            size === 'compact' ? 
+            '{% trans "Charts set to compact size" %}' : 
+            '{% trans "Charts set to normal size" %}', 
+            'success'
+        );
+    }
+
+    loadCompanyFilter() {
+        // Load companies for filter
+        fetch('{% url "get_companies_api" %}')
+            .then(response => response.json())
+            .then(companies => {
+                const select = document.getElementById('companyFilter');
+                companies.forEach(company => {
+                    const option = document.createElement('option');
+                    option.value = company.id;
+                    option.textContent = company.name;
+                    select.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error loading companies:', error));
+    }
+
+    startRealTimeUpdates() {
+        if (!this.realTimeEnabled) return;
+
+        setInterval(() => {
+            this.checkForUpdates();
+        }, 30000); // Check every 30 seconds
+    }
+
+    checkForUpdates() {
+        fetch('{% url "risk_assessment_dashboard" %}?timestamp=' + Date.now())
+            .then(response => response.json())
+            .then(data => {
+                if (this.hasDataChanged(data)) {
+                    this.showNotification('{% trans "New data available" %}', 'info', {
+                        action: 'refresh',
+                        label: '{% trans "Refresh" %}'
+                    });
+                }
+            })
+            .catch(error => console.error('Error checking for updates:', error));
+    }
+
+    hasDataChanged(newData) {
+        // Simple comparison - in real implementation, compare timestamps or checksums
+        return JSON.stringify(newData) !== JSON.stringify(dashboardData);
+    }
+
+    showNotification(message, type = 'info', action = null) {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show shadow-sm`;
+        notification.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="fas fa-${this.getNotificationIcon(type)} me-2"></i>
+                <span>${message}</span>
+                ${action ? `<button class="btn btn-sm btn-outline-${type} ms-auto me-2" onclick="${action.action}()">${action.label}</button>` : ''}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+
+        document.getElementById('notificationsPanel').appendChild(notification);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    getNotificationIcon(type) {
+        const icons = {
+            'success': 'check-circle',
+            'danger': 'exclamation-triangle',
+            'warning': 'exclamation-circle',
+            'info': 'info-circle'
+        };
+        return icons[type] || 'info-circle';
+    }
+}
+
+// Chart Modal Functions
+function openChartModal(chartType) {
+    const modal = new bootstrap.Modal(document.getElementById('chartModal'));
+    const modalChart = document.getElementById('modalChart');
+    
+    // Clone chart data to modal
+    if (charts[chartType]) {
+        const ctx = modalChart.getContext('2d');
+        const originalChart = charts[chartType];
+        
+        // Create enhanced version of the chart in modal
+        new Chart(ctx, {
+            type: originalChart.config.type,
+            data: originalChart.data,
+            options: {
+                ...originalChart.options,
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    ...originalChart.options.plugins,
+                    zoom: {
+                        zoom: {
+                            wheel: {
+                                enabled: true,
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: 'xy',
+                        },
+                        pan: {
+                            enabled: true,
+                            mode: 'xy',
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    modal.show();
+}
+
+function changeChartType(newType) {
+    // Implementation for changing chart type in modal
+    console.log('Changing chart type to:', newType);
+}
+
+function exportChart() {
+    const canvas = document.getElementById('modalChart');
+    const link = document.createElement('a');
+    link.download = 'risk_chart.png';
+    link.href = canvas.toDataURL();
+    link.click();
+}
+
+function shareChart() {
+    if (navigator.share) {
+        const canvas = document.getElementById('modalChart');
+        canvas.toBlob(blob => {
+            const file = new File([blob], 'risk_chart.png', { type: 'image/png' });
+            navigator.share({
+                title: '{% trans "Risk Assessment Chart" %}',
+                files: [file]
+            });
+        });
+    } else {
+        // Fallback: copy link to clipboard
+        navigator.clipboard.writeText(window.location.href);
+        alert('{% trans "Link copied to clipboard" %}');
+    }
+}
+
+// Initialize enhanced dashboard
+let interactiveDashboard;
+document.addEventListener('DOMContentLoaded', function() {
+    interactiveDashboard = new InteractiveDashboard();
+});
+
+// Add double-click handlers to charts for modal view
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('canvas').forEach(canvas => {
+        canvas.addEventListener('dblclick', function() {
+            const chartType = this.id.replace('Chart', '');
+            openChartModal(chartType);
+        });
+    });
+});
+</script>
+
+<!-- Additional CSS for enhanced interactivity -->
+<style>
+.dashboard-controls .card {
+    transition: all 0.2s ease;
+}
+
+.dashboard-controls .card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.chart-container canvas {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.chart-container canvas:hover {
+    opacity: 0.9;
+}
+
+#notificationsPanel .alert {
+    margin-bottom: 0.5rem;
+    border: none;
+    border-left: 4px solid;
+}
+
+.alert-info {
+    border-left-color: #17a2b8 !important;
+}
+
+.alert-success {
+    border-left-color: #28a745 !important;
+}
+
+.alert-warning {
+    border-left-color: #ffc107 !important;
+}
+
+.alert-danger {
+    border-left-color: #dc3545 !important;
+}
+
+.btn-group .btn-check:checked + .btn {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .dashboard-controls .col-12 {
+        margin-bottom: 0.5rem;
+    }
+    
+    #notificationsPanel {
+        left: 1rem;
+        right: 1rem;
+        max-width: none;
+    }
+    
+    /* Автоматично компактні графіки на мобільних */
+    .card-body canvas {
+        max-height: 160px !important;
+        height: 160px !important;
+    }
+    
+    #riskMatrixChart, #trendsChart {
+        max-height: 140px !important;
+        height: 140px !important;
+    }
+    
+    .dashboard-controls .row {
+        margin-bottom: 1rem;
+    }
+    
+    .dashboard-controls .card-body {
+        padding: 0.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .card-body canvas {
+        max-height: 140px !important;
+        height: 140px !important;
+    }
+    
+    #riskMatrixChart, #trendsChart {
+        max-height: 120px !important;
+        height: 120px !important;
+    }
+}
+</style> 

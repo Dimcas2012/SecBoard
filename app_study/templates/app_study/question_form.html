@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_study/includes/study_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_study/css/study-forms-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container my-5 study-page study-forms-page">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-{% if action == 'create' %}plus-circle{% else %}pencil-square{% endif %}"></i>
+            {{ title }}
+        </h2>
+        <div>
+            {% if question %}
+                <a href="{% url 'quiz_edit' question.quiz.id %}" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-arrow-left"></i> {% trans "Back to Quiz" %}
+                </a>
+            {% elif quiz %}
+                <a href="{% url 'quiz_edit' quiz.id %}" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-arrow-left"></i> {% trans "Back to Quiz" %}
+                </a>
+            {% endif %}
+            <a href="{% url 'quiz_manager' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-house"></i> {% trans "Quiz Manager" %}
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <!-- Question Information Section -->
+        <div class="form-section">
+            <h4 class="mb-3">
+                <i class="bi bi-question-circle"></i> {% trans "Question Information" %}
+            </h4>
+            {% if quiz %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    {% trans "Adding question to quiz:" %} <strong>{{ quiz.title }}</strong>
+                </div>
+            {% endif %}
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label for="{{ form.text.id_for_label }}" class="form-label">
+                            <i class="bi bi-chat-text"></i> {{ form.text.label }}
+                        </label>
+                        {{ form.text }}
+                        {% if form.text.errors %}
+                            <div class="text-danger">{{ form.text.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="{{ form.order.id_for_label }}" class="form-label">
+                            <i class="bi bi-list-ol"></i> {{ form.order.label }}
+                        </label>
+                        {{ form.order }}
+                        {% if form.order.errors %}
+                            <div class="text-danger">{{ form.order.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Answers Section (only shown when editing) -->
+        {% if action == 'edit' and answers %}
+            <div class="form-section">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4>
+                        <i class="bi bi-list-check"></i> {% trans "Answers" %} ({{ answers.count }})
+                    </h4>
+                    <a href="{% url 'answer_create' question.id %}" class="btn btn-success btn-sm">
+                        <i class="bi bi-plus-circle"></i> {% trans "Add Answer" %}
+                    </a>
+                </div>
+                
+                {% for answer in answers %}
+                    <div class="answer-card {% if answer.is_correct %}correct{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    {% if answer.is_correct %}
+                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                        <span class="badge bg-success me-2">{% trans "Correct" %}</span>
+                                    {% else %}
+                                        <i class="bi bi-circle text-muted me-2"></i>
+                                        <span class="badge bg-secondary me-2">{% trans "Incorrect" %}</span>
+                                    {% endif %}
+                                    <span class="badge bg-primary">{% trans "Score:" %} {{ answer.score }}</span>
+                                </div>
+                                <div class="answer-text">
+                                    {{ answer.text|safe }}
+                                </div>
+                            </div>
+                            <div class="ms-3">
+                                <div class="btn-group-vertical">
+                                    <a href="{% url 'answer_edit' answer.id %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                                            onclick="confirmDelete('{% url 'answer_delete' answer.id %}', '{{ answer.text|truncatewords:5 }}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+
+                {% if not answers %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        {% trans "This question doesn't have any answers yet. Add at least one answer to make it functional." %}
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-between mt-4">
+            <div>
+                {% if question %}
+                    <a href="{% url 'quiz_edit' question.quiz.id %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> {% trans "Back to Quiz" %}
+                    </a>
+                {% elif quiz %}
+                    <a href="{% url 'quiz_edit' quiz.id %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> {% trans "Back to Quiz" %}
+                    </a>
+                {% else %}
+                    <a href="{% url 'quiz_manager' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> {% trans "Cancel" %}
+                    </a>
+                {% endif %}
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-{% if action == 'create' %}check-circle{% else %}save{% endif %}"></i>
+                {% if action == 'create' %}
+                    {% trans "Create Question" %}
+                {% else %}
+                    {% trans "Save Changes" %}
+                {% endif %}
+            </button>
+        </div>
+    </form>
+
+    <!-- Floating Action Button for adding answers (only when editing) -->
+    {% if action == 'edit' and question %}
+        <a href="{% url 'answer_create' question.id %}" class="btn btn-success btn-floating" 
+           data-bs-toggle="tooltip" title="{% trans 'Add Answer' %}">
+            <i class="bi bi-plus fs-4"></i>
+        </a>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize TinyMCE for question text field
+    console.log('🚀 Initializing TinyMCE for Question form');
+    
+    function initQuestionTinyMCE() {
+        if (typeof tinymce === 'undefined') {
+            console.log('⏳ TinyMCE not loaded yet, retrying...');
+            setTimeout(initQuestionTinyMCE, 200);
+            return;
+        }
+        
+        console.log('✅ Initializing TinyMCE for question text...');
+        
+        tinymce.init({
+            selector: '#id_text',
+            height: 400,
+            plugins: [
+                'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview', 'anchor',
+                'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                'insertdatetime', 'media', 'table', 'help', 'wordcount',
+                'visualchars', 'emoticons', 'pagebreak',
+                'nonbreaking', 'directionality'
+            ],
+            toolbar: [
+                'undo redo | formatselect | fontselect fontsizeselect |',
+                'bold italic underline strikethrough | forecolor backcolor |',
+                'alignleft aligncenter alignright alignjustify |',
+                'bullist numlist | outdent indent | blockquote |',
+                'link unlink anchor | image media table | insertdatetime |',
+                'charmap emoticons pagebreak | visualblocks visualchars |',
+                'searchreplace | code fullscreen | preview | help'
+            ].join(' '),
+            toolbar_mode: 'sliding',
+            contextmenu: 'formats | link image table',
+            menubar: 'file edit view insert format tools table help',
+            menu: {
+                file: {title: 'File', items: 'newdocument'},
+                edit: {title: 'Edit', items: 'undo redo | cut copy paste | selectall | searchreplace'},
+                view: {title: 'View', items: 'code | visualaid visualchars visualblocks | fullscreen preview'},
+                insert: {title: 'Insert', items: 'image link media | charmap emoticons | pagebreak anchor | insertdatetime'},
+                format: {title: 'Format', items: 'bold italic underline strikethrough superscript subscript | formats blockformats fontformats fontsizes align | forecolor backcolor | removeformat'},
+                tools: {title: 'Tools', items: 'wordcount'},
+                table: {title: 'Table', items: 'inserttable | cell row column | tableprops deletetable'},
+                help: {title: 'Help', items: 'help'}
+            },
+            statusbar: true,
+            language: 'uk',
+            branding: false,
+            elementpath: true,
+            resize: true,
+            image_advtab: true,
+            table_toolbar: 'tableprops tabledelete | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol',
+            table_appearance_options: false,
+            table_grid: false,
+            table_class_list: [
+                {title: 'None', value: ''},
+                {title: 'Table with borders', value: 'table table-bordered'},
+                {title: 'Striped table', value: 'table table-striped'},
+                {title: 'Hover table', value: 'table table-hover'},
+                {title: 'Small table', value: 'table table-sm'}
+            ],
+            content_style: "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px } .mce-content-body { padding: 10px; }",
+            block_formats: 'Paragraph=p; Heading 1=h1; Heading 2=h2; Heading 3=h3; Heading 4=h4; Heading 5=h5; Heading 6=h6; Preformatted=pre; Blockquote=blockquote',
+            font_formats: 'Arial=arial,helvetica,sans-serif; Georgia=georgia,palatino; Times New Roman=times new roman,times; Courier New=courier new,courier; Verdana=verdana,geneva; Comic Sans MS=comic sans ms,cursive',
+            fontsize_formats: '8pt 9pt 10pt 11pt 12pt 14pt 16pt 18pt 20pt 24pt 30pt 36pt 48pt 60pt 72pt 96pt',
+            paste_data_images: true,
+            paste_as_text: false,
+            init_instance_callback: function(editor) {
+                console.log('🎉 TinyMCE Question editor initialized!');
+            },
+            setup: function (editor) {
+                editor.on('change', function () {
+                    editor.save();
+                });
+            }
+        });
+    }
+    
+    // Start initialization
+    initQuestionTinyMCE();
+
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+    });
+
+    // Confirm delete function
+    function confirmDelete(url, itemName) {
+        if (confirm('{% trans "Are you sure you want to delete" %} "' + itemName + '"?')) {
+            // Create a form and submit it
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = url;
+            
+            // Add CSRF token
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            var csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+</script>
+{% endblock %} 

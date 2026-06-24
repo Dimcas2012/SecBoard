@@ -1,0 +1,2088 @@
+<!-- SecBoard\SecBoard\templates\app_risk\risk_assessment_dashboard.html-->
+{% load i18n %}
+
+<!-- Include Interactive Dashboard Enhancements -->
+{% include 'app_risk/interactive_dashboard_enhancements.html' %}
+
+<div id="riskAssessmentDashboard" class="p-3">
+    <!-- Dashboard Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">
+                    <i class="fas fa-chart-line text-primary me-2"></i>
+                    {% trans "Risk Assessment Dashboard" %}
+                </h3>
+                <div class="d-flex gap-2">
+                    <div class="btn-group" role="group">
+                        <button id="compactMode" class="btn btn-outline-secondary btn-sm" onclick="toggleChartSize()">
+                            <i class="fas fa-compress me-1"></i>
+                            {% trans "Compact" %}
+                        </button>
+                    </div>
+                    <button id="refreshDashboard" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        {% trans "Refresh" %}
+                    </button>
+                    <button id="exportDashboard" class="btn btn-outline-success btn-sm">
+                        <i class="fas fa-download me-1"></i>
+                        {% trans "Export" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="dashboardLoading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">{% trans "Loading..." %}</span>
+        </div>
+        <p class="mt-2 text-muted">{% trans "Loading dashboard data..." %}</p>
+    </div>
+
+    <!-- Dashboard Content -->
+    <div id="dashboardContent" style="display: none;">
+        <!-- Summary Cards Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="card border-0 shadow-sm h-100 bg-gradient-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title text-white-50 mb-1">{% trans "Total Assets" %}</h6>
+                                <h3 class="mb-0" id="totalAssets">-</h3>
+                            </div>
+                            <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                <i class="fas fa-server fa-lg"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="card border-0 shadow-sm h-100 bg-gradient-danger text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title text-white-50 mb-1">{% trans "Vulnerable Assets" %}</h6>
+                                <h3 class="mb-0" id="vulnerableAssets">-</h3>
+                            </div>
+                            <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                <i class="fas fa-exclamation-triangle fa-lg"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="card border-0 shadow-sm h-100 bg-gradient-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title text-white-50 mb-1">{% trans "High Risk" %}</h6>
+                                <h3 class="mb-0" id="highRiskAssets">-</h3>
+                            </div>
+                            <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                <i class="fas fa-fire fa-lg"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="card border-0 shadow-sm h-100 bg-gradient-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title text-white-50 mb-1">{% trans "Treated Risks" %}</h6>
+                                <h3 class="mb-0" id="treatedRisks">-</h3>
+                            </div>
+                            <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                <i class="fas fa-shield-alt fa-lg"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 1 -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-pie text-primary me-2"></i>
+                            {% trans "Asset Vulnerability Overview" %}
+                        </h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnerabilityChart', 'pie')">{% trans "Pie Chart" %}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnerabilityChart', 'doughnut')">{% trans "Doughnut Chart" %}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnerabilityChart', 'bar')">{% trans "Bar Chart" %}</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="vulnerabilityChart" style="height: 250px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-bar text-success me-2"></i>
+                            {% trans "Asset Criticality Distribution" %}
+                        </h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('criticalityChart', 'bar')">{% trans "Bar Chart" %}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('criticalityChart', 'horizontalBar')">{% trans "Horizontal Bar" %}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('criticalityChart', 'pie')">{% trans "Pie Chart" %}</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="criticalityChart" style="height: 250px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 2 -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-lg-8">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-area text-info me-2"></i>
+                            {% trans "Risk Treatment Progress" %}
+                        </h5>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="treatmentView" id="stackedView" checked>
+                            <label class="btn btn-outline-primary" for="stackedView">{% trans "Stacked" %}</label>
+                            <input type="radio" class="btn-check" name="treatmentView" id="groupedView">
+                            <label class="btn btn-outline-primary" for="groupedView">{% trans "Grouped" %}</label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="treatmentChart" style="height: 250px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-th text-warning me-2"></i>
+                            {% trans "Risk Matrix" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="riskMatrixChart" style="height: 200px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 3 - Trends and Analytics -->
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-line text-primary me-2"></i>
+                            {% trans "Risk Trends Over Time" %}
+                        </h5>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="trendPeriod" id="last7days" checked>
+                            <label class="btn btn-outline-primary" for="last7days">{% trans "7 Days" %}</label>
+                            <input type="radio" class="btn-check" name="trendPeriod" id="last30days">
+                            <label class="btn btn-outline-primary" for="last30days">{% trans "30 Days" %}</label>
+                            <input type="radio" class="btn-check" name="trendPeriod" id="last90days">
+                            <label class="btn btn-outline-primary" for="last90days">{% trans "90 Days" %}</label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="trendsChart" style="height: 200px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Treatment Details Analytics Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-pie text-success me-2"></i>
+                            {% trans "Treatment Effectiveness" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="effectivenessChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                            {% trans "Treatment Priority Distribution" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="priorityChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Residual Risk and Monitoring Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-shield-alt text-danger me-2"></i>
+                            {% trans "Residual Risk Levels" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="residualRiskChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-clock text-info me-2"></i>
+                            {% trans "Monitoring Frequency" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="monitoringChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cost Analysis Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-lg-8">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-dollar-sign text-success me-2"></i>
+                            {% trans "Cost Analysis by Priority" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="costAnalysisChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-calculator text-primary me-2"></i>
+                            {% trans "Cost Summary" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="costSummary" class="h-100 d-flex flex-column justify-content-center">
+                            <!-- Cost summary will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Vulnerability Analytics Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <h4 class="mb-3">
+                    <i class="fas fa-bug text-danger me-2"></i>
+                    {% trans "Vulnerability Analytics" %}
+                </h4>
+            </div>
+        </div>
+        
+        <!-- Vulnerability Types and Status Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-pie text-info me-2"></i>
+                            {% trans "Vulnerability Types Distribution" %}
+                        </h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnTypesChart', 'pie')">{% trans "Pie Chart" %}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnTypesChart', 'doughnut')">{% trans "Doughnut Chart" %}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnTypesChart', 'bar')">{% trans "Bar Chart" %}</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="vulnTypesChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-bar text-warning me-2"></i>
+                            {% trans "Vulnerability Status Distribution" %}
+                        </h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnStatusChart', 'pie')">{% trans "Pie Chart" %}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnStatusChart', 'doughnut')">{% trans "Doughnut Chart" %}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleChartType('vulnStatusChart', 'bar')">{% trans "Bar Chart" %}</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="vulnStatusChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Most Common Vulnerabilities and Priority Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-lg-8">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-bar text-danger me-2"></i>
+                            {% trans "Most Common Vulnerabilities" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="mostCommonVulnsChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                            {% trans "Vulnerabilities by Priority" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="vulnPriorityChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vulnerability Groups and Treatment Status Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-bar text-primary me-2"></i>
+                            {% trans "Vulnerabilities by Asset Group" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="vulnGroupChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-shield-alt text-success me-2"></i>
+                            {% trans "Vulnerability Treatment Status" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="vulnTreatmentChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Analytics Row -->
+        <div class="row g-4">
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-radar text-purple me-2"></i>
+                            {% trans "Risk Distribution by Asset Type" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="assetTypeChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-line text-secondary me-2"></i>
+                            {% trans "Treatment Progress Overview" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="treatmentOverviewChart" style="height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js and Custom Styles -->
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+.bg-gradient-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #a71e2a 100%);
+}
+.bg-gradient-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%);
+}
+.bg-gradient-success {
+    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+}
+.card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+.text-purple {
+    color: #6f42c1 !important;
+}
+.chart-container {
+    position: relative;
+    height: 250px;
+    max-height: 250px;
+}
+
+/* Компактні графіки */
+.card-body canvas {
+    max-height: 250px !important;
+    width: 100% !important;
+}
+
+/* Спеціальні розміри для різних типів графіків */
+#riskMatrixChart, #trendsChart {
+    max-height: 200px !important;
+}
+
+#assetTypeChart, #effectivenessChart, #priorityChart, #residualRiskChart, 
+#monitoringChart, #costAnalysisChart, #treatmentOverviewChart {
+    max-height: 220px !important;
+}
+
+/* Адаптивні розміри для мобільних пристроїв */
+@media (max-width: 768px) {
+    .card-body canvas {
+        max-height: 180px !important;
+    }
+    
+    .chart-container {
+        height: 180px;
+        max-height: 180px;
+    }
+}
+
+/* Компактні картки */
+.card {
+    margin-bottom: 1rem;
+}
+
+.card-body {
+    padding: 1rem;
+}
+
+.card-header {
+    padding: 0.75rem 1rem;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+// Global chart instances
+let charts = {};
+let dashboardData = null;
+
+// Глобальні налаштування для компактних графіків
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+Chart.defaults.aspectRatio = 1.8;
+Chart.defaults.plugins.legend.labels.boxWidth = 12;
+Chart.defaults.plugins.legend.labels.padding = 10;
+Chart.defaults.plugins.legend.labels.font = {
+    size: 11
+};
+Chart.defaults.font.size = 11;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+    
+    // Event listeners
+    document.getElementById('refreshDashboard').addEventListener('click', loadDashboardData);
+    document.getElementById('exportDashboard').addEventListener('click', exportDashboard);
+    
+    // Treatment view toggle
+    document.querySelectorAll('input[name="treatmentView"]').forEach(radio => {
+        radio.addEventListener('change', updateTreatmentChart);
+    });
+    
+    // Trend period toggle
+    document.querySelectorAll('input[name="trendPeriod"]').forEach(radio => {
+        radio.addEventListener('change', updateTrendsChart);
+    });
+});
+
+// Cleanup charts when page is unloaded
+window.addEventListener('beforeunload', function() {
+    cleanupCharts();
+});
+
+function cleanupCharts() {
+    Object.values(charts).forEach(chart => {
+        try {
+            if (chart && typeof chart.destroy === 'function') {
+                chart.destroy();
+            }
+        } catch (error) {
+            console.warn('Error destroying chart during cleanup:', error);
+        }
+    });
+    charts = {};
+}
+
+function loadDashboardData() {
+    showLoading(true);
+    
+    fetch('{% url "risk_assessment_dashboard" %}')
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || 'Server error'); }).catch(() => { throw new Error('Server error'); });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data || data.error) {
+                throw new Error(data && data.error ? data.error : 'Invalid dashboard data');
+            }
+            dashboardData = data;
+            updateSummaryCards(data);
+            createAllCharts(data);
+            showLoading(false);
+        })
+        .catch(error => {
+            console.error('Error fetching dashboard data:', error);
+            showErrorMessage('{% trans "Error loading dashboard data. Please try again later." %}');
+            showLoading(false);
+        });
+}
+
+function showLoading(show) {
+    const loadingEl = document.getElementById('dashboardLoading');
+    const contentEl = document.getElementById('dashboardContent');
+    if (loadingEl) loadingEl.style.display = show ? 'block' : 'none';
+    if (contentEl) contentEl.style.display = show ? 'none' : 'block';
+}
+
+function showErrorMessage(message) {
+    const dashboardDiv = document.getElementById('riskAssessmentDashboard');
+    if (dashboardDiv) dashboardDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>${message}</div>`;
+}
+
+function updateSummaryCards(data) {
+    const vulnerability = (data && data.vulnerability_data) || { vulnerable: 0, not_vulnerable: 0, undefined: 0 };
+    const total = (vulnerability.vulnerable || 0) + (vulnerability.not_vulnerable || 0) + (vulnerability.undefined || 0);
+    
+    const totalEl = document.getElementById('totalAssets');
+    const vulnerableEl = document.getElementById('vulnerableAssets');
+    const highRiskEl = document.getElementById('highRiskAssets');
+    const treatedEl = document.getElementById('treatedRisks');
+    if (totalEl) totalEl.textContent = total;
+    if (vulnerableEl) vulnerableEl.textContent = vulnerability.vulnerable || 0;
+    
+    const criticalityData = (data && data.criticality_data) || [];
+    const highRiskCount = criticalityData.filter(c => {
+        const name = (c.criticality_name || '').toLowerCase();
+        return name.includes('критичний') || name.includes('високий') ||
+               name.includes('critical') || name.includes('high') ||
+               name.includes('критический') || name.includes('высокий');
+    }).reduce((sum, c) => sum + (c.count || 0), 0);
+    if (highRiskEl) highRiskEl.textContent = highRiskCount;
+    
+    const treatmentData = (data && data.treatment_data) || [];
+    const treatedRisks = treatmentData.reduce((sum, t) => sum + (t.completed || 0), 0);
+    if (treatedEl) treatedEl.textContent = treatedRisks;
+}
+
+function createAllCharts(data) {
+    try {
+        createVulnerabilityChart(data.vulnerability_data || {});
+        createCriticalityChart(data.criticality_data || []);
+        createTreatmentChart(data.treatment_data || [], data.translations || {});
+        createRiskMatrixChart(data.risk_matrix_data || []);
+        createTrendsChart();
+        createAssetTypeChart(data.criticality_data || []);
+        
+        // Treatment Details charts
+        createEffectivenessChart(data.effectiveness_data || []);
+        createPriorityChart(data.priority_data || []);
+        createResidualRiskChart(data.residual_risk_data || []);
+        createMonitoringChart(data.monitoring_data || []);
+        createCostAnalysisChart(data.cost_data || {});
+        createCostSummary(data.cost_data || {});
+        createTreatmentOverviewChart(data.treatment_data || []);
+        
+        // Vulnerability Analytics charts
+        createVulnTypesChart(data.vulnerability_types_data || []);
+        createVulnStatusChart(data.vuln_status_data || []);
+        createMostCommonVulnsChart(data.most_common_vulns || []);
+        createVulnPriorityChart(data.vuln_priority_data || []);
+        createVulnGroupChart(data.vuln_group_data || []);
+        createVulnTreatmentChart(data.vuln_treatment_data || []);
+        
+        // Display risk levels information
+        if (data.all_risk_levels) {
+            displayRiskLevelsInfo(data.all_risk_levels);
+        }
+    } catch (error) {
+        console.error('Error creating charts:', error);
+        showErrorMessage('{% trans "Error creating dashboard charts. Please refresh the page." %}');
+    }
+}
+
+function createVulnerabilityChart(vulnerabilityData) {
+    const canvas = document.getElementById('vulnerabilityChart');
+    if (!canvas) {
+        console.warn('Vulnerability chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.vulnerability) {
+        try {
+            charts.vulnerability.destroy();
+        } catch (error) {
+            console.warn('Error destroying vulnerability chart:', error);
+        }
+    }
+    
+    // Ensure vulnerabilityData exists
+    if (!vulnerabilityData) {
+        vulnerabilityData = { vulnerable: 0, not_vulnerable: 0, undefined: 0 };
+    }
+    
+    charts.vulnerability = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['{% trans "Vulnerable" %}', '{% trans "Not Vulnerable" %}', '{% trans "Undefined" %}'],
+            datasets: [{
+                data: [vulnerabilityData.vulnerable, vulnerabilityData.not_vulnerable, vulnerabilityData.undefined],
+                backgroundColor: ['#dc3545', '#28a745', '#ffc107'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed * 100) / total).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            animation: {
+                animateRotate: true,
+                duration: 1000
+            }
+        }
+    });
+}
+
+function createCriticalityChart(criticalityData) {
+    const canvas = document.getElementById('criticalityChart');
+    if (!canvas) {
+        console.warn('Criticality chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.criticality) {
+        try {
+            charts.criticality.destroy();
+        } catch (error) {
+            console.warn('Error destroying criticality chart:', error);
+        }
+    }
+    
+    charts.criticality = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: criticalityData.map(d => d.criticality_name),
+            datasets: [{
+                label: '{% trans "Assets" %}',
+                data: criticalityData.map(d => d.count),
+                backgroundColor: criticalityData.map(d => d.color + '80'),
+                borderColor: criticalityData.map(d => d.color),
+                borderWidth: 2,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].label;
+                        },
+                        label: function(context) {
+                            return `{% trans "Assets" %}: ${context.parsed.y}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                },
+                x: {
+                    ticks: {
+                        maxRotation: 45
+                    }
+                }
+            },
+            animation: {
+                duration: 1000,
+                easing: 'easeOutQuart'
+            }
+        }
+    });
+}
+
+function createTreatmentChart(treatmentData, translations) {
+    const canvas = document.getElementById('treatmentChart');
+    if (!canvas) {
+        console.warn('Treatment chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.treatment) {
+        try {
+            charts.treatment.destroy();
+        } catch (error) {
+            console.warn('Error destroying treatment chart:', error);
+        }
+    }
+    
+    // Ensure treatmentData exists
+    if (!treatmentData || !Array.isArray(treatmentData)) {
+        treatmentData = [];
+    }
+    
+    // Ensure translations exists
+    if (!translations) {
+        translations = {
+            planned: '{% trans "Planned" %}',
+            in_progress: '{% trans "In Progress" %}',
+            completed: '{% trans "Completed" %}'
+        };
+    }
+    
+    const isStacked = document.getElementById('stackedView').checked;
+    
+    charts.treatment = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: treatmentData.map(d => d.treatment_type),
+            datasets: [
+                {
+                    label: translations.planned,
+                    data: treatmentData.map(d => d.planned),
+                    backgroundColor: '#ffc107',
+                    borderColor: '#ffc107',
+                    borderWidth: 1
+                },
+                {
+                    label: translations.in_progress,
+                    data: treatmentData.map(d => d.in_progress),
+                    backgroundColor: '#17a2b8',
+                    borderColor: '#17a2b8',
+                    borderWidth: 1
+                },
+                {
+                    label: translations.completed,
+                    data: treatmentData.map(d => d.completed),
+                    backgroundColor: '#28a745',
+                    borderColor: '#28a745',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    stacked: isStacked
+                },
+                y: {
+                    stacked: isStacked,
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            },
+            animation: {
+                duration: 1000
+            }
+        }
+    });
+}
+
+function createRiskMatrixChart(riskMatrixData) {
+    const canvas = document.getElementById('riskMatrixChart');
+    if (!canvas) {
+        console.warn('Risk matrix chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.riskMatrix) {
+        try {
+            charts.riskMatrix.destroy();
+        } catch (error) {
+            console.warn('Error destroying risk matrix chart:', error);
+        }
+    }
+    
+    // Ensure riskMatrixData exists
+    if (!riskMatrixData || !Array.isArray(riskMatrixData)) {
+        riskMatrixData = [];
+    }
+    
+    // Prepare data for risk matrix chart
+    
+    // Use actual colors from risk levels or fallback to default colors
+    const colors = riskMatrixData.map(item => item.color || '#6c757d');
+    const borderColors = colors.map(color => {
+        // Darken the color for border
+        if (color.startsWith('#')) {
+            const hex = color.slice(1);
+            const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - 40);
+            const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - 40);
+            const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - 40);
+            return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        }
+        return color;
+    });
+    
+    charts.riskMatrix = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: riskMatrixData.map(item => item.probability),
+            datasets: [{
+                label: '{% trans "Number of Risks" %}',
+                data: riskMatrixData.map(item => item.count),
+                backgroundColor: colors,
+                borderColor: borderColors,
+                borderWidth: 2,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].label;
+                        },
+                        label: function(context) {
+                            const item = riskMatrixData[context.dataIndex];
+                            return `${context.parsed.y} {% trans "risks" %} (${item.min_value}-${item.max_value})`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 0
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '{% trans "Number of Risks" %}'
+                    },
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createTrendsChart() {
+    const ctx = document.getElementById('trendsChart').getContext('2d');
+    
+    if (charts.trends) {
+        charts.trends.destroy();
+    }
+    
+    // Generate sample trend data
+    const days = 30;
+    const dates = [];
+    const vulnerableData = [];
+    const treatedData = [];
+    
+    for (let i = days; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        dates.push(date.toISOString().split('T')[0]);
+        vulnerableData.push(Math.floor(Math.random() * 20) + 10);
+        treatedData.push(Math.floor(Math.random() * 15) + 5);
+    }
+    
+    charts.trends = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: '{% trans "New Vulnerabilities" %}',
+                    data: vulnerableData,
+                    borderColor: '#dc3545',
+                    backgroundColor: '#dc354520',
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: '{% trans "Treated Risks" %}',
+                    data: treatedData,
+                    borderColor: '#28a745',
+                    backgroundColor: '#28a74520',
+                    fill: true,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'day',
+                        displayFormats: {
+                            day: 'MMM dd'
+                        }
+                    }
+                },
+                y: {
+                    beginAtZero: true
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+}
+
+function createAssetTypeChart(criticalityData) {
+    const ctx = document.getElementById('assetTypeChart').getContext('2d');
+    
+    if (charts.assetType) {
+        charts.assetType.destroy();
+    }
+    
+    charts.assetType = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: criticalityData.map(d => d.criticality_name),
+            datasets: [{
+                label: '{% trans "Risk Distribution" %}',
+                data: criticalityData.map(d => d.count),
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createEffectivenessChart(effectivenessData) {
+    const ctx = document.getElementById('effectivenessChart').getContext('2d');
+    
+    if (charts.effectiveness) {
+        charts.effectiveness.destroy();
+    }
+    
+    if (!effectivenessData || effectivenessData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No effectiveness data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    charts.effectiveness = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: effectivenessData.map(d => d.name),
+            datasets: [{
+                data: effectivenessData.map(d => d.count),
+                backgroundColor: effectivenessData.map(d => d.color),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed * 100) / total).toFixed(1);
+                            const effectiveness = effectivenessData[context.dataIndex];
+                            return `${context.label}: ${context.parsed} (${percentage}%) - ${effectiveness.value}%`;
+                        }
+                    }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const effectiveness = effectivenessData[index];
+                    interactiveDashboard.showDrilldownModal('effectiveness', effectiveness.name, effectiveness.count);
+                }
+            }
+        }
+    });
+}
+
+function createPriorityChart(priorityData) {
+    const ctx = document.getElementById('priorityChart').getContext('2d');
+    
+    if (charts.priority) {
+        charts.priority.destroy();
+    }
+    
+    if (!priorityData || priorityData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No priority data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    charts.priority = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: priorityData.map(d => d.name),
+            datasets: [{
+                label: '{% trans "Treatments" %}',
+                data: priorityData.map(d => d.count),
+                backgroundColor: priorityData.map(d => d.color + '80'),
+                borderColor: priorityData.map(d => d.color),
+                borderWidth: 2,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].label;
+                        },
+                        label: function(context) {
+                            const priority = priorityData[context.dataIndex];
+                            return `{% trans "Treatments" %}: ${context.parsed.y} ({% trans "Priority" %}: ${priority.value})`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const priority = priorityData[index];
+                    interactiveDashboard.showDrilldownModal('priority', priority.name, priority.count);
+                }
+            }
+        }
+    });
+}
+
+function createResidualRiskChart(residualRiskData) {
+    const ctx = document.getElementById('residualRiskChart').getContext('2d');
+    
+    if (charts.residualRisk) {
+        charts.residualRisk.destroy();
+    }
+    
+    if (!residualRiskData || residualRiskData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No residual risk data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    charts.residualRisk = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: residualRiskData.map(d => d.name),
+            datasets: [{
+                data: residualRiskData.map(d => d.count),
+                backgroundColor: residualRiskData.map(d => d.color),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed * 100) / total).toFixed(1);
+                            const risk = residualRiskData[context.dataIndex];
+                            return `${context.label}: ${context.parsed} (${percentage}%) - {% trans "Level" %}: ${risk.value}`;
+                        }
+                    }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const risk = residualRiskData[index];
+                    interactiveDashboard.showDrilldownModal('residualRisk', risk.name, risk.count);
+                }
+            }
+        }
+    });
+}
+
+function createMonitoringChart(monitoringData) {
+    const ctx = document.getElementById('monitoringChart').getContext('2d');
+    
+    if (charts.monitoring) {
+        charts.monitoring.destroy();
+    }
+    
+    if (!monitoringData || monitoringData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No monitoring data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#20c997'];
+    
+    charts.monitoring = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: monitoringData.map(d => d.name),
+            datasets: [{
+                data: monitoringData.map(d => d.count),
+                backgroundColor: colors.slice(0, monitoringData.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed * 100) / total).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const monitoring = monitoringData[index];
+                    interactiveDashboard.showDrilldownModal('monitoring', monitoring.name, monitoring.count);
+                }
+            }
+        }
+    });
+}
+
+function createCostAnalysisChart(costData) {
+    const ctx = document.getElementById('costAnalysisChart').getContext('2d');
+    
+    if (charts.costAnalysis) {
+        charts.costAnalysis.destroy();
+    }
+    
+    // Ensure costData exists and has the required properties
+    if (!costData || !costData.cost_by_priority || costData.cost_by_priority.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No cost data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    charts.costAnalysis = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: costData.cost_by_priority.map(d => d.priority),
+            datasets: [{
+                label: '{% trans "Implementation Cost" %}',
+                data: costData.cost_by_priority.map(d => d.cost),
+                backgroundColor: costData.cost_by_priority.map(d => d.color + '80'),
+                borderColor: costData.cost_by_priority.map(d => d.color),
+                borderWidth: 2,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `{% trans "Cost" %}: ${new Intl.NumberFormat('uk-UA', {
+                                style: 'currency',
+                                currency: 'UAH'
+                            }).format(context.parsed.y)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return new Intl.NumberFormat('uk-UA', {
+                                style: 'currency',
+                                currency: 'UAH',
+                                minimumFractionDigits: 0
+                            }).format(value);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createCostSummary(costData) {
+    const summaryDiv = document.getElementById('costSummary');
+    
+    // Ensure costData exists
+    if (!costData) {
+        costData = {
+            total_implementation_cost: 0,
+            total_maintenance_cost: 0,
+            treatments_with_cost: 0
+        };
+    }
+    
+    const totalImplementation = costData.total_implementation_cost || 0;
+    const totalMaintenance = costData.total_maintenance_cost || 0;
+    const treatmentsWithCost = costData.treatments_with_cost || 0;
+    
+    summaryDiv.innerHTML = `
+        <div class="text-center">
+            <div class="mb-3">
+                <h4 class="text-primary mb-1">${new Intl.NumberFormat('uk-UA', {
+                    style: 'currency',
+                    currency: 'UAH',
+                    minimumFractionDigits: 0
+                }).format(totalImplementation)}</h4>
+                <small class="text-muted">{% trans "Total Implementation Cost" %}</small>
+            </div>
+            <div class="mb-3">
+                <h5 class="text-success mb-1">${new Intl.NumberFormat('uk-UA', {
+                    style: 'currency',
+                    currency: 'UAH',
+                    minimumFractionDigits: 0
+                }).format(totalMaintenance)}</h5>
+                <small class="text-muted">{% trans "Annual Maintenance Cost" %}</small>
+            </div>
+            <div>
+                <h6 class="text-info mb-1">${treatmentsWithCost}</h6>
+                <small class="text-muted">{% trans "Treatments with Cost Data" %}</small>
+            </div>
+        </div>
+    `;
+}
+
+function createTreatmentOverviewChart(treatmentData) {
+    const ctx = document.getElementById('treatmentOverviewChart').getContext('2d');
+    
+    if (charts.treatmentOverview) {
+        charts.treatmentOverview.destroy();
+    }
+    
+    // Calculate totals
+    const totalPlanned = treatmentData.reduce((sum, t) => sum + t.planned, 0);
+    const totalInProgress = treatmentData.reduce((sum, t) => sum + t.in_progress, 0);
+    const totalCompleted = treatmentData.reduce((sum, t) => sum + t.completed, 0);
+    const total = totalPlanned + totalInProgress + totalCompleted;
+    
+    charts.treatmentOverview = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['{% trans "Planned" %}', '{% trans "In Progress" %}', '{% trans "Completed" %}'],
+            datasets: [{
+                data: [totalPlanned, totalInProgress, totalCompleted],
+                backgroundColor: ['#ffc107', '#17a2b8', '#28a745'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const percentage = total > 0 ? ((context.parsed * 100) / total).toFixed(1) : 0;
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function toggleChartType(chartId, newType) {
+    const chartKey = chartId.replace('Chart', '');
+    try {
+        if (charts[chartKey] && charts[chartKey].canvas && document.contains(charts[chartKey].canvas)) {
+            charts[chartKey].config.type = newType;
+            charts[chartKey].update();
+        }
+    } catch (error) {
+        console.warn('Error toggling chart type:', error);
+    }
+}
+
+function updateTreatmentChart() {
+    if (dashboardData) {
+        createTreatmentChart(dashboardData.treatment_data, dashboardData.translations);
+    }
+}
+
+function updateTrendsChart() {
+    createTrendsChart();
+}
+
+function exportDashboard() {
+    // Create a simple export functionality
+    const exportData = {
+        timestamp: new Date().toISOString(),
+        data: dashboardData
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `risk_dashboard_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Функція для переключення розміру графіків
+let isCompactMode = false;
+function toggleChartSize() {
+    const button = document.getElementById('compactMode');
+    const icon = button.querySelector('i');
+    const text = button.querySelector('.btn-text') || button.childNodes[button.childNodes.length - 1];
+    
+    if (isCompactMode) {
+        // Переключити на звичайний режим
+        setAllChartsSize('normal');
+        icon.className = 'fas fa-compress me-1';
+        button.innerHTML = '<i class="fas fa-compress me-1"></i>{% trans "Compact" %}';
+        isCompactMode = false;
+    } else {
+        // Переключити на компактний режим
+        setAllChartsSize('compact');
+        icon.className = 'fas fa-expand me-1';
+        button.innerHTML = '<i class="fas fa-expand me-1"></i>{% trans "Normal" %}';
+        isCompactMode = true;
+    }
+}
+
+function displayRiskLevelsInfo(riskLevels) {
+    // Create a small info panel showing all risk levels
+    const riskLevelsInfo = document.createElement('div');
+    riskLevelsInfo.className = 'alert alert-info mt-3';
+    riskLevelsInfo.innerHTML = `
+        <h6 class="alert-heading">
+            <i class="fas fa-info-circle me-2"></i>
+            {% trans "Available Risk Levels" %}
+        </h6>
+        <div class="row">
+            ${riskLevels.map(level => `
+                <div class="col-md-3 col-sm-6 mb-2">
+                    <div class="d-flex align-items-center">
+                        <span class="badge me-2" style="background-color: ${level.color}; color: ${getContrastColor(level.color)};">
+                            ${level.name}
+                        </span>
+                        <small class="text-muted">(${level.min_value}-${level.max_value})</small>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    // Insert after the risk matrix chart
+    const riskMatrixCard = document.querySelector('#riskMatrixChart').closest('.card');
+    if (riskMatrixCard) {
+        riskMatrixCard.appendChild(riskLevelsInfo);
+    }
+}
+
+function getContrastColor(hexcolor) {
+    // If hexcolor is not provided or invalid, return black
+    if (!hexcolor || !/^#[0-9A-F]{6}$/i.test(hexcolor)) {
+        return '#000000';
+    }
+
+    // Convert hex to RGB
+    const r = parseInt(hexcolor.slice(1, 3), 16);
+    const g = parseInt(hexcolor.slice(3, 5), 16);
+    const b = parseInt(hexcolor.slice(5, 7), 16);
+
+    // Calculate luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+    // Return black for light colors, white for dark colors
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
+
+// Vulnerability Analytics Chart Functions
+
+function createVulnTypesChart(vulnTypesData) {
+    const canvas = document.getElementById('vulnTypesChart');
+    if (!canvas) {
+        console.warn('Vuln types chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.vulnTypes) {
+        try {
+            charts.vulnTypes.destroy();
+        } catch (error) {
+            console.warn('Error destroying vuln types chart:', error);
+        }
+    }
+    
+    if (!vulnTypesData || vulnTypesData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No vulnerability types data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#20c997', '#fd7e14', '#e83e8c'];
+    
+    charts.vulnTypes = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: vulnTypesData.map(d => `${d.type} (${d.group})`),
+            datasets: [{
+                data: vulnTypesData.map(d => d.count),
+                backgroundColor: colors.slice(0, vulnTypesData.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true,
+                        maxWidth: 200
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed * 100) / total).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createVulnStatusChart(vulnStatusData) {
+    const canvas = document.getElementById('vulnStatusChart');
+    if (!canvas) {
+        console.warn('Vuln status chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.vulnStatus) {
+        try {
+            charts.vulnStatus.destroy();
+        } catch (error) {
+            console.warn('Error destroying vuln status chart:', error);
+        }
+    }
+    
+    if (!vulnStatusData || vulnStatusData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No vulnerability status data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    const statusLabels = {
+        'Yes': '{% trans "Vulnerable" %}',
+        'No': '{% trans "Not Vulnerable" %}',
+        'Undefined': '{% trans "Undefined" %}'
+    };
+    
+    charts.vulnStatus = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: vulnStatusData.map(d => statusLabels[d.status] || d.status),
+            datasets: [{
+                data: vulnStatusData.map(d => d.count),
+                backgroundColor: vulnStatusData.map(d => d.color),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed * 100) / total).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createMostCommonVulnsChart(mostCommonVulns) {
+    const canvas = document.getElementById('mostCommonVulnsChart');
+    if (!canvas) {
+        console.warn('Most common vulns chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.mostCommonVulns) {
+        try {
+            charts.mostCommonVulns.destroy();
+        } catch (error) {
+            console.warn('Error destroying most common vulns chart:', error);
+        }
+    }
+    
+    if (!mostCommonVulns || mostCommonVulns.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No common vulnerabilities data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    charts.mostCommonVulns = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: mostCommonVulns.map(d => d.name),
+            datasets: [{
+                label: '{% trans "Occurrences" %}',
+                data: mostCommonVulns.map(d => d.count),
+                backgroundColor: '#dc3545',
+                borderColor: '#c82333',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            const index = context[0].dataIndex;
+                            return mostCommonVulns[index].full_name;
+                        },
+                        label: function(context) {
+                            return `{% trans "Occurrences" %}: ${context.parsed.y}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 0
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createVulnPriorityChart(vulnPriorityData) {
+    const canvas = document.getElementById('vulnPriorityChart');
+    if (!canvas) {
+        console.warn('Vuln priority chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.vulnPriority) {
+        try {
+            charts.vulnPriority.destroy();
+        } catch (error) {
+            console.warn('Error destroying vuln priority chart:', error);
+        }
+    }
+    
+    if (!vulnPriorityData || vulnPriorityData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No vulnerability priority data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    charts.vulnPriority = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: vulnPriorityData.map(d => d.priority),
+            datasets: [{
+                data: vulnPriorityData.map(d => d.count),
+                backgroundColor: vulnPriorityData.map(d => d.color),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed * 100) / total).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createVulnGroupChart(vulnGroupData) {
+    const canvas = document.getElementById('vulnGroupChart');
+    if (!canvas) {
+        console.warn('Vuln group chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.vulnGroup) {
+        try {
+            charts.vulnGroup.destroy();
+        } catch (error) {
+            console.warn('Error destroying vuln group chart:', error);
+        }
+    }
+    
+    if (!vulnGroupData || vulnGroupData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No vulnerability group data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    charts.vulnGroup = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: vulnGroupData.map(d => d.group),
+            datasets: [{
+                label: '{% trans "Vulnerabilities" %}',
+                data: vulnGroupData.map(d => d.count),
+                backgroundColor: '#17a2b8',
+                borderColor: '#138496',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `{% trans "Vulnerabilities" %}: ${context.parsed.y}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 0
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createVulnTreatmentChart(vulnTreatmentData) {
+    const canvas = document.getElementById('vulnTreatmentChart');
+    if (!canvas) {
+        console.warn('Vuln treatment chart canvas not found');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (charts.vulnTreatment) {
+        try {
+            charts.vulnTreatment.destroy();
+        } catch (error) {
+            console.warn('Error destroying vuln treatment chart:', error);
+        }
+    }
+    
+    if (!vulnTreatmentData || vulnTreatmentData.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('{% trans "No vulnerability treatment data available" %}', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    charts.vulnTreatment = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: vulnTreatmentData.map(d => d.status),
+            datasets: [{
+                data: vulnTreatmentData.map(d => d.count),
+                backgroundColor: vulnTreatmentData.map(d => d.color),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed * 100) / total).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function setAllChartsSize(size) {
+    let heights = {};
+    
+    if (size === 'compact') {
+        heights = {
+            default: '180px',
+            small: '150px',
+            medium: '160px'
+        };
+    } else { // normal
+        heights = {
+            default: '250px',
+            small: '200px',
+            medium: '220px'
+        };
+    }
+    
+    // Update canvas sizes with null checks
+    document.querySelectorAll('canvas').forEach(canvas => {
+        if (canvas && canvas.id) {
+            const chartId = canvas.id;
+            if (chartId.includes('riskMatrix') || chartId.includes('trends')) {
+                canvas.style.height = heights.small;
+                canvas.style.maxHeight = heights.small;
+            } else if (chartId.includes('assetType') || chartId.includes('effectiveness') || 
+                       chartId.includes('priority') || chartId.includes('residualRisk') || 
+                       chartId.includes('monitoring') || chartId.includes('costAnalysis') ||
+                       chartId.includes('treatmentOverview') || chartId.includes('vuln')) {
+                canvas.style.height = heights.medium;
+                canvas.style.maxHeight = heights.medium;
+            } else {
+                canvas.style.height = heights.default;
+                canvas.style.maxHeight = heights.default;
+            }
+        }
+    });
+    
+    // Update all charts with proper error handling
+    Object.values(charts).forEach(chart => {
+        try {
+            if (chart && chart.canvas && chart.canvas.ownerDocument) {
+                // Check if the chart is still valid and attached to DOM
+                if (document.contains(chart.canvas)) {
+                    chart.resize();
+                    chart.update('none');
+                }
+            }
+        } catch (error) {
+            console.warn('Error resizing chart:', error);
+            // Continue with other charts even if one fails
+        }
+    });
+}
+</script>

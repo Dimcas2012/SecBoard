@@ -1,0 +1,487 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "PCI DSS Documents" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_std/includes/std_styles.html" %}
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="{% static 'app_std/css/pcidss-documents-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid std-page pcidss-documents-page">
+    <h1 class="mb-4"><i class="bi bi-file-pdf me-2"></i>{% trans "PCI DSS Documents" %}</h1>
+
+    <div class="card mb-2 filter-section access-request-filters" id="pcidssDocFiltersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="pcidssDocFiltersCollapse" toggle_id="togglePcidssDocFilters" icon_id="pcidssDocFiltersToggleIcon" clear_btn_id="clearPcidssDocFilters" filters_expanded=True %}
+        <div class="collapse show" id="pcidssDocFiltersCollapse">
+            <div class="card-body py-2">
+                <label for="pciDocSearch" class="form-label">{% trans "Search Documents" %}</label>
+                <input type="text" class="form-control form-control-sm" id="pciDocSearch" placeholder="{% trans 'Title or description...' %}">
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">{% trans "Document Library" %}</h5>
+                        <div class="btn-group sb-toolbar" role="group">
+                            <a href="{% url 'pcidss_requirements' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+                               title="{% trans 'Back to PCI DSS Requirements' %}">
+                                <i class="bi bi-arrow-left"></i>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    {% if can_edit %}
+                    <div id="uploadArea" class="upload-area mb-4">
+                        <i class="bi bi-cloud-upload display-4"></i>
+                        <h4>{% trans "Upload PDF Document" %}</h4>
+                        <p>{% trans "Drag and drop your PDF files here or click to browse" %}</p>
+                        <input type="file" id="documentFileInput" style="display: none;" accept=".pdf">
+                    </div>
+                    
+                    <div id="uploadForm" style="display: none;" class="card mb-4">
+                        <div class="card-body">
+                            <h5>{% trans "Document Details" %}</h5>
+                            <form id="documentForm">
+                                <div class="mb-3">
+                                    <label for="documentTitle" class="form-label">{% trans "Title" %}</label>
+                                    <input type="text" class="form-control" id="documentTitle" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="documentDescription" class="form-label">{% trans "Description" %}</label>
+                                    <textarea class="form-control" id="documentDescription" rows="3"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">{% trans "Selected File" %}</label>
+                                    <p id="selectedFileName" class="text-primary"></p>
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <button type="button" id="cancelUploadBtn" class="btn btn-outline-secondary me-2">{% trans "Cancel" %}</button>
+                                    <button type="submit" id="submitDocumentBtn" class="btn btn-primary">{% trans "Upload Document" %}</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="row" id="documentsContainer">
+                        {% if documents %}
+                            {% for document in documents %}
+                            <div class="col-md-4 mb-4 pci-doc-col">
+                                <div class="card document-card h-100">
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ document.title }}</h5>
+                                        <p class="card-text">{{ document.description|default:""|truncatechars:100 }}</p>
+                                        <p class="text-muted"><small>{{ document.uploaded_at|date:"d M Y, H:i" }}</small></p>
+                                    </div>
+                                    <div class="card-footer bg-transparent d-flex gap-1">
+                                        <a href="{% url 'view_pcidss_document' document.id %}" class="btn btn-outline-primary btn-sm btn-icon-action" target="_blank"
+                                           title="{% trans 'View' %}">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm btn-icon-action view-document-btn" data-document-id="{{ document.id }}" data-document-title="{{ document.title }}"
+                                                title="{% trans 'Preview' %}">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                        {% if can_edit %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm btn-icon-action delete-document-btn" data-document-id="{{ document.id }}" data-document-title="{{ document.title }}"
+                                                title="{% trans 'Delete' %}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    {% trans "No documents have been uploaded yet." %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Document Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewModalLabel">{% trans "Document Preview" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="pdf-container">
+                    <!-- Use object tag instead of iframe for better PDF handling -->
+                    <object id="pdfViewer" width="100%" height="100%" type="application/pdf">
+                        <p>{% trans "Your browser does not support PDFs. Please download the PDF to view it:" %} 
+                            <a id="pdfFallbackLink" href="#">{% trans "Download PDF" %}</a>
+                        </p>
+                    </object>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="downloadDocumentBtn" href="#" class="btn btn-primary" download>
+                    <i class="bi bi-download"></i> {% trans "Download" %}
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">{% trans "Confirm Deletion" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Are you sure you want to delete the document" %} <span id="deleteDocumentTitle" class="fw-bold"></span>?</p>
+                <p class="text-danger">{% trans "This action cannot be undone." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">{% trans "Delete" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js"></script>
+
+<script>
+// Set PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize variables
+    let currentDocumentId = null;
+    let pdfDoc = null;
+    
+    // CSRF Token function
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Document preview functionality
+    function attachEventListeners() {
+        document.querySelectorAll('.view-document-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const documentId = this.dataset.documentId;
+                const documentTitle = this.dataset.documentTitle;
+                
+                // Set modal title
+                document.getElementById('previewModalLabel').textContent = documentTitle;
+                
+                // Set document ID
+                currentDocumentId = documentId;
+                
+                // Create the PDF URL
+                const viewUrl = "{% url 'view_pcidss_document' 0 %}".replace('0', documentId);
+                
+                // Set PDF viewer source
+                const pdfViewer = document.getElementById('pdfViewer');
+                pdfViewer.data = viewUrl;
+                
+                // Set download link and fallback link
+                document.getElementById('downloadDocumentBtn').href = viewUrl;
+                document.getElementById('pdfFallbackLink').href = viewUrl;
+                
+                // Initialize PDF.js
+                pdfjsLib.getDocument(viewUrl).promise.then(function(pdf) {
+                    pdfDoc = pdf;
+                    // PDF is loaded and ready for viewing
+                    console.log(`PDF loaded with ${pdf.numPages} pages`);
+                });
+                
+                // Show modal
+                const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+                previewModal.show();
+            });
+        });
+    }
+    
+    // Attach event listeners to existing buttons
+    attachEventListeners();
+    
+    // Clean up PDF when modal is closed
+    document.getElementById('previewModal').addEventListener('hidden.bs.modal', function() {
+        pdfDoc = null;
+    });
+    
+    // Document upload functionality (for users with edit permissions)
+    {% if can_edit %}
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('documentFileInput');
+    const uploadForm = document.getElementById('uploadForm');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const documentForm = document.getElementById('documentForm');
+    const cancelUploadBtn = document.getElementById('cancelUploadBtn');
+    
+    // Drag and drop events
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.classList.add('border-primary');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.classList.remove('border-primary');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.classList.remove('border-primary');
+        
+        const files = e.dataTransfer.files;
+        handleFiles(files);
+    });
+    
+    // Click to upload
+    uploadArea.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', function() {
+        handleFiles(this.files);
+    });
+    
+    function handleFiles(files) {
+        if (files.length > 0) {
+            const file = files[0];
+            
+            // Check if file is PDF
+            if (!file.name.endsWith('.pdf')) {
+                alert('{% trans "Only PDF files are allowed" %}');
+                return;
+            }
+            
+            // Show upload form
+            uploadArea.style.display = 'none';
+            uploadForm.style.display = 'block';
+            
+            // Set file name and default title
+            selectedFileName.textContent = file.name;
+            document.getElementById('documentTitle').value = file.name.replace('.pdf', '');
+        }
+    }
+    
+    // Cancel upload
+    cancelUploadBtn.addEventListener('click', function() {
+        resetUploadForm();
+    });
+    
+    // Submit form
+    documentForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const title = document.getElementById('documentTitle').value;
+        const description = document.getElementById('documentDescription').value;
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('{% trans "Please select a file" %}');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('file', file);
+        formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+        
+        // Disable submit button
+        document.getElementById('submitDocumentBtn').disabled = true;
+        
+        // Upload file
+        fetch('{% url "upload_pcidss_document" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resetUploadForm();
+                // Add the new document to the list without reloading the page
+                if (data.document) {
+                    addDocumentToList(data.document);
+                }
+                alert('{% trans "Document uploaded successfully" %}');
+            } else {
+                alert(data.error || '{% trans "Error uploading document" %}');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('{% trans "Error uploading document" %}');
+        })
+        .finally(() => {
+            document.getElementById('submitDocumentBtn').disabled = false;
+        });
+    });
+    
+    function resetUploadForm() {
+        uploadForm.style.display = 'none';
+        uploadArea.style.display = 'block';
+        documentForm.reset();
+        fileInput.value = '';
+        selectedFileName.textContent = '';
+    }
+    
+    function addDocumentToList(docData) {
+        const documentId = docData.id;
+        const viewUrl = "{% url 'view_pcidss_document' 0 %}".replace('0', documentId);
+        const canEdit = {% if can_edit %}true{% else %}false{% endif %};
+        
+        let footerHtml = `
+            <a href="${viewUrl}" class="btn btn-outline-primary btn-sm btn-icon-action" target="_blank" title="{% trans "View" %}">
+                <i class="bi bi-eye"></i>
+            </a>
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-icon-action view-document-btn" data-document-id="${documentId}" data-document-title="${docData.title}" title="{% trans "Preview" %}">
+                <i class="bi bi-search"></i>
+            </button>`;
+            
+        if (canEdit) {
+            footerHtml += `
+            <button type="button" class="btn btn-outline-danger btn-sm btn-icon-action delete-document-btn" data-document-id="${documentId}" data-document-title="${docData.title}" title="{% trans "Delete" %}">
+                <i class="bi bi-trash"></i>
+            </button>`;
+        }
+        
+        const documentHtml = `
+            <div class="col-md-4 mb-4">
+                <div class="card document-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">${docData.title}</h5>
+                        <p class="card-text">${docData.description || ''}</p>
+                        <p class="text-muted"><small>${docData.uploaded_at}</small></p>
+                    </div>
+                    <div class="card-footer bg-transparent d-flex justify-content-between">
+                        ${footerHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const container = document.getElementById('documentsContainer');
+        
+        // If "No documents" message exists, remove it
+        const noDocumentsAlert = container.querySelector('.alert-info');
+        if (noDocumentsAlert) {
+            container.innerHTML = '';
+        }
+        
+        // Add the new document to the beginning of the container
+        container.insertAdjacentHTML('afterbegin', documentHtml);
+        
+        // Attach event listeners to the new buttons
+        attachEventListeners();
+    }
+    
+    // Delete document functionality
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-document-btn')) {
+            const button = e.target.closest('.delete-document-btn');
+            const documentId = button.dataset.documentId;
+            const documentTitle = button.dataset.documentTitle;
+            
+            // Set values in delete modal
+            document.getElementById('deleteDocumentTitle').textContent = documentTitle;
+            
+            // Set the document ID for the confirm button
+            document.getElementById('confirmDeleteBtn').dataset.documentId = documentId;
+            
+            // Show delete modal
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            deleteModal.show();
+        }
+    });
+    
+    // Confirm delete
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        const documentId = this.dataset.documentId;
+        
+        // Delete document
+        fetch(`{% url 'delete_pcidss_document' 0 %}`.replace('0', documentId), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                
+                // Remove document from list
+                const documentCard = document.querySelector(`.delete-document-btn[data-document-id="${documentId}"]`).closest('.col-md-4');
+                documentCard.remove();
+                
+                // If no documents left, show "No documents" message
+                if (document.querySelectorAll('.document-card').length === 0) {
+                    const container = document.getElementById('documentsContainer');
+                    container.innerHTML = `
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                {% trans "No documents have been uploaded yet." %}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                alert('{% trans "Document deleted successfully" %}');
+            } else {
+                alert(data.error || '{% trans "Error deleting document" %}');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('{% trans "Error deleting document" %}');
+        });
+    });
+    {% endif %}
+});
+</script>
+{% endblock %} 

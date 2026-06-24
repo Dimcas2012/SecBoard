@@ -1,0 +1,802 @@
+{% load i18n %}
+{% if not executive_sections %}
+<div class="alert alert-info">
+    {% trans "No dashboard sections are configured for your role. Ask an administrator to set up Executive View in Manage Roles → Dashboard display settings." %}
+</div>
+{% else %}
+<style>
+/* ── Executive View ───────────────────────────────────────── */
+.exec-kpi-card {
+    border-radius: 16px;
+    padding: 1.4rem 1.25rem 1.1rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform .2s, box-shadow .2s;
+    height: 100%;
+    color: #fff;
+}
+.exec-kpi-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.18) !important; }
+.exec-kpi-card .kpi-bg-icon {
+    position: absolute; right: 1rem; bottom: .6rem;
+    font-size: 3.5rem; opacity: .12; line-height: 1; pointer-events: none;
+}
+.exec-kpi-title  { font-size: .72rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; opacity: .82; margin-bottom: .35rem; }
+.exec-kpi-value  { font-size: 2.1rem; font-weight: 800; line-height: 1.1; letter-spacing: -1px; min-height: 2.4rem; }
+.exec-kpi-sub    { font-size: .75rem; opacity: .8; margin-top: .2rem; }
+
+.exec-section-card { border: none; border-radius: 14px; box-shadow: 0 2px 14px rgba(0,0,0,.07); }
+.exec-section-header {
+    font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+    color: #495057; padding: .5rem 0 .7rem; border-bottom: 2px solid #e9ecef;
+    margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem;
+}
+
+.exec-widget-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: .6rem 0; border-bottom: 1px solid #f1f3f4; gap: 1rem;
+}
+.exec-widget-row:last-child { border-bottom: none; }
+.exec-widget-label { font-size: .875rem; color: #6c757d; flex: 1; min-width: 0; }
+.exec-widget-value-cell { text-align: right; flex-shrink: 0; max-width: 55%; }
+
+.fw-bar-row { margin-bottom: .55rem; }
+.fw-bar-label { display: flex; justify-content: space-between; font-size: .78rem; margin-bottom: .2rem; }
+
+.chart-mini { position: relative; height: 190px; }
+
+.dept-row {
+    display: flex; align-items: center; gap: .65rem;
+    padding: .4rem 0; border-bottom: 1px solid #f1f3f4; font-size: .875rem;
+}
+.dept-row:last-child { border-bottom: none; }
+.dept-risk-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+.exec-pill {
+    display: inline-flex; align-items: center;
+    padding: .22em .6em; border-radius: 50px; font-size: .74em; font-weight: 600; color: #fff;
+}
+.exec-loading { color: #adb5bd; font-size: .85rem; }
+
+@keyframes exec-spin { to { transform: rotate(360deg); } }
+.exec-spin { display: inline-block; animation: exec-spin .7s linear infinite; }
+</style>
+
+<!-- ── Toolbar ───────────────────────────────────────────── -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <small class="text-muted">{% trans "Updated" %}: <span id="execLastUpdated" class="fw-semibold">—</span></small>
+    <div class="d-flex align-items-center gap-2">
+        {% if executive_companies %}
+        <label class="mb-0 small fw-semibold text-nowrap">{% trans "Company" %}:</label>
+        <select id="execCompanySelect" class="form-select form-select-sm" style="min-width: 180px;">
+            <option value="">{% trans "All companies" %}</option>
+            {% for c in executive_companies %}
+            <option value="{{ c.id }}" {% if c.id in executive_selected_company_ids %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <button id="execRefreshBtn" class="btn btn-sm btn-outline-secondary" title="{% trans 'Refresh' %}">
+            <i class="fas fa-sync-alt" id="execRefreshIcon"></i>
+        </button>
+    </div>
+</div>
+
+<!-- ── TOP PANEL KPI Cards ──────────────────────────────── -->
+{% for sec in executive_sections %}{% if sec.id == 'top_panel' %}
+<div class="row g-3 mb-4">
+    {% for w in sec.widgets %}
+
+    {% if w.id == 'security_index' %}
+    <div class="col-6 col-xl-3">
+        <div class="exec-kpi-card shadow-sm" style="background: linear-gradient(135deg,#667eea,#4154b3);">
+            <div class="exec-kpi-title"><i class="fas fa-shield-alt me-1"></i>{% trans "Security Index" %}</div>
+            <div class="exec-kpi-value" id="kpi-security_index"><i class="fas fa-circle-notch exec-spin"></i></div>
+            <div class="exec-kpi-sub">{% trans "/ 100 aggregate score" %}</div>
+            <div class="mt-2">
+                <div class="progress" style="height:5px;background:rgba(255,255,255,.25);">
+                    <div class="progress-bar bg-white" id="kpi-security_index-bar" style="width:0%;transition:width .7s ease;"></div>
+                </div>
+            </div>
+            <div class="kpi-bg-icon"><i class="fas fa-shield-alt"></i></div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if w.id == 'incidents_critical_mttr' %}
+    <div class="col-6 col-xl-3">
+        <div class="exec-kpi-card shadow-sm" style="background: linear-gradient(135deg,#ff6b6b,#c0392b);">
+            <div class="exec-kpi-title"><i class="fas fa-fire me-1"></i>{% trans "Critical Incidents" %}</div>
+            <div class="exec-kpi-value" id="kpi-incidents_open"><i class="fas fa-circle-notch exec-spin"></i></div>
+            <div class="exec-kpi-sub" id="kpi-mttr-sub">{% trans "open / MTTR" %}</div>
+            <div class="kpi-bg-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if w.id == 'mandatory_processes_pct' %}
+    <div class="col-6 col-xl-3">
+        <div class="exec-kpi-card shadow-sm" style="background: linear-gradient(135deg,#4facfe,#00a99d);">
+            <div class="exec-kpi-title"><i class="fas fa-tasks me-1"></i>{% trans "Mandatory Processes" %}</div>
+            <div class="exec-kpi-value" id="kpi-mandatory_pct"><i class="fas fa-circle-notch exec-spin"></i></div>
+            <div class="exec-kpi-sub">{% trans "completed on time" %}</div>
+            <div class="mt-2">
+                <div class="progress" style="height:5px;background:rgba(255,255,255,.25);">
+                    <div class="progress-bar bg-white" id="kpi-mandatory-bar" style="width:0%;transition:width .7s ease;"></div>
+                </div>
+            </div>
+            <div class="kpi-bg-icon"><i class="fas fa-clipboard-check"></i></div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if w.id == 'compliance_traffic_light' %}
+    <div class="col-6 col-xl-3">
+        <div class="exec-kpi-card shadow-sm" style="background: linear-gradient(135deg,#43e97b,#1e8449);">
+            <div class="exec-kpi-title"><i class="fas fa-traffic-light me-1"></i>{% trans "Compliance Status" %}</div>
+            <div id="kpi-compliance-tl" style="min-height:2.4rem;">
+                <i class="fas fa-circle-notch exec-spin"></i>
+            </div>
+            <div class="kpi-bg-icon"><i class="fas fa-balance-scale"></i></div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% endfor %}
+</div>
+{% endif %}{% endfor %}
+
+<!-- ── Main grid: left (compliance + risks) / right (operations + access) ── -->
+<div class="row g-3 mb-4">
+
+    <!-- LEFT column -->
+    <div class="col-lg-6">
+
+        {% for sec in executive_sections %}{% if sec.id == 'compliance' %}
+        <div class="card exec-section-card mb-3">
+            <div class="card-body px-3 py-3">
+                <div class="exec-section-header">
+                    <i class="fas fa-file-contract text-primary"></i>{{ sec.label }}
+                </div>
+
+                {% for w in sec.widgets %}
+
+                {% if w.id == 'framework_pct' %}
+                <p class="small text-muted mb-1">{{ w.label }}</p>
+                <div id="exec-framework-bars" class="mb-3">
+                    <span class="exec-loading"><i class="fas fa-circle-notch exec-spin me-1"></i>{% trans "Loading…" %}</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'audit_readiness' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-audit_readiness">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'failed_controls' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-failed_controls">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'mandatory_status' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <div class="exec-widget-value-cell" id="widget-mandatory_status">—</div>
+                </div>
+                {% endif %}
+
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}{% endfor %}
+
+        {% for sec in executive_sections %}{% if sec.id == 'risks_tprm' %}
+        <div class="card exec-section-card mb-3">
+            <div class="card-body px-3 py-3">
+                <div class="exec-section-header">
+                    <i class="fas fa-radiation-alt text-warning"></i>{{ sec.label }}
+                </div>
+
+                {% for w in sec.widgets %}
+
+                {% if w.id == 'risks_by_level' %}
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div style="width:130px;height:130px;flex-shrink:0;position:relative;">
+                        <canvas id="chart-risks-donut"></canvas>
+                        <div id="risks-donut-total" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:.9rem;font-weight:700;color:#343a40;text-align:center;line-height:1.2;pointer-events:none;"></div>
+                    </div>
+                    <div id="risks-by-level-legend" class="flex-grow-1 exec-loading">
+                        <i class="fas fa-circle-notch exec-spin me-1"></i>{% trans "Loading…" %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'top_risks' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-top_risks">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'risk_plans' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-risk_plans">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'tprm_suppliers' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-tprm_suppliers">—</span>
+                </div>
+                {% endif %}
+
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}{% endfor %}
+
+    </div><!-- /left -->
+
+    <!-- RIGHT column -->
+    <div class="col-lg-6">
+
+        {% for sec in executive_sections %}{% if sec.id == 'operations' %}
+        <div class="card exec-section-card mb-3">
+            <div class="card-body px-3 py-3">
+                <div class="exec-section-header">
+                    <i class="fas fa-bell text-danger"></i>{{ sec.label }}
+                </div>
+
+                {% for w in sec.widgets %}
+
+                {% if w.id == 'incidents_by_period' %}
+                <div class="chart-mini mb-2">
+                    <canvas id="chart-incidents-bar"></canvas>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'mttd_mttr' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-mttd_mttr">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'incident_categories' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-incident_categories">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'fim_critical' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-fim_critical">—</span>
+                </div>
+                {% endif %}
+
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}{% endfor %}
+
+        {% for sec in executive_sections %}{% if sec.id == 'access' %}
+        <div class="card exec-section-card mb-3">
+            <div class="card-body px-3 py-3">
+                <div class="exec-section-header">
+                    <i class="fas fa-user-lock text-info"></i>{{ sec.label }}
+                </div>
+
+                {% for w in sec.widgets %}
+
+                {% if w.id == 'access_requests' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-access_requests">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'excessive_rights' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-excessive_rights">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'access_review' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-access_review">—</span>
+                </div>
+                {% endif %}
+
+                {% if w.id == 'api_keys' %}
+                <div class="exec-widget-row">
+                    <span class="exec-widget-label">{{ w.label }}</span>
+                    <span class="exec-widget-value-cell" id="widget-api_keys">—</span>
+                </div>
+                {% endif %}
+
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}{% endfor %}
+
+    </div><!-- /right -->
+
+</div><!-- /row -->
+
+<!-- ── PEOPLE section ─────────────────────────────────────── -->
+{% for sec in executive_sections %}{% if sec.id == 'people' %}
+<div class="card exec-section-card mb-4">
+    <div class="card-body px-3 py-3">
+        <div class="exec-section-header">
+            <i class="fas fa-users text-success"></i>{{ sec.label }}
+        </div>
+        <div class="row g-3">
+
+            {% for w in sec.widgets %}
+
+            {% if w.id == 'department_risk_profile' %}
+            <div class="col-md-6">
+                <p class="small fw-semibold text-muted mb-2">{{ w.label }}</p>
+                <div id="exec-dept-risk-table">
+                    <span class="exec-loading"><i class="fas fa-circle-notch exec-spin me-1"></i>{% trans "Loading…" %}</span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if w.id == 'training_completion' %}
+            <div class="col-6 col-md-3 text-center">
+                <p class="small fw-semibold text-muted mb-2">{{ w.label }}</p>
+                <div style="width:100px;height:100px;margin:0 auto;position:relative;">
+                    <canvas id="chart-training-ring"></canvas>
+                    <div id="training-ring-label" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.1rem;font-weight:700;color:#343a40;">—</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if w.id == 'quiz_results' %}
+            <div class="col-6 col-md-3 text-center">
+                <p class="small fw-semibold text-muted mb-2">{{ w.label }}</p>
+                <div style="font-size:2rem;font-weight:800;color:#667eea;" id="widget-quiz_results">—</div>
+                <small class="text-muted">{% trans "avg score" %}</small>
+            </div>
+            {% endif %}
+
+            {% if w.id == 'gophish_metrics' %}
+            <div class="col-md-6">
+                <p class="small fw-semibold text-muted mb-2">{{ w.label }}</p>
+                <span id="widget-gophish_metrics" class="text-muted small">—</span>
+            </div>
+            {% endif %}
+
+            {% endfor %}
+
+        </div>
+        <hr class="my-2">
+        <div class="small">
+            <a href="{% url 'org_structure' %}"><i class="fas fa-sitemap me-1"></i>{% trans "Organization structure" %}</a>
+            <span class="mx-2">|</span>
+            <a href="{% url 'org_chart' %}"><i class="fas fa-project-diagram me-1"></i>{% trans "Organization chart" %}</a>
+        </div>
+    </div>
+</div>
+{% endif %}{% endfor %}
+
+{% endif %}{# /executive_sections #}
+
+{% if executive_widget_ids_json %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    'use strict';
+    var widgetIds = {{ executive_widget_ids_json|safe }};
+    if (!widgetIds || !widgetIds.length) return;
+
+    var apiUrl  = "{% url 'executive_view_metrics_api' %}";
+    var selEl   = document.getElementById('execCompanySelect');
+    var charts  = {};
+
+    function destroyChart(key) {
+        if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+    }
+
+    function statusColor(s) {
+        return s === 'green' ? '#198754' : s === 'yellow' ? '#fd7e14' : s === 'red' ? '#dc3545' : '#adb5bd';
+    }
+
+    function pill(color, html, cls) {
+        return '<span class="exec-pill me-1" style="background:' + color + ';"' + (cls ? ' class="' + cls + '"' : '') + '>' + html + '</span>';
+    }
+
+    /* ─── KPI CARD RENDERERS ──────────────────────────────── */
+
+    function renderSecurityIndex(d) {
+        var v = d.score != null ? d.score : 0;
+        var color = v >= 80 ? '#a3ffca' : v >= 60 ? '#ffe08a' : '#ff9fa0';
+        var el = document.getElementById('kpi-security_index');
+        var bar = document.getElementById('kpi-security_index-bar');
+        if (el)  el.innerHTML = '<span style="color:' + color + ';">' + v + '</span>';
+        if (bar) bar.style.width = v + '%';
+    }
+
+    function renderIncidentsCriticalMttr(d) {
+        var open  = d.open_critical != null ? d.open_critical : 0;
+        var color = open === 0 ? '#a3ffca' : open < 5 ? '#ffe08a' : '#ff9fa0';
+        var el    = document.getElementById('kpi-incidents_open');
+        var sub   = document.getElementById('kpi-mttr-sub');
+        if (el)  el.innerHTML = '<span style="color:' + color + ';">' + open + '</span>';
+        if (sub) sub.textContent = d.mttr_hours != null ? 'MTTR ' + Math.round(d.mttr_hours) + 'h (30d)' : '{% trans "open critical" %}';
+    }
+
+    function renderMandatoryProcessesPct(d) {
+        var pct   = d.pct != null ? d.pct : 0;
+        var color = pct >= 90 ? '#a3ffca' : pct >= 70 ? '#ffe08a' : '#ff9fa0';
+        var el    = document.getElementById('kpi-mandatory_pct');
+        var bar   = document.getElementById('kpi-mandatory-bar');
+        if (el)  el.innerHTML = '<span style="color:' + color + ';">' + pct + '%</span>';
+        if (bar) bar.style.width = pct + '%';
+    }
+
+    function renderComplianceTrafficLight(d) {
+        var el = document.getElementById('kpi-compliance-tl');
+        if (!el) return;
+        if (!d.frameworks || !d.frameworks.length) { el.innerHTML = '<span class="opacity-75 small">—</span>'; return; }
+        el.innerHTML = d.frameworks.slice(0, 6).map(function (f) {
+            var c = statusColor(f.status);
+            return '<div class="d-flex align-items-center gap-1 mb-1" style="line-height:1.2;">'
+                + '<span style="width:8px;height:8px;border-radius:50%;background:' + c + ';flex-shrink:0;display:inline-block;"></span>'
+                + '<span style="font-size:.73rem;">' + (f.name || '') + (f.pct != null ? ' ' + f.pct + '%' : '') + '</span>'
+                + '</div>';
+        }).join('');
+    }
+
+    /* ─── SECTION RENDERERS ──────────────────────────────── */
+
+    function renderFrameworkBars(d) {
+        var el = document.getElementById('exec-framework-bars');
+        if (!el) return;
+        if (!d.frameworks || !d.frameworks.length) { el.innerHTML = '<span class="text-muted small">—</span>'; return; }
+        el.innerHTML = d.frameworks.map(function (f) {
+            var c = statusColor(f.status);
+            return '<div class="fw-bar-row">'
+                + '<div class="fw-bar-label">'
+                + '<span class="fw-semibold">' + (f.name || '') + '</span>'
+                + '<span style="color:' + c + ';font-weight:600;">' + (f.pct != null ? f.pct + '%' : '—') + '</span>'
+                + '</div>'
+                + '<div class="progress" style="height:9px;border-radius:5px;">'
+                + '<div class="progress-bar" style="width:' + (f.pct || 0) + '%;background-color:' + c + ';border-radius:5px;transition:width .6s ease;"></div>'
+                + '</div>'
+                + '</div>';
+        }).join('');
+    }
+
+    function renderAuditReadiness(d) {
+        var el = document.getElementById('widget-audit_readiness');
+        if (!el) return;
+        var pct = d.pct != null ? d.pct : 0;
+        var c   = pct >= 80 ? 'success' : pct >= 60 ? 'warning' : 'danger';
+        el.innerHTML = '<span class="badge bg-' + c + '">' + pct + '%</span>'
+            + '<span class="text-muted small ms-1">(' + (d.with_evidence || 0) + '/' + (d.total || 0) + ')</span>';
+    }
+
+    function renderFailedControls(d) {
+        var el = document.getElementById('widget-failed_controls');
+        if (!el) return;
+        if (!d.frameworks || !d.frameworks.length) { el.textContent = '—'; return; }
+        el.innerHTML = d.frameworks.map(function (f) {
+            return '<span class="me-1 small"><strong>' + (f.name || '') + '</strong>: <span class="text-danger">' + (f.failed || 0) + '</span></span>';
+        }).join('');
+    }
+
+    function renderMandatoryStatus(d) {
+        var el = document.getElementById('widget-mandatory_status');
+        if (!el) return;
+        el.innerHTML = pill('#198754', '<i class="fas fa-check me-1"></i>' + (d.completed || 0))
+            + pill('#fd7e14', '<i class="fas fa-clock me-1"></i>' + (d.planned || 0))
+            + (d.overdue > 0 ? pill('#dc3545', '<i class="fas fa-exclamation me-1"></i>' + d.overdue) : '');
+    }
+
+    function renderRisksDonut(d) {
+        var canvas = document.getElementById('chart-risks-donut');
+        var legend = document.getElementById('risks-by-level-legend');
+        var total  = document.getElementById('risks-donut-total');
+        if (!canvas) return;
+        destroyChart('risks-donut');
+        var byLevel = d.by_level || {};
+        var labels  = Object.keys(byLevel);
+        var values  = labels.map(function (k) { return byLevel[k]; });
+        if (!values.length || values.every(function (v) { return !v; })) {
+            if (legend) legend.innerHTML = '<span class="text-muted small">{% trans "No risk data" %}</span>';
+            if (total)  total.textContent = '';
+            return;
+        }
+        var bgColors = labels.map(function (l) {
+            var ll = (l || '').toLowerCase();
+            if (ll.includes('critical')) return '#7b2d8b';
+            if (ll.includes('high'))     return '#dc3545';
+            if (ll.includes('med'))      return '#fd7e14';
+            if (ll.includes('low'))      return '#198754';
+            return '#adb5bd';
+        });
+        charts['risks-donut'] = new Chart(canvas, {
+            type: 'doughnut',
+            data: { labels: labels, datasets: [{ data: values, backgroundColor: bgColors, borderWidth: 2, borderColor: '#fff' }] },
+            options: {
+                responsive: true, maintainAspectRatio: true, cutout: '68%',
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (ctx) { return ctx.label + ': ' + ctx.parsed; } } } }
+            }
+        });
+        if (total) { total.innerHTML = '<div style="font-size:.65rem;color:#6c757d;">total</div><div>' + (d.total || 0) + '</div>'; }
+        if (legend) {
+            legend.innerHTML = labels.map(function (l, i) {
+                return '<div class="d-flex align-items-center gap-2 mb-1">'
+                    + '<span style="width:10px;height:10px;border-radius:2px;background:' + bgColors[i] + ';flex-shrink:0;"></span>'
+                    + '<span class="small">' + l + ': <strong>' + values[i] + '</strong></span>'
+                    + '</div>';
+            }).join('');
+        }
+    }
+
+    function renderTopRisks(d) {
+        var el = document.getElementById('widget-top_risks');
+        if (!el) return;
+        var n = d.items ? d.items.length : 0;
+        el.innerHTML = n
+            ? '<span class="badge bg-secondary">' + n + '</span> <span class="small text-muted">{% trans "risks" %}</span>'
+            : '<span class="text-muted small">0</span>';
+    }
+
+    function renderRiskPlans(d) {
+        var el = document.getElementById('widget-risk_plans');
+        if (!el) return;
+        el.innerHTML = d.pct_with_plan != null
+            ? '<span class="small"><span class="text-success fw-semibold">' + d.pct_with_plan + '%</span> {% trans "with plan" %}, '
+              + '<span class="text-primary fw-semibold">' + (d.pct_closed || 0) + '%</span> {% trans "closed" %}</span>'
+            : '—';
+    }
+
+    function renderTprmSuppliers(d) {
+        var el = document.getElementById('widget-tprm_suppliers');
+        if (!el) return;
+        el.innerHTML = '<span class="small">{% trans "total" %}: <strong>' + (d.total || 0) + '</strong>'
+            + (d.high_risk ? ', <span class="text-danger fw-semibold">&#9888; ' + d.high_risk + ' high</span>' : '')
+            + '</span>';
+    }
+
+    function renderIncidentsBar(d) {
+        var canvas = document.getElementById('chart-incidents-bar');
+        if (!canvas) return;
+        destroyChart('incidents-bar');
+        charts['incidents-bar'] = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: ['{% trans "This week" %}', '{% trans "This month" %}'],
+                datasets: [{
+                    label: '{% trans "Incidents" %}',
+                    data: [d.week || 0, d.month || 0],
+                    backgroundColor: ['rgba(102,126,234,.75)', 'rgba(240,147,251,.75)'],
+                    borderColor: ['#667eea', '#f093fb'],
+                    borderWidth: 2, borderRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: '{% trans "Incidents by period" %}', font: { size: 11 }, color: '#6c757d' }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 }, grid: { color: '#f1f3f4' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    function renderMttdMttr(d) {
+        var el = document.getElementById('widget-mttd_mttr');
+        if (!el) return;
+        el.innerHTML = d.mttr_hours != null
+            ? '<span class="fw-semibold">MTTR ' + Math.round(d.mttr_hours) + 'h</span>'
+            : '—';
+    }
+
+    function renderIncidentCategories(d) {
+        var el = document.getElementById('widget-incident_categories');
+        if (!el) return;
+        var n = d.categories ? d.categories.length : 0;
+        el.innerHTML = n
+            ? '<span class="badge bg-secondary">' + n + '</span> <span class="small text-muted">{% trans "categories" %}</span>'
+            : '—';
+    }
+
+    function renderFimCritical(d) {
+        var el = document.getElementById('widget-fim_critical');
+        if (!el) return;
+        var n = d.open_critical || 0;
+        el.innerHTML = '<span class="badge ' + (n > 0 ? 'bg-danger' : 'bg-success') + '">' + n + '</span>';
+    }
+
+    function renderAccessRequests(d) {
+        var el = document.getElementById('widget-access_requests');
+        if (!el) return;
+        var n = d.open || 0;
+        el.innerHTML = '<span class="badge ' + (n > 0 ? 'bg-warning text-dark' : 'bg-success') + '">'
+            + n + ' {% trans "pending" %}</span>';
+    }
+
+    function renderExcessiveRights(d) {
+        var el = document.getElementById('widget-excessive_rights');
+        if (!el) return;
+        if (d.error) { el.innerHTML = '<span class="text-warning small">' + d.error + '</span>'; return; }
+        if (d.pct == null) { el.textContent = '—'; return; }
+        var c = d.pct > 20 ? 'danger' : d.pct > 10 ? 'warning text-dark' : 'success';
+        el.innerHTML = '<span class="badge bg-' + c + '">' + d.pct + '%</span>'
+            + '<span class="small text-muted ms-1">(' + (d.excessive_count || 0) + '/' + (d.total_users || 0) + ' users)</span>';
+    }
+
+    function renderAccessReview(d) {
+        var el = document.getElementById('widget-access_review');
+        if (!el) return;
+        if (!d.total) { el.textContent = '—'; return; }
+        var c = d.status === 'OK' ? 'success' : d.status === 'attention' ? 'warning text-dark' : 'danger';
+        el.innerHTML = '<span class="badge bg-' + c + '">' + (d.pct_reviewed != null ? d.pct_reviewed + '%' : '') + ' reviewed</span>'
+            + '<span class="small text-muted ms-1">' + (d.overdue || 0) + ' {% trans "overdue" %}</span>';
+    }
+
+    function renderApiKeys(d) {
+        var el = document.getElementById('widget-api_keys');
+        if (!el) return;
+        el.innerHTML = '<span class="small">{% trans "total" %}: <strong>' + (d.total || 0) + '</strong>'
+            + (d.without_owner ? ', <span class="text-warning fw-semibold">&#9888; ' + d.without_owner + ' {% trans "no owner" %}</span>' : '')
+            + '</span>';
+    }
+
+    function renderTrainingRing(d) {
+        var canvas = document.getElementById('chart-training-ring');
+        var label  = document.getElementById('training-ring-label');
+        if (!canvas) return;
+        destroyChart('training-ring');
+        var pct   = d.pct != null ? d.pct : 0;
+        var color = pct >= 80 ? '#198754' : pct >= 60 ? '#fd7e14' : '#dc3545';
+        charts['training-ring'] = new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                datasets: [{ data: [pct, 100 - pct], backgroundColor: [color, '#e9ecef'], borderWidth: 0 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: true, cutout: '72%',
+                plugins: { legend: { display: false }, tooltip: { enabled: false } }
+            }
+        });
+        if (label) { label.textContent = pct + '%'; label.style.color = color; }
+    }
+
+    function renderQuizResults(d) {
+        var el = document.getElementById('widget-quiz_results');
+        if (el) el.textContent = d.avg_score != null ? d.avg_score : '—';
+    }
+
+    function renderGophishMetrics(d) {
+        var el = document.getElementById('widget-gophish_metrics');
+        if (el) el.textContent = d.campaigns != null ? d.campaigns + ' {% trans "campaigns" %}' : '—';
+    }
+
+    function renderDeptRiskTable(d) {
+        var el = document.getElementById('exec-dept-risk-table');
+        if (!el) return;
+        if (!d.departments || !d.departments.length) { el.innerHTML = '<span class="text-muted small">—</span>'; return; }
+        el.innerHTML = d.departments.slice(0, 10).map(function (dept) {
+            var dotC  = dept.risk_label === 'high' ? '#dc3545' : dept.risk_label === 'medium' ? '#fd7e14' : '#198754';
+            var aware = dept.awareness_pct != null ? dept.awareness_pct + '%' : '—';
+            var awareColor = dept.awareness_pct >= 80 ? '#198754' : dept.awareness_pct >= 60 ? '#fd7e14' : '#dc3545';
+            return '<div class="dept-row">'
+                + '<span class="dept-risk-dot" style="background:' + dotC + ';"></span>'
+                + '<span class="flex-grow-1 small text-truncate" style="max-width:140px;" title="' + (dept.name || '') + '">' + (dept.name || '—') + '</span>'
+                + '<span class="small me-2" style="color:' + (dept.awareness_pct != null ? awareColor : '#adb5bd') + ';font-weight:600;">' + aware + '</span>'
+                + '<span class="exec-pill" style="background:' + dotC + ';font-size:.68em;">' + (dept.risk_high || 0) + '/' + (dept.risk_total || 0) + '</span>'
+                + '</div>';
+        }).join('');
+    }
+
+    /* ─── DISPATCH ─────────────────────────────────────────── */
+
+    var renderers = {
+        security_index:          renderSecurityIndex,
+        incidents_critical_mttr: renderIncidentsCriticalMttr,
+        mandatory_processes_pct: renderMandatoryProcessesPct,
+        compliance_traffic_light:renderComplianceTrafficLight,
+        framework_pct:           renderFrameworkBars,
+        audit_readiness:         renderAuditReadiness,
+        failed_controls:         renderFailedControls,
+        mandatory_status:        renderMandatoryStatus,
+        risks_by_level:          renderRisksDonut,
+        top_risks:               renderTopRisks,
+        risk_plans:              renderRiskPlans,
+        tprm_suppliers:          renderTprmSuppliers,
+        incidents_by_period:     renderIncidentsBar,
+        mttd_mttr:               renderMttdMttr,
+        incident_categories:     renderIncidentCategories,
+        fim_critical:            renderFimCritical,
+        access_requests:         renderAccessRequests,
+        excessive_rights:        renderExcessiveRights,
+        access_review:           renderAccessReview,
+        api_keys:                renderApiKeys,
+        training_completion:     renderTrainingRing,
+        quiz_results:            renderQuizResults,
+        gophish_metrics:         renderGophishMetrics,
+        department_risk_profile: renderDeptRiskTable,
+    };
+
+    /* ─── LOAD ─────────────────────────────────────────────── */
+
+    function loadMetrics() {
+        var companyId = selEl ? selEl.value : '';
+        var params    = new URLSearchParams();
+        if (companyId) params.set('company_id', companyId);
+        params.set('widgets', widgetIds.join(','));
+
+        fetch(apiUrl + '?' + params.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                var metrics = res.metrics || {};
+                widgetIds.forEach(function (wid) {
+                    if (metrics[wid] && renderers[wid]) {
+                        try { renderers[wid](metrics[wid]); } catch (e) { console.warn('exec render ' + wid, e); }
+                    }
+                });
+                var ts = document.getElementById('execLastUpdated');
+                if (ts) ts.textContent = new Date().toLocaleTimeString();
+            })
+            .catch(function (e) { console.error('Executive metrics fetch error', e); });
+    }
+
+    /* ─── EVENTS ───────────────────────────────────────────── */
+
+    if (selEl) {
+        selEl.addEventListener('change', function () {
+            var url = new URL(window.location.href);
+            if (this.value) url.searchParams.set('company_id', this.value);
+            else            url.searchParams.delete('company_id');
+            window.history.replaceState({}, '', url.toString());
+            loadMetrics();
+        });
+    }
+
+    var refreshBtn  = document.getElementById('execRefreshBtn');
+    var refreshIcon = document.getElementById('execRefreshIcon');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function () {
+            if (refreshIcon) refreshIcon.classList.add('exec-spin');
+            loadMetrics();
+            setTimeout(function () { if (refreshIcon) refreshIcon.classList.remove('exec-spin'); }, 1200);
+        });
+    }
+
+    /* ─── TAB OBSERVER ─────────────────────────────────────── */
+    var tabPane = document.getElementById('executive-view');
+    if (tabPane) {
+        if (tabPane.classList.contains('show') && tabPane.classList.contains('active')) {
+            loadMetrics();
+        } else {
+            var obs = new MutationObserver(function (_, o) {
+                if (tabPane.classList.contains('show') && tabPane.classList.contains('active')) {
+                    loadMetrics(); o.disconnect();
+                }
+            });
+            obs.observe(tabPane, { attributes: true, attributeFilter: ['class'] });
+        }
+    } else {
+        loadMetrics();
+    }
+
+})();
+</script>
+{% endif %}

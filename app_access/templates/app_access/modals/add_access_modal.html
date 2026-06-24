@@ -1,0 +1,1083 @@
+<!-- SecBoard\templates\app_access\modals\add_access_modal.html -->
+{% load i18n %}
+
+<!-- Додаємо необхідні залежності -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+.form-label.required:after {
+    content: " *";
+    color: red;
+}
+
+select[multiple] {
+    height: 200px;
+}
+
+.select2-container--bootstrap-5 .select2-selection {
+    border: 1px solid #dee2e6;
+    min-height: 38px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__rendered {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+    background-color: #e9ecef;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    margin: 0;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove {
+    margin-right: 0.25rem;
+    color: #6c757d;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove:hover {
+    color: #dc3545;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #dee2e6;
+}
+
+.was-validated .select2-container--bootstrap-5 .select2-selection {
+    border-color: #dc3545;
+}
+
+.was-validated .select2-container--bootstrap-5.select2-container--focus .select2-selection {
+    border-color: #198754;
+}
+
+
+
+/* Стилі для Select2 з аватарами */
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #f8f9fa;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--selected {
+    background-color: #e9ecef;
+}
+
+.user-color-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple {
+    min-height: 50px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__rendered {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0.5rem;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem;
+    margin: 0.25rem;
+}
+
+.select2-bulk-actions .btn-link:disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+</style>
+
+<!-- Modal -->
+<div class="modal fade" id="addAccessModal" tabindex="-1" aria-labelledby="addAccessModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addAccessModalLabel">{% trans "Add Access Record" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAccessForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    
+                    <!-- Company Selection -->
+                    <div class="mb-3">
+                        <label for="company" class="form-label required">{% trans "Company" %}</label>
+                        <select class="form-select" id="company" required>
+                            <option value="">{% trans "Choose Company..." %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select a company" %}
+                        </div>
+                    </div>
+
+                    <!-- Information System Selection -->
+                    <div class="mb-3">
+                        <label for="system" class="form-label required">{% trans "Information System" %}</label>
+                        <select class="form-select" id="system" required disabled>
+                            <option value="">{% trans "Choose System..." %}</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select an information system" %}
+                        </div>
+                    </div>
+
+                    <!-- Environment Selection -->
+                    <div class="mb-3">
+                        <label for="environment" class="form-label required">{% trans "Environment" %}</label>
+                        <select class="form-select" id="environment" required disabled>
+                            <option value="">{% trans "Choose Environment..." %}</option>
+                            <option value="production">{% trans "Production" %}</option>
+                            <option value="test">{% trans "Test" %}</option>
+                            <option value="development">{% trans "Development" %}</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select an environment" %}
+                        </div>
+                    </div>
+
+                    <!-- Object Selection (one or multiple) -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1">
+                            <label for="object" class="form-label required mb-0">{% trans "Object" %}</label>
+                            <div class="select2-bulk-actions">
+                                <button type="button" class="btn btn-link btn-sm p-0 select2-select-all" data-target="#object" disabled>{% trans "Select all" %}</button>
+                                <span class="text-muted mx-1">·</span>
+                                <button type="button" class="btn btn-link btn-sm p-0 select2-clear-all" data-target="#object" disabled>{% trans "Clear" %}</button>
+                            </div>
+                        </div>
+                        <select class="form-select" id="object" multiple required disabled>
+                            <!-- Options loaded by system/environment -->
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select at least one object" %}
+                        </div>
+                        <div class="form-text">{% trans "You can select one or several objects" %}</div>
+                    </div>
+
+                    <!-- Object Roles Selection (one or multiple) -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1">
+                            <label for="defaultRoles" class="form-label required mb-0">{% trans "Object Roles" %}</label>
+                            <div class="select2-bulk-actions">
+                                <button type="button" class="btn btn-link btn-sm p-0 select2-select-all" data-target="#defaultRoles" disabled>{% trans "Select all" %}</button>
+                                <span class="text-muted mx-1">·</span>
+                                <button type="button" class="btn btn-link btn-sm p-0 select2-clear-all" data-target="#defaultRoles" disabled>{% trans "Clear" %}</button>
+                            </div>
+                        </div>
+                        <select class="form-select" id="defaultRoles" multiple required disabled>
+                            <!-- Options loaded by object -->
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select at least one role" %}
+                        </div>
+                        <div class="form-text">{% trans "You can select one or several roles" %}</div>
+                    </div>
+
+
+
+                    <!-- Access Request who Selection -->
+                    <div class="mb-3">
+                        <label for="addRequestUsersGroups" class="form-label required">{% trans "Access Request who" %}</label>
+                        <select class="form-select" id="addRequestUsersGroups" name="request_users_groups" multiple required>
+                            <!-- Options will be loaded dynamically -->
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select at least one user or group" %}
+                        </div>
+                    </div>
+
+                    <!-- Access request for Selection -->
+                    <div class="mb-3">
+                        <label for="addAccessUsersGroups" class="form-label">{% trans "Access request for" %}</label>
+                        <select class="form-select" id="addAccessUsersGroups" name="access_users_groups" multiple>
+                            <!-- Options will be loaded dynamically -->
+                        </select>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="addThirdParties">
+                            <label class="form-check-label" for="addThirdParties">
+                                {% trans "Third parties (customers, technical support, merchants, etc.)" %}
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Access Period -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label required">{% trans "Start Date" %}</label>
+                            <input type="datetime-local" class="form-control" id="start_date" required>
+                            <div class="invalid-feedback">
+                                {% trans "Please select a start date and time" %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label">
+                                {% trans "End Date" %}
+                                <small class="text-muted">({% trans "optional" %})</small>
+                            </label>
+                            <input type="datetime-local" class="form-control" id="end_date">
+                            <div class="form-text">
+                                {% trans "Leave empty for indefinite access" %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Додаємо після Access Period -->
+                    <div class="mb-3">
+                        <label for="description" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="saveAccess">
+                    {% trans "Save" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Додаємо необхідні скрипти -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+function updateSelect2BulkActionButtons(selector) {
+    const $select = $(selector);
+    const hasOptions = $select.find('option').filter(function() { return $(this).val(); }).length > 0;
+    const enabled = !$select.prop('disabled') && hasOptions;
+    $(`#addAccessModal .select2-select-all[data-target="${selector}"], #addAccessModal .select2-clear-all[data-target="${selector}"]`)
+        .prop('disabled', !enabled);
+}
+
+function selectAllSelect2Options(selector) {
+    const $select = $(selector);
+    if ($select.prop('disabled')) return;
+    const values = $select.find('option').map(function() {
+        return $(this).val();
+    }).get().filter(Boolean);
+    $select.val(values).trigger('change');
+}
+
+function clearSelect2Options(selector) {
+    const $select = $(selector);
+    if ($select.prop('disabled')) return;
+    $select.val(null).trigger('change');
+}
+
+$(document).ready(function() {
+    $('#addAccessModal').on('click', '.select2-select-all', function(e) {
+        e.preventDefault();
+        selectAllSelect2Options($(this).data('target'));
+    });
+    $('#addAccessModal').on('click', '.select2-clear-all', function(e) {
+        e.preventDefault();
+        clearSelect2Options($(this).data('target'));
+    });
+
+    // Ініціалізація Select2
+    $('#company, #system, #addRequestUsersGroups').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dropdownParent: $('#addAccessModal')
+    });
+
+    // Object — множинний вибір (як Object Roles)
+    $('#object').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Choose one or more objects..." %}',
+        allowClear: true,
+        multiple: true,
+        dropdownParent: $('#addAccessModal')
+    });
+    
+    // Ініціалізація Select2 для Access Users Groups з підтримкою множинного вибору
+    $('#addAccessUsersGroups').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Select users and groups..." %}',
+        allowClear: true,
+        multiple: true,  // Важливо для множинного вибору
+        dropdownParent: $('#addAccessModal')
+    });
+
+    // Object Roles — множинний вибір з кольоровими індикаторами
+    $('#defaultRoles').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Choose one or more roles..." %}',
+        allowClear: true,
+        multiple: true,
+        dropdownParent: $('#addAccessModal'),
+        templateResult: function(state) {
+            if (!state.id) return state.text;
+            const color = $(state.element).data('color');
+            return $(`<span><span class="status-dot" style="background-color: ${color}"></span> ${state.text}</span>`);
+        },
+        templateSelection: function(state) {
+            if (!state.id) return state.text;
+            const color = $(state.element).data('color');
+            return $(`<span><span class="status-dot" style="background-color: ${color}"></span> ${state.text}</span>`);
+        }
+    });
+
+    // Обробник зміни компанії
+    $('#company').on('change', async function() {
+        const selectedCompany = $(this).val();
+        if (selectedCompany) {
+            await Promise.all([
+                loadSystems(selectedCompany),
+                loadUsersAndGroups(selectedCompany)
+            ]);
+        } else {
+            clearForm();
+        }
+    });
+
+    // Обробник зміни системи
+    $('#system').on('change', async function() {
+        const systemId = $(this).val();
+        if (systemId) {
+            // Вмикаємо тільки Environment після вибору системи
+            $('#environment').prop('disabled', false);
+            // Скидаємо інші поля
+            $('#object').empty().prop('disabled', true).trigger('change');
+            $('#defaultRoles').empty().prop('disabled', true).trigger('change');
+            updateSelect2BulkActionButtons('#object');
+            updateSelect2BulkActionButtons('#defaultRoles');
+
+        } else {
+            $('#environment').val('').prop('disabled', true);
+            $('#object').empty().prop('disabled', true).trigger('change');
+            $('#defaultRoles').empty().prop('disabled', true).trigger('change');
+            updateSelect2BulkActionButtons('#object');
+            updateSelect2BulkActionButtons('#defaultRoles');
+
+        }
+    });
+
+    // Обробник зміни environment
+    $('#environment').on('change', async function() {
+        const systemId = $('#system').val();
+        const environment = $(this).val();
+        if (systemId && environment) {
+            await loadSystemObjects(systemId, environment);
+            $('#object').prop('disabled', false);
+            $('#defaultRoles').empty().prop('disabled', true).trigger('change');
+            updateSelect2BulkActionButtons('#object');
+            updateSelect2BulkActionButtons('#defaultRoles');
+        } else {
+            $('#object').empty().prop('disabled', true).trigger('change');
+            $('#defaultRoles').empty().prop('disabled', true).trigger('change');
+            updateSelect2BulkActionButtons('#object');
+            updateSelect2BulkActionButtons('#defaultRoles');
+
+        }
+    });
+
+    // Обробник зміни об'єкта (один або кілька)
+    $('#object').on('change', async function() {
+        const objectIds = $(this).val() || [];
+        const objectIdList = Array.isArray(objectIds) ? objectIds.filter(Boolean) : (objectIds ? [objectIds] : []);
+        const systemId = $('#system').val();
+        const environment = $('#environment').val();
+        
+        if (objectIdList.length && systemId && environment) {
+            await loadObjectRolesForObjects(objectIdList, environment);
+            $('#defaultRoles').prop('disabled', false);
+            updateSelect2BulkActionButtons('#defaultRoles');
+        } else {
+            $('#defaultRoles').empty().prop('disabled', true).trigger('change');
+            updateSelect2BulkActionButtons('#defaultRoles');
+        }
+    });
+
+    // Функція завантаження об'єктів для вибраної системи та environment
+    async function loadSystemObjects(systemId, environment) {
+        try {
+            const response = await fetch(`/app_access/system-objects/${systemId}/?environment=${environment}`);
+            if (!response.ok) throw new Error('Failed to load objects');
+            
+            const data = await response.json();
+            const objectSelect = $('#object');
+            objectSelect.empty();
+            
+            if (data.status === 'success' && data.data) {
+                data.data.forEach(obj => {
+                    const objectName = 
+                        '{{ LANGUAGE_CODE }}' === 'uk' ? obj.name :
+                        '{{ LANGUAGE_CODE }}' === 'en' ? obj.name :
+                        obj.name;
+                    
+                    objectSelect.append(
+                        `<option value="${obj.id}" title="${obj.description || ''}">
+                            ${objectName}
+                        </option>`
+                    );
+                });
+            }
+            updateSelect2BulkActionButtons('#object');
+        } catch (error) {
+            console.error('Error loading objects:', error);
+            showError('{% trans "Error loading objects" %}');
+            updateSelect2BulkActionButtons('#object');
+        }
+    }
+
+    // Функція завантаження ролей для вибраної системи та environment
+    async function loadDefaultRoles(systemId, environment) {
+        try {
+            const response = await fetch(`{% url 'get_system_roles' %}?system_id=${systemId}&environment=${environment}`);
+            if (!response.ok) throw new Error('Failed to load roles');
+            
+            const data = await response.json();
+            const rolesSelect = $('#defaultRoles');
+            rolesSelect.empty().append('<option value="">{% trans "Choose Role..." %}</option>');
+            
+            if (data.roles) {
+                // Сортуємо ролі за order
+                const sortedRoles = data.roles.sort((a, b) => a.order - b.order);
+                
+                sortedRoles.forEach(role => {
+                    const roleName = 
+                        role.name || '';
+                    
+                    rolesSelect.append(
+                        `<option value="${role.id}" data-color="${role.color}">
+                            ${roleName}
+                        </option>`
+                    );
+                });
+            }
+        } catch (error) {
+            console.error('Error loading roles:', error);
+            showError('{% trans "Error loading roles" %}');
+        }
+    }
+
+
+
+    // Ролі для одного або кількох об'єктів (об'єднання унікальних ролей)
+    async function loadObjectRolesForObjects(objectIds, environment) {
+        try {
+            const rolesById = new Map();
+            for (const objectId of objectIds) {
+                const response = await fetch(`/app_access/object-filters/${objectId}/?environment=${environment}`);
+                if (!response.ok) throw new Error('Failed to load object roles');
+                const data = await response.json();
+                if (data.status === 'success' && data.data && data.data.roles) {
+                    data.data.roles.forEach(role => {
+                        const key = String(role.id);
+                        if (!rolesById.has(key)) {
+                            rolesById.set(key, role);
+                        }
+                    });
+                }
+            }
+            const rolesSelect = $('#defaultRoles');
+            const previousSelection = rolesSelect.val() || [];
+            rolesSelect.empty();
+            const sortedRoles = Array.from(rolesById.values()).sort((a, b) => a.order - b.order);
+            sortedRoles.forEach(role => {
+                const roleName = role.name || '';
+                const roleLabel = role.is_object_specific ?
+                    `${roleName} ({% trans "Object-specific" %})` : roleName;
+                rolesSelect.append(
+                    `<option value="${role.id}" data-color="${role.color}">${roleLabel}</option>`
+                );
+            });
+            const validSelection = previousSelection.filter(id => rolesById.has(String(id)));
+            if (validSelection.length) {
+                rolesSelect.val(validSelection).trigger('change');
+            }
+            updateSelect2BulkActionButtons('#defaultRoles');
+        } catch (error) {
+            console.error('Error loading object roles:', error);
+            showError('{% trans "Error loading object roles" %}');
+        }
+    }
+
+    // Функція завантаження статусів для вибраного об'єкта та environment
+
+
+    // Замінимо обробник кнопки Save
+    $('#saveAccess').on('click', async function() {
+        try {
+            // Валідація форми
+            const form = document.getElementById('addAccessForm');
+            if (!form.checkValidity()) {
+                form.classList.add('was-validated');
+                return;
+            }
+
+            // Збираємо дані форми
+            const formData = new FormData();
+            formData.append('company', $('#company').val());
+            formData.append('system', $('#system').val());
+            const objectIds = $('#object').val() || [];
+            formData.append('objects', JSON.stringify(Array.isArray(objectIds) ? objectIds : [objectIds].filter(Boolean)));
+            formData.append('environment', $('#environment').val());
+            const roleIds = $('#defaultRoles').val() || [];
+            formData.append('roles', JSON.stringify(Array.isArray(roleIds) ? roleIds : [roleIds]));
+
+            formData.append('start_date', $('#start_date').val());
+            formData.append('end_date', $('#end_date').val());
+            formData.append('description', $('#description').val());  // Додаємо description
+            
+            // Додаємо користувачів та групи
+            const requestUsersGroups = $('#addRequestUsersGroups').val() || [];
+            const accessUsersGroups = $('#addAccessUsersGroups').val() || [];
+            
+            const requestUsers = requestUsersGroups
+                .filter(v => v.startsWith('user_'))
+                .map(v => v.replace('user_', ''));
+            const requestGroups = requestUsersGroups
+                .filter(v => v.startsWith('group_'))
+                .map(v => v.replace('group_', ''));
+            const accessUsers = accessUsersGroups
+                .filter(v => v.startsWith('user_'))
+                .map(v => v.replace('user_', ''));
+            const accessGroups = accessUsersGroups
+                .filter(v => v.startsWith('group_'))
+                .map(v => v.replace('group_', ''));
+            const hasThirdParties = accessUsersGroups.includes('third_parties');
+
+            formData.append('request_users', JSON.stringify(requestUsers));
+            formData.append('request_groups', JSON.stringify(requestGroups));
+            formData.append('access_users', JSON.stringify(accessUsers));
+            formData.append('access_groups', JSON.stringify(accessGroups));
+            formData.append('third_parties', (hasThirdParties || $('#addThirdParties').is(':checked')) ? 'true' : 'false');
+
+            // Отримуємо CSRF токен
+            const csrfToken = getCsrfToken();
+            console.log('CSRF Token found:', csrfToken ? 'YES' : 'NO');
+            console.log('CSRF Token value:', csrfToken);
+            
+            if (!csrfToken) {
+                throw new Error('{% trans "CSRF token not found" %}');
+            }
+            
+            // Додаємо CSRF токен до FormData
+            formData.append('csrfmiddlewaretoken', csrfToken);
+            
+            // Логування всіх даних форми
+            console.log('Form data being sent:');
+            console.log('Third parties checkbox checked:', $('#addThirdParties').is(':checked'));
+            console.log('Third parties in select:', hasThirdParties);
+            console.log('Access users groups values:', accessUsersGroups);
+            console.log('Final third parties value:', (hasThirdParties || $('#addThirdParties').is(':checked')) ? 'true' : 'false');
+            
+            // Детальне логування всіх полів FormData
+            console.log('=== FormData contents ===');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}:`, value);
+            }
+            console.log('=== End FormData ===');
+            
+            // Відправляємо запит
+            const response = await fetch('{% url "add_access" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            });
+
+            // Перевіряємо статус відповіді
+            if (!response.ok) {
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                
+                // Спробуємо отримати текст помилки
+                try {
+                    const errorText = await response.text();
+                    console.error('Server error response:', errorText);
+                    
+                    // Якщо це JSON, спробуємо парсувати
+                    if (errorText.startsWith('{')) {
+                        const errorData = JSON.parse(errorText);
+                        errorMessage = errorData.message || errorMessage;
+                    }
+                } catch (e) {
+                    console.error('Error parsing error response:', e);
+                }
+                
+                throw new Error(errorMessage);
+            }
+
+            const data = await response.json();
+            console.log('Server response:', data);
+
+            if (data.success) {
+                console.log('Access record created successfully with ID:', data.access_id || 'unknown');
+                $('#addAccessModal').modal('hide');
+                showSuccess(data.message);
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                console.error('Server returned error:', data.message);
+                showError(data.message || '{% trans "Unknown error" %}');
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            showError('{% trans "Error creating access record" %}');
+        }
+    });
+
+    // Ініціалізація Select2 для Request Users and Groups
+    $('#addRequestUsersGroups').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Select users and groups..." %}',
+        allowClear: true,
+        dropdownParent: $('#addAccessModal'),
+        ajax: {
+            url: '{% url "get_cabinet_users_and_groups" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                const companyId = $('#company').val();
+                if (!companyId) {
+                    return null;
+                }
+                return {
+                    company_id: companyId,
+                    search: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: [
+                        {
+                            text: '{% trans "Users" %}',
+                            children: (data.users || []).map(user => ({
+                                id: `user_${user.id}`,
+                                text: user.full_name,
+                                type: 'user',
+                                department: user.department,
+                                position: user.position,
+                                avatar: user.avatar,
+                                color: user.color
+                            }))
+                        },
+                        {
+                            text: '{% trans "Groups" %}',
+                            children: (data.groups || []).map(group => ({
+                                id: `group_${group.id}`,
+                                text: group.name,
+                                type: 'group'
+                            }))
+                        }
+                    ]
+                };
+            },
+            cache: true
+        },
+        templateResult: formatUserOrGroup,
+        templateSelection: formatUserOrGroupSelection
+    });
+
+    // Оновлюємо ініціалізацію Select2 для Access Users Groups з AJAX
+    $('#addAccessUsersGroups').select2('destroy').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Select users and groups..." %}',
+        allowClear: true,
+        multiple: true,  // Важливо для множинного вибору
+        dropdownParent: $('#addAccessModal'),
+        ajax: {
+            url: '{% url "get_cabinet_users_and_groups" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                const companyId = $('#company').val();
+                if (!companyId) {
+                    return null;
+                }
+                return {
+                    company_id: companyId,
+                    search: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: [
+                        {
+                            text: '{% trans "Users" %}',
+                            children: (data.users || []).map(user => ({
+                                id: `user_${user.id}`,
+                                text: user.full_name,
+                                type: 'user',
+                                department: user.department,
+                                position: user.position,
+                                avatar: user.avatar,
+                                color: user.color
+                            }))
+                        },
+                        {
+                            text: '{% trans "Groups" %}',
+                            children: (data.groups || []).map(group => ({
+                                id: `group_${group.id}`,
+                                text: group.name,
+                                type: 'group'
+                            }))
+                        }
+                    ]
+                };
+            },
+            cache: true
+        },
+        templateResult: formatUserOrGroup,
+        templateSelection: formatUserOrGroupSelection
+    });
+
+    // Оновлюємо обробник зміни компанії
+    $('#company').on('change', function() {
+        $('#addRequestUsersGroups').val(null).trigger('change');
+        $('#addAccessUsersGroups').val(null).trigger('change'); // Додаємо очищення Access Users and Groups
+    });
+
+    // Додайте обробник для перевірки дат при зміні
+    $('#start_date, #end_date').on('change', function() {
+        const startDate = new Date($('#start_date').val());
+        const endDate = new Date($('#end_date').val());
+        
+        if (endDate && startDate > endDate) {
+            showError('{% trans "End date cannot be earlier than start date" %}');
+            $('#end_date').val('');
+        }
+    });
+
+    // Додаємо очищення поля description при закритті модального вікна
+    $('#addAccessModal').on('hidden.bs.modal', function() {
+        $('#description').val('');
+        $('#addThirdParties').prop('checked', false);
+        // Видаляємо опцію third_parties з select
+        $('#addAccessUsersGroups').find('option[value="third_parties"]').remove();
+        // ... очищення інших полів ...
+    });
+
+    // Обробник для чекбокса Third Parties
+    $('#addThirdParties').on('change', function() {
+        const $accessUsersGroups = $('#addAccessUsersGroups');
+        const isChecked = $(this).is(':checked');
+        
+        console.log('Third parties checkbox changed:', isChecked);
+        
+        if (isChecked) {
+            // Додаємо опцію "Third parties" якщо її немає
+            if (!$accessUsersGroups.find('option[value="third_parties"]').length) {
+                const thirdPartiesOption = new Option('{% trans "Third parties" %}', 'third_parties', true, true);
+                $accessUsersGroups.append(thirdPartiesOption);
+                $accessUsersGroups.trigger('change');
+                console.log('Added third_parties option to select');
+            }
+        } else {
+            // Видаляємо опцію "Third parties"
+            $accessUsersGroups.find('option[value="third_parties"]').remove();
+            $accessUsersGroups.trigger('change');
+            console.log('Removed third_parties option from select');
+        }
+    });
+});
+
+// Допоміжні функції
+async function loadSystems(companyId) {
+    try {
+        const response = await fetch(`{% url 'get_systems_by_company' %}?company_id=${companyId}`);
+        if (!response.ok) throw new Error('Failed to load systems');
+        
+        const data = await response.json();
+        updateSystemsSelect(data.systems);
+    } catch (error) {
+        console.error('Error loading systems:', error);
+        showError('{% trans "Error loading systems" %}');
+    }
+}
+
+async function loadUsersAndGroups(companyId) {
+    try {
+        const response = await fetch(`{% url 'get_cabinet_users_and_groups' %}?company_id=${companyId}`);
+        if (!response.ok) throw new Error('Failed to load users and groups');
+        
+        const data = await response.json();
+        updateUsersGroupsSelect(data.users, data.groups);
+    } catch (error) {
+        console.error('Error loading users and groups:', error);
+        showError('{% trans "Error loading users and groups" %}');
+    }
+}
+
+// Оновимо функцію валідації форми
+function validateForm() {
+    const form = document.getElementById('addAccessForm');
+    
+    // Перевіряємо HTML5 валідацію
+    if (!form.checkValidity()) {
+        form.classList.add('was-validated');
+        return false;
+    }
+
+    // Додаткова перевірка Select2 полів
+    const company = $('#company').val();
+    const system = $('#system').val();
+    const objectIds = $('#object').val() || [];
+    const objects = Array.isArray(objectIds) ? objectIds.filter(Boolean) : (objectIds ? [objectIds] : []);
+    const roles = $('#defaultRoles').val() || [];
+
+    const requestUsersGroups = $('#addRequestUsersGroups').val();
+    const accessUsersGroups = $('#addAccessUsersGroups').val();
+
+    if (!company || !system || !objects.length || !roles.length || !requestUsersGroups?.length || !accessUsersGroups?.length) {
+        showError('{% trans "Please fill in all required fields" %}');
+        return false;
+    }
+
+    return true;
+}
+
+function clearForm() {
+    const form = document.getElementById('addAccessForm');
+    form.reset();
+    form.classList.remove('was-validated');
+    
+    $('#system, #object, #addRequestUsersGroups, #addAccessUsersGroups').val(null).trigger('change');
+    $('#defaultRoles').val(null).trigger('change');
+    $('#system, #object, #defaultRoles, #addRequestUsersGroups').prop('disabled', true);
+    $('#environment').val('').prop('disabled', true);
+    updateSelect2BulkActionButtons('#object');
+    updateSelect2BulkActionButtons('#defaultRoles');
+
+    $('#addThirdParties').prop('checked', false);  // Скидаємо чекбокс
+    
+    // Видаляємо опцію third_parties з select
+    $('#addAccessUsersGroups').find('option[value="third_parties"]').remove();
+}
+
+// Додаємо відсутні функції
+function updateSystemsSelect(systems) {
+    const systemSelect = $('#system');
+    systemSelect.empty().append('<option value="">{% trans "Choose System..." %}</option>');
+    
+    systems.forEach(system => {
+        systemSelect.append(`<option value="${system.id}">${system.name}</option>`);
+    });
+    
+    systemSelect.prop('disabled', false);
+}
+
+function updateUsersGroupsSelect(users, groups) {
+    const select = $('#addRequestUsersGroups');
+    select.empty();
+    
+    // Додаємо користувачів
+    if (users && users.length) {
+        const usersOptgroup = $('<optgroup label="{% trans "Users" %}">');
+        users.forEach(user => {
+            const department = user.department !== '{% trans "No Department" %}' ? ` (${user.department})` : '';
+            usersOptgroup.append(`<option value="user_${user.id}">${user.full_name}${department}</option>`);
+        });
+        select.append(usersOptgroup);
+    }
+    
+    // Додаємо групи
+    if (groups && groups.length) {
+        const groupsOptgroup = $('<optgroup label="{% trans "Groups" %}">');
+        groups.forEach(group => {
+            groupsOptgroup.append(`<option value="group_${group.id}">${group.name}</option>`);
+        });
+        select.append(groupsOptgroup);
+    }
+    
+    select.prop('disabled', false);
+}
+
+// Функції для показу повідомлень
+function showError(message) {
+    Swal.fire({
+        icon: 'error',
+        title: '{% trans "Error" %}',
+        text: message,
+        confirmButtonText: '{% trans "OK" %}'
+    });
+}
+
+function showSuccess(message) {
+    Swal.fire({
+        icon: 'success',
+        title: '{% trans "Success" %}',
+        text: message,
+        timer: 2000,
+        showConfirmButton: false
+    });
+}
+
+// Функція форматування для відображення користувача або групи
+function formatUserOrGroup(data) {
+    if (!data.id) return data.text;
+    
+    const $container = $('<div>').addClass('d-flex align-items-center gap-2 p-1');
+    
+    if (data.type === 'user') {
+        // Аватар або кольорова точка
+        if (data.avatar) {
+            $container.append(
+                $('<img>')
+                    .addClass('rounded-circle')
+                    .attr('src', data.avatar)
+                    .css({
+                        width: '32px',
+                        height: '32px',
+                        objectFit: 'cover'
+                    })
+            );
+        } else {
+            $container.append(
+                $('<div>')
+                    .addClass('user-color-dot')
+                    .css('background-color', data.color || '#ccc')
+            );
+        }
+        
+        // Інформація про користувача
+        const $info = $('<div>').addClass('flex-grow-1');
+        $info.append($('<div>').addClass('fw-semibold').text(data.text));
+        
+        // Департамент та посада
+        const details = [data.department, data.position]
+            .filter(Boolean)
+            .join(' • ');
+        if (details) {
+            $info.append(
+                $('<small>')
+                    .addClass('text-muted d-block')
+                    .text(details)
+            );
+        }
+        
+        $container.append($info);
+    } else {
+        // Групи
+        $container.append(
+            $('<i>').addClass('bi bi-people-fill fs-5 text-secondary'),
+            $('<span>').addClass('ms-2').text(data.text)
+        );
+    }
+    
+    return $container;
+}
+
+function formatUserOrGroupSelection(data) {
+    if (!data.id) return data.text;
+    
+    const $container = $('<div>').addClass('d-flex align-items-center gap-2');
+    
+    if (data.type === 'user') {
+        // Аватар або кольорова точка
+        if (data.avatar) {
+            $container.append(
+                $('<img>')
+                    .addClass('rounded-circle')
+                    .attr('src', data.avatar)
+                    .css({
+                        width: '24px',
+                        height: '24px',
+                        objectFit: 'cover'
+                    })
+            );
+        } else {
+            $container.append(
+                $('<div>')
+                    .addClass('user-color-dot')
+                    .css({
+                        width: '24px',
+                        height: '24px',
+                        'background-color': data.color || '#ccc'
+                    })
+            );
+        }
+        
+        // Ім'я та департамент
+        const $info = $('<div>').addClass('d-flex flex-column');
+        $info.append($('<div>').text(data.text));
+        if (data.department) {
+            $info.append(
+                $('<small>')
+                    .addClass('text-muted')
+                    .text(data.department)
+            );
+        }
+        
+        $container.append($info);
+    } else {
+        // Групи
+        $container.append(
+            $('<i>').addClass('bi bi-people-fill'),
+            $('<span>').text(data.text)
+        );
+    }
+    
+    return $container;
+}
+
+// Додайте ту ж саму функцію валідації дати
+function isValidDate(dateString) {
+    if (!dateString) return false;
+    
+    // Перевіряємо формат YYYY-MM-DDThh:mm
+    const regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+    if (!regex.test(dateString)) return false;
+
+    // Перевіряємо чи дата валідна
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return false;
+
+    return true;
+}
+
+// Функція отримання CSRF токену з різних джерел
+function getCsrfToken() {
+    // Спробуємо отримати з поля форми
+    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfInput && csrfInput.value) {
+        return csrfInput.value;
+    }
+    
+    // Спробуємо отримати з meta тегу
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta && csrfMeta.content) {
+        return csrfMeta.content;
+    }
+    
+    // Спробуємо отримати з глобальної змінної
+    if (typeof window.csrftoken !== 'undefined') {
+        return window.csrftoken;
+    }
+    
+    console.error('CSRF token not found in any source');
+    return null;
+}
+</script>
+
+<!-- Додаємо SweetAlert2 для повідомлень -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 

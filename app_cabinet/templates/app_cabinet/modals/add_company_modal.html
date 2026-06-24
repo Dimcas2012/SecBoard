@@ -1,0 +1,118 @@
+<!--SecBoard/templates/app_cabinet/modals/add_company_modal.html-->
+{% load i18n %}
+
+<!-- Modal -->
+<div class="modal fade" id="addCompanyModal" tabindex="-1" aria-labelledby="addCompanyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCompanyModalLabel">{% trans "Add New Company" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCompanyForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+
+                    <!-- Company Name -->
+                    <div class="mb-3">
+                        <label for="addCompanyName" class="form-label">{% trans "Company Name" %} *</label>
+                        <input type="text" class="form-control" id="addCompanyName" name="name" required>
+                        <div class="invalid-feedback">
+                            {% trans "Please enter company name" %}
+                        </div>
+                    </div>
+
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="addCompanySubmit">{% trans "Add Company" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% block add_company_modal_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const addCompanyForm = document.getElementById('addCompanyForm');
+    const addCompanySubmit = document.getElementById('addCompanySubmit');
+
+    // Submit form for adding new company
+    addCompanySubmit.addEventListener('click', async function () {
+        if (!addCompanyForm.checkValidity()) {
+            addCompanyForm.classList.add('was-validated');
+            return;
+        }
+
+        const formData = new FormData(addCompanyForm);
+
+        try {
+            const response = await fetch("{% url 'add_company' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // Hide the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addCompanyModal'));
+                modal.hide();
+
+                // Reset the form
+                addCompanyForm.reset();
+                addCompanyForm.classList.remove('was-validated');
+
+                // Clean up modal artifacts
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+
+                // Show success message
+                alert(result.message);
+
+                // Refresh the organization structure
+                const companyId = document.getElementById('companySelect').value;
+                if (companyId && window.location.pathname.includes('org-structure')) {
+                    // Trigger a custom event to refresh the organization structure
+                    const refreshEvent = new CustomEvent('refreshOrgStructure', {
+                        detail: { companyId: companyId }
+                    });
+                    document.dispatchEvent(refreshEvent);
+                }
+
+                // Refresh company list in dropdown
+                if (typeof loadCompanies === 'function') {
+                    loadCompanies();
+                }
+
+            } else {
+                alert(result.error || "{% trans 'Error adding company. Please try again.' %}");
+            }
+        } catch (error) {
+            console.error('Error adding company:', error);
+            alert("{% trans 'Error adding company. Please try again.' %}");
+        }
+    });
+
+    // Clean up modal on hide
+    document.getElementById('addCompanyModal').addEventListener('hidden.bs.modal', function () {
+        // Clean up any remaining modal artifacts
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+    });
+});
+</script>
+{% endblock %} 

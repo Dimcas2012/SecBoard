@@ -1,0 +1,441 @@
+﻿{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Preview AI Parsed Requirements" %}{% endblock %}
+
+{% block extra_css %}
+{% include "includes/sb_compact_css.html" %}
+<style>
+.preview-card {
+    border: 2px solid #17a2b8;
+    margin-bottom: 20px;
+}
+.editable-field {
+    border: 1px solid #ced4da;
+    padding: 8px;
+    border-radius: 4px;
+    min-height: 38px;
+}
+.editable-field:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+.control-row {
+    background: #f8f9fa;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    border-left: 4px solid #17a2b8;
+}
+.control-row:hover {
+    background: #e9ecef;
+}
+.remove-control {
+    cursor: pointer;
+    color: #dc3545;
+}
+.add-control-btn {
+    border: 2px dashed #17a2b8;
+    background: #f8f9fa;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 6px;
+}
+.add-control-btn:hover {
+    background: #e9ecef;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 sb-compact">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1><i class="fas fa-robot"></i> {% trans "AI Parsed Requirements - Preview & Edit" %}</h1>
+            <p class="text-muted">
+                {% trans "Review and edit the AI-extracted requirements and controls before saving. Click on any field to edit." %}
+            </p>
+            <div class="alert alert-info">
+                <i class="fas fa-building"></i> <strong>{% trans "Company" %}:</strong> {{ company.name }}
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                <i class="fas fa-globe"></i> <strong>{% trans "Country/Language" %}:</strong> {{ country.flag_emoji }} {{ country.name }} ({{ country.code }})
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                <i class="fas fa-brain"></i> <strong>{% trans "AI Model" %}:</strong> {{ ai_model }}
+            </div>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'compliance:control_mapping' %}" class="btn btn-outline-info btn-sm">
+                <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+            </a>
+            <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#internalComplianceGuideModal">
+                <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+            </button>
+        </div>
+    </div>
+
+    <form method="post" action="{% url 'compliance:internal_requirements_save_ai' %}" id="saveAIForm">
+        {% csrf_token %}
+        <input type="hidden" name="company_id" value="{{ company.id }}">
+        <input type="hidden" name="country_id" value="{{ country.id }}">
+
+        <!-- Requirement Preview -->
+        <div class="card preview-card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-file-alt"></i> {% trans "Requirement Details" %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label"><strong>{% trans "Code" %} *</strong></label>
+                        <input type="text" name="requirement_code" class="form-control" value="{{ requirement_data.code }}" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label"><strong>{% trans "Name" %} *</strong></label>
+                        <input type="text" name="requirement_name" class="form-control" value="{{ requirement_data.name }}" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label"><strong>{% trans "Name Local" %}</strong></label>
+                        <input type="text" name="requirement_name_local" class="form-control" value="{{ requirement_data.name_local }}">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label"><strong>{% trans "Applicable To" %}</strong></label>
+                        <input type="text" name="requirement_applicable_to" class="form-control" value="{{ requirement_data.applicable_to }}">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label"><strong>{% trans "Requirement Type" %}</strong></label>
+                        <select name="requirement_type" class="form-control">
+                            <option value="policy" {% if requirement_data.type == 'policy' %}selected{% endif %}>{% trans "Policy" %}</option>
+                            <option value="standard" {% if requirement_data.type == 'standard' %}selected{% endif %}>{% trans "Standard" %}</option>
+                            <option value="procedure" {% if requirement_data.type == 'procedure' %}selected{% endif %}>{% trans "Procedure" %}</option>
+                            <option value="guideline" {% if requirement_data.type == 'guideline' %}selected{% endif %}>{% trans "Guideline" %}</option>
+                            <option value="directive" {% if requirement_data.type == 'directive' %}selected{% endif %}>{% trans "Directive" %}</option>
+                            <option value="rule" {% if requirement_data.type == 'rule' %}selected{% endif %}>{% trans "Rule" %}</option>
+                            <option value="other" {% if requirement_data.type == 'other' %}selected{% endif %}>{% trans "Other" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label"><strong>{% trans "Status" %}</strong></label>
+                        <select name="requirement_status" class="form-control">
+                            <option value="draft" selected>{% trans "Draft" %}</option>
+                            <option value="active">{% trans "Active" %}</option>
+                            <option value="suspended">{% trans "Suspended" %}</option>
+                            <option value="archived">{% trans "Archived" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label"><strong>{% trans "Priority" %}</strong></label>
+                        <select name="requirement_priority" class="form-control">
+                            <option value="critical" {% if requirement_data.priority == 'critical' %}selected{% endif %}>{% trans "Critical" %}</option>
+                            <option value="high" {% if requirement_data.priority == 'high' %}selected{% endif %}>{% trans "High" %}</option>
+                            <option value="medium" {% if requirement_data.priority == 'medium' %}selected{% endif %} selected>{% trans "Medium" %}</option>
+                            <option value="low" {% if requirement_data.priority == 'low' %}selected{% endif %}>{% trans "Low" %}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label"><strong>{% trans "Mandatory" %}</strong></label>
+                        <select name="requirement_is_mandatory" class="form-control">
+                            <option value="true" {% if requirement_data.is_mandatory %}selected{% endif %}>{% trans "Yes" %}</option>
+                            <option value="false" {% if not requirement_data.is_mandatory %}selected{% endif %}>{% trans "No" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label"><strong>{% trans "Publication Date" %}</strong></label>
+                        <input type="date" name="publication_date" class="form-control" value="{{ requirement_data.publication_date }}">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label"><strong>{% trans "Effective Date" %}</strong></label>
+                        <input type="date" name="effective_date" class="form-control" value="{{ requirement_data.effective_date }}">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label"><strong>{% trans "Deadline Date" %}</strong></label>
+                        <input type="date" name="deadline_date" class="form-control" value="{{ requirement_data.deadline_date }}">
+                    </div>
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label"><strong>{% trans "Description" %}</strong></label>
+                        <textarea name="requirement_description" class="form-control" rows="3">{{ requirement_data.description }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Preview -->
+        <div class="card preview-card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-list-check"></i> {% trans "Controls" %} (<span id="controlCount">{{ controls_data|length }}</span>)</h5>
+                <button type="button" class="btn btn-sm btn-light" onclick="addNewControl()">
+                    <i class="fas fa-plus"></i> {% trans "Add Control" %}
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="controlsContainer">
+                    {% for control in controls_data %}
+                    <div class="control-row" data-control-index="{{ forloop.counter0 }}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6><i class="fas fa-shield-alt"></i> {% trans "Control" %} #<span class="control-number">{{ forloop.counter }}</span></h6>
+                            <i class="fas fa-times remove-control" onclick="removeControl(this)" title="{% trans 'Remove' %}"></i>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Control Code" %} *</strong></small></label>
+                                <input type="text" name="control_code[]" class="form-control form-control-sm" value="{{ control.code }}" required>
+                            </div>
+                            <div class="col-md-8 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Control Name" %} *</strong></small></label>
+                                <input type="text" name="control_name[]" class="form-control form-control-sm" value="{{ control.name }}" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Category Code" %}</strong></small></label>
+                                <input type="text" name="control_category_code[]" class="form-control form-control-sm" value="{{ control.category_code }}">
+                            </div>
+                            <div class="col-md-8 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Category Name" %}</strong></small></label>
+                                <input type="text" name="control_category[]" class="form-control form-control-sm" value="{{ control.category }}">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label"><small><strong>{% trans "Category Description" %}</strong></small></label>
+                            <textarea name="control_category_description[]" class="form-control form-control-sm" rows="2">{{ control.category_description }}</textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label"><small><strong>{% trans "Description" %}</strong></small></label>
+                            <textarea name="control_description[]" class="form-control form-control-sm" rows="2">{{ control.description }}</textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Priority" %}</strong></small></label>
+                                <select name="control_priority[]" class="form-control form-control-sm">
+                                    <option value="critical" {% if control.priority == 'critical' %}selected{% endif %}>{% trans "Critical" %}</option>
+                                    <option value="high" {% if control.priority == 'high' %}selected{% endif %}>{% trans "High" %}</option>
+                                    <option value="medium" {% if control.priority == 'medium' %}selected{% endif %}>{% trans "Medium" %}</option>
+                                    <option value="low" {% if control.priority == 'low' %}selected{% endif %}>{% trans "Low" %}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Target Date" %}</strong></small></label>
+                                <input type="date" name="control_target_date[]" class="form-control form-control-sm" value="{{ control.target_date }}">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Periodicity (days)" %}</strong></small></label>
+                                <input type="number" name="control_periodicity[]" class="form-control form-control-sm" value="{{ control.periodicity }}" min="0">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Implementation Notes" %}</strong></small></label>
+                                <textarea name="control_implementation_notes[]" class="form-control form-control-sm" rows="2">{{ control.implementation_notes }}</textarea>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label class="form-label"><small><strong>{% trans "Evidence Notes" %}</strong></small></label>
+                                <textarea name="control_evidence_notes[]" class="form-control form-control-sm" rows="2">{{ control.evidence_notes }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Add New Control Button -->
+                <div class="add-control-btn mt-3" onclick="addNewControl()">
+                    <i class="fas fa-plus-circle fa-2x text-info mb-2"></i>
+                    <p class="mb-0 text-info"><strong>{% trans "Add New Control" %}</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="row mt-4 mb-5">
+            <div class="col-md-12 text-center">
+                <a href="{% url 'compliance:internal_requirements_library' %}" class="btn btn-lg btn-secondary me-3">
+                    <i class="fas fa-times"></i> {% trans "Cancel" %}
+                </a>
+                <button type="submit" class="btn btn-lg btn-success">
+                    <i class="fas fa-save"></i> {% trans "Save Requirements" %}
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+let controlIndex = {{ controls_data|length }};
+
+function removeControl(element) {
+    if (confirm('{% trans "Are you sure you want to remove this control?" %}')) {
+        const controlRow = element.closest('.control-row');
+        controlRow.remove();
+        updateControlNumbers();
+        updateControlCount();
+    }
+}
+
+function addNewControl() {
+    controlIndex++;
+    const container = document.getElementById('controlsContainer');
+    const newControl = document.createElement('div');
+    newControl.className = 'control-row';
+    newControl.setAttribute('data-control-index', controlIndex);
+    newControl.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <h6><i class="fas fa-shield-alt"></i> {% trans "Control" %} #<span class="control-number"></span></h6>
+            <i class="fas fa-times remove-control" onclick="removeControl(this)" title="{% trans 'Remove' %}"></i>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-2">
+                <label class="form-label"><small><strong>{% trans "Control Code" %} *</strong></small></label>
+                <input type="text" name="control_code[]" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-8 mb-2">
+                <label class="form-label"><small><strong>{% trans "Control Name" %} *</strong></small></label>
+                <input type="text" name="control_name[]" class="form-control form-control-sm" required>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-2">
+                <label class="form-label"><small><strong>{% trans "Category Code" %}</strong></small></label>
+                <input type="text" name="control_category_code[]" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-8 mb-2">
+                <label class="form-label"><small><strong>{% trans "Category Name" %}</strong></small></label>
+                <input type="text" name="control_category[]" class="form-control form-control-sm">
+            </div>
+        </div>
+        <div class="mb-2">
+            <label class="form-label"><small><strong>{% trans "Category Description" %}</strong></small></label>
+            <textarea name="control_category_description[]" class="form-control form-control-sm" rows="2"></textarea>
+        </div>
+        <div class="mb-2">
+            <label class="form-label"><small><strong>{% trans "Description" %}</strong></small></label>
+            <textarea name="control_description[]" class="form-control form-control-sm" rows="2"></textarea>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-2">
+                <label class="form-label"><small><strong>{% trans "Priority" %}</strong></small></label>
+                <select name="control_priority[]" class="form-control form-control-sm">
+                    <option value="critical">{% trans "Critical" %}</option>
+                    <option value="high">{% trans "High" %}</option>
+                    <option value="medium" selected>{% trans "Medium" %}</option>
+                    <option value="low">{% trans "Low" %}</option>
+                </select>
+            </div>
+            <div class="col-md-4 mb-2">
+                <label class="form-label"><small><strong>{% trans "Target Date" %}</strong></small></label>
+                <input type="date" name="control_target_date[]" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4 mb-2">
+                <label class="form-label"><small><strong>{% trans "Periodicity (days)" %}</strong></small></label>
+                <input type="number" name="control_periodicity[]" class="form-control form-control-sm" min="0">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-2">
+                <label class="form-label"><small><strong>{% trans "Implementation Notes" %}</strong></small></label>
+                <textarea name="control_implementation_notes[]" class="form-control form-control-sm" rows="2"></textarea>
+            </div>
+            <div class="col-md-6 mb-2">
+                <label class="form-label"><small><strong>{% trans "Evidence Notes" %}</strong></small></label>
+                <textarea name="control_evidence_notes[]" class="form-control form-control-sm" rows="2"></textarea>
+            </div>
+        </div>
+    `;
+    container.appendChild(newControl);
+    updateControlNumbers();
+    updateControlCount();
+}
+
+function updateControlNumbers() {
+    const controls = document.querySelectorAll('.control-row');
+    controls.forEach((control, index) => {
+        const numberSpan = control.querySelector('.control-number');
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+    });
+}
+
+function updateControlCount() {
+    const count = document.querySelectorAll('.control-row').length;
+    document.getElementById('controlCount').textContent = count;
+}
+</script>
+
+<!-- Internal Compliance Guide Modal -->
+<div class="modal fade" id="internalComplianceGuideModal" tabindex="-1" aria-labelledby="internalComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:internal_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="internalComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Internal Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="internalComplianceGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('internalComplianceGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('internalComplianceGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+
+{% endblock %}
+

@@ -1,0 +1,2091 @@
+<!--SecBoard/templates/app_cabinet/org_chart.html-->
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load cabinet_permissions %}
+
+{% block title %}{% trans "Organization Chart" %}{% endblock %}
+
+{% block content %}
+{% if not user_permissions.org_chart.view %}
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-danger" role="alert">
+                    <h4 class="alert-heading">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        {% trans "Access Denied" %}
+                    </h4>
+                    <p>{% trans "You do not have permission to view the organization chart." %}</p>
+                    <hr>
+                    <p class="mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        {% trans "Please contact your administrator to request access to this feature." %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+<link rel="stylesheet" href="{% static 'css/org-structure.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/orgchart/5.0.0/css/jquery.orgchart.min.css" rel="stylesheet">
+
+<style>
+/* Enhanced Chart Styles */
+.org-chart-container {
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    margin-top: 20px;
+}
+
+.chart-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 25px;
+    border-radius: 15px 15px 0 0;
+    margin: -30px -30px 30px -30px;
+}
+
+.chart-title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.chart-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin-top: 10px;
+}
+
+.company-selector {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.company-selector label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.company-selector select {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 12px 15px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.company-selector select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+/* Custom Tree Structure */
+.custom-tree {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+    font-family: 'Roboto', sans-serif;
+    overflow: visible;
+    min-height: 400px;
+    cursor: grab;
+    transition: transform 0.3s ease;
+}
+
+.custom-tree:active {
+    cursor: grabbing;
+}
+
+/* Chart container with zoom and pan */
+.chart-container {
+    width: 100%;
+    min-height: 500px;
+    max-height: 90vh;
+    overflow: visible;
+    position: relative;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #f8f9fa;
+    resize: vertical;
+}
+
+.chart-wrapper {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    position: relative;
+}
+
+/* Scrollbar styling for chart wrapper */
+.chart-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.chart-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.chart-wrapper::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.chart-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+.tree-level {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.tree-node {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    padding: 6px;
+    min-width: 90px;
+    max-width: 110px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    margin: 5px;
+}
+
+.tree-node:hover,
+.tree-node.node-hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    border-color: #667eea;
+    z-index: 1000;
+}
+
+.tree-children {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 20px;
+    position: relative;
+}
+
+/* Connection lines */
+.tree-children::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 10px;
+    background-color: #667eea;
+}
+
+.tree-children > .tree-level::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 10px;
+    background-color: #667eea;
+}
+
+.tree-children > .tree-level:not(:only-child)::after {
+    content: '';
+    position: absolute;
+    top: -10px;
+    height: 1px;
+    background-color: #667eea;
+}
+
+.tree-children > .tree-level:first-child:not(:only-child)::after {
+    left: 50%;
+    right: -5px;
+}
+
+.tree-children > .tree-level:last-child:not(:only-child)::after {
+    right: 50%;
+    left: -5px;
+}
+
+.tree-children > .tree-level:not(:first-child):not(:last-child)::after {
+    left: -5px;
+    right: -5px;
+}
+
+/* Connection lines styling */
+.orgchart .lines .topLine,
+.orgchart .lines .rightLine,
+.orgchart .lines .leftLine,
+.orgchart .lines .downLine {
+    border-color: #667eea !important;
+    border-width: 2px !important;
+}
+
+.orgchart .lines .topLine {
+    border-top-color: #667eea !important;
+}
+
+.orgchart .lines .rightLine {
+    border-right-color: #667eea !important;
+}
+
+.orgchart .lines .leftLine {
+    border-left-color: #667eea !important;
+}
+
+.orgchart .lines .downLine {
+    border-bottom-color: #667eea !important;
+    background-color: #667eea !important;
+    width: 2px !important;
+}
+
+.orgchart .lines .leftLine,
+.orgchart .lines .rightLine {
+    background-color: #667eea !important;
+    height: 2px !important;
+}
+
+.orgchart .lines .topLine {
+    background-color: #667eea !important;
+    height: 2px !important;
+}
+
+.orgchart .node {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    padding: 6px;
+    min-width: 90px;
+    max-width: 110px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.orgchart .node:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    border-color: #667eea;
+}
+
+.orgchart .node .title {
+    font-weight: 600;
+    font-size: 0.5rem;
+    color: #2c3e50;
+    margin-bottom: 3px;
+    line-height: 1.2;
+    word-wrap: break-word;
+    hyphens: auto;
+}
+
+.orgchart .node .content {
+    color: #6c757d;
+    font-size: 0.4rem;
+    line-height: 1.2;
+    margin-bottom: 2px;
+    word-wrap: break-word;
+    hyphens: auto;
+}
+
+/* Node content structure */
+.node-title {
+    font-weight: 700;
+    font-size: 0.5rem;
+    line-height: 1.1;
+    margin-bottom: 2px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+}
+
+.node-subtitle {
+    font-size: 0.375rem;
+    font-weight: 500;
+    opacity: 0.8;
+    margin-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.25px;
+}
+
+.node-content {
+    font-size: 0.4rem;
+    line-height: 1.2;
+    margin-bottom: 3px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    max-height: 20px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.node-stats {
+    font-size: 0.375rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    margin-top: 3px;
+    padding: 2px 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 6px;
+    backdrop-filter: blur(10px);
+}
+
+.node-stats i {
+    font-size: 0.4rem;
+}
+
+/* Department Nodes */
+.tree-node.department {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: #667eea;
+    min-width: 100px;
+}
+
+.tree-node.department .node-title {
+    color: white;
+    font-size: 0.55rem;
+}
+
+.tree-node.department .node-content {
+    color: rgba(255,255,255,0.9);
+}
+
+.tree-node.department .node-subtitle {
+    color: rgba(255,255,255,0.8);
+}
+
+.tree-node.department .node-stats {
+    background: rgba(255,255,255,0.25);
+    color: white;
+}
+
+/* Position Nodes */
+.tree-node.position {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border-color: #f093fb;
+    min-width: 90px;
+}
+
+.tree-node.position .node-title {
+    color: white;
+    font-size: 0.5rem;
+}
+
+.tree-node.position .node-content {
+    color: rgba(255,255,255,0.9);
+}
+
+.tree-node.position .node-subtitle {
+    color: rgba(255,255,255,0.8);
+}
+
+.tree-node.position .node-stats {
+    background: rgba(255,255,255,0.25);
+    color: white;
+}
+
+/* User Nodes */
+.tree-node.user {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    border-color: #4facfe;
+    min-width: 100px;
+    padding: 8px;
+}
+
+.tree-node.user .user-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.tree-node.user .user-avatar-section {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 4px;
+}
+
+.tree-node.user .user-avatar,
+.tree-node.user .user-avatar-placeholder {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+    font-weight: bold;
+    font-size: 9px;
+    border: 1px solid rgba(255,255,255,0.3);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.tree-node.user .user-avatar {
+    object-fit: cover;
+}
+
+.tree-node.user .user-details {
+    text-align: center;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 0 4px;
+}
+
+.tree-node.user .node-title {
+    color: white;
+    font-size: 0.5rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.tree-node.user .node-subtitle {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.375rem;
+    margin-bottom: 4px;
+}
+
+.tree-node.user .user-contact-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 4px;
+    width: 100%;
+    max-width: 100%;
+}
+
+.tree-node.user .user-email,
+.tree-node.user .user-phone {
+    color: rgba(255,255,255,0.9);
+    font-size: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tree-node.user .user-email i,
+.tree-node.user .user-phone i {
+    font-size: 0.35rem;
+    flex-shrink: 0;
+    min-width: 6px;
+}
+
+.tree-node.user .node-stats {
+    background: rgba(255,255,255,0.25);
+    color: white;
+    border-radius: 6px;
+    padding: 2px 4px;
+    font-size: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+/* Company root node */
+.tree-node.company {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    color: white;
+    border-color: #2c3e50;
+    min-width: 110px;
+    padding: 8px;
+}
+
+.tree-node.company .node-title {
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+}
+
+.tree-node.company .node-content {
+    color: rgba(255,255,255,0.9);
+}
+
+.orgchart .node.company .node-subtitle {
+    color: rgba(255,255,255,0.8);
+}
+
+/* Hover effects */
+.orgchart .node.node-hover {
+    transform: translateY(-5px) scale(1.05);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+    z-index: 1000;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .orgchart .node {
+        min-width: 140px;
+        max-width: 180px;
+        padding: 10px;
+    }
+    
+    .orgchart .node.department {
+        min-width: 160px;
+    }
+    
+    .orgchart .node.position {
+        min-width: 140px;
+    }
+    
+    .orgchart .node.user {
+        min-width: 120px;
+    }
+    
+    .node-title {
+        font-size: 0.9rem;
+    }
+    
+    .node-subtitle {
+        font-size: 0.7rem;
+    }
+    
+    .node-content {
+        font-size: 0.75rem;
+    }
+    
+    .node-stats {
+        font-size: 0.7rem;
+    }
+}
+
+/* Loading Animation */
+.loading-chart {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c757d;
+}
+
+.loading-chart .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 20px;
+}
+
+/* Empty State */
+.empty-chart {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c757d;
+}
+
+.empty-chart-icon {
+    font-size: 4rem;
+    color: #dee2e6;
+    margin-bottom: 20px;
+}
+
+.empty-chart-text {
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+}
+
+/* Chart Controls */
+.chart-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.chart-controls .btn {
+    border-radius: 25px;
+    padding: 10px 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.chart-controls .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .chart-header {
+        padding: 20px;
+        margin: -20px -20px 20px -20px;
+    }
+    
+    .chart-title {
+        font-size: 1.5rem;
+    }
+    
+    .chart-subtitle {
+        font-size: 1rem;
+    }
+    
+    .org-chart-container {
+        padding: 20px;
+    }
+    
+    .custom-tree {
+        padding: 10px;
+        overflow-x: auto;
+    }
+    
+    .tree-node {
+        min-width: 150px;
+        padding: 10px;
+        margin: 5px;
+    }
+    
+    .tree-children {
+        gap: 10px;
+        margin-top: 30px;
+    }
+    
+    .tree-node.company {
+        min-width: 180px;
+    }
+    
+    .tree-node.department {
+        min-width: 160px;
+    }
+    
+    .tree-node.position {
+        min-width: 140px;
+    }
+    
+    .tree-node.user {
+        min-width: 160px;
+        padding: 12px;
+    }
+    
+    .tree-node.user .user-avatar,
+    .tree-node.user .user-avatar-placeholder {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+    
+    .tree-node.user .user-contact-info {
+        gap: 2px;
+    }
+    
+    .tree-node.user .user-email,
+    .tree-node.user .user-phone {
+        font-size: 0.7rem;
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .tree-node.user .user-email i,
+    .tree-node.user .user-phone i {
+        font-size: 0.6rem;
+    }
+}
+
+/* User Details Modal Styles */
+.user-avatar-large .user-avatar,
+.user-avatar-large .user-avatar-placeholder {
+    width: 120px;
+    height: 120px;
+    font-size: 48px;
+    border: 3px solid #dee2e6;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.user-avatar-small .user-avatar,
+.user-avatar-small .user-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+    border: 2px solid #dee2e6;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.contact-info .contact-item {
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #0d6efd;
+}
+
+.contact-info .contact-item a {
+    text-decoration: none;
+    color: #0d6efd;
+}
+
+.contact-info .contact-item a:hover {
+    text-decoration: underline;
+}
+
+/* Compact Modal Styles */
+.contact-info-compact .contact-item-compact {
+    padding: 6px 8px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #0d6efd;
+}
+
+.contact-info-compact .contact-label {
+    font-size: 0.85rem;
+    color: #495057;
+}
+
+.contact-info-compact .contact-value {
+    font-size: 0.9rem;
+    color: #212529;
+    word-break: break-word;
+}
+
+.contact-info-compact .contact-value a {
+    color: #0d6efd;
+    text-decoration: none;
+}
+
+.contact-info-compact .contact-value a:hover {
+    text-decoration: underline;
+}
+
+.copy-btn {
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.copy-btn:hover {
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}
+
+.copy-btn.copied {
+    background-color: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.copy-btn.copied i:before {
+    content: "\f26b"; /* bi-check */
+}
+
+.node-preview {
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.node-preview.company {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    color: white;
+}
+
+.node-preview.department {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.node-preview.position {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.node-preview.user {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+}
+
+/* Print Styles */
+@media print {
+    .chart-controls,
+    .company-selector {
+        display: none !important;
+    }
+    
+    .org-chart-container {
+        box-shadow: none;
+        border: 1px solid #dee2e6;
+    }
+    
+    .chart-header {
+        background: #667eea !important;
+        -webkit-print-color-adjust: exact;
+    }
+}
+</style>
+
+<!-- Main Container -->
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-0 rounded-3">
+                <div class="card-header bg-primary bg-opacity-10 py-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-diagram-3-fill fs-3 text-primary me-3"></i>
+                            <div>
+                                <h4 class="card-title mb-0">{% trans "Organization Chart" %}</h4>
+                                <small class="text-muted">{% trans "Interactive visual representation of company structure" %}</small>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-primary" onclick="window.print()">
+                                <i class="bi bi-printer me-1"></i>{% trans "Print" %}
+                            </button>
+                            <a href="{% url 'org_structure' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-list me-1"></i>{% trans "Table View" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Company Selection -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="company-selector">
+                <label for="companySelect">
+                    <i class="bi bi-building me-2"></i>{% trans "Select Company" %}
+                </label>
+                <select id="companySelect" class="form-select form-select-lg">
+                    <option value="">{% trans "Choose a company to view its organization chart" %}</option>
+                    {% for company in companies %}
+                        <option value="{{ company.id }}">{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Controls -->
+    <div class="chart-controls" id="chartControls" style="display: none;">
+        <button class="btn btn-primary" id="expandAllBtn">
+            <i class="bi bi-arrows-expand me-1"></i>{% trans "Expand All" %}
+        </button>
+        <button class="btn btn-secondary" id="collapseAllBtn">
+            <i class="bi bi-arrows-collapse me-1"></i>{% trans "Collapse All" %}
+        </button>
+        <button class="btn btn-info" id="centerChartBtn">
+            <i class="bi bi-bullseye me-1"></i>{% trans "Center Chart" %}
+        </button>
+        <button class="btn btn-warning" id="fitToScreenBtn">
+            <i class="bi bi-arrows-fullscreen me-1"></i>{% trans "Fit to Screen" %}
+        </button>
+        <div class="btn-group" role="group">
+            <button class="btn btn-outline-primary" id="zoomInBtn">
+                <i class="bi bi-zoom-in me-1"></i>{% trans "Zoom In" %}
+            </button>
+            <button class="btn btn-outline-primary" id="zoomOutBtn">
+                <i class="bi bi-zoom-out me-1"></i>{% trans "Zoom Out" %}
+            </button>
+            <button class="btn btn-outline-primary" id="zoomResetBtn">
+                <i class="bi bi-aspect-ratio me-1"></i>{% trans "Reset Zoom" %}
+            </button>
+        </div>
+        <button class="btn btn-success" id="exportChartBtn">
+            <i class="bi bi-download me-1"></i>{% trans "Export PNG" %}
+        </button>
+    </div>
+
+    <!-- Organization Chart Container -->
+    <div class="row">
+        <div class="col-12">
+            <div class="org-chart-container">
+                <!-- Chart Content -->
+                <div id="chartContent">
+                    <!-- Empty State -->
+                    <div class="empty-chart" id="emptyState">
+                        <div class="empty-chart-icon">
+                            <i class="bi bi-diagram-3"></i>
+                        </div>
+                        <div class="empty-chart-text">
+                            {% trans "No company selected" %}
+                        </div>
+                        <p class="text-muted">
+                            {% trans "Please select a company from the dropdown above to view its organization chart" %}
+                        </p>
+                    </div>
+                    
+                    <!-- Loading State -->
+                    <div class="loading-chart" id="loadingState" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">{% trans "Loading..." %}</span>
+                        </div>
+                        <div class="mt-3">
+                            <strong>{% trans "Loading organization chart..." %}</strong>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Container -->
+                    <div id="orgChart" class="chart-container" style="display: none;">
+                        <div class="chart-wrapper" id="chartWrapper">
+                            <div class="custom-tree" id="customTree"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+
+<!-- Scripts -->
+<script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/orgchart/5.0.0/js/jquery.orgchart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // State management
+    let currentChart = null;
+    let currentCompanyId = null;
+    let orgData = null;
+    let currentOrgData = null;
+    let currentZoom = 1;
+    let currentPanX = 0;
+    let currentPanY = 0;
+    let isDragging = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    
+    // Constants
+    const TRANSLATIONS = {
+        'Department': '{% trans "Department" %}',
+        'Position': '{% trans "Position" %}',
+        'User': '{% trans "User" %}',
+        'Loading...': '{% trans "Loading..." %}',
+        'No data available': '{% trans "No data available" %}',
+        'Error loading data': '{% trans "Error loading data" %}',
+        'Staff': '{% trans "Staff" %}',
+        'Active': '{% trans "Active" %}',
+        'Inactive': '{% trans "Inactive" %}'
+    };
+    
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Helper function to truncate text
+    function truncateText(text, maxLength = 50) {
+        if (!text || text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    }
+    
+    // Helper function to create user avatar HTML
+    function createUserAvatarHTML(user) {
+        if (user.avatar_url) {
+            return `<img class="user-avatar" src="${user.avatar_url}" alt="${escapeHtml(user.full_name)}" 
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="user-avatar-placeholder" style="display:none;">
+                        ${getUserInitials(user)}
+                    </div>`;
+        } else {
+            return `<div class="user-avatar-placeholder">
+                        ${getUserInitials(user)}
+                    </div>`;
+        }
+    }
+    
+    // Helper function to get user initials
+    function getUserInitials(user) {
+        if (user.initials) {
+            return user.initials;
+        } else if (user.full_name) {
+            const nameParts = user.full_name.split(' ');
+            if (nameParts.length >= 2) {
+                return (nameParts[0].charAt(0) + nameParts[1].charAt(0)).toUpperCase();
+            } else {
+                return user.full_name.charAt(0).toUpperCase();
+            }
+        } else {
+            return '?';
+        }
+    }
+    
+    // Helper function to get localized name
+    function getLocalizedName(item, type) {
+        if (item && item.name) return item.name;
+        const currentLanguage = ($('html').attr('lang') || 'uk').substring(0, 2);
+        if (type === 'department') {
+            if (currentLanguage === 'ru' && item.department_name_ru) return item.department_name_ru;
+            if (currentLanguage === 'en' && item.department_name_en) return item.department_name_en;
+            if (item.department_name_ua) return item.department_name_ua;
+        } else if (type === 'position') {
+            if (currentLanguage === 'ru' && item.position_name_ru) return item.position_name_ru;
+            if (currentLanguage === 'en' && item.position_name_en) return item.position_name_en;
+            if (item.position_name_ua) return item.position_name_ua;
+        }
+        return item && item.name ? item.name : '';
+    }
+    
+    // Helper function to get localized description (API sends item.description in site language)
+    function getLocalizedDescription(item) {
+        if (!item) return '';
+        if (item.description) return item.description;
+        const currentLanguage = ($('html').attr('lang') || 'uk').substring(0, 2);
+        if (currentLanguage === 'ru' && item.description_ru) return item.description_ru;
+        if (currentLanguage === 'en' && item.description_en) return item.description_en;
+        if (item.description_ua) return item.description_ua;
+        return '';
+    }
+    
+    // Company selection handler
+    $('#companySelect').on('change', function() {
+        const companyId = $(this).val();
+        const companyName = $(this).find('option:selected').text();
+        
+        if (companyId) {
+            currentCompanyId = companyId;
+            loadOrgChart(companyId);
+        } else {
+            showEmptyState();
+        }
+    });
+    
+    // Load organization chart data
+    async function loadOrgChart(companyId) {
+        showLoadingState();
+        
+        try {
+            const currentLanguage = $('html').attr('lang') || 'uk';
+            const langPrefix = `/${currentLanguage}`;
+            
+            const [departments, positions] = await Promise.all([
+                $.get(`${langPrefix}/app_cabinet/companies/${companyId}/departments/`),
+                $.get(`${langPrefix}/app_cabinet/companies/${companyId}/positions/`)
+            ]);
+            
+            orgData = {
+                departments: departments,
+                positions: positions
+            };
+            
+            currentOrgData = orgData;
+            
+                        buildOrgChart(orgData);
+            
+        } catch (error) {
+            console.error('Error loading organization chart:', error);
+            showErrorState();
+        }
+    }
+    
+    // Build organization chart
+    function buildOrgChart(data) {
+        console.log('Building org chart with data:', data);
+        const chartData = transformDataForOrgChart(data);
+        
+        console.log('Transformed chart data:', chartData);
+        
+        if (!chartData) {
+            console.log('No chart data available');
+            showEmptyState();
+            return;
+        }
+        
+        // Show chart container and controls
+        $('#emptyState, #loadingState').hide();
+        $('#orgChart').show();
+        $('#chartControls').show();
+        
+        // Initialize custom tree chart
+        const $chart = $('#orgChart');
+        const $customTree = $('#customTree');
+        $customTree.empty();
+        
+        // Create custom tree structure
+        const treeHTML = buildCustomTreeHTML(chartData);
+        $customTree.html(treeHTML);
+        
+        // Add event listeners to custom tree nodes
+        $customTree.find('.tree-node').on('click', function(e) {
+            e.stopPropagation();
+            const nodeId = $(this).data('node-id');
+            const nodeData = findNodeData(chartData, nodeId);
+            if (nodeData) {
+                showNodeDetails(nodeData);
+            }
+        });
+        
+        // Add hover effects
+        $customTree.find('.tree-node').hover(
+            function() {
+                $(this).addClass('node-hover');
+                $(this).css('z-index', '1000');
+            },
+            function() {
+                $(this).removeClass('node-hover');
+                $(this).css('z-index', 'auto');
+            }
+        );
+        
+        // Initialize zoom and pan
+        initializeZoomAndPan();
+        
+        // Center the chart
+        centerChart();
+        
+    }
+    
+    // Helper function to get department name by ID
+    function getDepartmentNameById(deptId, departments) {
+        const dept = departments?.find(d => d.id === deptId);
+        return dept ? getLocalizedName(dept, 'department') : '';
+    }
+    
+    // Transform data for OrgChart library
+    function transformDataForOrgChart(data) {
+        const departments = data.departments || [];
+        const positions = data.positions || [];
+        
+        if (departments.length === 0) {
+            return null;
+        }
+        
+        // Sort departments by level to ensure proper hierarchy
+        const sortedDepartments = departments.sort((a, b) => (a.level || 0) - (b.level || 0));
+        
+        // Create position map for quick lookup
+        const positionMap = new Map(positions.map(p => [p.id, p]));
+        
+        // Find root departments (no parent_id and no parent_position_id)
+        const rootDepts = sortedDepartments.filter(dept => 
+            (!dept.parent_id || dept.parent_id === null) && 
+            (!dept.parent_position_id || dept.parent_position_id === null)
+        );
+        
+        if (rootDepts.length === 0) {
+            // If no root departments found, take the first department as root
+            rootDepts.push(sortedDepartments[0]);
+        }
+        
+        // Build tree structure
+        function buildDepartmentNode(dept) {
+            const deptName = getLocalizedName(dept, 'department');
+            const deptDesc = getLocalizedDescription(dept);
+            
+            // Count staff in this department (only positions with department_id, not parent_position_id)
+            const deptPositions = positions.filter(pos => 
+                pos.department_id === dept.id && !pos.parent_position_id
+            );
+            const directStaffCount = deptPositions.reduce((total, pos) => total + (pos.users?.length || 0), 0);
+            
+            const node = {
+                id: `dept-${dept.id}`,
+                name: deptName,
+                title: `<div class="node-title">${escapeHtml(truncateText(deptName, 30))}</div>
+                       <div class="node-subtitle">${TRANSLATIONS['Department']}</div>
+                       <div class="node-content">${escapeHtml(truncateText(deptDesc || '', 40))}</div>
+                       <div class="node-stats">
+                           <i class="bi bi-people-fill"></i> ${directStaffCount} ${TRANSLATIONS['Staff']}
+                       </div>`,
+                className: 'department',
+                children: []
+            };
+            
+            // Add child departments (with parent_id)
+            const childDepts = sortedDepartments.filter(childDept => 
+                childDept.parent_id === dept.id && 
+                childDept.id !== dept.id &&
+                !childDept.parent_position_id
+            );
+            
+            childDepts.forEach(childDept => {
+                node.children.push(buildDepartmentNode(childDept));
+            });
+            
+            // Add positions as children (only positions with department_id, not parent_position_id)
+            deptPositions.forEach(pos => {
+                const posNode = buildPositionNode(pos);
+                node.children.push(posNode);
+            });
+            
+            return node;
+        }
+        
+        function buildPositionNode(pos) {
+            const posName = getLocalizedName(pos, 'position');
+            const posDesc = getLocalizedDescription(pos);
+            const userCount = pos.users?.length || 0;
+            
+            const node = {
+                id: `pos-${pos.id}`,
+                name: posName,
+                title: `<div class="node-title">${escapeHtml(truncateText(posName, 25))}</div>
+                       <div class="node-subtitle">${TRANSLATIONS['Position']}</div>
+                       <div class="node-content">${escapeHtml(truncateText(posDesc || '', 35))}</div>
+                       <div class="node-stats">
+                           <i class="bi bi-person-fill"></i> ${userCount} ${TRANSLATIONS['User']}${userCount !== 1 ? 's' : ''}
+                       </div>`,
+                className: 'position',
+                children: []
+            };
+            
+            // Add child positions (positions with parent_position_id pointing to this position)
+            const childPositions = positions.filter(childPos => 
+                childPos.parent_position_id === pos.id && childPos.id !== pos.id
+            );
+            
+            childPositions.forEach(childPos => {
+                const childPosNode = buildPositionNode(childPos);
+                node.children.push(childPosNode);
+            });
+            
+            // Add child departments (departments with parent_position_id pointing to this position)
+            const childDepts = sortedDepartments.filter(childDept => 
+                childDept.parent_position_id === pos.id
+            );
+            
+            childDepts.forEach(childDept => {
+                const childDeptNode = buildDepartmentNode(childDept);
+                node.children.push(childDeptNode);
+            });
+            
+            // Add users
+            if (pos.users && pos.users.length > 0) {
+                pos.users.forEach(user => {
+                    const userNode = {
+                        id: `user-${user.id}`,
+                        name: user.full_name,
+                        title: `<div class="user-card">
+                                   <div class="user-avatar-section">
+                                       ${createUserAvatarHTML(user)}
+                                   </div>
+                                   <div class="user-details">
+                                       <div class="node-title">${escapeHtml(truncateText(user.full_name || '', 20))}</div>
+                                       <div class="node-subtitle">${TRANSLATIONS['User']}</div>
+                                       <div class="user-contact-info">
+                                           ${user.email ? `<div class="user-email" title="${escapeHtml(user.email)}"><i class="bi bi-envelope"></i> ${escapeHtml(truncateText(user.email, 18))}</div>` : ''}
+                                           ${user.phone ? `<div class="user-phone" title="${escapeHtml(user.phone)}"><i class="bi bi-telephone"></i> ${escapeHtml(truncateText(user.phone, 15))}</div>` : ''}
+                                       </div>
+                                       <div class="node-stats">
+                                           <i class="bi bi-circle-fill ${user.is_active ? 'text-success' : 'text-secondary'}"></i> 
+                                           ${user.is_active ? TRANSLATIONS['Active'] : TRANSLATIONS['Inactive']}
+                                       </div>
+                                   </div>
+                               </div>`,
+                        className: 'user',
+                        userData: {
+                            ...user,
+                            position_name: posName,
+                            department_name: getDepartmentNameById(pos.department_id, departments)
+                        }
+                    };
+                    node.children.push(userNode);
+                });
+            }
+            
+            return node;
+        }
+        
+        // Always create a company root node for better visualization
+        const companyName = $('#companySelect option:selected').text();
+        const totalStaff = positions.reduce((total, pos) => total + (pos.users?.length || 0), 0);
+        
+        const virtualRoot = {
+            id: 'company-root',
+            name: companyName,
+            title: `<div class="node-title">${escapeHtml(companyName)}</div>
+                   <div class="node-subtitle">{% trans "Company" %}</div>
+                   <div class="node-content">${departments.length} ${TRANSLATIONS['Department']}${departments.length !== 1 ? 's' : ''}</div>
+                   <div class="node-stats">
+                       <i class="bi bi-people-fill"></i> ${totalStaff} ${TRANSLATIONS['Staff']}
+                   </div>`,
+            className: 'company',
+            children: []
+        };
+        
+        // Add all root departments as children
+        rootDepts.forEach(dept => {
+            virtualRoot.children.push(buildDepartmentNode(dept));
+        });
+        
+        // Add root positions (positions with parent_position_id but no department_id, 
+        // where parent position is also a root or doesn't exist)
+        const rootPositions = positions.filter(pos => 
+            !pos.department_id && 
+            (!pos.parent_position_id || !positionMap.has(pos.parent_position_id))
+        );
+        
+        rootPositions.forEach(pos => {
+            const posNode = buildPositionNode(pos);
+            virtualRoot.children.push(posNode);
+        });
+        
+        // Add departments with parent_position_id that point to non-existent positions
+        const deptsWithParentPos = sortedDepartments.filter(dept => 
+            dept.parent_position_id && 
+            !positionMap.has(dept.parent_position_id) &&
+            !dept.parent_id
+        );
+        
+        deptsWithParentPos.forEach(dept => {
+            virtualRoot.children.push(buildDepartmentNode(dept));
+        });
+        
+        return virtualRoot;
+    }
+    
+    // Build custom tree HTML
+    function buildCustomTreeHTML(nodeData) {
+        if (!nodeData) return '';
+        
+        function buildNodeHTML(node, level = 0) {
+            const hasChildren = node.children && node.children.length > 0;
+            
+            let html = `
+                <div class="tree-level level-${level}">
+                    <div class="tree-node ${node.className || ''}" data-node-id="${node.id}" title="${escapeHtml(node.name)}">
+                        ${node.title}
+                    </div>
+            `;
+            
+            if (hasChildren) {
+                html += `<div class="tree-children">`;
+                node.children.forEach(child => {
+                    html += buildNodeHTML(child, level + 1);
+                });
+                html += `</div>`;
+            }
+            
+            html += `</div>`;
+            return html;
+        }
+        
+        return buildNodeHTML(nodeData);
+    }
+    
+    // Find node data by ID
+    function findNodeData(rootNode, nodeId) {
+        if (rootNode.id === nodeId) {
+            return rootNode;
+        }
+        
+        if (rootNode.children) {
+            for (let child of rootNode.children) {
+                const found = findNodeData(child, nodeId);
+                if (found) return found;
+            }
+        }
+        
+        return null;
+    }
+    
+    // Show node details in modal
+    function showNodeDetails(data) {
+        console.log('Node details:', data);
+        
+        // If it's a user node, show detailed user information
+        if (data.className === 'user' && data.userData) {
+            showUserDetailsModal(data.userData);
+        } else {
+            // For other node types, show basic information
+            showGenericNodeModal(data);
+        }
+    }
+    
+    // Show user details modal
+    function showUserDetailsModal(user) {
+        const modalHtml = `
+            <div class="modal fade" id="userDetailsModal" tabindex="-1">
+                <div class="modal-dialog modal-sm">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h6 class="modal-title">
+                                <i class="bi bi-person-circle me-2"></i>
+                                ${escapeHtml(user.full_name)}
+                            </h6>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-3">
+                            <div class="text-center mb-3">
+                                <div class="user-avatar-small mb-2">
+                                    ${createUserAvatarHTML(user)}
+                                </div>
+                                <div class="badge ${user.is_active ? 'bg-success' : 'bg-secondary'} mb-2">
+                                    <i class="bi bi-circle-fill me-1"></i>
+                                    ${user.is_active ? TRANSLATIONS['Active'] : TRANSLATIONS['Inactive']}
+                                </div>
+                            </div>
+                            
+                            <div class="contact-info-compact">
+                                <!-- Full Name with copy button -->
+                                <div class="contact-item-compact mb-2">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div class="contact-label">
+                                            <i class="bi bi-person text-primary me-2"></i>
+                                            <strong>{% trans "Full Name" %}:</strong>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-secondary copy-btn" 
+                                                onclick="copyToClipboard('${escapeHtml(user.full_name)}', this)" 
+                                                title="{% trans 'Copy' %}">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </div>
+                                    <div class="contact-value mt-1">
+                                        ${escapeHtml(user.full_name)}
+                                    </div>
+                                </div>
+                                
+                                <!-- Department -->
+                                ${user.department_name ? `
+                                    <div class="contact-item-compact mb-2">
+                                        <div class="contact-label">
+                                            <i class="bi bi-building text-primary me-2"></i>
+                                            <strong>{% trans "Department" %}:</strong>
+                                        </div>
+                                        <div class="contact-value mt-1">
+                                            ${escapeHtml(user.department_name)}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Position -->
+                                ${user.position_name ? `
+                                    <div class="contact-item-compact mb-2">
+                                        <div class="contact-label">
+                                            <i class="bi bi-briefcase text-primary me-2"></i>
+                                            <strong>{% trans "Position" %}:</strong>
+                                        </div>
+                                        <div class="contact-value mt-1">
+                                            ${escapeHtml(user.position_name)}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Email with copy button -->
+                                ${user.email ? `
+                                    <div class="contact-item-compact mb-2">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="contact-label">
+                                                <i class="bi bi-envelope text-primary me-2"></i>
+                                                <strong>{% trans "Email" %}:</strong>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-secondary copy-btn" 
+                                                    onclick="copyToClipboard('${user.email}', this)" 
+                                                    title="{% trans 'Copy' %}">
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
+                                        </div>
+                                        <div class="contact-value mt-1">
+                                            <a href="mailto:${user.email}" class="text-decoration-none">${escapeHtml(user.email)}</a>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Phone with copy button -->
+                                ${user.phone ? `
+                                    <div class="contact-item-compact mb-2">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="contact-label">
+                                                <i class="bi bi-telephone text-primary me-2"></i>
+                                                <strong>{% trans "Phone" %}:</strong>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-secondary copy-btn" 
+                                                    onclick="copyToClipboard('${user.phone}', this)" 
+                                                    title="{% trans 'Copy' %}">
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
+                                        </div>
+                                        <div class="contact-value mt-1">
+                                            <a href="tel:${user.phone}" class="text-decoration-none">${escapeHtml(user.phone)}</a>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Start Date -->
+                                ${user.start_date ? `
+                                    <div class="contact-item-compact mb-2">
+                                        <div class="contact-label">
+                                            <i class="bi bi-calendar text-primary me-2"></i>
+                                            <strong>{% trans "Start Date" %}:</strong>
+                                        </div>
+                                        <div class="contact-value mt-1">
+                                            ${formatDate(user.start_date)}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="modal-footer p-2">
+                            ${user.email ? `
+                                <a href="mailto:${user.email}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-envelope me-1"></i>{% trans "Send Email" %}
+                                </a>
+                            ` : ''}
+                            ${user.phone ? `
+                                <a href="tel:${user.phone}" class="btn btn-sm btn-success">
+                                    <i class="bi bi-telephone me-1"></i>{% trans "Call" %}
+                                </a>
+                            ` : ''}
+                            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x me-1"></i>{% trans "Close" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove existing modal if any
+        $('#userDetailsModal').remove();
+        
+        // Add modal to body
+        $('body').append(modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal('#userDetailsModal');
+        modal.show();
+        
+        // Clean up when modal is hidden
+        $('#userDetailsModal').on('hidden.bs.modal', function() {
+            $(this).remove();
+        });
+    }
+    
+    // Show generic node modal
+    function showGenericNodeModal(data) {
+        const modalHtml = `
+            <div class="modal fade" id="nodeDetailsModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-info-circle me-2"></i>
+                                ${escapeHtml(data.name)}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="node-preview ${data.className}">
+                                ${data.title}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x me-1"></i>{% trans "Close" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove existing modal if any
+        $('#nodeDetailsModal').remove();
+        
+        // Add modal to body
+        $('body').append(modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal('#nodeDetailsModal');
+        modal.show();
+        
+        // Clean up when modal is hidden
+        $('#nodeDetailsModal').on('hidden.bs.modal', function() {
+            $(this).remove();
+        });
+    }
+    
+    // Helper function to format date
+    function formatDate(dateString) {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('uk-UA', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+    
+    // Copy to clipboard function
+    function copyToClipboard(text, button) {
+        if (navigator.clipboard && window.isSecureContext) {
+            // Use modern clipboard API
+            navigator.clipboard.writeText(text).then(() => {
+                showCopySuccess(button);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                fallbackCopy(text, button);
+            });
+        } else {
+            // Fallback for older browsers
+            fallbackCopy(text, button);
+        }
+    }
+    
+    // Fallback copy method
+    function fallbackCopy(text, button) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+            showCopySuccess(button);
+        } catch (err) {
+            console.error('Fallback copy failed: ', err);
+            alert('{% trans "Failed to copy to clipboard" %}');
+        }
+        
+        document.body.removeChild(textArea);
+    }
+    
+    // Show copy success feedback
+    function showCopySuccess(button) {
+        const originalIcon = button.querySelector('i');
+        const originalClass = originalIcon.className;
+        
+        // Change button appearance
+        button.classList.add('copied');
+        originalIcon.className = 'bi bi-check';
+        
+        // Reset after 2 seconds
+        setTimeout(() => {
+            button.classList.remove('copied');
+            originalIcon.className = originalClass;
+        }, 2000);
+    }
+    
+    // Chart control handlers
+    $('#expandAllBtn').on('click', function() {
+        $('#orgChart').find('.tree-children').show();
+        $('#orgChart').find('.tree-node').removeClass('collapsed');
+    });
+    
+    $('#collapseAllBtn').on('click', function() {
+        $('#orgChart').find('.tree-children').not(':first').hide();
+        $('#orgChart').find('.tree-node').not(':first').addClass('collapsed');
+    });
+    
+    $('#centerChartBtn').on('click', function() {
+        centerChart();
+    });
+    
+    $('#fitToScreenBtn').on('click', function() {
+        fitToScreen();
+    });
+    
+    $('#exportChartBtn').on('click', function() {
+        exportChart();
+    });
+    
+    // Zoom control handlers
+    $('#zoomInBtn').on('click', function() {
+        zoomIn();
+    });
+    
+    $('#zoomOutBtn').on('click', function() {
+        zoomOut();
+    });
+    
+    $('#zoomResetBtn').on('click', function() {
+        resetZoom();
+    });
+    
+    // Initialize zoom and pan functionality
+    function initializeZoomAndPan() {
+        const $chartWrapper = $('#chartWrapper');
+        const $customTree = $('#customTree');
+        
+        // Mouse wheel zoom
+        $chartWrapper.on('wheel', function(e) {
+            e.preventDefault();
+            const delta = e.originalEvent.deltaY;
+            const zoomFactor = delta > 0 ? 0.9 : 1.1;
+            
+            // Get mouse position relative to chart
+            const rect = this.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            zoomAtPoint(mouseX, mouseY, zoomFactor);
+        });
+        
+        // Mouse drag pan
+        $customTree.on('mousedown', function(e) {
+            if (e.which === 1) { // Left mouse button
+                isDragging = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                $customTree.css('cursor', 'grabbing');
+                e.preventDefault();
+            }
+        });
+        
+        $(document).on('mousemove', function(e) {
+            if (isDragging) {
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                
+                currentPanX += deltaX;
+                currentPanY += deltaY;
+                
+                updateTransform();
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+        
+        $(document).on('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                $customTree.css('cursor', 'grab');
+            }
+        });
+        
+        // Touch support for mobile
+        let lastTouchDistance = 0;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+        
+        $chartWrapper.on('touchstart', function(e) {
+            if (e.originalEvent.touches.length === 1) {
+                const touch = e.originalEvent.touches[0];
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+                isDragging = true;
+            } else if (e.originalEvent.touches.length === 2) {
+                const touch1 = e.originalEvent.touches[0];
+                const touch2 = e.originalEvent.touches[1];
+                lastTouchDistance = Math.sqrt(
+                    Math.pow(touch2.clientX - touch1.clientX, 2) +
+                    Math.pow(touch2.clientY - touch1.clientY, 2)
+                );
+            }
+            e.preventDefault();
+        });
+        
+        $chartWrapper.on('touchmove', function(e) {
+            if (e.originalEvent.touches.length === 1 && isDragging) {
+                const touch = e.originalEvent.touches[0];
+                const deltaX = touch.clientX - lastTouchX;
+                const deltaY = touch.clientY - lastTouchY;
+                
+                currentPanX += deltaX;
+                currentPanY += deltaY;
+                
+                updateTransform();
+                
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+            } else if (e.originalEvent.touches.length === 2) {
+                const touch1 = e.originalEvent.touches[0];
+                const touch2 = e.originalEvent.touches[1];
+                const touchDistance = Math.sqrt(
+                    Math.pow(touch2.clientX - touch1.clientX, 2) +
+                    Math.pow(touch2.clientY - touch1.clientY, 2)
+                );
+                
+                if (lastTouchDistance > 0) {
+                    const zoomFactor = touchDistance / lastTouchDistance;
+                    const centerX = (touch1.clientX + touch2.clientX) / 2;
+                    const centerY = (touch1.clientY + touch2.clientY) / 2;
+                    
+                    const rect = this.getBoundingClientRect();
+                    const mouseX = centerX - rect.left;
+                    const mouseY = centerY - rect.top;
+                    
+                    zoomAtPoint(mouseX, mouseY, zoomFactor);
+                }
+                
+                lastTouchDistance = touchDistance;
+            }
+            e.preventDefault();
+        });
+        
+        $chartWrapper.on('touchend', function() {
+            isDragging = false;
+            lastTouchDistance = 0;
+        });
+    }
+    
+    // Zoom functions
+    function zoomIn() {
+        const $chartWrapper = $('#chartWrapper');
+        const centerX = $chartWrapper.width() / 2;
+        const centerY = $chartWrapper.height() / 2;
+        zoomAtPoint(centerX, centerY, 1.2);
+    }
+    
+    function zoomOut() {
+        const $chartWrapper = $('#chartWrapper');
+        const centerX = $chartWrapper.width() / 2;
+        const centerY = $chartWrapper.height() / 2;
+        zoomAtPoint(centerX, centerY, 0.8);
+    }
+    
+    function resetZoom() {
+        currentZoom = 1;
+        currentPanX = 0;
+        currentPanY = 0;
+        updateTransform();
+        centerChart();
+    }
+    
+    function zoomAtPoint(mouseX, mouseY, zoomFactor) {
+        const newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 5);
+        
+        if (newZoom !== currentZoom) {
+            // Calculate pan adjustment to zoom at mouse position
+            const zoomChange = newZoom / currentZoom;
+            currentPanX = mouseX - (mouseX - currentPanX) * zoomChange;
+            currentPanY = mouseY - (mouseY - currentPanY) * zoomChange;
+            currentZoom = newZoom;
+            
+            updateTransform();
+        }
+    }
+    
+    function updateTransform() {
+        const $customTree = $('#customTree');
+        $customTree.css({
+            'transform': `translate(${currentPanX}px, ${currentPanY}px) scale(${currentZoom})`,
+            'transform-origin': '0 0'
+        });
+    }
+    
+    // Fit entire chart to screen
+    function fitToScreen() {
+        const $chartWrapper = $('#chartWrapper');
+        const $customTree = $('#customTree');
+        const $chartContainer = $('#orgChart');
+        
+        if ($customTree.length === 0) return;
+        
+        // Reset transform first
+        currentZoom = 1;
+        currentPanX = 0;
+        currentPanY = 0;
+        updateTransform();
+        
+        setTimeout(() => {
+            const containerWidth = $chartWrapper.width();
+            const containerHeight = $chartWrapper.height();
+            const chartWidth = $customTree.outerWidth();
+            const chartHeight = $customTree.outerHeight();
+            
+            // Expand container height if needed to fit the entire chart
+            if (chartHeight > containerHeight) {
+                const newHeight = Math.min(chartHeight + 100, window.innerHeight - 200); // Use window height minus some padding
+                $chartContainer.css('height', newHeight + 'px');
+                
+                // Update container height after resize
+                setTimeout(() => {
+                    const newContainerHeight = $chartWrapper.height();
+                    
+                    // Calculate scale to fit entire chart
+                    const scaleX = containerWidth / chartWidth;
+                    const scaleY = newContainerHeight / chartHeight;
+                    const scale = Math.min(scaleX, scaleY, 1);
+                    
+                    // Ensure minimum readable scale
+                    const finalScale = Math.max(scale, 0.15);
+                    
+                    // Calculate center position
+                    const scaledWidth = chartWidth * finalScale;
+                    const scaledHeight = chartHeight * finalScale;
+                    const offsetX = Math.max(0, (containerWidth - scaledWidth) / 2);
+                    const offsetY = Math.max(0, (newContainerHeight - scaledHeight) / 2);
+                    
+                    currentZoom = finalScale;
+                    currentPanX = offsetX;
+                    currentPanY = offsetY;
+                    
+                    updateTransform();
+                }, 100);
+            } else {
+                // Chart fits in current container
+                const scaleX = containerWidth / chartWidth;
+                const scaleY = containerHeight / chartHeight;
+                const scale = Math.min(scaleX, scaleY, 1);
+                
+                const finalScale = Math.max(scale, 0.15);
+                
+                const scaledWidth = chartWidth * finalScale;
+                const scaledHeight = chartHeight * finalScale;
+                const offsetX = Math.max(0, (containerWidth - scaledWidth) / 2);
+                const offsetY = Math.max(0, (containerHeight - scaledHeight) / 2);
+                
+                currentZoom = finalScale;
+                currentPanX = offsetX;
+                currentPanY = offsetY;
+                
+                updateTransform();
+            }
+        }, 200);
+    }
+    
+    // Center chart function
+    function centerChart() {
+        const $chartWrapper = $('#chartWrapper');
+        const $customTree = $('#customTree');
+        const $chartContainer = $('#orgChart');
+        
+        if ($customTree.length === 0) return;
+        
+        // Reset transform first
+        currentZoom = 1;
+        currentPanX = 0;
+        currentPanY = 0;
+        updateTransform();
+        
+        // Center the chart
+        setTimeout(() => {
+            const containerWidth = $chartWrapper.width();
+            const containerHeight = $chartWrapper.height();
+            const chartWidth = $customTree.outerWidth();
+            const chartHeight = $customTree.outerHeight();
+            
+            // Adjust container height if needed
+            if (chartHeight > containerHeight) {
+                const newHeight = Math.min(chartHeight + 100, 800); // Add padding, max 800px
+                $chartContainer.css('height', newHeight + 'px');
+            }
+            
+            // Calculate scale to fit - allow scaling down more aggressively
+            const scaleX = containerWidth / chartWidth;
+            const scaleY = containerHeight / chartHeight;
+            const scale = Math.min(scaleX, scaleY, 1); // Don't scale up
+            
+            // If chart is too large, scale it down more
+            let finalScale = scale;
+            if (scale < 0.5) {
+                finalScale = Math.max(scale, 0.2); // Minimum scale of 20%
+            }
+            
+            // Calculate center position
+            const scaledWidth = chartWidth * finalScale;
+            const scaledHeight = chartHeight * finalScale;
+            const offsetX = Math.max(0, (containerWidth - scaledWidth) / 2);
+            const offsetY = Math.max(0, (containerHeight - scaledHeight) / 2);
+            
+            currentZoom = finalScale;
+            currentPanX = offsetX;
+            currentPanY = offsetY;
+            
+            updateTransform();
+        }, 200);
+    }
+    
+    // Export chart as PNG
+    function exportChart() {
+        const chartElement = document.getElementById('orgChart');
+        
+        if (!chartElement) {
+            alert('{% trans "No chart to export" %}');
+            return;
+        }
+        
+        html2canvas(chartElement, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            useCORS: true,
+            width: chartElement.scrollWidth,
+            height: chartElement.scrollHeight
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `org-chart-${currentCompanyId}-${new Date().toISOString().split('T')[0]}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }).catch(error => {
+            console.error('Error exporting chart:', error);
+            alert('{% trans "Error exporting chart" %}');
+        });
+    }
+    
+    // State management functions
+    function showEmptyState() {
+        $('#loadingState, #orgChart').hide();
+        $('#chartControls').hide();
+        $('#emptyState').show();
+    }
+    
+    function showLoadingState() {
+        $('#emptyState, #orgChart').hide();
+        $('#chartControls').hide();
+        $('#loadingState').show();
+    }
+    
+    function showErrorState() {
+        $('#loadingState, #orgChart').hide();
+        $('#chartControls').hide();
+        $('#emptyState').show();
+    }
+    
+    // Initialize with empty state or auto-select if only one company
+    initializeChart();
+    
+    // Initialize chart - auto-select if only one company
+    function initializeChart() {
+        const $companySelect = $('#companySelect');
+        const companies = $companySelect.find('option[value!=""]');
+        
+        if (companies.length === 1) {
+            // Auto-select the only company
+            const companyId = companies.first().val();
+            const companyName = companies.first().text();
+            
+            $companySelect.val(companyId);
+            currentCompanyId = companyId;
+            loadOrgChart(companyId);
+        } else {
+            // Show empty state if multiple companies or no companies
+            showEmptyState();
+        }
+    }
+});
+</script>
+
+{% endif %}
+{% endblock %} 

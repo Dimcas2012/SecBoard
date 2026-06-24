@@ -1,0 +1,598 @@
+<!-- SecBoard\templates\app_access\modals\edit_default_roles_modal.html -->
+{% load i18n %}
+
+<div class="modal fade" id="editRolesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Edit Default Roles" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="rolesModalAlerts"></div>
+                
+                <!-- Пошукове поле -->
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control" 
+                               id="searchRolesInput" 
+                               placeholder="{% trans 'Search roles...' %}"
+                               autocomplete="off">
+                        <button class="btn btn-outline-secondary" 
+                                type="button" 
+                                id="clearSearchRolesInput"
+                                style="display: none;">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted" id="searchRolesResultsCount" style="display: none;">
+                        <i class="bi bi-info-circle"></i> 
+                        <span id="searchRolesResultsText"></span>
+                    </small>
+                </div>
+                
+                <!-- Таблиця ролей -->
+                <div class="table-responsive mb-3">
+                    <table class="table table-hover table-sm table-sm-font sb-data-table" id="editRolesTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px"></th>
+                                <th style="width: 70px">{% trans "Order" %}</th>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Description" %}</th>
+                                <th>{% trans "Color" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="sortable-list">
+                            <!-- Ролі будуть додані тут динамічно -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Кнопка додавання нової ролі -->
+                <button type="button" class="btn btn-primary" id="addRoleBtn">
+                    <i class="bi bi-plus-circle"></i> {% trans "Add Role" %}
+                </button>
+
+                <!-- Форма для додавання/редагування ролі -->
+                <form id="roleForm" class="d-none mt-3">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="roleName" class="form-label required">{% trans "Name" %}</label>
+                            <input type="text" class="form-control" id="roleName" name="name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="roleColor" class="form-label">{% trans "Color" %}</label>
+                            <input type="color" class="form-control form-control-color w-100" id="roleColor" name="color" value="#6c757d">
+                        </div>
+                        <div class="col-12">
+                            <label for="roleDescription" class="form-label">{% trans "Description" %}</label>
+                            <textarea class="form-control" id="roleDescription" name="description" rows="2"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-success">{% trans "Save Role" %}</button>
+                            <button type="button" class="btn btn-secondary" id="cancelRoleEdit">{% trans "Cancel" %}</button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="roleId">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('editRolesModal');
+    const roleForm = document.getElementById('roleForm');
+    let currentSystemId = null;
+
+    // Ініціалізація модального вікна
+    modal.addEventListener('show.bs.modal', function(event) {
+        currentSystemId = document.getElementById('systemSelect').value;
+        if (!currentSystemId) {
+            event.preventDefault();
+            toastr.error('{% trans "Please select a system first" %}');
+            return;
+        }
+        loadRoles();
+    });
+
+    // Завантаження ролей
+    function loadRoles() {
+        const languagePrefix = window.location.pathname.split('/')[1];
+        const environment = modal.getAttribute('data-environment') || 'test';
+        
+        console.log('loadRoles using environment:', environment);
+        
+        $.ajax({
+            url: `/${languagePrefix}/app_access/roles/system/?system_id=${currentSystemId}&environment=${environment}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.roles) {
+                    updateRolesTableInModal(response.roles);
+                }
+            },
+            error: function(error) {
+                showModalAlert('danger', '{% trans "Error loading roles" %}');
+            }
+        });
+    }
+
+    // Оновлення таблиці ролей в модальному вікні
+    function updateRolesTableInModal(roles) {
+        const tbody = document.querySelector('#editRolesTable tbody');
+        tbody.innerHTML = '';
+        
+        roles.forEach((role, index) => {
+            const name = role.name || '';
+            const description = role.description || '';
+            const order = role.order !== undefined ? role.order : index;
+            
+            const tr = document.createElement('tr');
+            tr.dataset.roleId = role.id;
+            tr.dataset.order = order;
+            tr.innerHTML = `
+                <td>
+                    <div class="drag-handle">
+                        <i class="bi bi-grip-vertical"></i>
+                    </div>
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm order-input" min="0" value="${order}" data-role-id="${role.id}" style="width: 55px;">
+                </td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="color-dot me-2" style="background-color: ${role.color}"></div>
+                        <span>${name}</span>
+                    </div>
+                </td>
+                <td>${description || ''}</td>
+                <td>
+                    <div class="color-preview" style="background-color: ${role.color}"></div>
+                </td>
+                <td>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-outline-primary edit-role" data-role-id="${role.id}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-role" data-role-id="${role.id}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        attachRolesOrderInputHandlers();
+    }
+
+    // Додавання нової ролі
+    document.getElementById('addRoleBtn').addEventListener('click', function() {
+        roleForm.classList.remove('d-none');
+        roleForm.reset();
+        document.getElementById('roleId').value = '';
+    });
+
+    // Скасування редагування
+    document.getElementById('cancelRoleEdit').addEventListener('click', function() {
+        roleForm.classList.add('d-none');
+        roleForm.reset();
+    });
+
+    // Обробка форми
+    roleForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const environment = modal.getAttribute('data-environment') || 'test';
+        const roleData = {
+            asset_id: currentSystemId,
+            environment: environment,
+            name: document.getElementById('roleName').value.trim(),
+            description: document.getElementById('roleDescription').value || '',
+            color: document.getElementById('roleColor').value,
+            role_id: document.getElementById('roleId').value || null
+        };
+
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/roles/save/`,
+            type: 'POST',
+            data: roleData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            success: function(response) {
+                if (response.success) {
+                    showModalAlert('success', response.message);
+                    loadRoles();
+                    roleForm.classList.add('d-none');
+                    roleForm.reset();
+                } else {
+                    showModalAlert('danger', response.error);
+                }
+            },
+            error: function(xhr) {
+                showModalAlert('danger', xhr.responseJSON?.error || '{% trans "Error saving role" %}');
+            }
+        });
+    });
+
+    // Редагування ролі
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.edit-role')) {
+            const roleId = e.target.closest('.edit-role').dataset.roleId;
+            const languagePrefix = window.location.pathname.split('/')[1];
+            
+            $.ajax({
+                url: `/${languagePrefix}/app_access/roles/get/?role_id=${roleId}`,
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const role = response.role;
+                        document.getElementById('roleId').value = role.id;
+                        document.getElementById('roleName').value = role.name || '';
+                        document.getElementById('roleDescription').value = role.description || '';
+                        document.getElementById('roleColor').value = role.color || '#6c757d';
+                        roleForm.classList.remove('d-none');
+                    }
+                },
+                error: function() {
+                    showModalAlert('danger', '{% trans "Error loading role details" %}');
+                }
+            });
+        }
+    });
+
+    // Видалення ролі
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-role')) {
+            if (confirm('{% trans "Are you sure you want to delete this role?" %}')) {
+                const roleId = e.target.closest('.delete-role').dataset.roleId;
+                const languagePrefix = window.location.pathname.split('/')[1];
+                
+                $.ajax({
+                    url: `/${languagePrefix}/app_access/roles/delete/`,
+                    type: 'POST',
+                    data: JSON.stringify({ role_id: roleId }),
+                    contentType: 'application/json',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            showModalAlert('success', response.message);
+                            loadRoles();
+                        }
+                    },
+                    error: function() {
+                        showModalAlert('danger', '{% trans "Error deleting role" %}');
+                    }
+                });
+            }
+        }
+    });
+
+    // Додаємо обробник закриття модального вікна
+    modal.addEventListener('hidden.bs.modal', function() {
+        const systemId = document.getElementById('systemSelect').value;
+        const environment = modal.getAttribute('data-environment') || 'test';
+        
+        if (systemId) {
+            // Перезавантажуємо список ролей
+            const languagePrefix = window.location.pathname.split('/')[1];
+            $.ajax({
+                url: `/${languagePrefix}/app_access/roles/system/?system_id=${systemId}&environment=${environment}`,
+                type: 'GET',
+                success: function(response) {
+                    if (response.roles) {
+                        // Оновлюємо таблицю в основному вікні
+                        if (typeof updateRolesTable === 'function') {
+                            updateRolesTable(response.roles);
+                        }
+                        // Показуємо блок ролей
+                        document.getElementById('defaultRolesSection').style.display = 'block';
+                    }
+                },
+                error: function(error) {
+                    console.error('Error reloading roles:', error);
+                    if (typeof toastr !== 'undefined') {
+                        toastr.error('{% trans "Error reloading roles" %}');
+                    }
+                }
+            });
+        }
+    });
+
+    // Показ сповіщень в модальному вікні
+    function showModalAlert(type, message) {
+        const alertsContainer = document.getElementById('rolesModalAlerts');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        alertsContainer.appendChild(alert);
+        
+        setTimeout(() => {
+            alert.remove();
+        }, 5000);
+    }
+
+    // Аналогічно для ролей
+    const tbody = document.querySelector('#editRolesTable tbody');
+    new Sortable(tbody, {
+        handle: '.drag-handle',
+        animation: 150,
+        onEnd: function(evt) {
+            updateRolesOrder();
+        }
+    });
+
+    function updateRolesOrder() {
+        const rows = tbody.querySelectorAll('tr');
+        const orders = Array.from(rows).map((row, index) => ({
+            id: row.dataset.roleId,
+            order: index
+        }));
+
+        const languagePrefix = window.location.pathname.split('/')[1];
+        $.ajax({
+            url: `/${languagePrefix}/app_access/roles/update-order/`,
+            type: 'POST',
+            data: JSON.stringify({ orders: orders }),
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            success: function(response) {
+                if (response.success) {
+                    showModalAlert('success', response.message);
+                    // Sync order inputs to new indices
+                    rows.forEach((row, index) => {
+                        const input = row.querySelector('.order-input');
+                        if (input) input.value = index;
+                    });
+                }
+            },
+            error: function(xhr) {
+                showModalAlert('danger', '{% trans "Error updating order" %}');
+            }
+        });
+    }
+
+    function attachRolesOrderInputHandlers() {
+        tbody.querySelectorAll('.order-input').forEach(input => {
+            input.removeEventListener('blur', handleRoleOrderChange);
+            input.addEventListener('blur', handleRoleOrderChange);
+        });
+    }
+    function handleRoleOrderChange(e) {
+        const input = e.target;
+        const row = input.closest('tr');
+        const targetOrder = parseInt(input.value, 10);
+        if (isNaN(targetOrder) || targetOrder < 0) return;
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const currentIndex = rows.indexOf(row);
+        if (currentIndex === -1) return;
+        const newIndex = Math.min(targetOrder, rows.length - 1);
+        if (newIndex === currentIndex) return;
+        if (newIndex < currentIndex) {
+            row.parentNode.insertBefore(row, rows[newIndex]);
+        } else {
+            row.parentNode.insertBefore(row, rows[newIndex].nextSibling);
+        }
+        updateRolesOrder();
+    }
+    
+    // Функція налаштування пошуку ролей
+    function setupRolesSearch() {
+        const searchInput = document.getElementById('searchRolesInput');
+        const clearButton = document.getElementById('clearSearchRolesInput');
+        const resultsCount = document.getElementById('searchRolesResultsCount');
+        const resultsText = document.getElementById('searchRolesResultsText');
+        const tbody = document.querySelector('#editRolesTable tbody');
+        
+        if (!searchInput) return;
+        
+        // Обробник введення тексту в пошук
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            if (searchTerm.length > 0) {
+                clearButton.style.display = 'block';
+                filterRoles(searchTerm);
+            } else {
+                clearButton.style.display = 'none';
+                clearRolesSearch();
+            }
+        });
+        
+        // Обробник кнопки очищення пошуку
+        if (clearButton) {
+            clearButton.addEventListener('click', function() {
+                searchInput.value = '';
+                clearButton.style.display = 'none';
+                clearRolesSearch();
+                searchInput.focus();
+            });
+        }
+        
+        // Функція фільтрації ролей
+        function filterRoles(searchTerm) {
+            const allRows = tbody.querySelectorAll('tr');
+            let matchCount = 0;
+            let totalCount = allRows.length;
+            
+            // Перевіряємо кожен рядок (Order column added: 0=drag, 1=order, 2=name, 3=description)
+            allRows.forEach(row => {
+                const nameCell = row.cells[2];
+                const descCell = row.cells[3];
+                const name = nameCell ? nameCell.textContent.toLowerCase() : '';
+                const desc = descCell ? descCell.textContent.toLowerCase() : '';
+                const isMatch = name.includes(searchTerm) || desc.includes(searchTerm);
+                
+                if (isMatch) {
+                    row.classList.remove('hidden');
+                    row.classList.add('search-match');
+                    matchCount++;
+                    
+                    // Підсвічуємо знайдений текст
+                    highlightRoleText(nameCell, searchTerm);
+                    highlightRoleText(descCell, searchTerm);
+                } else {
+                    row.classList.add('hidden');
+                    row.classList.remove('search-match');
+                }
+            });
+            
+            // Показуємо результати пошуку
+            if (resultsCount && resultsText) {
+                resultsCount.style.display = 'block';
+                resultsText.textContent = `{% trans "Found" %} ${matchCount} {% trans "of" %} ${totalCount} {% trans "roles" %}`;
+            }
+        }
+        
+        // Функція підсвічування тексту
+        function highlightRoleText(element, searchTerm) {
+            if (!element) return;
+            
+            const originalText = element.getAttribute('data-original-text') || element.textContent;
+            if (!element.getAttribute('data-original-text')) {
+                element.setAttribute('data-original-text', originalText);
+            }
+            
+            const lowerText = originalText.toLowerCase();
+            const index = lowerText.indexOf(searchTerm);
+            
+            if (index !== -1) {
+                const before = originalText.substring(0, index);
+                const match = originalText.substring(index, index + searchTerm.length);
+                const after = originalText.substring(index + searchTerm.length);
+                
+                element.innerHTML = `${before}<span class="search-highlight">${match}</span>${after}`;
+            } else {
+                element.textContent = originalText;
+            }
+        }
+        
+        // Функція очищення пошуку
+        function clearRolesSearch() {
+            const allRows = tbody.querySelectorAll('tr');
+            
+            allRows.forEach(row => {
+                row.classList.remove('hidden');
+                row.classList.remove('search-match');
+                
+                // Відновлюємо оригінальний текст
+                const nameCell = row.cells[2];
+                const descCell = row.cells[3];
+                if (nameCell && nameCell.getAttribute('data-original-text')) {
+                    nameCell.textContent = nameCell.getAttribute('data-original-text');
+                }
+                if (descCell && descCell.getAttribute('data-original-text')) {
+                    descCell.textContent = descCell.getAttribute('data-original-text');
+                }
+            });
+            
+            // Ховаємо результати пошуку
+            if (resultsCount) {
+                resultsCount.style.display = 'none';
+            }
+        }
+    }
+    
+    // Очищення пошуку при закритті модального вікна
+    modal.addEventListener('hidden.bs.modal', function() {
+        const searchInput = document.getElementById('searchRolesInput');
+        const clearButton = document.getElementById('clearSearchRolesInput');
+        const resultsCount = document.getElementById('searchRolesResultsCount');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        if (clearButton) {
+            clearButton.style.display = 'none';
+        }
+        if (resultsCount) {
+            resultsCount.style.display = 'none';
+        }
+    });
+    
+    // Викликаємо setupRolesSearch після завантаження ролей
+    modal.addEventListener('shown.bs.modal', function() {
+        setupRolesSearch();
+    });
+});
+</script>
+
+<style>
+.required:after {
+    content: " *";
+    color: red;
+}
+
+#editRolesTable td {
+    vertical-align: middle;
+}
+
+.form-control-color {
+    height: 38px;
+}
+
+/* Order column — однаково з Edit Default Access Rights */
+#editRolesTable .order-input {
+    width: 55px;
+}
+
+.drag-handle {
+    cursor: move;
+    color: #6c757d;
+    width: 20px;
+    text-align: center;
+}
+
+.drag-handle:hover {
+    color: #000;
+}
+
+.sortable-ghost {
+    opacity: 0.5;
+    background-color: #f8f9fa;
+}
+
+.sortable-chosen {
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Стилі для пошуку */
+tr.hidden {
+    display: none !important;
+}
+
+tr.search-match {
+    background-color: #fff3cd !important;
+}
+
+.search-highlight {
+    background-color: #ffeb3b;
+    font-weight: bold;
+    padding: 1px 2px;
+    border-radius: 2px;
+}
+
+#searchRolesResultsCount {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.85rem;
+}
+</style>

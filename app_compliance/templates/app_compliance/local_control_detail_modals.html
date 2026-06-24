@@ -1,0 +1,418 @@
+{% load i18n %}
+<!-- Add Evidence Modal -->
+<div class="modal fade" id="addEvidenceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:local_control_evidence_create' control.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Add Evidence" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Title" %} *</label>
+                        <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Evidence Type" %}</label>
+                        <select name="evidence_type" class="form-control" required>
+                            <option value="">{% trans "Select Evidence Type" %}</option>
+                            {% for evidence_type in evidence_types %}
+                            <option value="{{ evidence_type.id }}">{{ evidence_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-tasks"></i> {% trans "Link to Mandatory Process" %}
+                        </label>
+                        <select name="mandatory_process_id" class="form-control" id="localMandatoryProcessSelect">
+                            <option value="">{% trans "-- None --" %}</option>
+                            {% for process in mandatory_processes %}
+                            <option value="{{ process.id }}" 
+                                    data-description="{{ process.description|truncatewords:20 }}"
+                                    data-company="{{ process.company|default:'' }}"
+                                    data-frequency="{{ process.get_frequency_display }}"
+                                    data-priority="{{ process.get_priority_display }}">
+                                {{ process.process_name }}
+                                {% if process.company %} ({{ process.company.short_name }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted" id="localProcessDescription"></small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Upload File" %}</label>
+                        <input type="file" name="file" class="form-control">
+                        <small class="form-text text-muted">
+                            {% trans "Or select an existing document below" %}
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Document from Register" %}</label>
+                        <select name="register_doc_id" class="form-control">
+                            <option value="">{% trans "-- None --" %}</option>
+                            {% for doc in register_docs %}
+                            <option value="{{ doc.id }}">
+                                {{ doc.name_doc }}{% if doc.company %} ({{ doc.company.short_name }}){% endif %}{% if doc.status_doc %} - <span style="color: {{ doc.status_doc.color }}">{{ doc.status_doc }}</span>{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">
+                            {% trans "Use approved documents from the main document register" %}
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Related Document" %}</label>
+                        <select name="related_doc_id" class="form-control">
+                            <option value="">{% trans "-- None --" %}</option>
+                            {% for rdoc in related_docs %}
+                            <option value="{{ rdoc.id }}">
+                                {{ rdoc.name_rel_doc }}{% if rdoc.company %} ({{ rdoc.company.short_name }}){% endif %}{% if rdoc.status_rel_doc %} - <span style="color: {{ rdoc.status_rel_doc.color }}">{{ rdoc.status_rel_doc }}</span>{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">
+                            {% trans "Use documents from Related Documents register" %}
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "External Link" %}</label>
+                        <input type="url" name="external_link" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Text Evidence" %}</label>
+                        <textarea name="text_evidence" class="form-control" rows="4"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-upload"></i> {% trans "Upload" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Evidence Modal -->
+<div class="modal fade" id="editEvidenceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" id="editEvidenceForm" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Edit Evidence" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Title" %}</label>
+                        <input type="text" name="title" id="edit_title" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Evidence Type" %}</label>
+                        <select name="evidence_type" id="edit_evidence_type" class="form-control">
+                            <option value="">{% trans "Select Evidence Type" %}</option>
+                            {% for evidence_type in evidence_types %}
+                            <option value="{{ evidence_type.id }}">{{ evidence_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" id="edit_description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-tasks"></i> {% trans "Link to Mandatory Process" %}
+                        </label>
+                        <select name="mandatory_process_id" class="form-control" id="editLocalMandatoryProcessSelect">
+                            <option value="">{% trans "-- None --" %}</option>
+                            {% for process in mandatory_processes %}
+                            <option value="{{ process.id }}" 
+                                    data-description="{{ process.description|truncatewords:20 }}"
+                                    data-company="{{ process.company|default:'' }}"
+                                    data-frequency="{{ process.get_frequency_display }}"
+                                    data-priority="{{ process.get_priority_display }}">
+                                {{ process.process_name }}
+                                {% if process.company %} ({{ process.company.short_name }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted" id="editLocalProcessDescription"></small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Current File" %}</label>
+                        <div id="edit_current_file" class="text-muted">—</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Upload New File (optional)" %}</label>
+                        <input type="file" name="file" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "External Link" %}</label>
+                        <input type="url" name="external_link" id="edit_external_link" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Text Evidence" %}</label>
+                        <textarea name="text_evidence" id="edit_text_evidence" class="form-control" rows="4"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-warning"><i class="fas fa-save"></i> {% trans "Save" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Assign User Modal -->
+<div class="modal fade" id="assignUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:local_control_assign' control.id %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Assign User" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "User" %}</label>
+                        <select name="user_id" id="localAssignUserSelect" class="form-control" required>
+                            <option value="">{% trans "Select user" %}</option>
+                            {% for user in users %}
+                            <option value="{{ user.id }}" data-email="{{ user.email|default:'' }}" data-full-name="{{ user.full_name|default:'' }}" data-position="{{ user.position|default:'' }}" data-department="{{ user.department|default:'' }}">
+                                {% if user.full_name %}{{ user.full_name }}{% endif %}{% if user.position or user.department %} | {% endif %}{% if user.position %}{{ user.position }}{% else %}-{% endif %} ({% if user.department %}{{ user.department }}{% else %}-{% endif %})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Assignment Type" %}</label>
+                        <select name="assignment_type" class="form-control">
+                            {% for value,label in LocalControlAssignment.CONTROL_ASSIGNMENT_CHOICES %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Notes" %}</label>
+                        <textarea name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i> {% trans "Assign" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Note Modal -->
+<div class="modal fade" id="addNoteModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:local_control_note_create' control.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Add Note" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Note" %} *</label>
+                        <textarea name="note" class="form-control" rows="5" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Attachments" %}</label>
+                        <input type="file" name="attachments" class="form-control" multiple>
+                        <small class="form-text text-muted">
+                            {% trans "You can select multiple files" %}
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i> {% trans "Add Note" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Set Responsible Modal -->
+<div class="modal fade" id="setResponsibleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:local_control_set_responsible' control.id %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Set Responsible" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Responsible User" %}</label>
+                        <select name="responsible_id" id="localSetResponsibleSelect" class="form-control">
+                            <option value="">{% trans "Not assigned" %}</option>
+                            {% for user in users %}
+                            <option value="{{ user.id }}" data-email="{{ user.email|default:'' }}" data-full-name="{{ user.full_name|default:'' }}" data-position="{{ user.position|default:'' }}" data-department="{{ user.department|default:'' }}" {% if control.responsible and control.responsible.id == user.id %}selected{% endif %}>
+                                {% if user.full_name %}{{ user.full_name }}{% endif %}{% if user.position or user.department %} | {% endif %}{% if user.position %}{{ user.position }}{% else %}-{% endif %} ({% if user.department %}{{ user.department }}{% else %}-{% endif %})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">{% trans "Select the person responsible for this control" %}</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {% trans "Save" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Mapping Modal -->
+<div class="modal fade" id="addMappingModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:local_control_mapping_create' %}">
+                {% csrf_token %}
+                <input type="hidden" name="local_control_id" value="{{ control.id }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Create Mapping" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    {% if internal_controls_for_mapping %}
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Target Internal Control" %}</label>
+                        <select name="target_internal_control_id" class="form-control">
+                            <option value="">{% trans "Select internal control" %}</option>
+                            {% for ic in internal_controls_for_mapping %}
+                            <option value="{{ ic.id }}">{{ ic.code }} - {{ ic.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "OR Target Local Control" %}</label>
+                        <select name="target_local_control_id" class="form-control">
+                            <option value="">{% trans "Select local control" %}</option>
+                            {% for item in local_controls_for_mapping %}
+                            <option value="{{ item.id }}">{{ item.code }} - {{ item.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "OR Target Framework Control" %}</label>
+                        <select name="target_framework_control_id" class="form-control">
+                            <option value="">{% trans "Select framework control" %}</option>
+                            {% for item in framework_controls %}
+                            <option value="{{ item.id }}">{{ item.category.framework.name }} - {{ item.code }} - {{ item.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if control.company %}
+                        <small class="form-text text-muted">{% trans "Framework controls for" %} {{ control.company.name }}</small>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Mapping Type" %}</label>
+                        <select name="mapping_type" class="form-control">
+                            {% for value,label in LocalControlMapping.MAPPING_TYPE_CHOICES %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Notes" %}</label>
+                        <textarea name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-info"><i class="fas fa-project-diagram"></i> {% trans "Create Mapping" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Control Modal -->
+<div class="modal fade" id="editControlModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:local_control_update' control.id %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Edit Control" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Code" %}</label>
+                        <input type="text" name="code" class="form-control" value="{{ control.code }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Name" %}</label>
+                        <input type="text" name="name" class="form-control" value="{{ control.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control" rows="3">{{ control.description }}</textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">{% trans "Priority" %}</label>
+                            <select name="priority" class="form-control">
+                                {% for value,label in Control.PRIORITY_CHOICES %}
+                                <option value="{{ value }}" {% if control.priority == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">{% trans "Target Date" %}</label>
+                            <input type="date" name="target_completion_date" class="form-control" value="{{ control.target_completion_date|date:'Y-m-d' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">{% trans "Actual Date" %}</label>
+                            <input type="date" name="actual_completion_date" class="form-control" value="{{ control.actual_completion_date|date:'Y-m-d' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Required Evidence Count" %}</label>
+                        <input type="number" min="0" name="required_evidence_count" class="form-control" value="{{ control.required_evidence_count }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Implementation Notes" %}</label>
+                        <textarea name="implementation_notes" class="form-control" rows="3">{{ control.implementation_notes }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Evidence Notes" %}</label>
+                        <textarea name="evidence_notes" class="form-control" rows="3">{{ control.evidence_notes }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-warning"><i class="fas fa-save"></i> {% trans "Save Changes" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+

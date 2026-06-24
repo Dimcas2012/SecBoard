@@ -1,0 +1,276 @@
+﻿{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Data Subjects" %}{% endblock %}
+
+{% block gdpr_content %}
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2 class="mb-0"><i class="fas fa-users me-2"></i>{% trans "Data Subjects" %}</h2>
+        <p class="text-muted mb-0">{% trans "Registry of individuals whose personal data is being processed" %}</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="sb-toolbar d-flex flex-wrap gap-1 justify-content-end">
+            <a href="{% url 'app_gdpr:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-tachometer-alt me-1"></i>{% trans "Dashboard" %}
+            </a>
+            {% if can_edit_data_subjects %}
+            <a href="{% url 'app_gdpr:data_subject_create' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-plus me-1"></i>{% trans "Add New" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% url 'app_gdpr:data_subject_list' as data_subject_list_clear_url %}
+{% filters_expanded 'search' 'company' 'consent_status' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="dataSubjectFiltersCollapse" toggle_id="toggleDataSubjectFilters" icon_id="dataSubjectFiltersToggleIcon" filter_clear_url=data_subject_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="dataSubjectFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" id="filterForm" class="row g-1 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" name="search" id="filterSearch" class="form-control form-control-sm"
+                       placeholder="{% trans 'Search by name, email...' %}" value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                <select name="company" id="filterCompany" class="form-select form-select-sm">
+                    <option value="">{% trans "All Companies" %}</option>
+                    {% for company in accessible_companies %}
+                    <option value="{{ company.id }}" {% if request.GET.company == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filterConsentStatus">{% trans "Consent Status" %}</label>
+                <select name="consent_status" id="filterConsentStatus" class="form-select form-select-sm">
+                    <option value="">{% trans "All Statuses" %}</option>
+                    <option value="given" {% if request.GET.consent_status == 'given' %}selected{% endif %}>{% trans "Given" %}</option>
+                    <option value="withdrawn" {% if request.GET.consent_status == 'withdrawn' %}selected{% endif %}>{% trans "Withdrawn" %}</option>
+                    <option value="expired" {% if request.GET.consent_status == 'expired' %}selected{% endif %}>{% trans "Expired" %}</option>
+                    <option value="pending" {% if request.GET.consent_status == 'pending' %}selected{% endif %}>{% trans "Pending" %}</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterSort">{% trans "Sort By" %}</label>
+                <select name="sort" id="filterSort" class="form-select form-select-sm">
+                    <option value="-created_date" {% if request.GET.sort == '-created_date' or not request.GET.sort %}selected{% endif %}>{% trans "Newest First" %}</option>
+                    <option value="created_date" {% if request.GET.sort == 'created_date' %}selected{% endif %}>{% trans "Oldest First" %}</option>
+                    <option value="last_name" {% if request.GET.sort == 'last_name' %}selected{% endif %}>{% trans "Name (A-Z)" %}</option>
+                    <option value="-last_name" {% if request.GET.sort == '-last_name' %}selected{% endif %}>{% trans "Name (Z-A)" %}</option>
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+    <!-- Data Subjects Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "Data Subjects" %} ({{ page_obj.paginator.count }})</h4>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "ID" %}</th>
+                            <th>{% trans "Email" %}</th>
+                            <th>{% trans "Name" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "Phone" %}</th>
+                            <th>{% trans "Consent Status" %}</th>
+                            <th>{% trans "Last Activity" %}</th>
+                            <th>{% trans "Created" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for subject in data_subjects %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-light text-dark border">{{ subject.id }}</span>
+                            </td>
+                            <td>
+                                <i class="fas fa-envelope text-primary me-1"></i>
+                                {{ subject.email }}
+                            </td>
+                            <td>
+                                <strong>{{ subject.first_name }} {{ subject.last_name }}</strong>
+                                {% if subject.is_anonymized %}
+                                    <span class="badge bg-secondary ms-1">
+                                        <i class="fas fa-user-secret"></i> {% trans "Anonymized" %}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if subject.company %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-building"></i> {{ subject.company.name }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if subject.phone %}
+                                    <i class="fas fa-phone text-success me-1"></i>{{ subject.phone }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if subject.consent_status == 'given' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> {{ subject.get_consent_status_display }}
+                                    </span>
+                                {% elif subject.consent_status == 'withdrawn' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-times-circle"></i> {{ subject.get_consent_status_display }}
+                                    </span>
+                                {% elif subject.consent_status == 'expired' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock"></i> {{ subject.get_consent_status_display }}
+                                    </span>
+                                {% elif subject.consent_status == 'pending' %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-hourglass-half"></i> {{ subject.get_consent_status_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ subject.get_consent_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    {{ subject.last_activity_date|date:"d.m.Y H:i" }}
+                                </small>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ subject.created_date|date:"d.m.Y" }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'app_gdpr:data_subject_detail' subject.pk %}" 
+                                       class="btn btn-sm btn-info" 
+                                       title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_edit_data_subjects %}
+                                    <a href="{% url 'app_gdpr:data_subject_update' subject.pk %}" 
+                                       class="btn btn-sm btn-warning"
+                                       title="{% trans 'Edit' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'app_gdpr:data_subject_export' subject.pk %}" 
+                                       class="btn btn-sm btn-success"
+                                       title="{% trans 'Export Data' %}">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    {% if not subject.is_anonymized %}
+                                    <a href="{% url 'app_gdpr:data_subject_anonymize' subject.pk %}" 
+                                       class="btn btn-sm btn-secondary"
+                                       title="{% trans 'Anonymize' %}">
+                                        <i class="fas fa-user-secret"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                {% trans "No data subjects found" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% include 'app_gdpr/includes/gdpr_table_pagination.html' with pagination_item_label=_("subjects") pagination_aria_label=_("Data subjects pagination") %}
+        </div>
+    </div>
+    
+    <!-- About Data Subjects (collapsible) -->
+    <div class="card mt-4">
+        <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#aboutDataSubjects">
+            <h4 class="mb-0">
+                <i class="fas fa-info-circle text-primary"></i> 
+                {% trans "About Data Subjects" %}
+                <i class="fas fa-chevron-down float-end"></i>
+            </h4>
+        </div>
+        <div id="aboutDataSubjects" class="collapse">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <h5 class="text-primary mb-3" style="font-size: 0.9rem;">
+                            <i class="fas fa-user-shield"></i> 
+                            {% trans "What are Data Subjects?" %}
+                        </h5>
+                        <p class="mb-4" style="font-size: 0.75rem;">
+                            {% trans "Data Subjects are individuals whose personal data is being processed by your organization. Under GDPR, a data subject is any natural person who can be identified, directly or indirectly, by reference to an identifier such as a name, identification number, location data, online identifier, or by reference to one or more factors specific to the physical, physiological, genetic, mental, economic, cultural, or social identity of that natural person." %}
+                        </p>
+                        
+                        <h5 class="text-success mb-3" style="font-size: 0.9rem;">
+                            <i class="fas fa-shield-alt"></i> 
+                            {% trans "Data Subject Rights under GDPR" %}
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item d-flex align-items-center" style="font-size: 0.7rem;">
+                                        <i class="fas fa-eye text-info me-2"></i>
+                                        <strong>{% trans "Right to Access" %}</strong> - {% trans "Individuals can request information about their personal data" %}
+                                    </li>
+                                    <li class="list-group-item d-flex align-items-center" style="font-size: 0.7rem;">
+                                        <i class="fas fa-edit text-warning me-2"></i>
+                                        <strong>{% trans "Right to Rectification" %}</strong> - {% trans "Individuals can request correction of inaccurate data" %}
+                                    </li>
+                                    <li class="list-group-item d-flex align-items-center" style="font-size: 0.7rem;">
+                                        <i class="fas fa-trash text-danger me-2"></i>
+                                        <strong>{% trans "Right to Erasure" %}</strong> - {% trans "Individuals can request deletion of their data" %}
+                                    </li>
+                                    <li class="list-group-item d-flex align-items-center" style="font-size: 0.7rem;">
+                                        <i class="fas fa-ban text-secondary me-2"></i>
+                                        <strong>{% trans "Right to Restriction" %}</strong> - {% trans "Individuals can request limitation of processing" %}
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item d-flex align-items-center" style="font-size: 0.7rem;">
+                                        <i class="fas fa-download text-primary me-2"></i>
+                                        <strong>{% trans "Right to Portability" %}</strong> - {% trans "Individuals can request data in a portable format" %}
+                                    </li>
+                                    <li class="list-group-item d-flex align-items-center" style="font-size: 0.7rem;">
+                                        <i class="fas fa-times text-danger me-2"></i>
+                                        <strong>{% trans "Right to Object" %}</strong> - {% trans "Individuals can object to processing" %}
+                                    </li>
+                                    <li class="list-group-item d-flex align-items-center" style="font-size: 0.7rem;">
+                                        <i class="fas fa-robot text-info me-2"></i>
+                                        <strong>{% trans "Automated Decision Rights" %}</strong> - {% trans "Rights related to automated decision making" %}
+                                    </li>
+                                    <li class="list-group-item d-flex align-items-center" style="font-size: 0.7rem;">
+                                        <i class="fas fa-handshake text-success me-2"></i>
+                                        <strong>{% trans "Consent Withdrawal" %}</strong> - {% trans "Individuals can withdraw consent at any time" %}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

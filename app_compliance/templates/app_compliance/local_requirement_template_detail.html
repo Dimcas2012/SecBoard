@@ -1,0 +1,929 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ requirement.code }} - {% trans "Local Requirement Template" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <style>
+        .control-table th,
+        .control-table td {
+            font-size: 0.95rem;
+        }
+
+        .control-note-text {
+            font-size: 0.75em;
+            line-height: 1.35;
+        }
+
+        /* Sidebar nav links */
+        .sidebar-link {
+            padding: 6px 8px;
+            border-radius: 4px;
+            color: #495057;
+            text-decoration: none;
+            font-size: 0.75rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .sidebar-link:hover {
+            background-color: #e9ecef;
+            color: #0d6efd;
+        }
+        .sidebar-link.active {
+            background-color: #0d6efd;
+            color: #fff;
+        }
+        .sidebar-link.active .badge {
+            background-color: rgba(255,255,255,0.3) !important;
+        }
+    </style>
+
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>
+                <i class="fas fa-file-contract"></i> {{ requirement.code }}
+            </h1>
+            <h4 class="text-muted">{{ requirement.name }}</h4>
+            {% if requirement.name_local %}
+            <p class="text-muted">{{ requirement.name_local }}</p>
+            {% endif %}
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-toolbar justify-content-end flex-nowrap" role="toolbar" style="gap: 0.25rem;">
+                <a href="{% url 'compliance:local_requirements_library' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> {% trans "Back to Local Requirements" %}
+                </a>
+                {% if permissions.can_view_requirements %}
+                <a href="{% url 'compliance:local_requirement_template_export_excel' requirement.id %}" class="btn btn-sm btn-success">
+                    <i class="fas fa-file-excel"></i> {% trans "Export Excel" %}
+                </a>
+                {% endif %}
+                <a href="{% url 'compliance:control_mapping' %}" class="btn btn-sm btn-outline-info">
+                    <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#localComplianceGuideModal">
+                    <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Applied to Companies -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-building"></i> {% trans "Applied to Companies" %}
+                    </h5>
+                    {% if permissions.can_edit_requirements %}
+                    <small class="text-muted">{% trans "Select companies and mark mandatory status" %}</small>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if permissions.can_edit_requirements %}
+                    <form method="post" action="{% url 'compliance:local_requirement_template_apply' requirement.id %}">
+                        {% csrf_token %}
+                        {% if companies %}
+                        <div class="table-responsive full-width-table">
+                            <table class="table table-hover table-sm table-sm-font sb-data-table align-middle mb-3">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 60px;">{% trans "Apply" %}</th>
+                                        <th>{% trans "Company" %}</th>
+                                        <th style="width: 140px;">{% trans "Mandatory" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for company in companies %}
+                                    <tr>
+                                        <td>
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="companies"
+                                                   value="{{ company.id }}"
+                                                   id="company_{{ company.id }}"
+                                                   {% if company.id in applied_companies %}checked{% endif %}>
+                                        </td>
+                                        <td>
+                                            <label class="mb-0" for="company_{{ company.id }}">
+                                                <strong>{{ company.name }}</strong>
+                                                {% if company.id in applied_companies %}
+                                                <span class="badge bg-success ms-2">
+                                                    <i class="fas fa-check"></i> {% trans "Applied" %}
+                                                </span>
+                                                {% endif %}
+                                            </label>
+                                        </td>
+                                        <td>
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="mandatory_{{ company.id }}"
+                                                       value="1"
+                                                       id="mandatory_{{ company.id }}"
+                                                       {% if company.id in applied_companies_mandatory %}checked{% endif %}>
+                                                <label class="form-check-label" for="mandatory_{{ company.id }}">
+                                                    <span class="badge bg-danger">
+                                                        <i class="fas fa-exclamation-circle"></i> {% trans "Mandatory" %}
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex justify-content-between flex-wrap">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "Uncheck company to remove the applied requirement." %}
+                            </small>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> {% trans "Save Changes" %}
+                            </button>
+                        </div>
+                        {% else %}
+                        <p class="text-muted mb-0">{% trans "You do not have any accessible companies to manage." %}</p>
+                        {% endif %}
+                    </form>
+                    {% else %}
+                    <p class="text-muted mb-0">{% trans "You do not have permission to manage company applications." %}</p>
+                    {% endif %}
+
+                    <hr class="my-4">
+                    <h6 class="mb-3">{% trans "Currently Applied" %}</h6>
+                    {% with applied_list=instances %}
+                    {% if applied_list %}
+                    <div class="d-flex flex-wrap" style="gap: .5rem;">
+                        {% for instance in applied_list %}
+                            {% if instance.company %}
+                            <span class="badge bg-light text-dark border">
+                                <i class="fas fa-building text-primary"></i> {{ instance.company.name }}
+                                {% if instance.is_mandatory %}
+                                <span class="badge bg-danger ms-2">{% trans "Mandatory" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary ms-2">{% trans "Optional" %}</span>
+                                {% endif %}
+                            </span>
+                            {% endif %}
+                        {% empty %}
+                        <span class="text-muted">{% trans "No companies have this requirement yet." %}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">{% trans "No companies have this requirement yet." %}</p>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "Regulator" %}</h6>
+                    <p class="mb-0">
+                        <i class="fas fa-landmark text-primary"></i> 
+                        <strong>{{ requirement.regulator.acronym|default:requirement.regulator.name }}</strong>
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "Type" %}</h6>
+                    <p class="mb-0">
+                        <span class="badge bg-info">{{ localized_requirement_type }}</span>
+                    </p>
+                    <hr>
+                    <div>
+                        <h6 class="text-muted mb-2">{% trans "Company Types" %}</h6>
+                        {% if company_type_labels %}
+                            {% for ct in company_type_labels %}
+                            <span class="badge" style="background-color: {{ ct.color }}; color: #fff;">{{ ct.label }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "Status" %}</h6>
+                    <p class="mb-0">
+                        <span class="badge {% if requirement.status == 'active' %}bg-success{% elif requirement.status == 'draft' %}bg-warning{% else %}bg-secondary{% endif %}">
+                            {{ requirement.get_status_display }}
+                        </span>
+                        {% if requirement.is_mandatory %}
+                        <span class="badge bg-danger ms-1">{% trans "Mandatory" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "Controls & Categories" %}</h6>
+                    <p class="mb-1">
+                        <i class="fas fa-layer-group text-primary"></i>
+                        <strong>{{ categories|length }}</strong> {% trans "categories" %}
+                    </p>
+                    <p class="mb-0">
+                        <i class="fas fa-tasks text-success"></i>
+                        <strong>{{ controls.count }}</strong> {% trans "controls" %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Description & Dates -->
+    {% if requirement.description or requirement.effective_date or requirement.deadline_date %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    {% if requirement.description %}
+                    <h6><i class="fas fa-align-left"></i> {% trans "Description" %}</h6>
+                    <p>{{ requirement.description }}</p>
+                    {% endif %}
+                    
+                    {% if requirement.effective_date or requirement.deadline_date %}
+                    <hr>
+                    <div class="row">
+                        {% if requirement.publication_date %}
+                        <div class="col-md-4">
+                            <strong>{% trans "Publication Date" %}:</strong> {{ requirement.publication_date|date:"d.m.Y" }}
+                        </div>
+                        {% endif %}
+                        {% if requirement.effective_date %}
+                        <div class="col-md-4">
+                            <strong>{% trans "Effective Date" %}:</strong> {{ requirement.effective_date|date:"d.m.Y" }}
+                        </div>
+                        {% endif %}
+                        {% if requirement.deadline_date %}
+                        <div class="col-md-4">
+                            <strong class="text-danger">{% trans "Deadline" %}:</strong> 
+                            <span class="text-danger">{{ requirement.deadline_date|date:"d.m.Y" }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    {% if requirement.official_link %}
+                    <hr>
+                    <p>
+                        <i class="fas fa-external-link-alt"></i> 
+                        <a href="{{ requirement.official_link }}" target="_blank">{% trans "Official Document" %}</a>
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Controls: CSS Grid Layout (sidebar + content) -->
+    <div class="requirement-container" style="display: grid !important; grid-template-columns: 250px 1fr !important; grid-gap: 20px !important; height: 80vh !important; width: 100% !important;">
+
+        <!-- Sidebar: Category Navigation -->
+        <div class="requirements-sidebar" style="grid-column: 1 !important; width: 250px !important; height: 80vh !important; overflow-y: scroll !important; overflow-x: hidden !important; background: #f8f9fa !important; border-radius: 8px !important; padding: 15px !important; border: 1px solid #dee2e6 !important; position: relative !important;">
+            <h5><i class="fas fa-list"></i> {% trans "Requirements" %}</h5>
+            {% if permissions.can_add_controls %}
+            <div class="mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                    <i class="fas fa-layer-group"></i> {% trans "Add Category" %}
+                </button>
+            </div>
+            {% endif %}
+            <nav class="nav flex-column">
+                {% for category in categories %}
+                <a class="nav-link sidebar-link" href="#category_{{ category.id }}" title="{{ category.description|default:category.name }}">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div style="flex: 1; min-width: 0;">
+                            <div>
+                                <i class="fas fa-folder"></i>
+                                <strong>{{ category.code }}</strong>
+                            </div>
+                            <div style="font-size: 0.65rem; color: #6c757d; margin-top: 2px; line-height: 1.2; white-space: normal;">
+                                {{ category.name|truncatewords:8 }}
+                            </div>
+                        </div>
+                        <span class="badge bg-secondary" style="font-size: 0.55rem; margin-left: 5px;">{{ category.template_controls|length }}</span>
+                    </div>
+                </a>
+                {% empty %}
+                <div class="text-muted text-center py-3" style="font-size: 0.75rem;">
+                    <i class="fas fa-layer-group"></i> {% trans "No categories yet" %}
+                </div>
+                {% endfor %}
+                {% if uncategorized_controls %}
+                <a class="nav-link sidebar-link" href="#uncategorized-controls">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div style="flex: 1; min-width: 0;">
+                            <div>
+                                <i class="fas fa-folder-open"></i>
+                                <strong>—</strong>
+                            </div>
+                            <div style="font-size: 0.65rem; color: #6c757d; margin-top: 2px; line-height: 1.2; white-space: normal;">
+                                {% trans "Uncategorized" %}
+                            </div>
+                        </div>
+                        <span class="badge bg-secondary" style="font-size: 0.55rem; margin-left: 5px;">{{ uncategorized_controls|length }}</span>
+                    </div>
+                </a>
+                {% endif %}
+            </nav>
+        </div>
+
+        <!-- Content Area: Categories and Controls -->
+        <div class="content-area-scroll" style="grid-column: 2 !important; width: 100% !important; height: 80vh !important; overflow-y: scroll !important; overflow-x: hidden !important; padding-right: 10px !important; position: relative !important;">
+            {% if categories|length or uncategorized_controls %}
+                            {% for category in categories %}
+                            <div id="category_{{ category.id }}" class="card mb-4 shadow-sm category-section">
+                                <div class="card-header d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="fw-bold">{{ category.name }}</div>
+                                        <small class="text-muted">{{ category.code }}</small>
+                                        {% if category.description %}
+                                        <div class="text-muted small">{{ category.description }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-flex align-items-center" style="gap: .5rem;">
+                                        <span class="badge bg-primary"><i class="fas fa-tasks"></i> {{ category.template_controls|length }}</span>
+                                        {% if permissions.can_add_controls %}
+                                        <button type="button" class="btn btn-sm btn-primary add-control-btn"
+                                                data-category-id="{{ category.id }}"
+                                                data-category-name="{{ category.name|escapejs }}"
+                                                data-bs-toggle="modal" data-bs-target="#addControlModal"
+                                                title="{% trans 'Add Control' %}">
+                                            <i class="fas fa-plus"></i> {% trans "Add Control" %}
+                                        </button>
+                                        {% endif %}
+                                        {% if permissions.can_edit_controls %}
+                                        <button type="button" class="btn btn-sm btn-outline-warning" 
+                                                onclick="openEditCategoryModal({{ category.id }}, '{{ category.code|escapejs }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', {{ category.order }});"
+                                                title="{% trans 'Edit category' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if permissions.can_delete_controls %}
+                                        <form method="post" action="{% url 'compliance:local_requirement_category_delete' category.id %}" 
+                                              onsubmit="return confirm('{% trans "Delete this category? Controls will become uncategorized." %}');"
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="{% trans 'Delete category' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    {% if category.template_controls %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0 control-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% trans "Code" %}</th>
+                                                    <th>{% trans "Name" %}</th>
+                                                    <th>{% trans "Priority" %}</th>
+                                                    <th>{% trans "Target Date" %}</th>
+                                                    <th>{% trans "Implementation Notes" %}</th>
+                                                    <th>{% trans "Evidence Notes" %}</th>
+                                                    <th>{% trans "Description" %}</th>
+                                                    {% if permissions.can_edit_controls or permissions.can_delete_controls %}
+                                                    <th width="90">{% trans "Actions" %}</th>
+                                                    {% endif %}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for control in category.template_controls %}
+                                                <tr>
+                                                    <td><strong>{{ control.code }}</strong></td>
+                                                    <td>{{ control.name }}</td>
+                                                    <td>
+                                                        {% if control.priority == 'critical' %}
+                                                        <span class="badge bg-danger">{{ control.get_priority_display }}</span>
+                                                        {% elif control.priority == 'high' %}
+                                                        <span class="badge bg-warning text-dark">{{ control.get_priority_display }}</span>
+                                                        {% elif control.priority == 'medium' %}
+                                                        <span class="badge bg-info text-white">{{ control.get_priority_display }}</span>
+                                                        {% else %}
+                                                        <span class="badge bg-secondary">{{ control.get_priority_display }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.target_completion_date %}
+                                                        <span><i class="fas fa-calendar-alt me-1"></i>{{ control.target_completion_date|date:"d.m.Y" }}</span>
+                                                        {% else %}
+                                                        <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.implementation_notes %}
+                                                        <div class="control-note-text text-muted">
+                                                            {{ control.implementation_notes|linebreaksbr }}
+                                                        </div>
+                                                        {% else %}
+                                                        <span class="text-muted control-note-text">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.evidence_notes %}
+                                                        <div class="control-note-text text-muted">
+                                                            {{ control.evidence_notes|linebreaksbr }}
+                                                        </div>
+                                                        {% else %}
+                                                        <span class="text-muted control-note-text">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ control.description|default:'—'|truncatewords:12 }}</td>
+                                                    {% if permissions.can_edit_controls or permissions.can_delete_controls %}
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            {% if permissions.can_edit_controls %}
+                                                            <button type="button" class="btn btn-outline-warning" 
+                                                                    onclick="openEditControlModal({{ control.id }}, '{{ control.code|escapejs }}', '{{ control.name|escapejs }}', '{{ control.description|escapejs }}', '{{ control.priority }}', '{{ control.category.id|default:"" }}', '{{ control.target_completion_date|date:"Y-m-d"|default:"" }}', '{{ control.implementation_notes|escapejs }}', '{{ control.evidence_notes|escapejs }}');"
+                                                                    title="{% trans 'Edit control' %}">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                            {% endif %}
+                                                            {% if permissions.can_delete_controls %}
+                                                            <form method="post" action="{% url 'compliance:local_requirement_control_delete' control.id %}" 
+                                                                  onsubmit="return confirm('{% trans "Delete this control?" %}');"
+                                                                  style="display: inline;">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-outline-danger" title="{% trans 'Delete control' %}">
+                                                                    <i class="fas fa-trash"></i>
+                                                                </button>
+                                                            </form>
+                                                            {% endif %}
+                                                        </div>
+                                                    </td>
+                                                    {% endif %}
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% else %}
+                                    <p class="text-muted mb-0">{% trans "No controls in this category yet." %}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+
+                            {% if uncategorized_controls %}
+                            <div id="uncategorized-controls" class="card border border-dashed">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-bold">{% trans "Uncategorized Controls" %}</div>
+                                        <small class="text-muted">{% trans "Controls without assigned category" %}</small>
+                                    </div>
+                                    <span class="badge bg-secondary"><i class="fas fa-tasks"></i> {{ uncategorized_controls|length }}</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0 control-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% trans "Code" %}</th>
+                                                    <th>{% trans "Name" %}</th>
+                                                    <th>{% trans "Priority" %}</th>
+                                                    <th>{% trans "Target Date" %}</th>
+                                                    <th>{% trans "Implementation Notes" %}</th>
+                                                    <th>{% trans "Evidence Notes" %}</th>
+                                                    <th>{% trans "Description" %}</th>
+                                                    {% if permissions.can_edit_controls or permissions.can_delete_controls %}
+                                                    <th width="90">{% trans "Actions" %}</th>
+                                                    {% endif %}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for control in uncategorized_controls %}
+                                                <tr>
+                                                    <td><strong>{{ control.code }}</strong></td>
+                                                    <td>{{ control.name }}</td>
+                                                    <td>
+                                                        {% if control.priority == 'critical' %}
+                                                        <span class="badge bg-danger">{{ control.get_priority_display }}</span>
+                                                        {% elif control.priority == 'high' %}
+                                                        <span class="badge bg-warning text-dark">{{ control.get_priority_display }}</span>
+                                                        {% elif control.priority == 'medium' %}
+                                                        <span class="badge bg-info text-white">{{ control.get_priority_display }}</span>
+                                                        {% else %}
+                                                        <span class="badge bg-secondary">{{ control.get_priority_display }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.target_completion_date %}
+                                                        <span><i class="fas fa-calendar-alt me-1"></i>{{ control.target_completion_date|date:"d.m.Y" }}</span>
+                                                        {% else %}
+                                                        <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.implementation_notes %}
+                                                        <div class="control-note-text text-muted">
+                                                            {{ control.implementation_notes|linebreaksbr }}
+                                                        </div>
+                                                        {% else %}
+                                                        <span class="text-muted control-note-text">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.evidence_notes %}
+                                                        <div class="control-note-text text-muted">
+                                                            {{ control.evidence_notes|linebreaksbr }}
+                                                        </div>
+                                                        {% else %}
+                                                        <span class="text-muted control-note-text">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ control.description|default:'—'|truncatewords:12 }}</td>
+                                                    {% if permissions.can_edit_controls or permissions.can_delete_controls %}
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            {% if permissions.can_edit_controls %}
+                                                            <button type="button" class="btn btn-outline-warning" 
+                                                                    onclick="openEditControlModal({{ control.id }}, '{{ control.code|escapejs }}', '{{ control.name|escapejs }}', '{{ control.description|escapejs }}', '{{ control.priority }}', '{{ control.category.id|default:"" }}', '{{ control.target_completion_date|date:"Y-m-d"|default:"" }}', '{{ control.implementation_notes|escapejs }}', '{{ control.evidence_notes|escapejs }}');"
+                                                                    title="{% trans 'Edit control' %}">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                            {% endif %}
+                                                            {% if permissions.can_delete_controls %}
+                                                            <form method="post" action="{% url 'compliance:local_requirement_control_delete' control.id %}" 
+                                                                  onsubmit="return confirm('{% trans "Delete this control?" %}');"
+                                                                  style="display: inline;">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-outline-danger" title="{% trans 'Delete control' %}">
+                                                                    <i class="fas fa-trash"></i>
+                                                                </button>
+                                                            </form>
+                                                            {% endif %}
+                                                        </div>
+                                                    </td>
+                                                    {% endif %}
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">{% trans "No controls added yet" %}</p>
+                {% if permissions.can_add_controls %}
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addControlModal">
+                    <i class="fas fa-plus"></i> {% trans "Add First Control" %}
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div><!-- end content-area-scroll -->
+
+    </div><!-- end requirement-container -->
+
+</div>
+
+<div class="modal fade" id="localComplianceGuideModal" tabindex="-1" aria-labelledby="localComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:local_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="localComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Local Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="localComplianceGuideModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-layer-group"></i> {% trans "Add Category" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'compliance:local_requirement_category_create' requirement.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category Code" %} *</label>
+                        <input type="text" name="code" class="form-control" required placeholder="{% trans 'e.g., CAT-1' %}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category Name" %} *</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Display Order" %}</label>
+                        <input type="number" name="order" class="form-control" value="0">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-save"></i> {% trans "Add Category" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Control Modal -->
+<div class="modal fade" id="addControlModal" tabindex="-1" aria-labelledby="addControlModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" id="addControlForm" action="{% url 'compliance:local_requirement_control_create' requirement.id %}">
+                {% csrf_token %}
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="addControlModalLabel">
+                        <i class="fas fa-plus"></i> {% trans "Add Control" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-1 mb-3" id="addControlCategoryInfo" style="font-size: 0.8rem; display:none;"></div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Code" %} *</label>
+                            <input type="text" name="code" class="form-control form-control-sm" required
+                                   placeholder="{% trans 'e.g., LC-001' %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Category" %}</label>
+                            <select name="category" id="addControlCategorySelect" class="form-control form-control-sm">
+                                <option value="">{% trans "No Category" %}</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Priority" %}</label>
+                            <select name="priority" class="form-control form-control-sm">
+                                <option value="low">{% trans "Low" %}</option>
+                                <option value="medium" selected>{% trans "Medium" %}</option>
+                                <option value="high">{% trans "High" %}</option>
+                                <option value="critical">{% trans "Critical" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">{% trans "Name" %} *</label>
+                        <input type="text" name="name" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control form-control-sm" rows="3"></textarea>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Required Evidence" %}</label>
+                            <input type="number" name="required_evidence_count" class="form-control form-control-sm" value="1" min="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Target Date" %}</label>
+                            <input type="date" name="target_completion_date" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">{% trans "Implementation Notes" %}</label>
+                        <textarea name="implementation_notes" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">{% trans "Evidence Notes" %}</label>
+                        <textarea name="evidence_notes" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> {% trans "Add Control" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> {% trans "Edit Category" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" id="editCategoryForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category Code" %} *</label>
+                        <input type="text" name="code" id="edit_category_code" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category Name" %} *</label>
+                        <input type="text" name="name" id="edit_category_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" id="edit_category_description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Display Order" %}</label>
+                        <input type="number" name="order" id="edit_category_order" class="form-control" value="0">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> {% trans "Update Category" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Control Modal -->
+<div class="modal fade" id="editControlModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> {% trans "Edit Control" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" id="editControlForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Control Code" %} *</label>
+                        <input type="text" name="code" id="edit_control_code" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Control Name" %} *</label>
+                        <input type="text" name="name" id="edit_control_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" id="edit_control_description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category" %}</label>
+                        <select name="category" id="edit_control_category" class="form-control">
+                            <option value="">{% trans "No Category" %}</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{% trans "Priority" %}</label>
+                            <select name="priority" id="edit_control_priority" class="form-control">
+                                <option value="low">{% trans "Low" %}</option>
+                                <option value="medium">{% trans "Medium" %}</option>
+                                <option value="high">{% trans "High" %}</option>
+                                <option value="critical">{% trans "Critical" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{% trans "Target Date" %}</label>
+                            <input type="date" name="target_completion_date" id="edit_control_target_date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Implementation Notes" %}</label>
+                        <textarea name="implementation_notes" id="edit_control_implementation_notes" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Evidence Notes" %}</label>
+                        <textarea name="evidence_notes" id="edit_control_evidence_notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> {% trans "Update Control" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Add Control Modal — per-category dynamic setup
+document.addEventListener('DOMContentLoaded', function () {
+    const addControlModal = document.getElementById('addControlModal');
+    if (!addControlModal) return;
+
+    addControlModal.addEventListener('show.bs.modal', function (event) {
+        const btn = event.relatedTarget;
+        const infoEl = document.getElementById('addControlCategoryInfo');
+        const categorySelect = document.getElementById('addControlCategorySelect');
+
+        if (btn && btn.classList.contains('add-control-btn')) {
+            const categoryId   = btn.dataset.categoryId;
+            const categoryName = btn.dataset.categoryName;
+
+            // Pre-select category
+            categorySelect.value = categoryId;
+
+            // Show info label
+            infoEl.textContent = '{% trans "Category" %}: ' + categoryName;
+            infoEl.style.display = '';
+        } else {
+            // Opened from top-level button — reset
+            categorySelect.value = '';
+            infoEl.style.display = 'none';
+        }
+
+        // Reset other fields
+        const form = document.getElementById('addControlForm');
+        form.querySelectorAll('input:not([name="csrfmiddlewaretoken"]), textarea').forEach(function (el) {
+            if (el.name === 'required_evidence_count') { el.value = '1'; }
+            else { el.value = ''; }
+        });
+        const prioritySel = form.querySelector('select[name="priority"]');
+        if (prioritySel) prioritySel.value = 'medium';
+    });
+});
+
+function openEditCategoryModal(categoryId, code, name, description, order) {
+    document.getElementById('edit_category_code').value = code || '';
+    document.getElementById('edit_category_name').value = name || '';
+    document.getElementById('edit_category_description').value = description || '';
+    document.getElementById('edit_category_order').value = order || 0;
+    document.getElementById('editCategoryForm').action = '{% url "compliance:local_requirement_category_update" 0 %}'.replace('0', categoryId);
+    
+    var modal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+    modal.show();
+}
+
+function openEditControlModal(controlId, code, name, description, priority, categoryId, targetDate, implementationNotes, evidenceNotes) {
+    document.getElementById('edit_control_code').value = code || '';
+    document.getElementById('edit_control_name').value = name || '';
+    document.getElementById('edit_control_description').value = description || '';
+    document.getElementById('edit_control_priority').value = priority || 'medium';
+    document.getElementById('edit_control_category').value = categoryId || '';
+    document.getElementById('edit_control_target_date').value = targetDate || '';
+    document.getElementById('edit_control_implementation_notes').value = implementationNotes || '';
+    document.getElementById('edit_control_evidence_notes').value = evidenceNotes || '';
+    document.getElementById('editControlForm').action = '{% url "compliance:local_requirement_control_update" 0 %}'.replace('0', controlId);
+    
+    var modal = new bootstrap.Modal(document.getElementById('editControlModal'));
+    modal.show();
+}
+
+document.getElementById('localComplianceGuideModal').addEventListener('show.bs.modal', function() {
+    var body = document.getElementById('localComplianceGuideModalBody');
+    var url = this.getAttribute('data-guide-url');
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+    fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+        })
+        .catch(function() {
+            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+        });
+});
+</script>
+{% endblock %}
+

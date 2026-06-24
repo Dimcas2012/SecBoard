@@ -1,0 +1,249 @@
+{% extends 'app_integration/integration.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Telegram bots" %}{% endblock %}
+
+{% block integration_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="bi bi-telegram me-2"></i>{% trans "Telegram bots" %}</h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                {% if can_manage_integrations %}
+                <div class="export-controls px-3 pt-2 pb-0">
+                    <div class="row align-items-center g-1">
+                        <div class="col-md-6"></div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group sb-toolbar" role="group">
+                                <a href="{% url 'app_integration:telegram_bot_create' %}"
+                                   class="btn btn-outline-success btn-sm btn-icon-action"
+                                   title="{% trans 'Add bot' %}">
+                                    <i class="bi bi-plus-circle"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font sb-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Username" %}</th>
+                                <th>{% trans "Company" %}</th>
+                                <th>{% trans "Status" %}</th>
+                                <th>{% trans "Connection" %}</th>
+                                <th>{% trans "Webhook" %}</th>
+                                <th>{% trans "Updated" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bot in bots %}
+                            <tr>
+                                <td>{{ bot.name }}</td>
+                                <td>{{ bot.display_username }}</td>
+                                <td>{{ bot.company.name }}</td>
+                                <td>
+                                    {% if bot.is_active %}
+                                    <span class="status-badge status-active">{% trans "Active" %}</span>
+                                    {% else %}
+                                    <span class="status-badge status-inactive">{% trans "Inactive" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td id="connection-{{ bot.pk }}">
+                                    {% if bot.last_connection_ok %}
+                                    <span class="status-badge status-success"><i class="bi bi-check-circle"></i> {% trans "OK" %}</span>
+                                    {% else %}
+                                    <span class="status-badge status-error"><i class="bi bi-x-circle"></i> {% trans "Failed" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if bot.use_webhook %}
+                                    <span class="badge bg-info text-dark">{% trans "Webhook" %}</span>
+                                    {% else %}
+                                    <span class="text-muted">{% trans "Polling" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ bot.updated_at|date:"d.m.Y H:i" }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        {% if can_manage_integrations %}
+                                        <a href="{% url 'app_integration:telegram_bot_edit' bot.pk %}"
+                                           class="btn btn-outline-primary btn-sm btn-icon-action"
+                                           title="{% trans 'Edit' %}">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if can_test_connections %}
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-sm btn-icon-action test-connection-btn"
+                                                data-url="{% url 'app_integration:telegram_bot_test_connection' bot.pk %}"
+                                                data-target="#connection-{{ bot.pk }}"
+                                                title="{% trans 'Test connection' %}">
+                                            <i class="bi bi-arrow-repeat"></i>
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-outline-info btn-sm btn-icon-action send-test-message-btn"
+                                                data-url="{% url 'app_integration:telegram_bot_send_test_message' bot.pk %}"
+                                                data-bot-name="{{ bot.name }}"
+                                                data-chat-id="{{ bot.default_chat_id }}"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#sendTestMessageModal"
+                                                title="{% trans 'Send test message' %}">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if can_manage_integrations %}
+                                        <form method="post" action="{% url 'app_integration:telegram_bot_delete' bot.pk %}"
+                                              class="d-inline"
+                                              onsubmit="return confirm('{% trans "Delete this bot?" %}');">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                    class="btn btn-outline-danger btn-sm btn-icon-action"
+                                                    title="{% trans 'Delete' %}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    {% trans "No Telegram bots configured yet." %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="sendTestMessageModal" tabindex="-1" aria-labelledby="sendTestMessageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sendTestMessageModalLabel">{% trans "Send test message" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3" id="sendTestMessageBotName"></p>
+                <div class="mb-3">
+                    <label for="sendTestMessageChatId" class="form-label">{% trans "Chat ID" %}</label>
+                    <input type="text" class="form-control form-control-sm" id="sendTestMessageChatId"
+                           placeholder="{% trans 'e.g. 123456789 or @channelname' %}">
+                    <div class="form-text">{% trans "Recipient chat or channel ID. Uses default chat ID from bot settings if left empty." %}</div>
+                </div>
+                <div id="sendTestMessageResult" class="d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary btn-sm" id="sendTestMessageSubmit">
+                    <i class="bi bi-send"></i> {% trans "Send" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+const sendTestMessageModal = document.getElementById('sendTestMessageModal');
+const sendTestMessageChatId = document.getElementById('sendTestMessageChatId');
+const sendTestMessageResult = document.getElementById('sendTestMessageResult');
+const sendTestMessageSubmit = document.getElementById('sendTestMessageSubmit');
+let activeTestMessageUrl = '';
+
+document.querySelectorAll('.send-test-message-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+        activeTestMessageUrl = button.dataset.url;
+        document.getElementById('sendTestMessageBotName').textContent =
+            '{% trans "Bot" %}: ' + button.dataset.botName;
+        sendTestMessageChatId.value = button.dataset.chatId || '';
+        sendTestMessageResult.classList.add('d-none');
+        sendTestMessageResult.innerHTML = '';
+    });
+});
+
+sendTestMessageSubmit?.addEventListener('click', async () => {
+    const csrfToken = '{{ csrf_token }}';
+    sendTestMessageSubmit.disabled = true;
+    sendTestMessageResult.classList.add('d-none');
+    try {
+        const formData = new FormData();
+        if (sendTestMessageChatId.value.trim()) {
+            formData.append('chat_id', sendTestMessageChatId.value.trim());
+        }
+        const response = await fetch(activeTestMessageUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData,
+        });
+        let data;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            throw new Error('{% trans "Unexpected server response. Please refresh the page and try again." %}');
+        }
+        sendTestMessageResult.classList.remove('d-none');
+        sendTestMessageResult.className = 'alert ' + (data.success ? 'alert-success' : 'alert-danger');
+        sendTestMessageResult.textContent = data.message || '{% trans "Request failed" %}';
+    } catch (error) {
+        sendTestMessageResult.classList.remove('d-none');
+        sendTestMessageResult.className = 'alert alert-danger';
+        sendTestMessageResult.textContent = error.message || '{% trans "Request failed" %}';
+    } finally {
+        sendTestMessageSubmit.disabled = false;
+    }
+});
+
+sendTestMessageModal?.addEventListener('hidden.bs.modal', () => {
+    activeTestMessageUrl = '';
+    sendTestMessageChatId.value = '';
+    sendTestMessageResult.classList.add('d-none');
+    sendTestMessageResult.innerHTML = '';
+});
+
+document.querySelectorAll('.test-connection-btn').forEach((button) => {
+    button.addEventListener('click', async () => {
+        const target = document.querySelector(button.dataset.target);
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+            || '{{ csrf_token }}';
+        target.innerHTML = '<span class="status-badge"><i class="bi bi-arrow-repeat"></i> {% trans "Testing..." %}</span>';
+        try {
+            const response = await fetch(button.dataset.url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const data = await response.json();
+            if (data.success) {
+                target.innerHTML = '<span class="status-badge status-success"><i class="bi bi-check-circle"></i> {% trans "OK" %}</span>';
+            } else {
+                target.innerHTML = '<span class="status-badge status-error"><i class="bi bi-x-circle"></i> ' + data.message + '</span>';
+            }
+        } catch (error) {
+            target.innerHTML = '<span class="status-badge status-error"><i class="bi bi-x-circle"></i> {% trans "Request failed" %}</span>';
+        }
+    });
+});
+</script>
+{% endblock %}

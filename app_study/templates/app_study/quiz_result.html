@@ -1,0 +1,139 @@
+ 
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load quiz_filters %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_study/includes/study_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_study/css/study-forms-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container my-5 study-page study-forms-page">
+    <h2 class="text-center mb-4">{% trans "Quiz Results" %}</h2>
+    <div class="card result-card">
+        <div class="card-body">
+            <h3 class="card-title text-center mb-4">{{ attempt.quiz.title }}</h3>
+
+            <div class="text-center mb-4">
+                {% if attempt.score >= attempt.quiz.passing_score %}
+                    <i class="bi bi-emoji-smile result-icon text-success"></i>
+                {% else %}
+                    <i class="bi bi-emoji-frown result-icon text-danger"></i>
+                {% endif %}
+            </div>
+
+            <div class="progress mb-4">
+                <div class="progress-bar {% if attempt.score >= attempt.quiz.passing_score %}bg-success{% else %}bg-danger{% endif %}"
+                     role="progressbar"
+                     style="width: 0%;"
+                     aria-valuenow="{{ attempt.score }}"
+                     aria-valuemin="0"
+                     aria-valuemax="{{ attempt.quiz.passing_score }}">
+                    {{ attempt.score }} / {{ attempt.quiz.passing_score }}
+                </div>
+            </div>
+
+            <h4 class="text-center mb-3">
+                {% if attempt.score >= attempt.quiz.passing_score %}
+                    <span class="text-success">{% trans "Congratulations! You have passed the test." %}</span>
+                {% else %}
+                    <span class="text-danger">{% trans "Unfortunately, you did not pass the test." %}</span>
+                {% endif %}
+            </h4>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5>{% trans "Attempt Details:" %}</h5>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Total Questions" %}
+                            <span class="badge bg-primary rounded-pill">{{ attempt.quiz.questions.count }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Correct Answers (Points)" %}
+                            <span class="badge bg-success rounded-pill">{{ attempt.score }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Incorrect Answers (Points)" %}
+                            <span class="badge bg-danger rounded-pill">{{ attempt.quiz.questions.count|sub:attempt.score }}</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h5>{% trans "Questions and Answers:" %}</h5>
+                    <div class="accordion" id="questionsAccordion">
+                        {% for answer in answers %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading{{ answer.id }}">
+                                    <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ answer.id }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ answer.id }}">
+                                        {% trans "Question" %} {{ forloop.counter }}
+                                    </button>
+                                </h2>
+                                <div id="collapse{{ answer.id }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="heading{{ answer.id }}" data-bs-parent="#questionsAccordion">
+                                    <div class="accordion-body">
+                                        <p><strong>{{ answer.question.text|safe }}</strong></p>
+                                        <p>
+                                            {% trans "Your answer:" %} 
+                                            <span class="{% if answer.is_correct %}text-success{% else %}text-danger{% endif %}">
+                                                {{ answer.answer.text|safe }}
+                                            </span>
+                                        </p>
+                                        {% if not answer.is_correct %}
+                                            <p class="text-success">
+                                                {% trans "Correct answer:" %} {{ answer.get_correct_answer.text|safe }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5>{% trans "Recommendations:" %}</h5>
+                    {% if attempt.score >= attempt.quiz.passing_score %}
+                        <p>{% trans "Great job! Keep improving your knowledge. Here are some recommendations:" %}</p>
+                    {% else %}
+                        <p>{% trans "Don't be discouraged! Here are some tips to improve your result:" %}</p>
+                    {% endif %}
+                    <ul>
+                        <li>{% trans "Review the course materials again" %}</li>
+                        <li>{% trans "Pay attention to topics where you made mistakes" %}</li>
+                        <li>{% trans "Practice regularly" %}</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <a href="{% url 'quiz_list' %}" class="btn btn-primary me-2">
+                    <i class="bi bi-list-check"></i> {% trans "Return to Quiz List" %}
+                </a>
+                <a href="{% url 'start_quiz' attempt.quiz.id %}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-repeat"></i> {% trans "Try Again" %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const progressBar = document.querySelector('.progress-bar');
+    const score = {{ attempt.score }};
+    const maxScore = {{ attempt.quiz.passing_score }};
+    const percentage = (score / maxScore) * 100;
+
+    setTimeout(() => {
+        progressBar.style.width = `${percentage}%`;
+    }, 200);
+});
+</script>
+{% endblock %}

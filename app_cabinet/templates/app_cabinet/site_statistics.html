@@ -1,0 +1,775 @@
+<!--SecBoard/templates/app_cabinet/site_statistics.html-->
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="mb-4">{% trans "Site Statistics" %}</h1>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">{% trans "Total Users" %}</h5>
+                    <h2 class="card-text">{{ total_users }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">{% trans "Active Users Today" %}</h5>
+                    <h2 class="card-text" id="activeUsersCount">{{ active_users_today }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">{% trans "Average Session Duration" %}</h5>
+                    <h2 class="card-text">{{ avg_duration|floatformat:1 }} min</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">{% trans "Total Sessions" %}</h5>
+                    <h2 class="card-text">{{ sessions.paginator.count }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Last Update Time -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="text-end">
+                <small class="text-muted" id="lastUpdateTime">
+                    {% blocktrans with last_update=now|date:"d.m.Y H:i:s" %}
+                        Last updated: {{ last_update }}
+                    {% endblocktrans %}
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "Date From" %}</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "Date To" %}</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "User" %}</label>
+                    <input type="text" name="user" class="form-control" value="{{ request.GET.user }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "Action" %}</label>
+                    <select name="action" class="form-select">
+                        <option value="">{% trans "All" %}</option>
+                        {% for action_code, action_name in action_choices %}
+                        <option value="{{ action_code }}" {% if request.GET.action == action_code %}selected{% endif %}>
+                            {{ action_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "Country" %}</label>
+                    <input type="text" name="country" class="form-control" value="{{ request.GET.country }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-filter"></i> {% trans "Filter" %}
+                    </button>
+                    <a href="{% url 'site_statistics' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> {% trans "Reset" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">{% trans "Activity Distribution" %}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="activityChart" style="height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">{% trans "Geographical Distribution" %}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="geoChart" style="height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sessions Table -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">{% trans "User Sessions" %}</h5>
+            <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#sessionsFilter">
+                    <i class="bi bi-funnel"></i> {% trans "Filter" %}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#exportModal">
+                    <i class="bi bi-download"></i> {% trans "Export" %}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="refreshSessions">
+                    <i class="bi bi-arrow-clockwise"></i> {% trans "Refresh" %}
+                </button>
+            </div>
+        </div>
+        
+        <!-- Sessions Filter -->
+        <div class="collapse" id="sessionsFilter">
+            <div class="card-body border-bottom bg-light">
+                <form method="get" class="row g-3" id="sessionsFilterForm">
+                    <div class="col-md-3">
+                        <label class="form-label small">{% trans "User" %}</label>
+                        <input type="text" name="session_user" class="form-control form-control-sm" 
+                               value="{{ request.GET.session_user }}" 
+                               placeholder="{% trans 'Username or email' %}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">{% trans "Login From" %}</label>
+                        <input type="date" name="session_date_from" class="form-control form-control-sm" 
+                               value="{{ request.GET.session_date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">{% trans "Login To" %}</label>
+                        <input type="date" name="session_date_to" class="form-control form-control-sm" 
+                               value="{{ request.GET.session_date_to }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">{% trans "IP Address" %}</label>
+                        <input type="text" name="session_ip" class="form-control form-control-sm" 
+                               value="{{ request.GET.session_ip }}" 
+                               placeholder="{% trans 'IP address' %}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">{% trans "Status" %}</label>
+                        <select name="session_status" class="form-select form-select-sm">
+                            <option value="">{% trans "All" %}</option>
+                            <option value="active" {% if request.GET.session_status == 'active' %}selected{% endif %}>
+                                {% trans "Active" %}
+                            </option>
+                            <option value="ended" {% if request.GET.session_status == 'ended' %}selected{% endif %}>
+                                {% trans "Ended" %}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end gap-1">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-search"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="window.location.href='{% url 'site_statistics' %}'">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>{% trans "User" %}</th>
+                            <th>{% trans "Login Time" %}</th>
+                            <th>{% trans "Logout Time" %}</th>
+                            <th>{% trans "Duration" %}</th>
+                            <th>{% trans "IP Address" %}</th>
+                            <th>{% trans "Location" %}</th>
+                            <th>{% trans "Browser" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for session in sessions %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if session.user.cabinet.avatar %}
+                                    <img src="{{ session.user.cabinet.avatar.url }}" alt="" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                                    {% else %}
+                                    <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                        {{ session.user.get_full_name|default:session.user.username|make_list|first|upper }}
+                                    </div>
+                                    {% endif %}
+                                    <div>
+                                        <div class="fw-bold">{{ session.user.get_full_name|default:session.user.username }}</div>
+                                        <small class="text-muted">{{ session.user.email }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ session.login_time|date:"d.m.Y H:i:s" }}</td>
+                            <td>{{ session.logout_time|date:"d.m.Y H:i:s"|default:"-" }}</td>
+                            <td>
+                                {% if session.duration %}
+                                {{ session.duration.total_seconds|floatformat:0 }} sec
+                                {% else %}
+                                <span class="badge bg-success">{% trans "Active" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ session.ip_address }}</td>
+                            <td>{{ session.city }}, {{ session.country }}</td>
+                            <td>
+                                <span title="{{ session.user_agent }}">
+                                    {{ session.user_agent|truncatechars:30 }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="bi bi-inbox-fill fs-2"></i>
+                                    <p class="mt-2">{% trans "No sessions found" %}</p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if sessions.paginator.num_pages > 1 %}
+            <nav aria-label="Session list navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if sessions.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">&laquo;</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ sessions.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+                            {% trans "Previous" %}
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in sessions.paginator.page_range %}
+                    {% if sessions.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > sessions.number|add:'-3' and num < sessions.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if sessions.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ sessions.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+                            {% trans "Next" %}
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ sessions.paginator.num_pages }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">&raquo;</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+        <div class="card-footer bg-transparent">
+            <div class="row text-muted">
+                <div class="col-md-6">
+                    <small>
+                        {% blocktrans with count=sessions.paginator.count %}
+                        Total sessions: {{ count }}
+                        {% endblocktrans %}
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small>
+                        {% blocktrans with last_update=now|date:"d.m.Y H:i:s" %}
+                        Last updated: {{ last_update }}
+                        {% endblocktrans %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activities Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">{% trans "Latest Activities" %}</h5>
+            <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#activitiesFilter">
+                    <i class="bi bi-funnel"></i> {% trans "Filter" %}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="exportActivities">
+                    <i class="bi bi-download"></i> {% trans "Export" %}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="refreshActivities">
+                    <i class="bi bi-arrow-clockwise"></i> {% trans "Refresh" %}
+                </button>
+            </div>
+        </div>
+        
+        <!-- Activities Filter -->
+        <div class="collapse" id="activitiesFilter">
+            <div class="card-body border-bottom bg-light">
+                <form method="get" class="row g-3" id="activitiesFilterForm">
+                    <div class="col-md-3">
+                        <label class="form-label small">{% trans "User" %}</label>
+                        <input type="text" name="activity_user" class="form-control form-control-sm" 
+                               value="{{ request.GET.activity_user }}" 
+                               placeholder="{% trans 'Username or email' %}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">{% trans "Action" %}</label>
+                        <select name="activity_action" class="form-select form-select-sm">
+                            <option value="">{% trans "All" %}</option>
+                            {% for action_code, action_name in action_choices %}
+                            <option value="{{ action_code }}" {% if request.GET.activity_action == action_code %}selected{% endif %}>
+                                {{ action_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">{% trans "Date From" %}</label>
+                        <input type="date" name="activity_date_from" class="form-control form-control-sm" 
+                               value="{{ request.GET.activity_date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">{% trans "Date To" %}</label>
+                        <input type="date" name="activity_date_to" class="form-control form-control-sm" 
+                               value="{{ request.GET.activity_date_to }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">{% trans "IP Address" %}</label>
+                        <input type="text" name="activity_ip" class="form-control form-control-sm" 
+                               value="{{ request.GET.activity_ip }}" 
+                               placeholder="{% trans 'IP address' %}">
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end gap-1">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-search"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="window.location.href='{% url 'site_statistics' %}'">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>{% trans "User" %}</th>
+                            <th>{% trans "Action" %}</th>
+                            <th>{% trans "Timestamp" %}</th>
+                            <th>{% trans "URL" %}</th>
+                            <th>{% trans "Details" %}</th>
+                            <th>{% trans "IP Address" %}</th>
+                            <th>{% trans "Browser" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in activities %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if activity.user.cabinet.avatar %}
+                                    <img src="{{ activity.user.cabinet.avatar.url }}" alt="" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                                    {% else %}
+                                    <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                        {{ activity.user.get_full_name|default:activity.user.username|make_list|first|upper }}
+                                    </div>
+                                    {% endif %}
+                                    <div>
+                                        <div class="fw-bold">{{ activity.user.get_full_name|default:activity.user.username }}</div>
+                                        <small class="text-muted">{{ activity.user.email }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% for code, name in action_choices %}
+                                {% if code == activity.action %}
+                                <span class="badge {% if activity.action == 'login' %}bg-success{% elif activity.action == 'logout' %}bg-warning{% elif activity.action == 'failed_login' %}bg-danger{% else %}bg-info{% endif %}">
+                                    {{ name }}
+                                </span>
+                                {% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>
+                                <div>{{ activity.timestamp|date:"d.m.Y H:i:s" }}</div>
+                                <small class="text-muted">{{ activity.timestamp|timesince }} {% trans "ago" %}</small>
+                            </td>
+                            <td>
+                                {% if activity.url %}
+                                <a href="{{ activity.url }}" class="text-decoration-none" title="{{ activity.url }}">
+                                    {{ activity.url|truncatechars:30 }}
+                                </a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                           <td>
+                               {% if activity.details %}
+                                   <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal{{ activity.id|slugify }}">
+                                       <i class="bi bi-info-circle"></i> {% trans "Details" %}
+                                   </button>
+
+                                   <div class="modal fade" id="detailsModal{{ activity.id|slugify }}" tabindex="-1" aria-hidden="true">
+                                       <div class="modal-dialog modal-lg">
+                                           <div class="modal-content">
+                                               <div class="modal-header bg-light">
+                                                   <h5 class="modal-title">
+                                                       {% trans "Activity Details" %} -
+                                                       {{ activity.user.get_full_name|default:activity.user.username }}
+                                                   </h5>
+                                                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                               </div>
+                                               <div class="modal-body">
+                                                   <dl class="row mb-0">
+                                                       <dt class="col-sm-3">{% trans "Timestamp" %}</dt>
+                                                       <dd class="col-sm-9">
+                                                           {{ activity.timestamp|date:"d.m.Y H:i:s" }}
+                                                           <small class="text-muted">({{ activity.timestamp|timesince }} {% trans "ago" %})</small>
+                                                       </dd>
+
+                                                       <dt class="col-sm-3">{% trans "Action" %}</dt>
+                                                       <dd class="col-sm-9">
+                                                           <span class="badge {% if activity.action == 'login' %}bg-success{% elif activity.action == 'logout' %}bg-warning{% elif activity.action == 'failed_login' %}bg-danger{% else %}bg-info{% endif %}">
+                                                               {% for code, name in action_choices %}
+                                                                   {% if code == activity.action %}{{ name }}{% endif %}
+                                                               {% endfor %}
+                                                           </span>
+                                                       </dd>
+
+                                                       <dt class="col-sm-3">{% trans "URL" %}</dt>
+                                                       <dd class="col-sm-9">
+                                                           {% if activity.url %}
+                                                               <a href="{{ activity.url }}" target="_blank">{{ activity.url }}</a>
+                                                           {% else %}
+                                                               <span class="text-muted">-</span>
+                                                           {% endif %}
+                                                       </dd>
+
+                                                       <dt class="col-sm-3">{% trans "IP Address" %}</dt>
+                                                       <dd class="col-sm-9">{{ activity.session.ip_address }}</dd>
+
+                                                       <dt class="col-sm-3">{% trans "Location" %}</dt>
+                                                       <dd class="col-sm-9">{{ activity.session.city }}, {{ activity.session.country }}</dd>
+
+                                                       <dt class="col-sm-3">{% trans "Browser" %}</dt>
+                                                       <dd class="col-sm-9">{{ activity.session.user_agent }}</dd>
+
+                                                       <dt class="col-sm-3">{% trans "Details" %}</dt>
+                                                       <dd class="col-sm-9">
+                                                           <pre class="bg-light p-3 rounded small">{{ activity.details|pprint }}</pre>
+                                                       </dd>
+                                                   </dl>
+                                               </div>
+                                           </div>
+                                       </div>
+                                   </div>
+                               {% else %}
+                                   <span class="text-muted">-</span>
+                               {% endif %}
+                           </td>
+                           <td>
+                               <div>{{ activity.session.ip_address }}</div>
+                               <small class="text-muted">{{ activity.session.city }}, {{ activity.session.country }}</small>
+                           </td>
+                           <td>
+                               <span title="{{ activity.session.user_agent }}">
+                                   {{ activity.session.user_agent|truncatechars:30 }}
+                               </span>
+                           </td>
+                       </tr>
+                       {% empty %}
+                       <tr>
+                           <td colspan="7" class="text-center py-4">
+                               <div class="text-muted">
+                                   <i class="bi bi-inbox-fill fs-2"></i>
+                                   <p class="mt-2">{% trans "No activities found" %}</p>
+                               </div>
+                           </td>
+                       </tr>
+                       {% endfor %}
+                   </tbody>
+               </table>
+           </div>
+
+           <!-- Activities Pagination -->
+           {% if activities.paginator.num_pages > 1 %}
+           <nav aria-label="Activity list navigation" class="mt-4">
+               <ul class="pagination justify-content-center">
+                   {% if activities.has_previous %}
+                       <li class="page-item">
+                           <a class="page-link" href="?activity_page=1{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}" aria-label="First">
+                               <span aria-hidden="true">&laquo;&laquo;</span>
+                           </a>
+                       </li>
+                       <li class="page-item">
+                           <a class="page-link" href="?activity_page={{ activities.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+                               {% trans "Previous" %}
+                           </a>
+                       </li>
+                   {% endif %}
+
+                   {% for num in activities.paginator.page_range %}
+                       {% if activities.number == num %}
+                           <li class="page-item active">
+                               <span class="page-link">{{ num }}</span>
+                           </li>
+                       {% elif num > activities.number|add:'-3' and num < activities.number|add:'3' %}
+                           <li class="page-item">
+                               <a class="page-link" href="?activity_page={{ num }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{{ num }}</a>
+                           </li>
+                       {% endif %}
+                   {% endfor %}
+
+                   {% if activities.has_next %}
+                       <li class="page-item">
+                           <a class="page-link" href="?activity_page={{ activities.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+                               {% trans "Next" %}
+                           </a>
+                       </li>
+                       <li class="page-item">
+                           <a class="page-link" href="?activity_page={{ activities.paginator.num_pages }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Last">
+                               <span aria-hidden="true">&raquo;&raquo;</span>
+                           </a>
+                       </li>
+                   {% endif %}
+               </ul>
+           </nav>
+           {% endif %}
+       </div>
+       <div class="card-footer bg-transparent">
+           <div class="row text-muted">
+               <div class="col-md-6">
+                   <small>
+                       {% blocktrans with count=activities.paginator.count %}
+                           Total activities: {{ count }}
+                       {% endblocktrans %}
+                   </small>
+               </div>
+               <div class="col-md-6 text-end">
+                   <small>
+                       {% blocktrans with last_update=activities.0.timestamp|default:now|date:"d.m.Y H:i:s" %}
+                           Last updated: {{ last_update }}
+                       {% endblocktrans %}
+                   </small>
+               </div>
+           </div>
+       </div>
+   </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+   <div class="modal-dialog">
+       <div class="modal-content">
+           <div class="modal-header">
+               <h5 class="modal-title">{% trans "Export Data" %}</h5>
+               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+           </div>
+           <div class="modal-body">
+               <form id="exportForm">
+                   <div class="mb-3">
+                       <label class="form-label">{% trans "Export Format" %}</label>
+                       <select class="form-select" name="format">
+                           <option value="xlsx">Excel (XLSX)</option>
+                           <option value="csv">CSV</option>
+                           <option value="json">JSON</option>
+                       </select>
+                   </div>
+                   <div class="mb-3">
+                       <label class="form-label">{% trans "Data Type" %}</label>
+                       <select class="form-select" name="data_type">
+                           <option value="sessions">{% trans "Sessions" %}</option>
+                           <option value="activities">{% trans "Activities" %}</option>
+                           <option value="both">{% trans "Both" %}</option>
+                       </select>
+                   </div>
+                   <div class="mb-3">
+                       <label class="form-label">{% trans "Date Range" %}</label>
+                       <div class="input-group">
+                           <input type="date" class="form-control" name="export_date_from">
+                           <span class="input-group-text">{% trans "to" %}</span>
+                           <input type="date" class="form-control" name="export_date_to">
+                       </div>
+                   </div>
+                   <div class="mb-3">
+                       <div class="form-check">
+                           <input class="form-check-input" type="checkbox" name="include_details" id="includeDetails">
+                           <label class="form-check-label" for="includeDetails">
+                               {% trans "Include detailed information" %}
+                           </label>
+                       </div>
+                   </div>
+               </form>
+               <div class="alert alert-info">
+                   <small>
+                       {% trans "The export will include all data matching your current filters." %}
+                   </small>
+               </div>
+           </div>
+           <div class="modal-footer">
+               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+               <button type="button" class="btn btn-primary" id="startExport">
+                   <i class="bi bi-download"></i> {% trans "Start Export" %}
+               </button>
+           </div>
+       </div>
+   </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment/moment.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+   // Initialize charts
+   const activityChart = new Chart(document.getElementById('activityChart').getContext('2d'), {
+       type: 'pie',
+       data: {
+           labels: [{% for action in action_stats %}'{% for code, name in action_choices %}{% if code == action.action %}{{ name }}{% endif %}{% endfor %}',{% endfor %}],
+           datasets: [{
+               data: [{% for action in action_stats %}{{ action.count }},{% endfor %}],
+               backgroundColor: [
+                   'rgba(255,99,132,0.8)',
+                   'rgba(54,162,235,0.8)',
+                   'rgba(255,206,86,0.8)',
+                   'rgba(75,192,192,0.8)',
+                   'rgba(153,102,255,0.8)',
+                   'rgba(255,159,64,0.8)'
+               ]
+           }]
+       },
+       options: {
+           responsive: true,
+           maintainAspectRatio: false,
+           plugins: {
+               legend: {
+                   position: 'right',
+                   labels: {
+                       font: {
+                           size: 12
+                       }
+                   }
+               },
+               tooltip: {
+                   callbacks: {
+                       label: function(context) {
+                           const value = context.raw;
+                           const total = context.dataset.data.reduce((a,b) => a+b);
+                           const percentage = Math.round(value/total*100);
+                           return `${context.label}: ${value} (${percentage}%)`;
+                       }
+                   }
+               }
+           }
+       }
+   });
+
+   const geoChart = new Chart(document.getElementById('geoChart').getContext('2d'), {
+       type: 'bar',
+       data: {
+           labels: [{% for country in country_stats %}'{{ country.country }}',{% endfor %}],
+           datasets: [{
+               label: '{% trans "Sessions" %}',
+               data: [{% for country in country_stats %}{{ country.count }},{% endfor %}],
+               backgroundColor: 'rgba(54,162,235,0.8)',
+               borderColor: 'rgba(54,162,235,1)',
+               borderWidth: 1
+           }]
+       },
+       options: {
+           responsive: true,
+           maintainAspectRatio: false,
+           scales: {
+               y: {
+                   beginAtZero: true,
+                   ticks: {
+                       stepSize: 1
+                   }
+               }
+           },
+           plugins: {
+               legend: {
+                   display: false
+               }
+           }
+       }
+   });
+
+   // Real-time updates
+   const updateStatistics = () => {
+       fetch('{% url "get_site_statistics" %}')
+           .then(response => response.json())
+           .then(data => {
+               document.getElementById('activeUsersCount').textContent = data.active_users;
+               document.getElementById('lastUpdateTime').textContent =
+                   `{% trans "Last updated" %}: ${moment(data.last_update).format('DD.MM.YYYY HH:mm:ss')}`;
+           })
+           .catch(console.error);
+   };
+
+   setInterval(updateStatistics, 60000);
+
+   // Export functionality
+   document.getElementById('startExport').addEventListener('click', function() {
+       const formData = new FormData(document.getElementById('exportForm'));
+       const data = Object.fromEntries(formData);
+
+       fetch('{% url "export_statistics" %}', {
+           method: 'POST',
+           headers: {
+               'Content-Type': 'application/json',
+               'X-CSRFToken': '{{ csrf_token }}'
+           },
+           body: JSON.stringify(data)
+       })
+       .then(response => response.blob())
+       .then(blob => {
+           const url = window.URL.createObjectURL(blob);
+           const a = document.createElement('a');
+           a.href = url;
+           a.download = `site_statistics_${moment().format('YYYY-MM-DD')}.${data.format}`;
+           document.body.appendChild(a);
+           a.click();
+           window.URL.revokeObjectURL(url);
+           a.remove();
+       })
+       .catch(error => {
+           console.error('Export error:', error);
+           alert('{% trans "Error exporting data. Please try again." %}');
+       });
+   });
+});
+</script>
+{% endblock %}
+

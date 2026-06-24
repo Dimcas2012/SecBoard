@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Internal Company Requirements" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_compliance/includes/compliance_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 compliance-page">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>
+                <i class="bi bi-journal-text me-2"></i>{% trans "Internal Company Requirements" %}
+            </h1>
+            <p class="text-muted">
+                {% trans "Manage internal company requirements" %}
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            {% include "app_compliance/includes/compliance_internal_nav_toolbar.html" with show_create=permissions.can_add_requirements %}
+        </div>
+    </div>
+    
+    {% with filters_expanded=search or selected_type or selected_status %}
+    <div class="card mb-2 filter-section access-request-filters compliance-filters-card">
+        {% url 'compliance:internal_requirements_library' as internal_requirements_clear_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="internalRequirementsFiltersCollapse" toggle_id="toggleInternalRequirementsFilters" icon_id="internalRequirementsFiltersToggleIcon" filter_clear_url=internal_requirements_clear_url filters_expanded=filters_expanded %}
+        <div class="collapse{% if filters_expanded %} show{% endif %}" id="internalRequirementsFiltersCollapse">
+        <div class="card-body py-2">
+            <form method="get" id="filterForm" class="row g-1 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "Search" %}</label>
+                    <input type="text" name="search" class="form-control form-control-sm" value="{{ search }}" placeholder="{% trans 'Search requirements...' %}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "Type" %}</label>
+                    <select name="type" class="form-select form-select-sm">
+                        <option value="">{% trans "All Types" %}</option>
+                        {% for option in requirement_types %}
+                        <option value="{{ option.code }}" {% if option.code == selected_type %}selected{% endif %}>{{ option.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "Status" %}</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">{% trans "All Statuses" %}</option>
+                        {% for option in status_choices %}
+                        <option value="{{ option.code }}" {% if option.code == selected_status %}selected{% endif %}>{{ option.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+    {% endwith %}
+    
+    <!-- Requirements Table -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-list"></i> {% trans "Requirements" %} ({{ requirements.paginator.count }})</h5>
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if permissions.can_view_requirements %}
+                            <a href="{% url 'compliance:internal_requirements_export_excel' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
+                               class="btn btn-sm btn-success btn-icon-action" title="{% trans 'Export Excel' %}">
+                                <i class="bi bi-file-earmark-excel"></i>
+                            </a>
+                            {% endif %}
+                            {% if permissions.can_add_requirements %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action"
+                                    data-bs-toggle="modal" data-bs-target="#importRequirementsModal" title="{% trans 'Import Excel' %}">
+                                <i class="bi bi-file-earmark-arrow-up"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary btn-icon-action"
+                                    data-bs-toggle="modal" data-bs-target="#importAIModal" title="{% trans 'Import AI' %}">
+                                <i class="bi bi-robot"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if requirements %}
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Code" %}</th>
+                                    <th>{% trans "Name" %}</th>
+                                    <th>{% trans "Company" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    <th>{% trans "Controls" %}</th>
+                                    {% if permissions.can_edit_requirements %}
+                                    <th>{% trans "Actions" %}</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in requirements %}
+                                <tr>
+                                    <td>
+                                        {% if permissions.can_view_requirements %}
+                                        <a href="{% url 'compliance:internal_requirement_template_detail' req.id %}">
+                                            <strong>{{ req.code }}</strong>
+                                        </a>
+                                        {% else %}
+                                        <strong>{{ req.code }}</strong>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if permissions.can_view_requirements %}
+                                        <a href="{% url 'compliance:internal_requirement_template_detail' req.id %}">{{ req.name }}</a>
+                                        {% else %}
+                                        {{ req.name }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if req.company %}
+                                        <span style="color: #17a2b8; font-weight: bold;">
+                                            <i class="fas fa-building"></i> {{ req.company.name }}
+                                        </span>
+                                        {% else %}
+                                        <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ req.get_requirement_type_display }}</td>
+                                    <td>
+                                        <span style="{% if req.status == 'active' %}color: #28a745;
+                                            {% elif req.status == 'draft' %}color: #ffc107;
+                                            {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                            {% if req.status == 'active' %}<i class="fas fa-check-circle"></i>
+                                            {% elif req.status == 'draft' %}<i class="fas fa-edit"></i>
+                                            {% else %}<i class="fas fa-archive"></i>{% endif %}
+                                            {{ req.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td><span class="badge bg-info">{{ req.controls_count }}</span></td>
+                                    <td>
+                                        {% if permissions.can_edit_requirements %}
+                                        <a href="{% url 'compliance:internal_requirement_template_edit' req.id %}" class="btn btn-sm btn-outline-primary" title="{% trans 'Edit' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if permissions.can_delete_requirements %}
+                                        <form method="post" action="{% url 'compliance:internal_requirement_template_delete' req.id %}" class="d-inline" onsubmit="return confirm('{% trans "Are you sure you want to delete this requirement?" %}\n\n{% trans "Code" %}: {{ req.code }}\n{% trans "Name" %}: {{ req.name }}\n\n{% trans "This action cannot be undone!" %}');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="{% trans 'Delete' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    {% if requirements.has_other_pages %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if requirements.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ requirements.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">
+                                    {% trans "Previous" %}
+                                </a>
+                            </li>
+                            {% endif %}
+                            
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    {% trans "Page" %} {{ requirements.number }} {% trans "of" %} {{ requirements.paginator.num_pages }}
+                                </span>
+                            </li>
+                            
+                            {% if requirements.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ requirements.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">
+                                    {% trans "Next" %}
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> {% trans "No requirements found." %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Requirements Modal -->
+{% if permissions.can_add_requirements %}
+<div class="modal fade" id="importRequirementsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:internal_requirements_import_excel' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Import Internal Company Requirements from Excel" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Company" %} *</label>
+                        <select name="company" id="import-company-select" class="form-control" required>
+                            <option value="">{% trans "Select Company" %}</option>
+                            {% for company in accessible_companies %}
+                            <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Excel File" %} *</label>
+                        <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                        <small class="form-text text-muted">
+                            {% trans "Upload an Excel file with 'Requirement' and 'Controls' sheets" %}
+                        </small>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <a href="{% url 'compliance:internal_requirements_excel_template' %}" class="alert-link">
+                            {% trans "Download Excel template" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> {% trans "Import" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import AI Modal -->
+<div class="modal fade" id="importAIModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:internal_requirements_import_ai' %}" enctype="multipart/form-data" id="importAIForm">
+                {% csrf_token %}
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title"><i class="fas fa-robot"></i> {% trans "Import Internal Company Requirements with AI" %}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "Upload a PDF document and let AI parse it to extract requirements and controls automatically." %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-building"></i> {% trans "Company" %} *</label>
+                        <select name="company" id="ai-import-company-select" class="form-control" required>
+                            <option value="">{% trans "Select Company" %}</option>
+                            {% for company in accessible_companies %}
+                            <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-globe"></i> {% trans "Country" %} *</label>
+                        <select name="country" id="ai-import-country-select" class="form-control" required>
+                            <option value="">{% trans "Select Country (for language)" %}</option>
+                            {% for country in active_countries %}
+                            <option value="{{ country.id }}">{{ country.flag_emoji }} {{ country.name }} ({{ country.code }})</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">
+                            {% trans "Select the country to determine the language for field names (Name Local)" %}
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-file-pdf"></i> {% trans "PDF Document" %} *</label>
+                        <input type="file" name="pdf_file" class="form-control" accept=".pdf" required id="pdfFileInput">
+                        <small class="form-text text-muted">
+                            {% trans "Upload a PDF file containing requirement specifications" %}
+                        </small>
+                        <div id="pdfPreview" class="mt-2" style="display: none;">
+                            <span class="badge bg-secondary"><i class="fas fa-file-pdf"></i> <span id="pdfFileName"></span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-brain"></i> {% trans "AI Model" %} *</label>
+                        <select name="ai_model" class="form-control" required id="aiModelSelect">
+                            <option value="">{% trans "Select AI Model" %}</option>
+                            <option value="ollama">Ollama (Local)</option>
+                            <option value="google">Google AI Studio (Gemini)</option>
+                            <option value="claude">Claude (Anthropic)</option>
+                            <option value="groq">Groq</option>
+                            <option value="deepseek">DeepSeek</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            {% trans "Choose the AI model to use for parsing. Make sure the model is configured in AI Settings." %}
+                        </small>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>{% trans "Note:" %}</strong> {% trans "The AI will analyze the document and extract requirements and controls. You will be able to review and edit the data before saving." %}
+                    </div>
+                    
+                    <div id="processingStatus" style="display: none;">
+                        <div class="alert alert-primary">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-2" role="status">
+                                    <span class="visually-hidden">{% trans "Processing..." %}</span>
+                                </div>
+                                <span>{% trans "Processing document with AI... This may take a few minutes." %}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-info" id="submitAIImport">
+                        <i class="fas fa-robot"></i> {% trans "Parse with AI" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// PDF file preview
+document.getElementById('pdfFileInput')?.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        document.getElementById('pdfFileName').textContent = file.name;
+        document.getElementById('pdfPreview').style.display = 'block';
+    }
+});
+
+// Form submission handling
+document.getElementById('importAIForm')?.addEventListener('submit', function(e) {
+    document.getElementById('processingStatus').style.display = 'block';
+    document.getElementById('submitAIImport').disabled = true;
+});
+</script>
+
+<!-- Internal Compliance Guide Modal -->
+<div class="modal fade" id="internalComplianceGuideModal" tabindex="-1" aria-labelledby="internalComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:internal_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="internalComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Internal Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="internalComplianceGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('internalComplianceGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('internalComplianceGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+
+{% endblock %}
+

@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Third-Party Risk Management" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_tprm/includes/tprm_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_tprm/css/dashboard-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 tprm-page">
+    <div class="row mb-3">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">
+                <i class="bi bi-handshake me-2"></i>
+                {% trans "TPRM" %}
+            </h2>
+            <div class="btn-group sb-toolbar" role="group">
+                <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="tprmGuideBtn" data-bs-toggle="modal" data-bs-target="#tprmGuideModal"
+                        title="{% trans 'Guide' %}">
+                    <i class="bi bi-book"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {% if all_companies %}
+    {% url 'app_tprm:dashboard' as tprm_dashboard_clear_url %}
+    <div class="card mb-2 filter-section access-request-filters" id="tprmDashboardFiltersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="tprmDashboardFiltersCollapse" toggle_id="toggleTprmDashboardFilters" icon_id="tprmDashboardFiltersToggleIcon" filter_clear_url=tprm_dashboard_clear_url filters_expanded=True %}
+        <div class="collapse show" id="tprmDashboardFiltersCollapse">
+            <div class="card-body py-2">
+                <form method="get" id="tprmDashboardFilterForm" class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label for="tprmDashboardCompany" class="form-label">{% trans "Company" %}</label>
+                        <select name="company" id="tprmDashboardCompany" class="form-select form-select-sm">
+                            <option value="">{% trans "All Companies" %}</option>
+                            {% for company in all_companies %}
+                            <option value="{{ company.id }}" {% if selected_company and selected_company.id == company.id %}selected{% endif %}>
+                                {{ company.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">{% trans "Total Vendors" %}</h6>
+                    <div class="stat-number">{{ total_vendors }}</div>
+                    <a href="{% url 'app_tprm:vendor_list' %}" class="btn btn-sm btn-outline-primary">{% trans "View" %}</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">{% trans "Active Assessments" %}</h6>
+                    <div class="stat-number text-info">{{ active_assessments }}</div>
+                    {% if can_conduct_assessments %}
+                    <a href="{% url 'app_tprm:assessment_add' %}" class="btn btn-sm btn-outline-info">{% trans "New" %}</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">{% trans "High Risk" %}</h6>
+                    <div class="stat-number text-danger">{{ high_risk_vendors }}</div>
+                    <small class="text-muted">{% trans "attention" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">{% trans "Questionnaires" %}</h6>
+                    <div class="stat-number text-warning">{{ total_questionnaires }}</div>
+                    <a href="{% url 'app_tprm:questionnaire_list' %}" class="btn btn-sm btn-outline-warning">{% trans "Start" %}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body p-2">
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        {% if can_edit_vendors %}
+                        <a href="{% url 'app_tprm:vendor_add' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> {% trans "Vendor" %}
+                        </a>
+                        {% endif %}
+                        {% if can_conduct_assessments %}
+                        <a href="{% url 'app_tprm:assessment_add' %}" class="btn btn-info">
+                            <i class="fas fa-clipboard-check"></i> {% trans "Assessment" %}
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'app_tprm:questionnaire_list' %}" class="btn btn-warning">
+                            <i class="fas fa-list-check"></i> {% trans "Questionnaire" %}
+                        </a>
+                        {% if can_generate_reports %}
+                        <a href="{% url 'app_tprm:reports' %}" class="btn btn-success">
+                            <i class="fas fa-chart-line"></i> {% trans "Reports" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <div class="card chart-card">
+                <div class="card-header">
+                    <h6><i class="fas fa-chart-pie"></i> {% trans "Risk" %}</h6>
+                </div>
+                <div class="card-body p-2">
+                    <canvas id="riskChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card chart-card">
+                <div class="card-header">
+                    <h6><i class="fas fa-chart-bar"></i> {% trans "Status" %}</h6>
+                </div>
+                <div class="card-body p-2">
+                    <canvas id="statusChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card table-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{% trans "Recent Vendors" %}</h6>
+                    <a href="{% url 'app_tprm:vendor_list' %}" class="btn btn-sm btn-outline-primary">
+                        {% trans "All" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if recent_vendors %}
+                    <div class="table-responsive full-width-table">
+                        <table class="table table-hover table-sm table-sm-font sb-data-table compact-table mb-0 w-100">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Name" %}</th>
+                                    <th>{% trans "Risk" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                    <th>{% trans "Contact" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vendor in recent_vendors %}
+                                <tr style="cursor: pointer;" onclick="window.location='{% url 'app_tprm:vendor_detail' vendor.pk %}'">
+                                    <td>
+                                        <a href="{% url 'app_tprm:vendor_detail' vendor.pk %}">
+                                            <strong>{{ vendor.name }}</strong>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if vendor.risk_level == 'critical' %}
+                                            <span class="badge bg-danger">C</span>
+                                        {% elif vendor.risk_level == 'high' %}
+                                            <span class="badge bg-warning">H</span>
+                                        {% elif vendor.risk_level == 'medium' %}
+                                            <span class="badge bg-info">M</span>
+                                        {% else %}
+                                            <span class="badge bg-success">L</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.status == 'active' %}
+                                            <span class="badge bg-success">✓</span>
+                                        {% elif vendor.status == 'pending' %}
+                                            <span class="badge bg-warning">⏳</span>
+                                        {% elif vendor.status == 'suspended' %}
+                                            <span class="badge bg-danger">⊗</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">○</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ vendor.contact_person|default:"-"|truncatechars:20 }}</td>
+                                    <td>{{ vendor.created_at|date:"d.m.y" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">{% trans "No vendors added yet. Click 'Add Vendor' to get started." %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TPRM Guide Modal -->
+    <div class="modal fade" id="tprmGuideModal" tabindex="-1" aria-labelledby="tprmGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'app_tprm:tprm_guide' %}">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="tprmGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "TPRM Guide" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="tprmGuideModalBody">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                        <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var modal = document.getElementById('tprmGuideModal');
+        if (!modal) return;
+        var guideUrl = modal.getAttribute('data-guide-url');
+        if (!guideUrl) return;
+        function onGuideShow() {
+            var body = document.getElementById('tprmGuideModalBody');
+            if (!body) return;
+            body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+            if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+                jQuery.getJSON(guideUrl)
+                    .done(function(data) {
+                        if (data && data.content) {
+                            body.innerHTML = data.content;
+                        } else {
+                            body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                        }
+                    })
+                    .fail(function() {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    });
+            } else {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', guideUrl, true);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                        } catch (e) {
+                            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                        }
+                    } else {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                };
+                xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+                xhr.send();
+            }
+        }
+        modal.addEventListener('show.bs.modal', onGuideShow);
+    })();
+    </script>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{% static 'app_tprm/js/tprm.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Risk Distribution Chart
+    const riskCtx = document.getElementById('riskChart');
+    if (riskCtx) {
+        new Chart(riskCtx, {
+            type: 'doughnut',
+            data: {
+                labels: [
+                    '{% trans "Low" %}',
+                    '{% trans "Medium" %}',
+                    '{% trans "High" %}',
+                    '{% trans "Critical" %}'
+                ],
+                datasets: [{
+                    data: [
+                        {{ total_vendors }} > 0 ? {{ vendors_by_risk.low|default:0 }} : 0,
+                        {{ total_vendors }} > 0 ? {{ vendors_by_risk.medium|default:0 }} : 0,
+                        {{ total_vendors }} > 0 ? {{ vendors_by_risk.high|default:0 }} : 0,
+                        {{ total_vendors }} > 0 ? {{ vendors_by_risk.critical|default:0 }} : 0
+                    ],
+                    backgroundColor: [
+                        '#28a745',
+                        '#17a2b8',
+                        '#ffc107',
+                        '#dc3545'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    },
+                    title: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+
+    // Status Distribution Chart
+    const statusCtx = document.getElementById('statusChart');
+    if (statusCtx) {
+        new Chart(statusCtx, {
+            type: 'bar',
+            data: {
+                labels: [
+                    '{% trans "Active" %}',
+                    '{% trans "Pending" %}',
+                    '{% trans "Inactive" %}',
+                    '{% trans "Suspended" %}'
+                ],
+                datasets: [{
+                    label: '{% trans "Number of Vendors" %}',
+                    data: [
+                        {{ vendors_by_status.active|default:0 }},
+                        {{ vendors_by_status.pending|default:0 }},
+                        {{ vendors_by_status.inactive|default:0 }},
+                        {{ vendors_by_status.suspended|default:0 }}
+                    ],
+                    backgroundColor: [
+                        '#28a745',
+                        '#ffc107',
+                        '#6c757d',
+                        '#dc3545'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

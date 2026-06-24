@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'app_risk/css/risk-ui.css' %}">
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid py-3 risk-page">
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="bi bi-eye me-2"></i>{% trans "Risk Assessment Report" %}</h5>
+      <div class="btn-group sb-toolbar" role="group">
+        <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm btn-icon-action" title="{% trans 'Back' %}">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <button class="btn btn-outline-success btn-sm btn-icon-action dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"
+                title="{% trans 'Export' %}">
+          <i class="bi bi-download"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="#" onclick="exportPreview('pdf', '{{ profile_id }}', '{{ language }}'); return false;">PDF</a></li>
+        <li><a class="dropdown-item" href="#" onclick="exportPreview('word', '{{ profile_id }}', '{{ language }}'); return false;">DOCX</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="previewRoot">{{ preview_html|safe }}</div>
+    </div>
+  </div>
+  <div class="text-muted small mt-2">
+    {% trans "This is a live preview. The final exported file may differ slightly in formatting." %}
+  </div>
+  <div class="mt-3">
+    <button class="btn btn-outline-secondary btn-sm btn-icon-action" onclick="window.print()" title="{% trans 'Print' %}">
+      <i class="bi bi-printer"></i>
+    </button>
+  </div>
+</div>
+<script>
+function exportPreview(format, profileId, language) {
+  console.log('exportPreview called with format:', format, 'profileId:', profileId, 'language:', language);
+  
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.style.display = 'none';
+
+  // Add CSRF token
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const csrfField = document.createElement('input');
+  csrfField.type = 'hidden';
+  csrfField.name = 'csrfmiddlewaretoken';
+  csrfField.value = csrf;
+  form.appendChild(csrfField);
+
+  // Add format
+  const formatField = document.createElement('input');
+  formatField.type = 'hidden';
+  formatField.name = 'format';
+  formatField.value = format;
+  form.appendChild(formatField);
+
+  if (profileId) {
+    // Check if this is a UUID (scheduled report execution)
+    if (profileId.includes('-') && profileId.length === 36) {
+      // Additional check: if we're on profile preview page, use profile endpoint
+      const currentUrl = window.location.href;
+      if (currentUrl.includes('preview-risk-report-from-profile-page')) {
+        console.log('Detected profile preview page with UUID, using profile endpoint');
+        form.action = '{% url "generate_risk_report_from_profile" %}';
+        
+        const idField = document.createElement('input');
+        idField.type = 'hidden';
+        idField.name = 'profile_id';
+        idField.value = profileId;
+        form.appendChild(idField);
+      } else {
+        console.log('Detected UUID format, using scheduled execution endpoint');
+        form.action = '{% url "generate_risk_report_from_scheduled_execution" %}';
+        
+        const idField = document.createElement('input');
+        idField.type = 'hidden';
+        idField.name = 'execution_id';
+        idField.value = profileId;
+        form.appendChild(idField);
+      }
+    } else {
+      console.log('Detected regular profile format, using profile endpoint');
+      form.action = '{% url "generate_risk_report_from_profile" %}';
+      
+      const idField = document.createElement('input');
+      idField.type = 'hidden';
+      idField.name = 'profile_id';
+      idField.value = profileId;
+      form.appendChild(idField);
+    }
+    
+    // Add language
+    const langField = document.createElement('input');
+    langField.type = 'hidden';
+    langField.name = 'language';
+    langField.value = language;
+    form.appendChild(langField);
+  }
+
+  console.log('Form created, submitting...');
+  console.log('Form fields:');
+  Array.from(form.elements).forEach(element => {
+    console.log('- ' + element.name + ': ' + element.value);
+  });
+  
+  document.body.appendChild(form);
+  form.submit();
+  setTimeout(function() { form.remove(); }, 1000);
+}
+</script>
+{% endblock %}
+

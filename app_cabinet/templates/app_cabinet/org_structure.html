@@ -1,0 +1,2227 @@
+<!--SecBoard/templates/app_cabinet/org_structure.html-->
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load cabinet_permissions %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_cabinet/includes/cabinet_styles.html" %}
+    <link rel="stylesheet" href="{% static 'css/org-structure.css' %}">
+    <link rel="stylesheet" href="{% static 'app_cabinet/css/org_structure-page.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/orgchart/5.0.0/css/jquery.orgchart.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<!-- Main Container -->
+<div class="container-fluid cabinet-page">
+    <!-- Header Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-0 rounded-3">
+                <div class="card-header bg-primary bg-opacity-10 py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-diagram-3 fs-3 text-primary me-3"></i>
+                            <h4 class="card-title mb-0">{% trans "Organization Structure" %}</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Primary Controls Section -->
+                    <div class="row g-3 mb-3">
+                        <!-- Company Selection Section -->
+                        <div class="col-lg-4 col-md-6">
+                            <label for="companySelect" class="form-label fw-bold text-body-secondary">
+                                <i class="bi bi-building me-2"></i>{% trans "Company" %}
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                                <select id="companySelect" class="form-select form-select-lg">
+                                <option value="">{% trans "Select Company" %}</option>
+                                {% for company in companies %}
+                                    <option value="{{ company.id }}">{{ company.name }}</option>
+                                {% endfor %}
+                            </select>
+                                <div class="btn-group" role="group">
+                                    {% if user_permissions.org_structure.add_companies %}
+                                    <button type="button" class="btn btn-outline-success" id="addCompanyBtn" data-bs-toggle="modal" data-bs-target="#addCompanyModal" title="{% trans 'Add Company' %}">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if user_permissions.org_structure.edit_companies %}
+                                    <button type="button" class="btn btn-outline-primary" id="editCompanyBtn" title="{% trans 'Edit Company' %}" disabled>
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if user_permissions.org_structure.delete_companies %}
+                                    <button type="button" class="btn btn-outline-danger" id="deleteCompanyBtn" title="{% trans 'Delete Company' %}" disabled>
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- View Controls -->
+                        <div class="col-lg-4 col-md-6">
+                            <label class="form-label fw-bold text-body-secondary">
+                                <i class="bi bi-eye me-2"></i>{% trans "View Options" %}
+                            </label>
+                            <div class="d-flex gap-4 mt-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="showPositions" checked>
+                                <label class="form-check-label" for="showPositions">
+                                        <i class="bi bi-person-badge me-1"></i>{% trans "Positions" %}
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="showUsers" checked>
+                                <label class="form-check-label" for="showUsers">
+                                        <i class="bi bi-people me-1"></i>{% trans "Users" %}
+                                </label>
+                            </div>
+                        </div>
+                        </div>
+                        
+                        <!-- Search Controls -->
+                        <div class="col-lg-4 col-md-6">
+                            <label for="searchInput" class="form-label fw-bold text-body-secondary">
+                                <i class="bi bi-search me-2"></i>{% trans "Search" %}
+                            </label>
+                            <div class="input-group">
+                                <input type="text"
+                                       id="searchInput"
+                                       class="form-control"
+                                       placeholder="{% trans 'Search departments and positions...' %}"
+                                       aria-label="{% trans 'Search' %}">
+                                <button class="btn btn-outline-secondary"
+                                        type="button"
+                                        id="clearSearch"
+                                        title="{% trans 'Clear search' %}">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                            </div>
+
+                    <!-- Secondary Controls Section -->
+                    <div class="row g-3">
+                        <!-- Department Filter -->
+                        <div class="col-lg-3 col-md-6">
+                            <label for="parentDepartmentFilter" class="form-label fw-bold text-body-secondary">
+                                <i class="bi bi-filter me-2"></i>{% trans "Filter by Department" %}
+                            </label>
+                            <select id="parentDepartmentFilter" class="form-select">
+                                <option value="">{% trans "All Departments" %}</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="col-lg-9 col-md-6">
+                            <label class="form-label fw-bold text-body-secondary">
+                                <i class="bi bi-tools me-2"></i>{% trans "Actions" %}
+                            </label>
+                            <div class="d-flex flex-wrap gap-2">
+                                <!-- View Mode -->
+                            {% if user_permissions.org_chart.view %}
+                            <a href="{% url 'org_chart' %}" class="btn btn-outline-primary" id="showOrgChartBtn">
+                                    <i class="bi bi-diagram-3 me-1"></i>{% trans "View as Chart" %}
+                            </a>
+                            {% endif %}
+                                
+                                <!-- Add Actions -->
+                                {% if user_permissions.org_structure.add_companies %}
+                                <button type="button" class="btn btn-warning me-2" id="addCompanyBtnMain" data-bs-toggle="modal" data-bs-target="#addCompanyModal">
+                                    <i class="bi bi-building me-1"></i>{% trans "Add Company" %}
+                                </button>
+                                {% endif %}
+
+                                {% if user_permissions.org_structure.add_departments %}
+                                <button type="button" class="btn btn-success me-2" id="addDepartmentBtnMain" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+                                    <i class="bi bi-building me-1"></i>{% trans "Add Department" %}
+                                </button>
+                                {% endif %}
+
+                                {% if user_permissions.org_structure.add_positions %}
+                                <button type="button" class="btn btn-primary me-2" id="addPositionBtnMain" data-bs-toggle="modal" data-bs-target="#addPositionModal">
+                                    <i class="bi bi-person-badge me-1"></i>{% trans "Add Position" %}
+                                </button>
+                                {% endif %}
+                                
+                                <!-- Export Actions -->
+                                <button class="btn btn-success btn-sm btn-icon-action" id="exportExcel" title="{% trans 'Export Excel' %}">
+                                    <i class="bi bi-file-earmark-excel"></i>
+                                </button>
+                                
+                                <!-- View Controls -->
+                                <div class="btn-group">
+                                    <button class="btn btn-outline-secondary btn-sm" id="expandAll" title="{% trans 'Expand All' %}">
+                                        <i class="bi bi-chevron-expand"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" id="collapseAll" title="{% trans 'Collapse All' %}">
+                                        <i class="bi bi-chevron-contract"></i>
+                                    </button>
+                                </div>
+                                <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" data-bs-toggle="modal" data-bs-target="#orgStructureGuideModal" title="{% trans 'Guide' %}">
+                                    <i class="bi bi-book"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-header bg-light py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-ul me-2"></i>{% trans "Structure View" %}
+                        </h5>
+                        <div id="structureStats" class="bg-primary bg-opacity-10 rounded-pill px-3 py-1">
+                            <span id="deptCount" class="badge bg-primary me-2">0</span> {% trans "Departments" %} | 
+                            <span id="posCount" class="badge bg-primary me-2">0</span> {% trans "Positions" %} | 
+                            <span id="userCount" class="badge bg-primary">0</span> {% trans "Users" %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="orgStructureContainer" class="org-chart-container">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover org-table mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 25%">{% trans "Department/Position" %}</th>
+                                        <th style="width: 35%">{% trans "Description" %}</th>
+                                        <th style="width: 20%">{% trans "Parent" %}</th>
+                                        <th style="width: 10%">{% trans "Staff" %}</th>
+                                        {% if user_permissions.org_structure.edit_departments or user_permissions.org_structure.delete_departments or user_permissions.org_structure.edit_positions or user_permissions.org_structure.delete_positions %}
+                                        <th style="width: 10%" class="text-center">{% trans "Actions" %}</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody id="orgStructureBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+
+<!-- Modals -->
+{% if user_permissions.org_structure.add_companies %}
+{% include 'app_cabinet/modals/add_company_modal.html' %}
+{% endif %}
+{% if user_permissions.org_structure.edit_companies %}
+{% include 'app_cabinet/modals/edit_company_modal.html' %}
+{% endif %}
+{% if user_permissions.org_structure.delete_companies %}
+{% include 'app_cabinet/modals/delete_company_modal.html' %}
+{% endif %}
+{% if user_permissions.org_structure.add_departments %}
+{% include 'app_cabinet/modals/add_department_modal.html' %}
+{% endif %}
+{% if user_permissions.org_structure.edit_departments %}
+{% include 'app_cabinet/modals/edit_department_modal.html' %}
+{% endif %}
+{% if user_permissions.org_structure.add_positions %}
+{% include 'app_cabinet/modals/add_position_modal.html' %}
+{% endif %}
+{% if user_permissions.org_structure.edit_positions %}
+{% include 'app_cabinet/modals/edit_position_modal.html' %}
+{% endif %}
+{% include 'app_cabinet/modals/orgchart_modal.html' %}
+
+<!-- Loading Overlay with improved styling -->
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner-grow text-primary" role="status">
+        <span class="visually-hidden">{% trans "Loading..." %}</span>
+    </div>
+    <p class="mt-3 text-primary fw-bold">{% trans "Loading data..." %}</p>
+</div>
+
+<!-- Rest of the scripts remain the same -->
+<script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
+<script>
+  // Check if jQuery is loaded
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.jQuery) {
+      console.log('jQuery is loaded successfully');
+    } else {
+      console.error('jQuery is not loaded!');
+    }
+  });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/orgchart/5.0.0/js/jquery.orgchart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<!-- The JavaScript remains the same -->
+<script>
+$(document).ready(function() {
+    // Constants
+    const TRANSLATIONS = {
+        'Email': '{% trans "Email" %}',
+        'Phone': '{% trans "Phone" %}',
+        'Start Date': '{% trans "Start Date" %}',
+        'End Date': '{% trans "End Date" %}',
+        'Status': '{% trans "Status" %}',
+        'Active': '{% trans "Active" %}',
+        'Inactive': '{% trans "Inactive" %}',
+        'Cabinet Groups': '{% trans "Cabinet Groups" %}',
+        'Other Groups': '{% trans "Other Groups" %}',
+        'Loading...': '{% trans "Loading..." %}',
+        'No departments found': '{% trans "No departments found" %}',
+        'Error loading data': '{% trans "Error loading data" %}',
+        'Error deleting position': '{% trans "Error deleting position" %}',
+        'Error deleting department': '{% trans "Error deleting department" %}',
+        'Are you sure you want to delete this position?': '{% trans "Are you sure you want to delete this position?" %}',
+        'Are you sure you want to delete this department?': '{% trans "Are you sure you want to delete this department?" %}'
+    };
+    
+    // State Management
+    let state = {
+        currentCompanyId: null,
+        departmentsData: [],
+        positionsData: [],
+        currentLanguage: $('html').attr('lang') || 'uk',
+        loading: false,
+        stats: {
+            departments: 0,
+            positions: 0, 
+            users: 0
+        }
+    };
+
+    // Helper function to get localized name
+    function getLocalizedName(item, type) {
+        if (!item) return '';
+        // API already returns localized name (from site language) in item.name
+        if (item.name) return item.name;
+        const currentLanguage = ($('html').attr('lang') || 'uk').substring(0, 2);
+        if (type === 'department') {
+            if (currentLanguage === 'ru' && item.department_name_ru) return item.department_name_ru;
+            if (currentLanguage === 'en' && item.department_name_en) return item.department_name_en;
+            if (item.department_name_ua) return item.department_name_ua;
+        } else if (type === 'position') {
+            if (currentLanguage === 'ru' && item.position_name_ru) return item.position_name_ru;
+            if (currentLanguage === 'en' && item.position_name_en) return item.position_name_en;
+            if (item.position_name_ua) return item.position_name_ua;
+        }
+        return '';
+    }
+
+    // Helper function to get localized description (API sends item.description in site language)
+    function getLocalizedDescription(item) {
+        if (!item) return '';
+        if (item.description) return item.description;
+        const lang = (state.currentLanguage || $('html').attr('lang') || 'uk').substring(0, 2);
+        if (lang === 'ru' && item.description_ru) return item.description_ru;
+        if (lang === 'en' && item.description_en) return item.description_en;
+        if (item.description_ua) return item.description_ua;
+        return '';
+    }
+
+    // DOM Elements
+    const elements = {
+        companySelect: $('#companySelect'),
+        showPositionsCheckbox: $('#showPositions'),
+        showUsersCheckbox: $('#showUsers'),
+        expandAllBtn: $('#expandAll'),
+        collapseAllBtn: $('#collapseAll'),
+        orgStructureBody: $('#orgStructureBody'),
+        loadingOverlay: $('#loadingOverlay'),
+        searchInput: $('#searchInput'),
+        parentDepartmentFilter: $('#parentDepartmentFilter'),
+        deptCount: $('#deptCount'),
+        posCount: $('#posCount'),
+        userCount: $('#userCount')
+    };
+
+    // Event Listeners
+    elements.companySelect.on('change', handleCompanyChange);
+    elements.showUsersCheckbox.on('change', renderOrgStructure);
+    elements.expandAllBtn.on('click', expandAll);
+    elements.collapseAllBtn.on('click', collapseAll);
+
+    // Initialize filter controls
+    function initializeFilters() {
+        const searchInput = $('#searchInput');
+        const clearSearchBtn = $('#clearSearch');
+        const parentDepartmentFilter = $('#parentDepartmentFilter');
+
+        // Search input handler
+        let searchTimeout;
+        searchInput.on('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                filterStructure();
+            }, 300);
+        });
+
+        // Clear search button
+        clearSearchBtn.on('click', function() {
+            searchInput.val('');
+            filterStructure();
+        });
+
+        // Parent department filter change
+        parentDepartmentFilter.on('change', filterStructure);
+    }
+
+    // Update parent department filter options
+    function updateParentDepartmentFilter(departments) {
+        const filter = $('#parentDepartmentFilter');
+        const currentValue = filter.val();
+
+        filter.empty();
+        filter.append(`<option value="">{% trans "All Departments" %}</option>`);
+
+        if (departments && departments.length) {
+            departments.forEach(dept => {
+                const name = getLocalizedName(dept, 'department');
+                filter.append(`<option value="${dept.id}">${name}</option>`);
+            });
+        }
+
+        filter.val(currentValue);
+    }
+
+    // Filter structure based on search and filters
+    function filterStructure() {
+        const searchTerm = elements.searchInput.val().toLowerCase();
+        const selectedParentDept = elements.parentDepartmentFilter.val();
+
+        $('.department-row, .position-row, .user-row').each(function() {
+            const row = $(this);
+            const deptId = row.data('department-id');
+            const parentDeptId = row.data('parent-id');
+
+            let showRow = true;
+            let searchableContent = '';
+
+            if (row.hasClass('department-row')) {
+                const dept = state.departmentsData.find(d => d.id === deptId);
+                if (dept) {
+                    searchableContent = [
+                        getLocalizedName(dept, 'department'),
+                        getLocalizedDescription(dept)
+                    ].join(' ').toLowerCase();
+                }
+            } else if (row.hasClass('position-row')) {
+                const position = state.positionsData.find(p => p.id === row.data('position-id'));
+                if (position) {
+                    searchableContent = [
+                        getLocalizedName(position, 'position'),
+                        getLocalizedDescription(position)
+                    ].join(' ').toLowerCase();
+                }
+            } else {
+                searchableContent = row.find('td:first').text().toLowerCase();
+            }
+
+            if (searchTerm) {
+                showRow = searchableContent.includes(searchTerm);
+            }
+
+            if (showRow && selectedParentDept) {
+                if (row.hasClass('department-row')) {
+                    showRow = parentDeptId === selectedParentDept;
+                } else if (row.hasClass('position-row')) {
+                    showRow = deptId === selectedParentDept;
+                }
+            }
+
+            row.toggle(showRow);
+        });
+
+        updateEmptyState();
+    }
+    
+    function updateEmptyState() {
+        const visibleRows = $('.department-row:visible, .position-row:visible').length;
+        $('.no-results-row').remove();
+
+        if (visibleRows === 0) {
+            const colspan = $('.org-table th').length;
+            const noResultsRow = `
+                <tr class="no-results-row">
+                    <td colspan="${colspan}" class="text-center py-4">
+                        <div class="empty-state">
+                            <i class="bi bi-search empty-state-icon"></i>
+                            <p class="empty-state-text">{% trans "No results found matching your criteria" %}</p>
+                            <button class="btn btn-outline-primary mt-3" id="clearFiltersBtn">
+                                <i class="bi bi-arrow-repeat me-1"></i>{% trans "Clear Filters" %}
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            $('#orgStructureBody').append(noResultsRow);
+            
+            // Add event listener to clear filters button
+            $('#clearFiltersBtn').on('click', function() {
+                $('#searchInput').val('');
+                $('#parentDepartmentFilter').val('');
+                filterStructure();
+            });
+        }
+    }
+
+    // Event Listener Initialization - Move this function before init()
+    function initEventListeners() {
+        elements.companySelect.on('change', handleCompanyChange);
+        elements.showPositionsCheckbox.on('change', renderOrgStructure);
+        elements.showUsersCheckbox.on('change', renderOrgStructure);
+        elements.expandAllBtn.on('click', expandAll);
+        elements.collapseAllBtn.on('click', collapseAll);
+
+        // Keyboard Shortcuts
+        $(document).on('keydown', handleKeyboardShortcuts);
+
+        // Window Resize
+        let resizeTimeout;
+        $(window).on('resize', function() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function() {
+                if (state.currentCompanyId) {
+                    renderOrgStructure();
+                }
+            }, 250);
+        });
+    }
+
+    // Main Functions
+    function handleCompanyChange() {
+        const companyId = elements.companySelect.val();
+        $('#searchInput').val('');
+        $('#parentDepartmentFilter').val('');
+
+        // Update button states
+        updateButtonStates(companyId);
+
+        if (companyId) {
+            state.currentCompanyId = companyId;
+            loadOrgStructure(companyId);
+        } else {
+            clearOrgStructure();
+        }
+    }
+
+    function updateButtonStates(companyId) {
+        const hasCompany = Boolean(companyId);
+        
+        // Update main action buttons
+        $('#addDepartmentBtnMain').prop('disabled', !hasCompany);
+        $('#addPositionBtnMain').prop('disabled', !hasCompany);
+        
+        // Update tooltips
+        if (!hasCompany) {
+            $('#addDepartmentBtnMain, #addPositionBtnMain').attr('title', '{% trans "Please select a company first" %}');
+        } else {
+            $('#addDepartmentBtnMain').attr('title', '{% trans "Add New Department" %}');
+            $('#addPositionBtnMain').attr('title', '{% trans "Add New Position" %}');
+        }
+    }
+
+    async function loadOrgStructure(companyId) {
+        setLoading(true);
+        const currentLanguage = $('html').attr('lang') || 'uk';
+        const langPrefix = `/${currentLanguage}`;
+        
+        try {
+            // Use the correct URL paths that match the Django URL patterns
+            const [departments, positions] = await Promise.all([
+                $.get(`${langPrefix}/app_cabinet/companies/${companyId}/departments/`),
+                $.get(`${langPrefix}/app_cabinet/companies/${companyId}/positions/`)
+            ]);
+
+            state.departmentsData = departments;
+            state.positionsData = positions;
+            
+            // Update statistics
+            updateStructureStats();
+            
+            renderOrgStructure();
+        } catch (error) {
+            console.error('Error loading organization structure:', error);
+            console.error('Error details:', error.responseText);
+            console.error('Request URLs:', 
+                `${langPrefix}/app_cabinet/companies/${companyId}/departments/`,
+                `${langPrefix}/app_cabinet/companies/${companyId}/positions/`);
+            showErrorMessage(error.responseText || getTranslation('Error loading data'));
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // New function to update the statistics in the header
+    function updateStructureStats() {
+        // Count departments
+        state.stats.departments = state.departmentsData.length;
+        
+        // Count positions
+        state.stats.positions = state.positionsData.length;
+        
+        // Count users
+        state.stats.users = state.positionsData.reduce((total, position) => {
+            return total + (position.users?.length || 0);
+        }, 0);
+        
+        // Update UI
+        elements.deptCount.text(state.stats.departments);
+        elements.posCount.text(state.stats.positions);
+        elements.userCount.text(state.stats.users);
+    }
+
+    function renderOrgStructure() {
+        elements.orgStructureBody.empty();
+
+        if (!state.departmentsData.length) {
+            showEmptyState();
+            return;
+        }
+
+        const departmentMap = new Map(state.departmentsData.map(d => [d.id, d]));
+        const positionMap = new Map(state.positionsData.map(p => [p.id, p]));
+        const sortedDepartments = [...state.departmentsData].sort((a, b) => {
+            if (a.level !== b.level) return a.level - b.level;
+            const nameA = getLocalizedName(a, 'department');
+            const nameB = getLocalizedName(b, 'department');
+            return nameA.localeCompare(nameB, state.currentLanguage);
+        });
+
+        const fragment = document.createDocumentFragment();
+        const renderedPositionIds = new Set();
+
+        // Helper function to get department level for a position
+        const getPositionLevel = (pos) => {
+            if (pos.department_id) {
+                const dept = departmentMap.get(pos.department_id);
+                return dept ? dept.level : 0;
+            }
+            // If position has parent_position, find its level recursively
+            if (pos.parent_position_id) {
+                const parentPos = positionMap.get(pos.parent_position_id);
+                if (parentPos) {
+                    return getPositionLevel(parentPos) + 1;
+                }
+            }
+            return 0;
+        };
+
+        sortedDepartments.forEach(dept => {
+            const deptRow = createDepartmentRow(dept, departmentMap);
+            fragment.appendChild(deptRow[0]);
+
+            if (elements.showPositionsCheckbox.is(':checked')) {
+                // Positions with department_id (and no parent_position_id)
+                const departmentPositions = state.positionsData
+                    .filter(pos => pos.department_id === dept.id && !pos.parent_position_id);
+
+                departmentPositions.forEach(pos => {
+                    const posRow = createPositionRow(pos, dept.level);
+                    fragment.appendChild(posRow[0]);
+                    renderedPositionIds.add(pos.id);
+
+                    if (elements.showUsersCheckbox.is(':checked') && pos.users?.length > 0) {
+                        pos.users.forEach(user => {
+                            const userRow = createUserRow(user, dept.level);
+                            fragment.appendChild(userRow[0]);
+                        });
+                    }
+                });
+            }
+        });
+
+        // Render positions with parent_position_id after all departments
+        if (elements.showPositionsCheckbox.is(':checked')) {
+            const positionsWithParent = state.positionsData
+                .filter(pos => pos.parent_position_id && !pos.department_id);
+            
+            // Group positions by parent_position_id
+            const positionsByParent = {};
+            positionsWithParent.forEach(pos => {
+                if (!positionsByParent[pos.parent_position_id]) {
+                    positionsByParent[pos.parent_position_id] = [];
+                }
+                positionsByParent[pos.parent_position_id].push(pos);
+            });
+
+            // Render each parent position and its child positions
+            Object.keys(positionsByParent).forEach(parentPositionId => {
+                const parentPosition = positionMap.get(parseInt(parentPositionId));
+                if (!parentPosition) return;
+
+                // Find the department level for this parent position
+                const parentDeptLevel = getPositionLevel(parentPosition);
+
+                // Render parent position if it hasn't been rendered yet
+                // (it might have been rendered under a department)
+                if (!renderedPositionIds.has(parseInt(parentPositionId))) {
+                    const posRow = createPositionRow(parentPosition, parentDeptLevel);
+                    fragment.appendChild(posRow[0]);
+                    renderedPositionIds.add(parseInt(parentPositionId));
+                }
+
+                // Render child positions
+                positionsByParent[parentPositionId].forEach(pos => {
+                    if (!renderedPositionIds.has(pos.id)) {
+                        const posRow = createPositionRow(pos, parentDeptLevel + 1);
+                        fragment.appendChild(posRow[0]);
+                        renderedPositionIds.add(pos.id);
+
+                        if (elements.showUsersCheckbox.is(':checked') && pos.users?.length > 0) {
+                            pos.users.forEach(user => {
+                                const userRow = createUserRow(user, parentDeptLevel + 1);
+                                fragment.appendChild(userRow[0]);
+                            });
+                        }
+                    }
+                });
+            });
+        }
+
+        elements.orgStructureBody.append(fragment);
+        updateParentDepartmentFilter(state.departmentsData);
+        filterStructure();
+        
+        // Add event listeners for edit and delete buttons
+        bindActionButtons();
+    }
+
+    // Row Creation Functions
+    function createDepartmentRow(dept, departmentMap) {
+        // Create the row element with data attributes
+        const row = $('<tr>')
+            .addClass('department-row')
+            .attr('data-department-id', dept.id)
+            .attr('data-parent-id', dept.parent_id);
+
+        // Create tree lines based on level
+        const treeLines = Array(dept.level).fill().map((_, index) =>
+            $('<span>')
+                .addClass('tree-line')
+                .css({
+                    'left': `${index * 20}px`,
+                    'background-color': index === dept.level - 1 ? dept.color : '#dee2e6'
+                })
+        );
+
+        // Create branch line
+        const treeBranch = dept.level > 0 ?
+            $('<span>')
+                .addClass('tree-branch')
+                .css({
+                    'left': `${(dept.level - 1) * 20}px`,
+                    'width': '20px',
+                    'background-color': dept.color
+                }) :
+            null;
+
+        // Create name cell with tree structure
+        const nameCell = $('<td>')
+            .append(
+                $('<div>').addClass('tree-container')
+                    .append(
+                        // Add tree lines and branch
+                        ...treeLines,
+                        treeBranch,
+                        // Add main content container
+                        $('<div>').addClass('tree-item department-container')
+                            .css({
+                                'border-left': `4px solid ${dept.color}`,
+                                'margin-left': `${dept.level * 20}px`,
+                                'background-color': `${dept.color}10` // Very light background based on color
+                            })
+                            .append(
+                                // Department icon
+                                $('<i>').addClass('bi bi-diagram-3 department-icon me-2')
+                                    .css('color', dept.color),
+                                // Department name
+                                $('<span>')
+                                    .addClass('fw-bold department-name')
+                                    .text(getLocalizedName(dept, 'department')),
+                                // Staff count badge
+                                $('<span>')
+                                    .addClass('badge rounded-pill ms-2')
+                                    .css({
+                                        'background-color': `${dept.color}20`,
+                                        'color': dept.color
+                                    })
+                                    .append(
+                                        $('<i>').addClass('bi bi-people-fill me-1'),
+                                        calculateDepartmentStaffCount(dept.id)
+                                    )
+                            )
+                    )
+            );
+
+        // Create description cell
+        const descCell = $('<td>')
+            .append(
+                $('<div>').addClass('description-container')
+                    .append(
+                        $('<i>').addClass('bi bi-info-circle text-muted me-2'),
+                        $('<span>')
+                            .addClass('description-text')
+                            .text(getLocalizedDescription(dept))
+                    )
+            );
+
+        // Create parent cell (Department or Position)
+        let parentDisplay = [];
+        
+        if (dept.parent_id) {
+            const parentDept = departmentMap.get(dept.parent_id);
+            if (parentDept) {
+                parentDisplay.push(
+                    $('<span>').addClass('badge bg-primary me-1')
+                        .append(
+                            $('<i>').addClass('bi bi-diagram-3 me-1'),
+                            getLocalizedName(parentDept, 'department')
+                        )
+                );
+            }
+        }
+        
+        if (dept.parent_position_id) {
+            // Знайти позицію в positionsData
+            const parentPosition = state.positionsData.find(pos => pos.id === dept.parent_position_id);
+            if (parentPosition) {
+                parentDisplay.push(
+                    $('<span>').addClass('badge bg-info me-1')
+                        .append(
+                            $('<i>').addClass('bi bi-briefcase me-1'),
+                            getLocalizedName(parentPosition, 'position')
+                        )
+                );
+            }
+        }
+        
+        const parentCell = $('<td>')
+            .append(
+                $('<div>').addClass('parent-container')
+                    .append(
+                        parentDisplay.length > 0 ? parentDisplay : 
+                            $('<span>').addClass('text-muted').text('-')
+                    )
+            );
+
+        // Create staff count cell
+        const staffCount = calculateDepartmentStaffCount(dept.id);
+        const staffCell = $('<td>')
+            .addClass('text-center')
+            .append(
+                $('<span>').addClass('staff-count')
+                    .css({
+                        'background-color': `${dept.color}15`,
+                        'color': dept.color,
+                        'border': `1px solid ${dept.color}30`
+                    })
+                    .append(
+                        $('<i>').addClass('bi bi-people me-1'),
+                        staffCount
+                    )
+            );
+
+        // Create actions cell
+        const actionsCell = $('<td>')
+            .addClass('text-end');
+
+        // Add edit button if user has permission
+        {% if user_permissions.org_structure.edit_departments %}
+        actionsCell.append(
+            $('<button>')
+                .attr('type', 'button')
+                .addClass('btn btn-sm btn-outline-primary me-1 edit-dept-btn action-btn')
+                .attr({
+                    'data-id': dept.id,
+                    'data-bs-toggle': 'tooltip',
+                    'title': getTranslation('Edit Department')
+                })
+                .append($('<i>').addClass('bi bi-pencil'))
+        );
+        {% endif %}
+
+        // Add delete button if user has permission
+        {% if user_permissions.org_structure.delete_departments %}
+        actionsCell.append(
+            $('<button>')
+                .attr('type', 'button')
+                .addClass('btn btn-sm btn-outline-danger action-btn')
+                .prop('disabled', hasDependencies(dept.id))
+                .attr({
+                    'data-bs-toggle': 'tooltip',
+                    'title': hasDependencies(dept.id) ?
+                        getTranslation('Cannot delete department with dependencies') :
+                        getTranslation('Delete Department')
+                })
+                .append($('<i>').addClass('bi bi-trash'))
+                .on('click', () => handleDeleteDepartment(dept.id))
+        );
+        {% endif %}
+
+        // Add hover effect to the entire row
+        row.hover(
+            function() {
+                $(this).find('.tree-item').css({
+                    'transform': 'translateX(5px)',
+                    'box-shadow': `0 2px 8px rgba(0,0,0,0.1), 0 0 0 1px ${dept.color}30`
+                });
+            },
+            function() {
+                $(this).find('.tree-item').css({
+                    'transform': 'translateX(0)',
+                    'box-shadow': '0 1px 3px rgba(0,0,0,0.1)'
+                });
+            }
+        );
+
+        // Add all cells to the row
+        return row.append(nameCell, descCell, parentCell, staffCell, actionsCell);
+    }
+
+    // Update the createPositionRow function to use localized names
+    function createPositionRow(position, deptLevel) {
+        const row = $('<tr>')
+            .addClass('position-row')
+            .attr('data-position-id', position.id)
+            .attr('data-department-id', position.department_id || '')
+            .attr('data-parent-position-id', position.parent_position_id || '');
+
+        // Create tree lines
+        const treeLines = Array(deptLevel + 1).fill().map((_, index) =>
+            $('<span>')
+                .addClass('tree-line')
+                .css({
+                    'left': `${index * 20}px`,
+                    'background-color': index === deptLevel ? position.color : '#dee2e6'
+                })
+        );
+
+        // Create branch line
+        const treeBranch = $('<span>')
+            .addClass('tree-branch')
+            .css({
+                'left': `${deptLevel * 20}px`,
+                'width': '20px',
+                'background-color': position.color
+            });
+
+        // Create name cell
+        const nameCell = $('<td>')
+            .append(
+                $('<div>').addClass('tree-container')
+                    .append(
+                        ...treeLines,
+                        treeBranch,
+                        $('<div>').addClass('tree-item position-container')
+                            .css({
+                                'border-left': `3px solid ${position.color}`,
+                                'margin-left': `${(deptLevel + 1) * 20}px`,
+                                'background-color': `${position.color}10` // Very light background based on color
+                            })
+                            .append(
+                                // Position icon
+                                $('<i>').addClass('bi bi-person-workspace position-icon me-2')
+                                    .css('color', position.color),
+                                // Position name
+                                $('<span>').addClass('position-name')
+                                    .text(getLocalizedName(position, 'position')),
+                                // Users count badge
+                                $('<span>')
+                                    .addClass('badge rounded-pill ms-2')
+                                    .css({
+                                        'background-color': `${position.color}20`,
+                                        'color': position.color
+                                    })
+                                    .append(
+                                        $('<i>').addClass('bi bi-person-fill me-1'),
+                                        position.users?.length || 0
+                                    )
+                            )
+                    )
+            );
+
+        // Create description cell
+        const descCell = $('<td>')
+            .append(
+                $('<div>').addClass('description-container')
+                    .append(
+                        $('<i>').addClass('bi bi-card-text text-muted me-2'),
+                        $('<span>').addClass('description-text')
+                            .text(getLocalizedDescription(position))
+                    )
+            );
+
+        // Create parent cell - show Department or Parent Position
+        const parentCell = $('<td>');
+        const parentDisplay = [];
+        
+        if (position.department_id) {
+            const dept = state.departmentsData.find(d => d.id === position.department_id);
+            if (dept) {
+                parentDisplay.push(
+                    $('<span>').addClass('badge bg-primary me-1')
+                        .append(
+                            $('<i>').addClass('bi bi-diagram-3 me-1'),
+                            getLocalizedName(dept, 'department')
+                        )
+                );
+            }
+        }
+        
+        if (position.parent_position_id) {
+            const parentPos = state.positionsData.find(p => p.id === position.parent_position_id);
+            if (parentPos) {
+                parentDisplay.push(
+                    $('<span>').addClass('badge bg-info text-dark me-1')
+                        .append(
+                            $('<i>').addClass('bi bi-briefcase me-1'),
+                            getLocalizedName(parentPos, 'position')
+                        )
+                );
+            }
+        }
+        
+        if (parentDisplay.length === 0) {
+            parentCell.append($('<span>').addClass('text-muted').text('-'));
+        } else {
+            parentCell.append(...parentDisplay);
+        }
+
+        // Create staff count cell
+        const userCount = position.users?.length || 0;
+        const staffCell = $('<td>')
+            .addClass('text-center')
+            .append(
+                $('<span>').addClass('staff-count')
+                    .css({
+                        'background-color': `${position.color}15`,
+                        'color': position.color,
+                        'border': `1px solid ${position.color}30`
+                    })
+                    .append(
+                        $('<i>').addClass('bi bi-person me-1'),
+                        userCount
+                    )
+            );
+
+        // Create actions cell
+        const actionsCell = $('<td>')
+            .addClass('text-end');
+
+        // Add edit button if user has permission
+        {% if user_permissions.org_structure.edit_positions %}
+        actionsCell.append(
+            $('<button>')
+                .attr('type', 'button')
+                .addClass('btn btn-sm btn-outline-primary me-1 edit-pos-btn action-btn')
+                .attr({
+                    'data-id': position.id,
+                    'data-bs-toggle': 'tooltip',
+                    'title': getTranslation('Edit Position')
+                })
+                .append($('<i>').addClass('bi bi-pencil'))
+        );
+        {% endif %}
+
+        // Add delete button if user has permission
+        {% if user_permissions.org_structure.delete_positions %}
+        actionsCell.append(
+            $('<button>')
+                .attr('type', 'button')
+                .addClass('btn btn-sm btn-outline-danger action-btn')
+                .prop('disabled', position.users?.length > 0)
+                .attr({
+                    'data-bs-toggle': 'tooltip',
+                    'title': position.users?.length > 0 ?
+                        getTranslation('Cannot delete position with active users') :
+                        getTranslation('Delete Position')
+                })
+                .append($('<i>').addClass('bi bi-trash'))
+                .on('click', () => handleDeletePosition(position.id))
+        );
+        {% endif %}
+
+        // Add hover effect
+        row.hover(
+            function() {
+                $(this).find('.tree-item').css({
+                    'transform': 'translateX(5px)',
+                    'box-shadow': `0 2px 8px rgba(0,0,0,0.1), 0 0 0 1px ${position.color}30`
+                });
+            },
+            function() {
+                $(this).find('.tree-item').css({
+                    'transform': 'translateX(0)',
+                    'box-shadow': '0 1px 3px rgba(0,0,0,0.1)'
+                });
+            }
+        );
+
+        return row.append(nameCell, descCell, parentCell, staffCell, actionsCell);
+    }
+    
+    // Helper function to get department name by ID
+    function getDepartmentName(departmentId) {
+        const department = state.departmentsData.find(d => d.id === departmentId);
+        return department ? getLocalizedName(department, 'department') : '-';
+    }
+
+    function createUserRow(user, deptLevel) {
+        const row = $('<tr>')
+            .addClass('user-row')
+            .attr('data-user-id', user.id);
+
+        // Create tree lines
+        const treeLines = Array(deptLevel + 2).fill().map((_, index) =>
+            $('<span>')
+                .addClass('tree-line')
+                .css({
+                    'left': `${index * 20}px`,
+                    'background-color': '#dee2e6'
+                })
+        );
+
+        // Create branch line
+        const treeBranch = $('<span>')
+            .addClass('tree-branch')
+            .css({
+                'left': `${(deptLevel + 1) * 20}px`,
+                'width': '20px',
+                'background-color': user.is_active ? '#28a745' : '#6c757d'
+            });
+
+        // Create name cell
+        const nameCell = $('<td>')
+            .append(
+                $('<div>').addClass('tree-container')
+                    .append(
+                        ...treeLines,
+                        treeBranch,
+                        $('<div>').addClass('tree-item user-container')
+                            .css({
+                                'border-left': `2px solid ${user.is_active ? '#28a745' : '#6c757d'}`,
+                                'margin-left': `${(deptLevel + 2) * 20}px`,
+                                'background-color': user.is_active ? 'rgba(40, 167, 69, 0.05)' : 'rgba(108, 117, 125, 0.05)'
+                            })
+                            .append(
+                                // User avatar container
+                                $('<div>').addClass('user-avatar-container')
+                                    .append(
+                                        createUserAvatar(user),
+                                        $('<span>')
+                                            .addClass(`user-status ${user.is_active ? 'active' : 'inactive'}`)
+                                            .attr('title', user.is_active ?
+                                                getTranslation('Active') :
+                                                getTranslation('Inactive'))
+                                    ),
+                                // User name
+                                $('<div>').addClass('d-flex flex-column ms-2')
+                                    .append(
+                                        $('<span>').addClass('user-name fw-medium')
+                                            .text(user.full_name),
+                                        $('<small>').addClass('text-muted')
+                                            .text(user.email || '')
+                                    )
+                            )
+                    )
+            );
+
+        // Create details cell
+        const detailsCell = $('<td>')
+            .addClass('user-details')
+            .html(formatUserDetails(user));
+
+        // Create parent cell
+        const parentCell = $('<td>')
+            .append(
+                $('<span>').addClass('badge bg-light text-dark border')
+                    .append(
+                        $('<i>').addClass('bi bi-person-workspace me-1'),
+                        user.position_name || '-'
+                    )
+            );
+
+        // Create status cell
+        const statusCell = $('<td>')
+            .addClass('text-center')
+            .append(
+                $('<span>')
+                    .addClass(`badge ${user.is_active ? 'bg-success' : 'bg-secondary'}`)
+                    .append(
+                        $('<i>').addClass(`bi ${user.is_active ? 'bi-check-circle' : 'bi-dash-circle'} me-1`),
+                        user.is_active ?
+                        getTranslation('Active') :
+                            getTranslation('Inactive')
+                    )
+            );
+
+        // Create actions cell
+        const actionsCell = $('<td>')
+            .addClass('text-end')
+            .append(
+                $('<div>').addClass('btn-group')
+            .append(
+                $('<button>')
+                    .attr('type', 'button')
+                            .addClass('btn btn-sm btn-outline-info action-btn')
+                    .attr({
+                        'data-bs-toggle': 'tooltip',
+                        'title': getTranslation('View Details')
+                    })
+                    .append($('<i>').addClass('bi bi-person'))
+                            .on('click', () => showUserDetails(user)),
+                        $('<button>')
+                            .attr('type', 'button')
+                            .addClass('btn btn-sm btn-outline-secondary action-btn')
+                            .attr({
+                                'data-bs-toggle': 'tooltip',
+                                'title': getTranslation('Send Email')
+                            })
+                            .append($('<i>').addClass('bi bi-envelope'))
+                            .on('click', () => {
+                                console.log('User object:', user);
+                                // Look for email in different possible locations
+                                const userEmail = user.email || (user.full_name && user.full_name.includes('@') ? user.full_name : null);
+                                if (userEmail) {
+                                    window.location.href = `mailto:${userEmail}`;
+                                } else {
+                                    console.error('No email found for user:', user);
+                                    showErrorMessage('{% trans "User has no email address" %}');
+                                }
+                            })
+                    )
+            );
+
+        // Add hover effect
+        row.hover(
+            function() {
+                $(this).find('.tree-item').css({
+                    'transform': 'translateX(5px)',
+                    'box-shadow': '0 2px 8px rgba(0,0,0,0.1)'
+                });
+            },
+            function() {
+                $(this).find('.tree-item').css({
+                    'transform': 'translateX(0)',
+                    'box-shadow': '0 1px 3px rgba(0,0,0,0.1)'
+                });
+            }
+        );
+
+        return row.append(nameCell, detailsCell, parentCell, statusCell, actionsCell);
+    }
+
+    // Helper Functions
+    function formatUserDetails(user) {
+        // Create skill badges if available
+        let skillsHtml = '';
+        if (user.skills && user.skills.length > 0) {
+            skillsHtml = `
+                <div class="mt-1">
+                    ${user.skills.map(skill => 
+                        `<span class="badge bg-light text-dark me-1 mb-1">${skill}</span>`
+                    ).join('')}
+                </div>
+            `;
+        }
+        
+        // Create department info if available
+        let departmentInfo = '';
+        if (user.department_id) {
+            const department = state.departmentsData.find(d => d.id === user.department_id);
+            if (department) {
+                const deptName = getLocalizedName(department, 'department');
+                departmentInfo = `
+                    <span class="badge bg-light text-dark me-2">
+                        <i class="bi bi-diagram-3 me-1"></i>${deptName}
+                    </span>
+                `;
+            }
+        }
+
+        // Format phone number if available
+        const phoneInfo = user.phone ? 
+            `<span class="badge bg-light text-dark me-2">
+                <i class="bi bi-telephone me-1"></i>${user.phone}
+             </span>` : '';
+        
+        return `
+            <div class="d-flex flex-column">
+                <div class="d-flex flex-wrap align-items-center mb-1">
+                    ${departmentInfo}
+                    ${phoneInfo}
+                    <span class="badge ${user.is_active ? 'bg-success' : 'bg-secondary'} me-2">
+                        <i class="bi bi-circle-fill me-1 small"></i>${user.is_active ? getTranslation('Active') : getTranslation('Inactive')}
+                    </span>
+                    ${user.start_date ? 
+                        `<small class="text-muted">
+                            <i class="bi bi-calendar me-1"></i>${formatDate(user.start_date)}
+                         </small>` : ''}
+                </div>
+                ${skillsHtml}
+            </div>
+        `;
+    }
+
+    function createUserAvatar(user) {
+        if (user.avatar_url) {
+            return $('<img>')
+                .addClass('user-avatar')
+                .attr('src', user.avatar_url)
+                .attr('alt', user.full_name)
+                .on('error', function() {
+                    $(this).replaceWith(createUserInitials(user));
+                });
+        }
+        return createUserInitials(user);
+    }
+    
+    function createUserInitials(user) {
+        // Create initials from full name
+        let initials = '';
+        if (user.initials) {
+            initials = user.initials;
+        } else if (user.full_name) {
+            const nameParts = user.full_name.split(' ');
+            if (nameParts.length >= 2) {
+                initials = (nameParts[0].charAt(0) + nameParts[1].charAt(0)).toUpperCase();
+            } else {
+                initials = user.full_name.charAt(0).toUpperCase();
+            }
+        } else {
+            initials = '?';
+        }
+        
+        return $('<div>')
+            .addClass('user-avatar-placeholder')
+            .text(initials);
+    }
+
+    function createStatusBadge(isActive) {
+        return $('<span>')
+            .addClass(`badge ${isActive ? 'bg-success' : 'bg-secondary'}`)
+            .html(`
+                <i class="bi ${isActive ? 'bi-check-circle' : 'bi-dash-circle'} me-1"></i>
+                ${isActive ? getTranslation('Active') : getTranslation('Inactive')}
+            `);
+    }
+
+    // Keyboard Shortcuts Helper
+    function showKeyboardShortcutsHelp() {
+        const modalHtml = `
+            <div class="modal fade" id="keyboardShortcutsModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-keyboard me-2"></i>{% trans "Keyboard Shortcuts" %}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td width="40%" class="fw-bold">Esc</td>
+                                            <td>{% trans "Close active modal" %}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Ctrl + E</td>
+                                            <td>{% trans "Toggle users visibility" %}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Ctrl + /</td>
+                                            <td>{% trans "Focus search box" %}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Ctrl + F</td>
+                                            <td>{% trans "Focus filter dropdown" %}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Ctrl + H</td>
+                                            <td>{% trans "Show this help" %}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                {% trans "Close" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add to body and show
+        $('body').append(modalHtml);
+        const modal = new bootstrap.Modal('#keyboardShortcutsModal');
+        modal.show();
+
+        // Cleanup on hide
+        $('#keyboardShortcutsModal').on('hidden.bs.modal', function() {
+            $(this).remove();
+        });
+    }
+
+    // Update keyboard shortcuts handler
+    function handleKeyboardShortcuts(e) {
+        // Escape key closes any active modal
+        if (e.key === 'Escape') {
+            $('.modal').modal('hide');
+        }
+
+        // Ctrl/Cmd + E toggles user visibility
+        if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+            e.preventDefault();
+            elements.showUsersCheckbox.prop('checked', !elements.showUsersCheckbox.is(':checked')).trigger('change');
+        }
+        
+        // Ctrl/Cmd + / focuses search
+        if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+            e.preventDefault();
+            elements.searchInput.focus();
+        }
+        
+        // Ctrl/Cmd + F focuses department filter
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            elements.parentDepartmentFilter.focus();
+        }
+        
+        // Ctrl/Cmd + H shows keyboard shortcuts
+        if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+            e.preventDefault();
+            showKeyboardShortcutsHelp();
+        }
+    }
+
+    // Add "Help" button to the UI
+    function addHelpButton() {
+        const helpButton = $(`
+            <button id="showKeyboardHelp" class="btn btn-outline-info ms-2" title="{% trans 'Keyboard Shortcuts' %}">
+                <i class="bi bi-keyboard"></i>
+            </button>
+        `);
+        
+        // Add after the collapse all button
+        $('#collapseAll').after(helpButton);
+        
+        // Add click handler
+        helpButton.on('click', showKeyboardShortcutsHelp);
+    }
+
+    // CRUD Operations
+    async function handleDeleteDepartment(departmentId) {
+        if (!confirm(getTranslation('Are you sure you want to delete this department?'))) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const response = await $.ajax({
+                url: `/${state.currentLanguage}/companies/departments/${departmentId}/delete/`,
+                method: 'POST',  // Changed from DELETE to POST to match Django view
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
+            });
+
+            if (response.status === 'success') {
+                await loadOrgStructure(state.currentCompanyId);
+            } else {
+                throw new Error(response.message || 'Failed to delete department');
+            }
+        } catch (error) {
+            console.error('Error deleting department:', error);
+            showErrorMessage(getTranslation('Error deleting department'));
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function handleDeletePosition(positionId) {
+        if (!confirm(getTranslation('Are you sure you want to delete this position?'))) return;
+
+        setLoading(true);
+        try {
+            const response = await $.ajax({
+                url: `/${state.currentLanguage}/companies/positions/${positionId}/delete/`,
+                type: 'DELETE',
+                headers: { 'X-CSRFToken': getCsrfToken() },
+            });
+            
+            if (response.status === 'success') {
+                await loadOrgStructure(state.currentCompanyId);
+            } else {
+                throw new Error(response.message || 'Failed to delete position');
+            }
+        } catch (error) {
+            console.error('Error deleting position:', error);
+            showErrorMessage(getTranslation('Error deleting position'));
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function handleEditDepartment(departmentId) {
+        const editModal = new bootstrap.Modal('#editDepartmentModal');
+        // Load department data and show modal
+        editModal.show();
+    }
+
+    function handleEditPosition(positionId) {
+        const editModal = new bootstrap.Modal('#editPositionModal');
+        // Load position data and show modal
+        editModal.show();
+    }
+
+    // Utility Functions
+    function setLoading(loading) {
+        state.loading = loading;
+        elements.loadingOverlay.toggleClass('active', loading);
+    }
+
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid date';
+
+        // Extract date components
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+        const year = String(date.getFullYear()).slice(-2); // Last 2 digits of the year
+
+        // Extract time components
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+
+        // Combine date and time
+        return `${day}.${month}.${year} ${hours}:${minutes}`;
+    }
+
+    function calculateDepartmentStaffCount(deptId) {
+        return state.positionsData
+            .filter(pos => pos.department_id === deptId)
+            .reduce((total, pos) => total + (pos.users?.length || 0), 0);
+    }
+
+    function hasDependencies(deptId) {
+        return state.departmentsData.some(d => d.parent_id === deptId) ||
+               state.positionsData.some(p => p.department_id === deptId);
+    }
+
+    function showEmptyState() {
+        elements.orgStructureBody.html(`
+            <tr>
+                <td colspan="5" class="text-center py-5">
+                    <div class="empty-state">
+                        <i class="bi bi-diagram-3 empty-state-icon"></i>
+                        <h5 class="mb-3">{% trans "No departments found" %}</h5>
+                        <p class="empty-state-text mb-4">{% trans "Select a company from the dropdown above or add your first department to get started." %}</p>
+                        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+                            <i class="bi bi-plus-circle me-1"></i>{% trans "Add First Department" %}
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `);
+    }
+
+    function getCsrfToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+
+    function getTranslation(key) {
+        return TRANSLATIONS[key] || key;
+    }
+
+    function clearOrgStructure() {
+        state.departmentsData = [];
+        state.positionsData = [];
+        state.currentCompanyId = null;
+        elements.orgStructureBody.empty();
+        
+        // Reset stats
+        state.stats = {
+            departments: 0,
+            positions: 0,
+            users: 0
+        };
+        
+        // Update UI
+        elements.deptCount.text('0');
+        elements.posCount.text('0');
+        elements.userCount.text('0');
+    }
+
+    function expandAll() {
+        elements.showUsersCheckbox.prop('checked', true);
+        elements.showPositionsCheckbox.prop('checked', true);
+        renderOrgStructure();
+    }
+
+    function collapseAll() {
+        elements.showUsersCheckbox.prop('checked', false);
+        elements.showPositionsCheckbox.prop('checked', false);
+        renderOrgStructure();
+    }
+
+    // User Details Modal
+    function showUserDetails(user) {
+        console.log('Opening details for user:', user);
+        
+        // Make sure we have a valid email
+        const userEmail = user.email || '';
+        
+        const modalHtml = `
+            <div class="modal fade" id="userDetailsModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-person-circle me-2"></i>${user.full_name}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="text-center mb-4">
+                                <div class="user-avatar-modal-container mb-3">
+                                    ${createUserAvatar(user).prop('outerHTML')}
+                                </div>
+                                <h5 class="mb-1">${user.full_name}</h5>
+                                <small class="text-muted d-block">${userEmail}</small>
+                                <div class="badge ${user.is_active ? 'bg-success' : 'bg-secondary'} mt-2">
+                                    ${user.is_active ? getTranslation('Active') : getTranslation('Inactive')}
+                            </div>
+                            </div>
+                            
+                            <div class="user-details">
+                                ${formatUserDetails(user)}
+                            </div>
+                            
+                            ${userEmail ? 
+                                `<div class="mt-3 d-grid gap-2">
+                                    <a href="mailto:${userEmail}" class="btn btn-outline-primary">
+                                        <i class="bi bi-envelope me-1"></i>{% trans "Send Email" %}
+                                    </a>
+                                </div>` : ''}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x me-1"></i>{% trans "Close" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add to body and show
+        $('body').append(modalHtml);
+
+        // Add special styles for avatar in modal
+        const modalAvatarStyle = `
+            <style id="user-modal-styles">
+                .user-avatar-modal-container {
+                    width: 120px;
+                    height: 120px;
+                    margin: 0 auto;
+                }
+                
+                .user-avatar-modal-container .user-avatar,
+                .user-avatar-modal-container .user-avatar-placeholder {
+                    width: 120px !important;
+                    height: 120px !important;
+                    font-size: 48px !important;
+                    margin: 0 auto;
+                    border: 3px solid #fff;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    transition: transform 0.3s ease;
+                }
+
+                .user-avatar-modal-container .user-avatar:hover,
+                .user-avatar-modal-container .user-avatar-placeholder:hover {
+                    transform: scale(1.05);
+                }
+
+                .user-avatar-modal-container .user-status {
+                    width: 20px;
+                    height: 20px;
+                    border-width: 3px;
+                }
+            </style>
+        `;
+        $('head').append(modalAvatarStyle);
+
+        const modal = new bootstrap.Modal('#userDetailsModal');
+        modal.show();
+
+        // Clean up when modal is hidden
+        $('#userDetailsModal').on('hidden.bs.modal', function() {
+            $(this).remove();
+            $('#user-modal-styles').remove();
+        });
+    }
+
+    // Initialize tooltips and popovers
+    function initTooltips() {
+        $('[data-bs-toggle="tooltip"]').tooltip({
+            trigger: 'hover'
+        });
+    }
+
+    function initPopovers() {
+        $('[data-bs-toggle="popover"]').popover({
+            trigger: 'hover',
+            container: 'body'
+        });
+    }
+
+    // Language handler
+    function initLanguageHandler() {
+        $(document).on('languageChanged', function(e, newLang) {
+            state.currentLanguage = newLang;
+            if (state.currentCompanyId) {
+                loadOrgStructure(state.currentCompanyId);
+            }
+        });
+    }
+    
+    // Org chart modal handler
+    function initOrgChartButton() {
+        $('#showOrgChartBtn').on('click', function () {
+            const orgChartModal = new bootstrap.Modal('#orgChartModal');
+            orgChartModal.show();
+        });
+    }
+
+    // Excel export
+    function exportToExcel() {
+        // Show loading indicator
+        const loadingHtml = `
+            <div id="exportLoading" class="position-fixed top-50 start-50 translate-middle bg-white p-3 rounded shadow">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary me-2" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <span>{% trans "Generating Excel file..." %}</span>
+                </div>
+            </div>`;
+        $('body').append(loadingHtml);
+
+        try {
+            // Create data array for Excel
+            const excelData = [];
+
+            // Add headers
+            excelData.push([
+                'Level',
+                'Type',
+                'Name',
+                'Description',
+                'Parent',
+                'Staff Count',
+                'Status'
+            ]);
+
+            // Add department data
+            state.departmentsData.forEach(dept => {
+                let parentInfo = '-';
+                
+                if (dept.parent_id) {
+                    const parentDept = state.departmentsData.find(d => d.id === dept.parent_id);
+                    if (parentDept) {
+                        parentInfo = `Dept: ${getLocalizedName(parentDept, 'department')}`;
+                    }
+                }
+                
+                if (dept.parent_position_id) {
+                    const parentPosition = state.positionsData.find(pos => pos.id === dept.parent_position_id);
+                    if (parentPosition) {
+                        if (parentInfo !== '-') {
+                            parentInfo += ` / Pos: ${getLocalizedName(parentPosition, 'position')}`;
+                        } else {
+                            parentInfo = `Pos: ${getLocalizedName(parentPosition, 'position')}`;
+                        }
+                    }
+                }
+
+                excelData.push([
+                    dept.level,
+                    'Department',
+                    getLocalizedName(dept, 'department'),
+                    getLocalizedDescription(dept),
+                    parentInfo,
+                    calculateDepartmentStaffCount(dept.id),
+                    'Active'
+                ]);
+
+                // Add positions for department
+                const departmentPositions = state.positionsData.filter(pos =>
+                    pos.department_id === dept.id
+                );
+
+                departmentPositions.forEach(pos => {
+                    excelData.push([
+                        dept.level + 1,
+                        'Position',
+                        getLocalizedName(pos, 'position'),
+                        getLocalizedDescription(pos),
+                        getLocalizedName(dept, 'department'),
+                        pos.users?.length || 0,
+                        'Active'
+                    ]);
+
+                    // Add users for position
+                    if (pos.users?.length > 0) {
+                        pos.users.forEach(user => {
+                            excelData.push([
+                                dept.level + 2,
+                                'User',
+                                user.full_name,
+                                user.email || '-',
+                                getLocalizedName(pos, 'position'),
+                                '-',
+                                user.is_active ? 'Active' : 'Inactive'
+                            ]);
+                        });
+                    }
+                });
+            });
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+
+            // Style headers
+            const headerRange = XLSX.utils.decode_range(ws['!ref']);
+            for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+                const address = XLSX.utils.encode_cell({ r: 0, c: C });
+                ws[address].s = {
+                    font: { bold: true },
+                    fill: { fgColor: { rgb: "EEF0F2" } }
+                };
+            }
+
+            // Set column widths
+            const colWidths = [10, 15, 30, 40, 30, 15, 15];
+            ws['!cols'] = colWidths.map(width => ({ width }));
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, "Organization Structure");
+
+            // Save file
+            const company = $('#companySelect option:selected').text();
+            const date = new Date().toISOString().split('T')[0];
+            const fileName = `organization_structure_${company}_${date}.xlsx`;
+
+            XLSX.writeFile(wb, fileName);
+
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            alert('Error generating Excel file. Please try again.');
+        } finally {
+            $('#exportLoading').remove();
+        }
+    }
+
+    // Bind Excel export button
+    $('#exportExcel').on('click', exportToExcel);
+
+    // Function to bind action buttons
+    function bindActionButtons() {
+        // Bind department edit buttons
+        {% if user_permissions.org_structure.edit_departments %}
+        $('.edit-dept-btn').off('click').on('click', function(e) {
+            e.preventDefault();
+            const departmentId = $(this).data('id');
+            // Load department data and show edit modal
+            loadDepartmentForEdit(departmentId);
+        });
+        {% endif %}
+
+        // Bind position edit buttons
+        {% if user_permissions.org_structure.edit_positions %}
+        $('.edit-pos-btn').off('click').on('click', function(e) {
+            e.preventDefault();
+            const positionId = $(this).data('id');
+            // Load position data and show edit modal
+            loadPositionForEdit(positionId);
+        });
+        {% endif %}
+    }
+
+    // Helper functions for loading edit data
+    {% if user_permissions.org_structure.edit_departments %}
+    function loadDepartmentForEdit(departmentId) {
+        const department = state.departmentsData.find(d => d.id === departmentId);
+        if (department) {
+            // Populate edit department modal and show it
+            const modal = new bootstrap.Modal(document.getElementById('editDepartmentModal'));
+            modal.show();
+            
+            // Trigger custom event to populate the modal
+            document.dispatchEvent(new CustomEvent('loadDepartmentData', {
+                detail: { department: department }
+            }));
+        }
+    }
+    {% endif %}
+
+    {% if user_permissions.org_structure.edit_positions %}
+    function loadPositionForEdit(positionId) {
+        const position = state.positionsData.find(p => p.id === positionId);
+        if (position) {
+            // Populate edit position modal and show it
+            const modal = new bootstrap.Modal(document.getElementById('editPositionModal'));
+            modal.show();
+            
+            // Trigger custom event to populate the modal
+            document.dispatchEvent(new CustomEvent('loadPositionData', {
+                detail: { position: position }
+            }));
+        }
+    }
+    {% endif %}
+
+    // Company management functions
+    {% if user_permissions.org_structure.edit_companies %}
+    function loadCompanyForEdit(companyId) {
+        // Get company data from dropdown
+        const companySelect = document.getElementById('companySelect');
+        const selectedOption = companySelect.options[companySelect.selectedIndex];
+        
+        if (selectedOption && selectedOption.value === companyId) {
+            const company = {
+                id: companyId,
+                name: selectedOption.text
+            };
+            
+            // Show edit modal
+            const modal = new bootstrap.Modal(document.getElementById('editCompanyModal'));
+            modal.show();
+            
+            // Trigger custom event to populate the modal
+            document.dispatchEvent(new CustomEvent('loadCompanyData', {
+                detail: { company: company }
+            }));
+        }
+    }
+    {% endif %}
+
+    {% if user_permissions.org_structure.delete_companies %}
+    function loadCompanyForDelete(companyId) {
+        // Get company data from dropdown
+        const companySelect = document.getElementById('companySelect');
+        const selectedOption = companySelect.options[companySelect.selectedIndex];
+        
+        if (selectedOption && selectedOption.value === companyId) {
+            const company = {
+                id: companyId,
+                name: selectedOption.text
+            };
+            
+            // Show delete modal
+            const modal = new bootstrap.Modal(document.getElementById('deleteCompanyModal'));
+            modal.show();
+            
+            // Trigger custom event to populate the modal
+            document.dispatchEvent(new CustomEvent('loadCompanyDeleteData', {
+                detail: { company: company }
+            }));
+        }
+    }
+    {% endif %}
+
+    // Function to load companies list
+    function loadCompanies() {
+        fetch('/companies/')
+            .then(response => response.json())
+            .then(data => {
+                const companySelect = document.getElementById('companySelect');
+                const currentValue = companySelect.value;
+                
+                // Clear existing options except the first one
+                companySelect.innerHTML = '<option value="">{% trans "Select Company" %}</option>';
+                
+                // Add companies to dropdown
+                data.companies.forEach(company => {
+                    const option = document.createElement('option');
+                    option.value = company.id;
+                    option.textContent = company.name;
+                    companySelect.appendChild(option);
+                });
+                
+                // Restore selection if it still exists
+                if (currentValue) {
+                    companySelect.value = currentValue;
+                }
+                
+                // Update button states
+                updateCompanyButtonStates();
+            })
+            .catch(error => {
+                console.error('Error loading companies:', error);
+            });
+    }
+
+    // Function to update company button states
+    function updateCompanyButtonStates() {
+        const companySelect = document.getElementById('companySelect');
+        const selectedCompanyId = companySelect.value;
+        
+        {% if user_permissions.org_structure.edit_companies %}
+        const editBtn = document.getElementById('editCompanyBtn');
+        if (editBtn) {
+            editBtn.disabled = !selectedCompanyId;
+        }
+        {% endif %}
+        
+        {% if user_permissions.org_structure.delete_companies %}
+        const deleteBtn = document.getElementById('deleteCompanyBtn');
+        if (deleteBtn) {
+            deleteBtn.disabled = !selectedCompanyId;
+        }
+        {% endif %}
+    }
+
+    // Print handling
+    window.onbeforeprint = function() {
+        elements.showUsersCheckbox.prop('checked', true);
+        elements.showPositionsCheckbox.prop('checked', true);
+        renderOrgStructure();
+    };
+
+    // Add this to the init function
+    function init() {
+        initEventListeners();
+        initTooltips();
+        initPopovers();
+        initializeFilters();
+        initLanguageHandler();
+        addHelpButton();
+        
+        // Properly initialize all Bootstrap dropdowns
+        var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'))
+        var dropdownList = dropdownElementList.map(function(element) {
+            return new bootstrap.Dropdown(element)
+        });
+        
+        // Function to sync company selection in modals
+        function syncCompanyInModals() {
+            const selectedCompanyId = elements.companySelect.val();
+            if (selectedCompanyId) {
+                // Sync company in add department modal
+                const addDeptCompany = document.getElementById('addDeptCompany');
+                if (addDeptCompany) {
+                    addDeptCompany.value = selectedCompanyId;
+                    // Trigger change event to load departments if needed
+                    addDeptCompany.dispatchEvent(new Event('change'));
+                }
+                
+                // Sync company in add position modal
+                const addPosCompany = document.getElementById('addPosCompany');
+                if (addPosCompany) {
+                    addPosCompany.value = selectedCompanyId;
+                    // Trigger change event to load departments
+                    addPosCompany.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+
+        // Add direct event listeners for the main buttons
+        {% if user_permissions.org_structure.add_companies %}
+        document.getElementById('addCompanyBtnMain')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            const modal = new bootstrap.Modal(document.getElementById('addCompanyModal'));
+            modal.show();
+        });
+        
+        document.getElementById('addCompanyBtn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            const modal = new bootstrap.Modal(document.getElementById('addCompanyModal'));
+            modal.show();
+        });
+        {% endif %}
+        
+        {% if user_permissions.org_structure.edit_companies %}
+        document.getElementById('editCompanyBtn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            const companyId = document.getElementById('companySelect').value;
+            if (companyId) {
+                loadCompanyForEdit(companyId);
+            }
+        });
+        {% endif %}
+        
+        {% if user_permissions.org_structure.delete_companies %}
+        document.getElementById('deleteCompanyBtn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            const companyId = document.getElementById('companySelect').value;
+            if (companyId) {
+                loadCompanyForDelete(companyId);
+            }
+        });
+        {% endif %}
+
+        {% if user_permissions.org_structure.add_departments %}
+        document.getElementById('addDepartmentBtnMain')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            syncCompanyInModals();
+            const modal = new bootstrap.Modal(document.getElementById('addDepartmentModal'));
+            modal.show();
+        });
+        {% endif %}
+        
+        {% if user_permissions.org_structure.add_positions %}
+        document.getElementById('addPositionBtnMain')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            syncCompanyInModals();
+            const modal = new bootstrap.Modal(document.getElementById('addPositionModal'));
+            modal.show();
+        });
+        {% endif %}
+
+
+
+        // Listen for refresh events from modals
+        document.addEventListener('refreshOrgStructure', function(event) {
+            const companyId = event.detail.companyId;
+            if (companyId && state.currentCompanyId) {
+                loadOrgStructure(state.currentCompanyId);
+            }
+        });
+
+        // Add event listener for company selection change
+        elements.companySelect.on('change', function() {
+            updateCompanyButtonStates();
+        });
+
+        // Initialize button states
+        const selectedCompany = elements.companySelect.val();
+        updateButtonStates(selectedCompany);
+        updateCompanyButtonStates();
+        
+        if (selectedCompany && selectedCompany !== '') {
+            handleCompanyChange();
+        }
+    }
+
+    // Start initialization
+    init();
+});
+
+// Show error message function
+function showErrorMessage(message) {
+    // Create Bootstrap alert
+    const alertHtml = `
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>{% trans "Error" %}:</strong> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Find alert container or create one
+    let alertContainer = $('#alertContainer');
+    if (alertContainer.length === 0) {
+        $('body').prepend('<div id="alertContainer" class="container mt-3"></div>');
+        alertContainer = $('#alertContainer');
+    }
+    
+    // Add the alert
+    const alert = $(alertHtml);
+    alertContainer.append(alert);
+    
+    // Auto-dismiss after 8 seconds
+    setTimeout(() => {
+        alert.alert('close');
+    }, 8000);
+}
+</script>
+
+<!-- Organization Structure Guide Modal -->
+<div class="modal fade" id="orgStructureGuideModal" tabindex="-1" aria-labelledby="orgStructureGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'org_structure_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="orgStructureGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Organization Structure Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="orgStructureGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('orgStructureGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('orgStructureGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+{% endblock %}

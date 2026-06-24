@@ -1,0 +1,985 @@
+{% load static %}
+{% load i18n %}
+<!-- AI Assistant Widget -->
+<div id="aiAssistantWidget" class="ai-assistant-widget" style="display: none;">
+    <div class="ai-assistant-header">
+        <h5>{% trans "AI Assistant" %}</h5>
+        <div class="ai-assistant-header-buttons">
+            <button type="button" class="btn btn-sm btn-link text-white p-1" onclick="toggleWidgetSize()" title="{% trans 'Resize widget' %}" style="font-size: 0.9rem; text-decoration: none;">
+                <i class="fas fa-expand" id="aiResizeIcon"></i>
+            </button>
+            <button type="button" class="btn-close btn-close-white" onclick="toggleAIAssistant()" aria-label="{% trans 'Close' %}"></button>
+        </div>
+    </div>
+    <div class="ai-assistant-body">
+        <div id="aiChatMessages" class="ai-chat-messages">
+            <div class="ai-message ai-message-assistant" id="aiWelcomeMessage">
+                <p>{% trans "Hello! I'm your AI assistant. Loading page context..." %}</p>
+            </div>
+        </div>
+        <div class="ai-assistant-input-section">
+            <div class="ai-previous-conversations-container" style="margin-bottom: 10px; display: flex; gap: 5px;">
+                <select id="aiPreviousConversations" class="form-select form-select-sm" onchange="loadPreviousConversation(this.value)" style="font-size: 0.8rem; flex: 1;">
+                    <option value="">{% trans "Select previous conversation..." %}</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="startNewConversation()" title="{% trans 'Start new conversation' %}" style="font-size: 0.75rem; padding: 4px 8px;">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div class="ai-context-toggle-container">
+                <span class="ai-toggle-label">{% trans "Page context" %}</span>
+                <label class="ai-toggle-switch">
+                    <input type="checkbox" id="aiUsePageContext" checked>
+                    <span class="ai-toggle-slider"></span>
+                </label>
+                <span class="ai-toggle-label">{% trans "Common" %}</span>
+            </div>
+            <div class="ai-assistant-input">
+                <textarea id="aiChatInput" class="form-control" rows="2" placeholder="{% trans 'Type your message...' %}"></textarea>
+                <button class="btn btn-primary" onclick="sendAIMessage()">
+                    <i class="fas fa-paper-plane"></i> {% trans "Send" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<button id="aiAssistantToggle" class="ai-assistant-toggle" onclick="toggleAIAssistant()" title="{% trans 'AI Assistant' %}" style="display: none;">
+    <i class="fas fa-robot"></i>
+</button>
+
+<style>
+.ai-assistant-widget {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 350px;
+    max-height: 600px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.3s ease, height 0.3s ease, max-height 0.3s ease;
+    overflow: hidden;
+    min-width: 300px;
+    min-height: 400px;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+.ai-assistant-widget.widget-compact {
+    width: 350px;
+    height: 500px;
+    max-height: 500px;
+}
+
+.ai-assistant-widget.widget-normal {
+    width: 450px;
+    height: 600px;
+    max-height: 600px;
+}
+
+.ai-assistant-widget.widget-expanded {
+    width: 600px;
+    height: 80vh;
+    max-height: 80vh;
+}
+
+.ai-assistant-widget.widget-fullscreen {
+    width: 90vw;
+    height: 90vh;
+    max-height: 90vh;
+    bottom: 5vh;
+    right: 5vw;
+}
+
+.ai-assistant-header {
+    padding: 15px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #0366d6;
+    color: white;
+    border-radius: 10px 10px 0 0;
+}
+
+.ai-assistant-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    flex: 1;
+}
+
+.ai-assistant-header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ai-assistant-header-buttons .btn-link {
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.ai-assistant-header-buttons .btn-link:hover {
+    opacity: 1;
+}
+
+.ai-assistant-input-section {
+    border-top: 1px solid #dee2e6;
+    padding: 10px 15px 15px 15px;
+}
+
+.ai-previous-conversations-container {
+    width: 100%;
+}
+
+.ai-previous-conversations-container select {
+    width: 100%;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 6px 10px;
+    background-color: white;
+    color: #495057;
+}
+
+.ai-previous-conversations-container select:focus {
+    border-color: #0366d6;
+    outline: none;
+    box-shadow: 0 0 0 0.2rem rgba(3, 102, 214, 0.25);
+}
+
+.ai-context-toggle-container {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.ai-toggle-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #495057;
+    user-select: none;
+    transition: color 0.3s ease;
+}
+
+.ai-toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 24px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.ai-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.ai-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.ai-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.ai-toggle-switch input:checked + .ai-toggle-slider {
+    background-color: #0366d6;
+}
+
+.ai-toggle-switch input:checked + .ai-toggle-slider:before {
+    transform: translateX(24px);
+}
+
+.ai-toggle-switch input:focus + .ai-toggle-slider {
+    box-shadow: 0 0 1px #0366d6;
+}
+
+.ai-toggle-switch:hover .ai-toggle-slider {
+    box-shadow: 0 0 8px rgba(3, 102, 214, 0.3);
+}
+
+/* Активний стан для лейблів */
+.ai-context-toggle-container:has(input:checked) .ai-toggle-label:first-child {
+    color: #0366d6;
+    font-weight: 600;
+}
+
+.ai-context-toggle-container:not(:has(input:checked)) .ai-toggle-label:last-child {
+    color: #0366d6;
+    font-weight: 600;
+}
+
+.ai-assistant-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.ai-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background: #f8f9fa;
+}
+
+.ai-message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 8px;
+    word-wrap: break-word;
+}
+
+.ai-message-user {
+    background: #0366d6;
+    color: white;
+    margin-left: 20%;
+}
+
+.ai-message-assistant {
+    background: white;
+    border: 1px solid #dee2e6;
+    margin-right: 20%;
+}
+
+.ai-message-assistant.context-page {
+    background: #e7f3ff;
+    border-left: 4px solid #0366d6;
+    position: relative;
+    padding-right: 60px;
+}
+
+.ai-message-assistant.context-page::before {
+    content: 'Page';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #0366d6;
+    background: rgba(3, 102, 214, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.ai-message-assistant.context-common {
+    background: #f0f8f0;
+    border-left: 4px solid #28a745;
+    position: relative;
+    padding-right: 60px;
+}
+
+.ai-message-assistant.context-common::before {
+    content: 'Common';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #28a745;
+    background: rgba(40, 167, 69, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.ai-message-assistant ul,
+.ai-message-assistant ol {
+    margin: 8px 0;
+    padding-left: 25px;
+}
+
+.ai-message-assistant li {
+    margin: 4px 0;
+}
+
+.ai-message-assistant p {
+    margin: 4px 0;
+}
+
+.ai-message-assistant strong {
+    font-weight: 600;
+}
+
+.ai-message-assistant em {
+    font-style: italic;
+}
+
+.ai-assistant-input {
+    display: flex;
+    gap: 10px;
+}
+
+.ai-assistant-input textarea {
+    flex: 1;
+    resize: none;
+}
+
+.ai-assistant-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #0366d6;
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1040;
+    cursor: pointer;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+.ai-assistant-toggle:hover {
+    background: #0256c2;
+    transform: scale(1.05);
+}
+</style>
+
+<script>
+let aiConversationHistory = [];
+let aiAssistantEnabled = false;
+
+// Зберігати контекст сторінки глобально
+let currentPageContext = null;
+
+// Зберігати налаштування використання контексту (за замовчуванням true)
+let usePageContext = true;
+
+// Зберігати розмір віджета (compact, normal, expanded, fullscreen)
+let widgetSize = 'normal';
+
+// Функція для оновлення стилів лейблів
+function updateToggleLabels() {
+    const toggleSwitch = document.getElementById('aiUsePageContext');
+    const labels = document.querySelectorAll('.ai-toggle-label');
+    if (toggleSwitch && labels.length >= 2) {
+        if (toggleSwitch.checked) {
+            labels[0].style.color = '#0366d6';
+            labels[0].style.fontWeight = '600';
+            labels[1].style.color = '#495057';
+            labels[1].style.fontWeight = '500';
+        } else {
+            labels[0].style.color = '#495057';
+            labels[0].style.fontWeight = '500';
+            labels[1].style.color = '#0366d6';
+            labels[1].style.fontWeight = '600';
+        }
+    }
+}
+
+// Завантажити налаштування з localStorage при завантаженні
+document.addEventListener('DOMContentLoaded', function() {
+    const savedContextSetting = localStorage.getItem('aiUsePageContext');
+    if (savedContextSetting !== null) {
+        usePageContext = savedContextSetting === 'true';
+    }
+    const toggleSwitch = document.getElementById('aiUsePageContext');
+    if (toggleSwitch) {
+        toggleSwitch.checked = usePageContext;
+        updateToggleLabels(); // Оновити стилі при завантаженні
+        toggleSwitch.addEventListener('change', function() {
+            usePageContext = this.checked;
+            localStorage.setItem('aiUsePageContext', usePageContext.toString());
+            updateToggleLabels(); // Оновити стилі при зміні
+        });
+    }
+});
+
+// Функція для екранування HTML
+function escapeHtml(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+// Функція для конвертації Markdown в HTML (базовий парсер)
+function markdownToHtml(text) {
+    if (!text) return '';
+    
+    let html = String(text);
+    
+    // Розділити текст на рядки для обробки списків
+    const lines = html.split('\n');
+    const processedLines = [];
+    let inList = false;
+    let listType = null; // 'ul' або 'ol'
+    let listItems = [];
+    
+    function flushList() {
+        if (listItems.length > 0) {
+            const tag = listType === 'ol' ? 'ol' : 'ul';
+            processedLines.push(`<${tag}>${listItems.join('')}</${tag}>`);
+            listItems = [];
+            inList = false;
+            listType = null;
+        }
+    }
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Перевірка на маркований список
+        if (/^[\*\-]\s+/.test(trimmed)) {
+            const content = trimmed.replace(/^[\*\-]\s+/, '');
+            if (!inList || listType !== 'ul') {
+                flushList();
+                inList = true;
+                listType = 'ul';
+            }
+            listItems.push(`<li>${escapeHtml(content)}</li>`);
+            continue;
+        }
+        
+        // Перевірка на нумерований список
+        if (/^\d+\.\s+/.test(trimmed)) {
+            const content = trimmed.replace(/^\d+\.\s+/, '');
+            if (!inList || listType !== 'ol') {
+                flushList();
+                inList = true;
+                listType = 'ol';
+            }
+            listItems.push(`<li>${escapeHtml(content)}</li>`);
+            continue;
+        }
+        
+        // Якщо не список, закрити поточний список
+        if (inList) {
+            flushList();
+        }
+        
+        // Додати звичайний рядок
+        if (trimmed) {
+            processedLines.push(trimmed);
+        } else {
+            processedLines.push('');
+        }
+    }
+    
+    // Закрити останній список якщо він відкритий
+    flushList();
+    
+    // Об'єднати рядки
+    html = processedLines.join('\n');
+    
+    // Обробка жирного тексту **текст** або __текст__ (спочатку, щоб уникнути конфліктів)
+    html = html.replace(/\*\*([^*]+?)\*\*/g, function(match, content) {
+        return '<strong>' + content + '</strong>';
+    });
+    html = html.replace(/__([^_]+?)__/g, function(match, content) {
+        return '<strong>' + content + '</strong>';
+    });
+    
+    // Обробка курсиву *текст* (після обробки **, щоб не конфліктувати)
+    html = html.replace(/([^*])\*([^*\n]+?)\*([^*])/g, function(match, before, content, after) {
+        return before + '<em>' + content + '</em>' + after;
+    });
+    
+    // Обробка курсиву _текст_ (після обробки __)
+    html = html.replace(/([^_])_([^_\n\s][^_\n]*?[^_\n\s])_([^_])/g, function(match, before, content, after) {
+        return before + '<em>' + content + '</em>' + after;
+    });
+    
+    // Обробка переносів рядків
+    // Розділити на параграфи (порожні рядки)
+    const paragraphs = html.split(/\n\n+/);
+    html = paragraphs.map(para => {
+        const trimmedPara = para.trim();
+        if (!trimmedPara) return '';
+        
+        // Якщо це вже список, не обгортати в <p>
+        if (trimmedPara.startsWith('<ul>') || trimmedPara.startsWith('<ol>')) {
+            return trimmedPara;
+        }
+        
+        // Замінити одиночні переноси на <br>
+        const withBreaks = trimmedPara.replace(/\n/g, '<br>');
+        return `<p>${withBreaks}</p>`;
+    }).filter(p => p).join('');
+    
+    return html;
+}
+
+// Зберігати попередні розмови
+let previousConversations = [];
+
+// Завантажити контекст сторінки при завантаженні
+function loadPageContext() {
+    const params = new URLSearchParams({
+        url: window.location.href,
+        path: window.location.pathname
+    });
+
+    return fetch('{% url "ai_assistant_page_context" %}' + '?' + params.toString())
+        .then(response => response.json())
+        .then(data => {
+            currentPageContext = data;
+            // Оновити привітальне повідомлення
+            const welcomeMsg = document.getElementById('aiWelcomeMessage');
+            if (welcomeMsg && data.description) {
+                const pageDesc = data.description || '{% trans "this page" %}';
+                welcomeMsg.innerHTML = `<p>{% trans "Hello! I'm your AI assistant. How can I help you with" %} <strong>${escapeHtml(pageDesc)}</strong>?</p>`;
+            }
+            // Завантажити попередні розмови після завантаження контексту
+            loadPreviousConversations();
+            return data;
+        })
+        .catch(error => {
+            console.error('Error loading page context:', error);
+            // Якщо не вдалося завантажити, показати загальне повідомлення
+            const welcomeMsg = document.getElementById('aiWelcomeMessage');
+            if (welcomeMsg) {
+                welcomeMsg.innerHTML = `<p>{% trans "Hello! I'm your AI assistant. How can I help you with this page?" %}</p>`;
+            }
+            // Все одно спробувати завантажити попередні розмови
+            loadPreviousConversations();
+            return null;
+        });
+}
+
+// Завантажити попередні розмови для поточної сторінки
+function loadPreviousConversations() {
+    if (!currentPageContext) {
+        // Якщо контекст ще не завантажено, спробувати завантажити його спочатку
+        loadPageContext().then(() => {
+            if (currentPageContext) {
+                fetchPreviousConversations();
+            }
+        });
+        return;
+    }
+    
+    fetchPreviousConversations();
+}
+
+function fetchPreviousConversations() {
+    const params = new URLSearchParams({
+        page_url: currentPageContext?.url || window.location.href,
+        page_type: currentPageContext?.page_type || ''
+    });
+
+    fetch('{% url "ai_assistant_previous_conversations" %}' + '?' + params.toString())
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.conversations) {
+                previousConversations = data.conversations;
+                populateConversationsDropdown();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading previous conversations:', error);
+        });
+}
+
+// Заповнити dropdown попередніми розмовами
+function populateConversationsDropdown() {
+    const select = document.getElementById('aiPreviousConversations');
+    if (!select) return;
+    
+    // Зберегти поточне значення
+    const currentValue = select.value;
+    
+    // Очистити опції (крім першої)
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+    
+    // Додати нові опції
+    previousConversations.forEach((conv, index) => {
+        const option = document.createElement('option');
+        option.value = conv.id;
+        const date = new Date(conv.created_at);
+        const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        option.textContent = `${dateStr} - ${conv.title}`;
+        select.appendChild(option);
+    });
+    
+    // Відновити попереднє значення, якщо воно все ще існує
+    if (currentValue && Array.from(select.options).some(opt => opt.value === currentValue)) {
+        select.value = currentValue;
+    }
+}
+
+// Завантажити вибрану попередню розмову
+function loadPreviousConversation(conversationId) {
+    if (!conversationId) {
+        // Якщо вибрано порожнє значення, очистити чат
+        clearChat();
+        return;
+    }
+    
+    // Знайти розмову за ID
+    const conversation = previousConversations.find(conv => conv.id == conversationId);
+    if (!conversation) {
+        console.error('Conversation not found:', conversationId);
+        return;
+    }
+    
+    // Очистити поточний чат
+    const messagesContainer = document.getElementById('aiChatMessages');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = '';
+    }
+    
+    // Приховати привітальне повідомлення
+    const welcomeMsg = document.getElementById('aiWelcomeMessage');
+    if (welcomeMsg) {
+        welcomeMsg.style.display = 'none';
+    }
+    
+    // Відновити повідомлення з розмови
+    conversation.messages.forEach(msg => {
+        const contextType = msg.context_type || null;
+        addMessageToChat(msg.role, msg.content, false, contextType); // false = не скролити одразу
+    });
+    
+    // Відновити історію розмови для продовження
+    aiConversationHistory = conversation.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+    }));
+    
+    // Прокрутити до кінця
+    if (messagesContainer) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
+// Очистити чат
+function clearChat() {
+    const messagesContainer = document.getElementById('aiChatMessages');
+    if (!messagesContainer) return;
+    
+    // Видалити всі повідомлення крім привітального
+    const welcomeMsg = document.getElementById('aiWelcomeMessage');
+    messagesContainer.innerHTML = '';
+    if (welcomeMsg) {
+        welcomeMsg.style.display = 'block';
+        messagesContainer.appendChild(welcomeMsg);
+    }
+    
+    // Очистити історію розмови
+    aiConversationHistory = [];
+}
+
+// Почати нову розмову
+function startNewConversation() {
+    // Скинути вибір у dropdown
+    const select = document.getElementById('aiPreviousConversations');
+    if (select) {
+        select.value = '';
+    }
+    
+    // Очистити чат
+    clearChat();
+    
+    // Оновити привітальне повідомлення
+    const welcomeMsg = document.getElementById('aiWelcomeMessage');
+    if (welcomeMsg && currentPageContext && currentPageContext.description) {
+        const pageDesc = currentPageContext.description || '{% trans "this page" %}';
+        welcomeMsg.innerHTML = `<p>{% trans "Hello! I'm your AI assistant. How can I help you with" %} <strong>${escapeHtml(pageDesc)}</strong>?</p>`;
+    } else if (welcomeMsg) {
+        welcomeMsg.innerHTML = `<p>{% trans "Hello! I'm your AI assistant. How can I help you with this page?" %}</p>`;
+    }
+}
+
+// Перевірити чи увімкнено AI помічника
+document.addEventListener('DOMContentLoaded', function() {
+    // Спочатку завантажити контекст сторінки
+    loadPageContext();
+    
+    // Відновити розмір віджета
+    restoreWidgetSize();
+    
+    // Потім перевірити налаштування
+    fetch('{% url "ai_assistant_settings" %}')
+        .then(response => response.json())
+        .then(data => {
+            aiAssistantEnabled = data.enabled;
+            if (aiAssistantEnabled) {
+                const toggle = document.getElementById('aiAssistantToggle');
+                if (toggle) {
+                    toggle.style.display = 'flex';
+                }
+            }
+        })
+        .catch(error => console.error('Error loading AI assistant settings:', error));
+});
+
+function toggleAIAssistant() {
+    const widget = document.getElementById('aiAssistantWidget');
+    const toggle = document.getElementById('aiAssistantToggle');
+    
+    if (!widget || !toggle) return;
+    
+    if (widget.style.display === 'none') {
+        widget.style.display = 'flex';
+        toggle.style.display = 'none';
+        // Відновити розмір віджета
+        restoreWidgetSize();
+        // Оновити контекст сторінки при відкритті віджета (на випадок навігації без повного reload)
+        // Це також завантажить попередні розмови
+        loadPageContext();
+    } else {
+        widget.style.display = 'none';
+        toggle.style.display = 'flex';
+    }
+}
+
+// Функція для перемикання розміру віджета
+function toggleWidgetSize() {
+    const widget = document.getElementById('aiAssistantWidget');
+    const resizeIcon = document.getElementById('aiResizeIcon');
+    if (!widget || !resizeIcon) return;
+    
+    // Видалити всі класи розміру
+    widget.classList.remove('widget-compact', 'widget-normal', 'widget-expanded', 'widget-fullscreen');
+    
+    // Переключити між режимами
+    switch(widgetSize) {
+        case 'compact':
+            widgetSize = 'normal';
+            widget.classList.add('widget-normal');
+            resizeIcon.className = 'fas fa-expand';
+            break;
+        case 'normal':
+            widgetSize = 'expanded';
+            widget.classList.add('widget-expanded');
+            resizeIcon.className = 'fas fa-compress';
+            break;
+        case 'expanded':
+            widgetSize = 'fullscreen';
+            widget.classList.add('widget-fullscreen');
+            resizeIcon.className = 'fas fa-compress-alt';
+            break;
+        case 'fullscreen':
+            widgetSize = 'compact';
+            widget.classList.add('widget-compact');
+            resizeIcon.className = 'fas fa-expand';
+            break;
+    }
+    
+    // Зберегти вибір
+    localStorage.setItem('aiWidgetSize', widgetSize);
+}
+
+// Відновити розмір віджета з localStorage
+function restoreWidgetSize() {
+    const savedSize = localStorage.getItem('aiWidgetSize');
+    if (savedSize && ['compact', 'normal', 'expanded', 'fullscreen'].includes(savedSize)) {
+        widgetSize = savedSize;
+    } else {
+        widgetSize = 'normal';
+    }
+    
+    const widget = document.getElementById('aiAssistantWidget');
+    const resizeIcon = document.getElementById('aiResizeIcon');
+    if (!widget || !resizeIcon) return;
+    
+    // Видалити всі класи розміру
+    widget.classList.remove('widget-compact', 'widget-normal', 'widget-expanded', 'widget-fullscreen');
+    
+    // Додати потрібний клас
+    widget.classList.add(`widget-${widgetSize}`);
+    
+    // Оновити іконку
+    switch(widgetSize) {
+        case 'compact':
+            resizeIcon.className = 'fas fa-expand';
+            break;
+        case 'normal':
+            resizeIcon.className = 'fas fa-expand';
+            break;
+        case 'expanded':
+            resizeIcon.className = 'fas fa-compress';
+            break;
+        case 'fullscreen':
+            resizeIcon.className = 'fas fa-compress-alt';
+            break;
+    }
+}
+
+function sendAIMessage() {
+    const input = document.getElementById('aiChatInput');
+    if (!input) return;
+    
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Отримати актуальне значення перемикача контексту при кожному запиті
+    const toggleSwitch = document.getElementById('aiUsePageContext');
+    const usePageContextNow = toggleSwitch ? toggleSwitch.checked : true;
+    
+    // Оновити глобальну змінну для синхронізації
+    usePageContext = usePageContextNow;
+    
+    // Додати повідомлення користувача до чату
+    addMessageToChat('user', message);
+    input.value = '';
+    
+    // Використати збережений контекст або завантажити новий (з урахуванням поточного URL)
+    const pageContextPromise = currentPageContext ? 
+        Promise.resolve(currentPageContext) : 
+        loadPageContext();
+    
+    pageContextPromise
+        .then(pageContext => {
+            currentPageContext = pageContext; // Зберегти для наступного використання
+            console.log('Page context for chat:', pageContext);
+            console.log('Use page context (from toggle):', usePageContextNow);
+            
+            // Отримати CSRF токен
+            let csrfToken = '';
+            const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+            const csrfMeta = document.querySelector('meta[name=csrf-token]');
+            if (csrfInput) {
+                csrfToken = csrfInput.value;
+            } else if (csrfMeta) {
+                csrfToken = csrfMeta.content;
+            }
+            
+            // Визначити, який контекст передавати на основі актуального значення перемикача
+            const shouldUseContext = usePageContextNow && pageContext;
+            const contextToSend = shouldUseContext ? pageContext : null;
+            
+            console.log('Sending request with:', {
+                use_page_context: usePageContextNow,
+                has_context: !!contextToSend,
+                context: contextToSend
+            });
+            
+            // Відправити запит до AI
+            fetch('{% url "ai_assistant_chat" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    message: message,
+                    history: aiConversationHistory,
+                    page_context: contextToSend,
+                    use_page_context: usePageContextNow
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Отримати тип контексту з відповіді
+                    const contextType = data.context_type || (usePageContextNow ? 'page' : 'common');
+                    addMessageToChat('assistant', data.response, true, contextType);
+                    // Оновити історію розмови
+                    aiConversationHistory.push({
+                        role: 'user',
+                        content: message
+                    });
+                    aiConversationHistory.push({
+                        role: 'assistant',
+                        content: data.response,
+                        context_type: contextType
+                    });
+                } else {
+                    addMessageToChat('assistant', 'Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addMessageToChat('assistant', 'Error: Failed to get AI response');
+            });
+        })
+        .catch(error => {
+            console.error('Error loading page context:', error);
+            addMessageToChat('assistant', 'Error: Failed to load page context');
+        });
+}
+
+function addMessageToChat(role, content, scroll = true, contextType = null) {
+    const messagesContainer = document.getElementById('aiChatMessages');
+    if (!messagesContainer) return;
+    
+    // Приховати привітальне повідомлення, якщо воно є
+    const welcomeMsg = document.getElementById('aiWelcomeMessage');
+    if (welcomeMsg && welcomeMsg.parentNode) {
+        welcomeMsg.style.display = 'none';
+    }
+    
+    const messageDiv = document.createElement('div');
+    let className = `ai-message ai-message-${role}`;
+    
+    // Додати клас контексту для повідомлень AI
+    if (role === 'assistant' && contextType) {
+        className += ` context-${contextType}`;
+    }
+    
+    messageDiv.className = className;
+    
+    // Для відповідей AI використовуємо markdown, для повідомлень користувача - простий текст
+    if (role === 'assistant') {
+        messageDiv.innerHTML = markdownToHtml(content);
+    } else {
+        messageDiv.innerHTML = `<p>${escapeHtml(content).replace(/\n/g, '<br>')}</p>`;
+    }
+    
+    messagesContainer.appendChild(messageDiv);
+    if (scroll) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
+// Дозволити відправку повідомлення через Enter
+document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('aiChatInput');
+    if (input) {
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendAIMessage();
+            }
+        });
+    }
+});
+</script>
+

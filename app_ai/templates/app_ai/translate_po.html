@@ -1,0 +1,844 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Translate PO Files" %}{% endblock %}
+
+{% block styles %}
+{{ block.super }}
+<style>
+    .translation-log {
+        background-color: #1e1e1e;
+        color: #f0f0f0;
+        font-family: monospace;
+        padding: 15px;
+        border-radius: 5px;
+        height: 400px;
+        overflow-y: auto;
+    }
+    
+    .progress-container {
+        margin: 20px 0;
+    }
+    
+    .stat-card {
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .stat-card h5 {
+        margin-bottom: 10px;
+        color: #495057;
+    }
+    
+    .ru-text {
+        color: #007bff;
+    }
+    
+    .uk-text {
+        color: #28a745;
+    }
+    
+    .log-entry {
+        margin-bottom: 5px;
+        line-height: 1.4;
+    }
+    
+    .log-time {
+        color: #6c757d;
+        margin-right: 10px;
+    }
+    
+    .log-ru {
+        color: #007bff;
+    }
+    
+    .log-uk {
+        color: #28a745;
+    }
+    
+    .log-error {
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="row">
+        <div class="col-12">
+            <h2>{% trans "AI Translation for PO Files" %}</h2>
+            <p class="lead">{% trans "Use AI to translate untranslated PO file strings for your website" %}</p>
+            
+            <div class="alert alert-info">
+                <h4>{% trans "How it works" %}</h4>
+                <p>{% trans "This tool uses AI to automatically translate untranslated strings in your Django PO files (Russian and Ukrainian languages). You can choose from multiple AI models (Claude, Google, Groq, Ollama, DeepSeek). The process runs in the background and you can monitor progress in real-time." %}</p>
+                <p><strong>{% trans "Note:" %}</strong> {% trans "After translation is complete, you'll need to compile messages with 'python manage.py compilemessages' to apply the changes." %}</p>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Translation Files" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group">
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="mb-1">{% trans "Russian (ru)" %}</h5>
+                                            <p class="mb-1">{% trans "PO File" %}: SecBoard/locale/ru/LC_MESSAGES/django.po</p>
+                                        </div>
+                                        {% if ru_file_exists %}
+                                            <span class="badge bg-success">{% trans "File exists" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">{% trans "File not found" %}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if ru_file_exists %}
+                                        <p class="mb-0 mt-2">
+                                            <span class="badge bg-primary">{{ ru_untranslated }} {% trans "untranslated strings" %}</span>
+                                            <button class="btn btn-sm btn-outline-primary ms-2" onclick="showUntranslatedStrings('ru')">
+                                                {% trans "Show untranslated" %}
+                                            </button>
+                                        </p>
+                                    {% endif %}
+                                </div>
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="mb-1">{% trans "Ukrainian (uk)" %}</h5>
+                                            <p class="mb-1">{% trans "PO File" %}: SecBoard/locale/uk/LC_MESSAGES/django.po</p>
+                                        </div>
+                                        {% if uk_file_exists %}
+                                            <span class="badge bg-success">{% trans "File exists" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">{% trans "File not found" %}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if uk_file_exists %}
+                                        <p class="mb-0 mt-2">
+                                            <span class="badge bg-primary">{{ uk_untranslated }} {% trans "untranslated strings" %}</span>
+                                            <button class="btn btn-sm btn-outline-primary ms-2" onclick="showUntranslatedStrings('uk')">
+                                                {% trans "Show untranslated" %}
+                                            </button>
+                                        </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal for displaying untranslated strings -->
+                    <div class="modal fade" id="untranslatedModal" tabindex="-1" aria-labelledby="untranslatedModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="untranslatedModalLabel">{% trans "Untranslated Strings" %}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="untranslatedSpinner" class="text-center my-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">{% trans "Loading..." %}</span>
+                                        </div>
+                                        <p class="mt-2">{% trans "Loading untranslated strings..." %}</p>
+                                    </div>
+                                    <div id="untranslatedError" class="alert alert-danger" style="display: none;"></div>
+                                    <div id="untranslatedContent" style="display: none;">
+                                        <div class="alert alert-info mb-3">
+                                            <span id="untranslatedCount"></span> {% trans "untranslated strings found" %}
+                                            <span id="untranslatedMore" style="display: none;">
+                                                ({% trans "showing first 100 only" %})
+                                            </span>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-striped table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th width="70%">{% trans "String" %}</th>
+                                                        <th width="30%">{% trans "Source" %}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="untranslatedTable">
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Translation Model Settings" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">{% trans "Select Translation Model" %}</label>
+                                <select id="aiModelSelect" class="form-select">
+                                    {% for model_id, model_name in available_models %}
+                                        <option value="{{ model_id }}">{{ model_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <!-- Google Translator Settings (always available) -->
+                            <div id="google_translateSettings" class="ai-settings mb-3">
+                                <h6>{% trans "Google Translator Settings" %}</h6>
+                                <div class="alert alert-success">
+                                    <h6 class="alert-heading"><i class="fas fa-check-circle me-2"></i>{% trans "Free Translation Service" %}</h6>
+                                    <p class="mb-2">{% trans "Google Translator is a free service that does not require an API key. It uses the deep_translator library to provide translations." %}</p>
+                                    <hr>
+                                    <p class="mb-0 small">
+                                        <strong>{% trans "Features:" %}</strong><br>
+                                        • {% trans "No API key required" %}<br>
+                                        • {% trans "Free to use" %}<br>
+                                        • {% trans "Supports Russian and Ukrainian translations" %}<br>
+                                        • {% trans "Rate limited by Google (use with reasonable delays)" %}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            {% if claude_settings %}
+                                <div id="claudeSettings" class="ai-settings mb-3" style="display: none;">
+                                    <h6>{% trans "Claude Settings" %}</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "API Key" %}</label>
+                                        <input type="password" class="form-control" value="•••••••••••••••••" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Model" %}</label>
+                                        <input type="text" class="form-control" value="{{ claude_settings.model_name }}" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Temperature" %}</label>
+                                        <input type="text" class="form-control" value="{{ claude_settings.temperature }}" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Max Tokens" %}</label>
+                                        <input type="text" class="form-control" value="{{ claude_settings.max_tokens }}" readonly>
+                                    </div>
+                                </div>
+                                
+                                {% if google_settings %}
+                                <div id="googleSettings" class="ai-settings mb-3" style="display: none;">
+                                    <h6>{% trans "Google Gemini Settings" %}</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "API Key" %}</label>
+                                        <input type="password" class="form-control" value="•••••••••••••••••" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Model" %}</label>
+                                        <input type="text" class="form-control" value="{{ google_settings.model_name }}" readonly>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                {% if groq_settings %}
+                                <div id="groqSettings" class="ai-settings mb-3" style="display: none;">
+                                    <h6>{% trans "Groq Settings" %}</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "API Key" %}</label>
+                                        <input type="password" class="form-control" value="•••••••••••••••••" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Model" %}</label>
+                                        <input type="text" class="form-control" value="{{ groq_settings.model_name }}" readonly>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                {% if ollama_settings %}
+                                <div id="ollamaSettings" class="ai-settings mb-3" style="display: none;">
+                                    <h6>{% trans "Ollama Settings" %}</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "API URL" %}</label>
+                                        <input type="text" class="form-control" value="{{ ollama_settings.api_url }}" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Model" %}</label>
+                                        <input type="text" class="form-control" value="{{ ollama_settings.model_name }}" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Temperature" %}</label>
+                                        <input type="text" class="form-control" value="{{ ollama_settings.temperature }}" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Max Tokens" %}</label>
+                                        <input type="text" class="form-control" value="{{ ollama_settings.max_tokens }}" readonly>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                {% if deepseek_settings %}
+                                <div id="deepseekSettings" class="ai-settings mb-3" style="display: none;">
+                                    <h6>{% trans "DeepSeek Settings" %}</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "API Key" %}</label>
+                                        <input type="password" class="form-control" value="•••••••••••••••••" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Model" %}</label>
+                                        <input type="text" class="form-control" value="{{ deepseek_settings.model_name }}" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Temperature" %}</label>
+                                        <input type="text" class="form-control" value="{{ deepseek_settings.temperature }}" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{% trans "Max Tokens" %}</label>
+                                        <input type="text" class="form-control" value="{{ deepseek_settings.max_tokens }}" readonly>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endif %}
+                            
+                            <div class="alert alert-info mt-3">
+                                <strong>{% trans "Note:" %}</strong> 
+                                {% trans "Google Translator is always available and ready to use. For better quality and more features, you can configure AI models (Claude, Google Gemini, Groq, Ollama, DeepSeek) in the admin panel." %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Translation Configuration" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info mb-3">
+                                {% trans "Configure how the translation process should handle existing translations and metadata." %}
+                            </div>
+                            
+                            <div class="mb-4">
+                                <h6 class="fw-bold mb-3">
+                                    <i class="fas fa-language me-2"></i>{% trans "Target Languages" %}
+                                </h6>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="translateRussian" checked>
+                                    <label class="form-check-label fw-bold" for="translateRussian">
+                                        <span class="ru-text">{% trans "Translate to Russian (ru)" %}</span>
+                                    </label>
+                                    <small class="form-text text-muted d-block">{% trans "Enable translation for Russian language PO file" %}</small>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="translateUkrainian" checked>
+                                    <label class="form-check-label fw-bold" for="translateUkrainian">
+                                        <span class="uk-text">{% trans "Translate to Ukrainian (uk)" %}</span>
+                                    </label>
+                                    <small class="form-text text-muted d-block">{% trans "Enable translation for Ukrainian language PO file" %}</small>
+                                </div>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <h6 class="fw-bold mb-3">
+                                <i class="fas fa-cog me-2"></i>{% trans "Translation Options" %}
+                            </h6>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="clearFuzzyFlag" checked>
+                                <label class="form-check-label fw-bold" for="clearFuzzyFlag">
+                                    {% trans "Clear 'fuzzy' flags" %}
+                                </label>
+                                <small class="form-text text-muted d-block">{% trans "Remove fuzzy flags from translated entries. Fuzzy flags mark translations that need review." %}</small>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="clearExistingTranslations">
+                                <label class="form-check-label fw-bold" for="clearExistingTranslations">
+                                    {% trans "Clear existing translations" %}
+                                </label>
+                                <small class="form-text text-muted d-block">{% trans "Remove all existing translations before starting the process. This ensures a completely fresh translation." %}</small>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="onlyEmptyTranslations" checked>
+                                <label class="form-check-label fw-bold" for="onlyEmptyTranslations">
+                                    {% trans "Only translate empty strings" %}
+                                </label>
+                                <small class="form-text text-muted d-block">{% trans "Skip strings that already have translations. Uncheck to translate all strings regardless of current status." %}</small>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="removeComments">
+                                <label class="form-check-label fw-bold" for="removeComments">
+                                    {% trans "Remove translator comments" %}
+                                </label>
+                                <small class="form-text text-muted d-block">{% trans "Clear translator comments from entries. This removes any notes left for translators." %}</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">{% trans "Translation Process" %}</h5>
+                            <div>
+                                <button id="stopTranslationBtn" class="btn btn-danger me-2" style="display: none;">
+                                    <i class="fas fa-stop me-1"></i> {% trans "Stop Translation" %}
+                                </button>
+                                <button id="startTranslationBtn" class="btn btn-primary" {% if not ru_file_exists or not uk_file_exists or translation_in_progress %}disabled{% endif %}>
+                                    <i class="fas fa-play me-1"></i> {% trans "Start Translation" %}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Progress bar -->
+                            <div class="progress-container">
+                                <label class="form-label">{% trans "Progress" %}: <span id="progressPercent">0</span>%</label>
+                                <div class="progress">
+                                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <div class="mt-2 small text-muted">
+                                    <span id="progressCount">0</span> / <span id="totalCount">0</span> {% trans "entries processed" %}
+                                </div>
+                            </div>
+                            
+                            <!-- Stats -->
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <div class="stat-card">
+                                        <h5 class="ru-text">{% trans "Russian Translation" %}</h5>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <div>{% trans "Translated" %}:</div>
+                                            <div id="ruTranslated" class="fw-bold">0</div>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <div>{% trans "Skipped" %}:</div>
+                                            <div id="ruSkipped" class="fw-bold">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="stat-card">
+                                        <h5 class="uk-text">{% trans "Ukrainian Translation" %}</h5>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <div>{% trans "Translated" %}:</div>
+                                            <div id="ukTranslated" class="fw-bold">0</div>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <div>{% trans "Skipped" %}:</div>
+                                            <div id="ukSkipped" class="fw-bold">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Log output -->
+                            <div class="mt-4">
+                                <label class="form-label">{% trans "Translation Log" %}</label>
+                                <div id="translationLog" class="translation-log"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+    // Global variable for bootstrap modal
+    let untranslatedModal;
+    
+    // Function to show untranslated strings - needs to be in global scope for onclick handler
+    function showUntranslatedStrings(language) {
+        // Show modal
+        if (!untranslatedModal) {
+            untranslatedModal = new bootstrap.Modal(document.getElementById('untranslatedModal'));
+        }
+        untranslatedModal.show();
+        
+        // Update modal title
+        const modalTitle = document.getElementById('untranslatedModalLabel');
+        modalTitle.textContent = (language === 'ru' ? 'Russian' : 'Ukrainian') + ' - ' + '{% trans "Untranslated Strings" %}';
+        
+        // Show spinner, hide content and error
+        document.getElementById('untranslatedSpinner').style.display = 'block';
+        document.getElementById('untranslatedContent').style.display = 'none';
+        document.getElementById('untranslatedError').style.display = 'none';
+        
+        // Fetch untranslated strings
+        fetch('{% url "get_untranslated_strings" language="ru" %}'.replace('ru', language))
+            .then(response => response.json())
+            .then(data => {
+                // Hide spinner
+                document.getElementById('untranslatedSpinner').style.display = 'none';
+                
+                if (!data.success) {
+                    // Show error
+                    const errorEl = document.getElementById('untranslatedError');
+                    errorEl.textContent = data.message || 'Error loading untranslated strings';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                
+                // Update count
+                document.getElementById('untranslatedCount').textContent = data.untranslated_count;
+                
+                // Show "more" message if needed
+                document.getElementById('untranslatedMore').style.display = data.has_more ? 'inline' : 'none';
+                
+                // Populate table
+                const tableBody = document.getElementById('untranslatedTable');
+                tableBody.innerHTML = '';
+                
+                data.untranslated.forEach(item => {
+                    const row = document.createElement('tr');
+                    
+                    // String cell
+                    const stringCell = document.createElement('td');
+                    stringCell.textContent = item.msgid;
+                    stringCell.className = 'text-break';
+                    row.appendChild(stringCell);
+                    
+                    // Source cell
+                    const sourceCell = document.createElement('td');
+                    if (item.occurrences && item.occurrences.length > 0) {
+                        const sourceList = document.createElement('ul');
+                        sourceList.className = 'mb-0 ps-3';
+                        
+                        item.occurrences.slice(0, 3).forEach(occurrence => {
+                            const sourceItem = document.createElement('li');
+                            sourceItem.className = 'small';
+                            sourceItem.textContent = occurrence[0] + ':' + occurrence[1];
+                            sourceList.appendChild(sourceItem);
+                        });
+                        
+                        if (item.occurrences.length > 3) {
+                            const moreItem = document.createElement('li');
+                            moreItem.className = 'small text-muted';
+                            moreItem.textContent = '... and ' + (item.occurrences.length - 3) + ' more';
+                            sourceList.appendChild(moreItem);
+                        }
+                        
+                        sourceCell.appendChild(sourceList);
+                    } else {
+                        sourceCell.textContent = 'Unknown';
+                        sourceCell.className = 'text-muted';
+                    }
+                    row.appendChild(sourceCell);
+                    
+                    tableBody.appendChild(row);
+                });
+                
+                // Show content
+                document.getElementById('untranslatedContent').style.display = 'block';
+            })
+            .catch(error => {
+                // Hide spinner
+                document.getElementById('untranslatedSpinner').style.display = 'none';
+                
+                // Show error
+                const errorEl = document.getElementById('untranslatedError');
+                errorEl.textContent = 'Error: ' + error.message;
+                errorEl.style.display = 'block';
+            });
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const startBtn = document.getElementById('startTranslationBtn');
+        const stopBtn = document.getElementById('stopTranslationBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressCount = document.getElementById('progressCount');
+        const totalCount = document.getElementById('totalCount');
+        const ruTranslated = document.getElementById('ruTranslated');
+        const ruSkipped = document.getElementById('ruSkipped');
+        const ukTranslated = document.getElementById('ukTranslated');
+        const ukSkipped = document.getElementById('ukSkipped');
+        const logContainer = document.getElementById('translationLog');
+        const aiModelSelect = document.getElementById('aiModelSelect');
+        
+        // Initialize the Bootstrap modal
+        untranslatedModal = new bootstrap.Modal(document.getElementById('untranslatedModal'));
+        
+        let pollTimer;
+        let isTranslationInProgress = {{ translation_in_progress|lower }};
+        
+        // Handle model selection change
+        if (aiModelSelect) {
+            aiModelSelect.addEventListener('change', function() {
+                const selectedModel = this.value;
+                // Hide all settings divs
+                document.querySelectorAll('.ai-settings').forEach(div => {
+                    div.style.display = 'none';
+                });
+                // Show the selected model's settings
+                const settingsDiv = document.getElementById(selectedModel + 'Settings');
+                if (settingsDiv) {
+                    settingsDiv.style.display = 'block';
+                }
+            });
+            
+            // Trigger change event on load to show the selected model settings
+            aiModelSelect.dispatchEvent(new Event('change'));
+        }
+        
+        // Update UI based on translation status
+        function updateTranslationUI(inProgress) {
+            if (inProgress) {
+                startBtn.disabled = true;
+                stopBtn.style.display = 'inline-block';
+            } else {
+                startBtn.disabled = false;
+                stopBtn.style.display = 'none';
+            }
+        }
+        
+        // Initialize UI based on current status
+        if (isTranslationInProgress) {
+            updateTranslationUI(true);
+            startPolling();
+        }
+        
+        // Add event listeners for language checkboxes
+        const translateRussianCheckbox = document.getElementById('translateRussian');
+        const translateUkrainianCheckbox = document.getElementById('translateUkrainian');
+        
+        function updateStartButtonState() {
+            if (!isTranslationInProgress) {
+                const atLeastOneLanguageSelected = translateRussianCheckbox.checked || translateUkrainianCheckbox.checked;
+                startBtn.disabled = !atLeastOneLanguageSelected;
+            }
+        }
+        
+        if (translateRussianCheckbox) {
+            translateRussianCheckbox.addEventListener('change', updateStartButtonState);
+        }
+        if (translateUkrainianCheckbox) {
+            translateUkrainianCheckbox.addEventListener('change', updateStartButtonState);
+        }
+        
+        // Initial button state check
+        updateStartButtonState();
+        
+        if (startBtn) {
+            startBtn.addEventListener('click', function() {
+                if (confirm("{% trans 'Are you sure you want to start the translation process? This may take some time.' %}")) {
+                    startTranslation();
+                }
+            });
+        }
+        
+        if (stopBtn) {
+            stopBtn.addEventListener('click', function() {
+                if (confirm("{% trans 'Are you sure you want to stop the translation process? Currently processing entries will be completed.' %}")) {
+                    stopTranslation();
+                }
+            });
+        }
+        
+        function startTranslation() {
+            let selectedModel = 'google_translate'; // Default to Google Translator (free)
+            if (aiModelSelect) {
+                selectedModel = aiModelSelect.value;
+            }
+            
+            // Get language selection
+            const translateRussian = document.getElementById('translateRussian').checked;
+            const translateUkrainian = document.getElementById('translateUkrainian').checked;
+            
+            // Validate language selection
+            if (!translateRussian && !translateUkrainian) {
+                alert("{% trans 'Please select at least one language to translate.' %}");
+                return;
+            }
+            
+            // Get configuration options
+            const config = {
+                translateRussian: translateRussian,
+                translateUkrainian: translateUkrainian,
+                clearFuzzy: document.getElementById('clearFuzzyFlag').checked,
+                clearExisting: document.getElementById('clearExistingTranslations').checked,
+                onlyEmpty: document.getElementById('onlyEmptyTranslations').checked,
+                removeComments: document.getElementById('removeComments').checked
+            };
+            
+            fetch('{% url "start_translation" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: selectedModel,
+                    config: config
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    isTranslationInProgress = true;
+                    updateTranslationUI(true);
+                    startPolling();
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error starting translation:', error);
+                alert("{% trans 'Error starting translation process.' %}");
+            });
+        }
+        
+        function stopTranslation() {
+            fetch('{% url "stop_translation" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // We'll keep polling to see the status as it winds down
+                    log_message("Stop requested - please wait for current entries to complete...");
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping translation:', error);
+                alert("{% trans 'Error stopping translation process.' %}");
+            });
+        }
+        
+        function log_message(message) {
+            // Add message directly to the log display
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'log-time';
+            const now = new Date();
+            const time = now.toTimeString().substring(0, 8);
+            timeSpan.textContent = time;
+            logEntry.appendChild(timeSpan);
+            
+            const messageSpan = document.createElement('span');
+            messageSpan.textContent = message;
+            logEntry.appendChild(messageSpan);
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        function startPolling() {
+            // Clear any existing poll timer
+            if (pollTimer) {
+                clearInterval(pollTimer);
+            }
+            
+            // Poll every 2 seconds
+            pollTimer = setInterval(updateProgress, 2000);
+            updateProgress(); // Initial update
+        }
+        
+        function updateProgress() {
+            fetch('{% url "get_translation_progress" %}')
+            .then(response => response.json())
+            .then(data => {
+                const progress = data.progress;
+                isTranslationInProgress = data.in_progress;
+                
+                // Update UI based on status
+                updateTranslationUI(isTranslationInProgress);
+                
+                // Update progress stats
+                totalCount.textContent = progress.total;
+                progressCount.textContent = progress.processed;
+                ruTranslated.textContent = progress.ru_translated;
+                ruSkipped.textContent = progress.ru_skipped;
+                ukTranslated.textContent = progress.uk_translated;
+                ukSkipped.textContent = progress.uk_skipped;
+                
+                // Calculate percentage
+                let percent = 0;
+                if (progress.total > 0) {
+                    percent = Math.round((progress.processed / progress.total) * 100);
+                }
+                
+                // Update progress bar
+                progressBar.style.width = percent + '%';
+                progressBar.setAttribute('aria-valuenow', percent);
+                progressPercent.textContent = percent;
+                
+                // Update log
+                updateLog(progress.log);
+                
+                // If translation is finished, stop polling
+                if (!isTranslationInProgress) {
+                    clearInterval(pollTimer);
+                    
+                    // Change progress bar style to success
+                    progressBar.classList.remove('progress-bar-animated');
+                    progressBar.classList.add('bg-success');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching progress:', error);
+            });
+        }
+        
+        function updateLog(logEntries) {
+            if (!logEntries || logEntries.length === 0) {
+                return;
+            }
+            
+            // Clear log if this is the first update
+            if (logContainer.dataset.initialized !== 'true') {
+                logContainer.innerHTML = '';
+                logContainer.dataset.initialized = 'true';
+            }
+            
+            // Get current number of entries
+            const currentEntries = logContainer.childElementCount;
+            
+            // Add only new entries
+            for (let i = currentEntries; i < logEntries.length; i++) {
+                const entry = logEntries[i];
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                
+                // Add timestamp
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'log-time';
+                timeSpan.textContent = entry.time;
+                logEntry.appendChild(timeSpan);
+                
+                // Format message based on content
+                const messageSpan = document.createElement('span');
+                if (entry.message.includes('[RU]')) {
+                    messageSpan.className = 'log-ru';
+                } else if (entry.message.includes('[UK]')) {
+                    messageSpan.className = 'log-uk';
+                } else if (entry.message.includes('Error')) {
+                    messageSpan.className = 'log-error';
+                }
+                messageSpan.textContent = entry.message;
+                logEntry.appendChild(messageSpan);
+                
+                logContainer.appendChild(logEntry);
+            }
+            
+            // Scroll to bottom
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+    });
+</script>
+{% endblock %} 

@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Survey Link Details" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2><i class="fas fa-link"></i> {% trans "Survey Link Details" %}</h2>
+                <div>
+                    <a href="{% url 'app_tprm:survey_link_edit' link.pk %}" class="btn btn-warning btn-sm">
+                        <i class="fas fa-edit"></i> {% trans "Edit" %}
+                    </a>
+                    {% if link.status == 'active' %}
+                    <a href="{% url 'app_tprm:survey_link_revoke' link.pk %}" class="btn btn-danger btn-sm">
+                        <i class="fas fa-ban"></i> {% trans "Revoke" %}
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'app_tprm:survey_link_list' %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> {% trans "Back" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>{% trans "Link Information" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th width="200">{% trans "Token" %}:</th>
+                            <td><code>{{ link.token }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Vendor" %}:</th>
+                            <td>
+                                <a href="{% url 'app_tprm:vendor_detail' link.vendor.pk %}">
+                                    {{ link.vendor.name }}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Status" %}:</th>
+                            <td>
+                                {% if link.status == 'active' %}
+                                    <span class="badge bg-success">{% trans "Active" %}</span>
+                                {% elif link.status == 'expired' %}
+                                    <span class="badge bg-danger">{% trans "Expired" %}</span>
+                                {% elif link.status == 'used' %}
+                                    <span class="badge bg-secondary">{% trans "Used" %}</span>
+                                {% elif link.status == 'revoked' %}
+                                    <span class="badge bg-dark">{% trans "Revoked" %}</span>
+                                {% endif %}
+                                {% if is_valid %}
+                                    <span class="badge bg-info">{% trans "Valid" %}</span>
+                                {% else %}
+                                    <span class="badge bg-warning">{% trans "Invalid" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if link.questionnaire %}
+                        <tr>
+                            <th>{% trans "Questionnaire" %}:</th>
+                            <td>
+                                <a href="{% url 'app_tprm:questionnaire_view' link.questionnaire.pk %}">
+                                    {{ link.questionnaire.template.name }}
+                                </a>
+                                <span class="badge bg-secondary">{{ link.questionnaire.get_status_display }}</span>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if link.template %}
+                        <tr>
+                            <th>{% trans "Template" %}:</th>
+                            <td>{{ link.template.name }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>{% trans "Access Configuration" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th width="200">{% trans "Expires At" %}:</th>
+                            <td>
+                                {% if link.expires_at %}
+                                    {{ link.expires_at|date:"d.m.Y H:i" }}
+                                {% else %}
+                                    <span class="text-muted">{% trans "Never" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "One-Time Use" %}:</th>
+                            <td>
+                                {% if link.is_one_time_use %}
+                                    <span class="badge bg-info">{% trans "Yes" %}</span>
+                                {% else %}
+                                    <span class="text-muted">{% trans "No" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Maximum Uses" %}:</th>
+                            <td>{{ link.max_uses }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Current Uses" %}:</th>
+                            <td>{{ link.current_uses }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            {% if link.notes %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>{% trans "Notes" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ link.notes|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="fas fa-external-link-alt"></i> {% trans "External Link" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">{% trans "Share this link with the vendor to access the questionnaire:" %}</p>
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="linkUrl" value="{{ link_url }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyLink()">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    <a href="{{ link_url }}" target="_blank" class="btn btn-primary w-100">
+                        <i class="fas fa-external-link-alt"></i> {% trans "Open Link" %}
+                    </a>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5>{% trans "Access Tracking" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <th>{% trans "First Accessed" %}:</th>
+                            <td>
+                                {% if link.first_accessed_at %}
+                                    {{ link.first_accessed_at|date:"d.m.Y H:i" }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Last Accessed" %}:</th>
+                            <td>
+                                {% if link.last_accessed_at %}
+                                    {{ link.last_accessed_at|date:"d.m.Y H:i" }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "IP Address" %}:</th>
+                            <td>
+                                {% if link.accessed_from_ip %}
+                                    {{ link.accessed_from_ip }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5>{% trans "Metadata" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <th>{% trans "Created By" %}:</th>
+                            <td>{{ link.created_by|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Created At" %}:</th>
+                            <td>{{ link.created_at|date:"d.m.Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Updated At" %}:</th>
+                            <td>{{ link.updated_at|date:"d.m.Y H:i" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyLink() {
+    const linkInput = document.getElementById('linkUrl');
+    linkInput.select();
+    document.execCommand('copy');
+    
+    // Show feedback
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i>';
+    btn.classList.add('btn-success');
+    btn.classList.remove('btn-outline-secondary');
+    
+    setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-secondary');
+    }, 2000);
+}
+</script>
+{% endblock %}

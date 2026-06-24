@@ -1,0 +1,1440 @@
+<!-- SecBoard\templates\app_std\iso27002.html -->
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+{% load std_custom_filters %}
+
+{% block title %}{% trans "ISO 27002:2022 Controls" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_std/includes/std_styles.html" %}
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="{% static 'app_std/css/std-controls-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid std-page iso27002-page">
+    <h1 class="mb-4"><i class="bi bi-journal-check me-2"></i>{% trans "ISO 27002 Controls" %}</h1>
+    {% csrf_token %}
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
+    <div class="card mb-2 filter-section access-request-filters" id="iso27002FiltersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="iso27002FiltersCollapse" toggle_id="toggleIso27002Filters" icon_id="iso27002FiltersToggleIcon" clear_btn_id="clearIso27002Filters" filters_expanded=True %}
+        <div class="collapse show" id="iso27002FiltersCollapse">
+            <div class="card-body py-2">
+                <label class="form-label mb-2">{% trans "Filter by Theme" %}</label>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-theme-btn active" data-value="all">{% trans "All" %}</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-theme-btn" data-value="people">{% trans "People" %}</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-theme-btn" data-value="physical">{% trans "Physical" %}</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-theme-btn" data-value="technological">{% trans "Technological" %}</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm filter-theme-btn" data-value="organizational">{% trans "Organizational" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3 ai-search-section">
+        <div class="card-body py-2">
+            <label class="form-label mb-2">{% trans "AI Search" %}</label>
+            <div class="input-group input-group-sm">
+                <div class="position-relative flex-grow-1" style="max-width: 400px;">
+                    <input type="text" class="form-control form-control-sm" id="aiSearchQuery" placeholder="{% trans 'Enter your question...' %}">
+                    <button type="button" class="btn-close clear-input" aria-label="{% trans 'Clear input' %}"
+                            style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 5;"></button>
+                </div>
+                <div class="btn-group" role="group" aria-label="{% trans 'AI Model Selection' %}">
+                    <button type="button" class="btn btn-outline-primary btn-sm ai-model-btn" data-model="google">
+                        <i class="bi bi-google"></i> Google AI
+                    </button>
+                    {% if can_edit %}
+                    <button type="button" class="btn btn-outline-primary btn-sm ai-model-btn" data-model="claude">
+                        <i class="bi bi-cpu"></i> Claude
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm ai-model-btn" data-model="deepseek">
+                        <i class="bi bi-search"></i> DeepSeek
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body p-0">
+            <div class="export-controls px-3 pt-2 pb-0">
+                <div class="row align-items-center g-1">
+                    <div class="col-md-6 d-flex align-items-center flex-wrap gap-2">
+                        <div id="translationStatus" style="display: none;"></div>
+                        <div id="controlsSelectAllMount"></div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if can_edit %}
+                            <button class="btn btn-outline-success btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#addISO27002Modal"
+                                    title="{% trans 'Add New' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm btn-icon-action" id="deleteSelectedBtn"
+                                    title="{% trans 'Delete Selected' %}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm btn-icon-action" id="translateISO27002Btn"
+                                    title="{% trans 'Translate' %}">
+                                <i class="bi bi-translate"></i>
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm btn-icon-action" id="importISO27002Btn"
+                                    title="{% trans 'Import' %}">
+                                <i class="bi bi-file-earmark-arrow-up"></i>
+                            </button>
+                            <input type="file" id="importFile" style="display: none;" accept=".csv">
+                            {% endif %}
+                            <button class="btn btn-success btn-sm btn-icon-action" id="exportISO27002Btn"
+                                    title="{% trans 'Export' %}">
+                                <i class="bi bi-file-earmark-excel"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive full-width-table">
+        <table id="controlsTable" class="table table-striped table-hover table-sm table-sm-font sb-data-table w-100 mb-0">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>{% trans "Control Number" %}</th>
+                    <th>{% trans "Theme" %}</th>
+                    <th>{% trans "Title" %}</th>
+                    <th>{% trans "Control Description" %}</th>
+                    <th>{% trans "Control Type" %}</th>
+                    <th>{% trans "Actions" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for control in controls %}
+                <tr class="expandable-row" data-id="{{ control.id }}">
+                    <td>
+                        <input type="checkbox" class="control-checkbox" data-id="{{ control.id }}">
+                    </td>
+                    <td>{{ control.control_number }}</td>
+                    <td>{{ control.theme }}</td>
+                    <td>{{ control.title }}</td>
+                    <td>{{ control.control_description|truncatechars:100 }}</td>
+                    <td>
+                        <span class="badge bg-info">{{ control.control_type }}</span>
+                        {% for property in control.information_security_properties %}
+                            <span class="badge bg-secondary">{{ property }}</span>
+                        {% endfor %}
+                    </td>
+                    <td class="table-actions">
+                        {% if can_edit %}
+                        <button class="btn btn-sm btn-outline-primary btn-icon-action edit-control"
+                                data-id="{{ control.id }}"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editISO27002Modal"
+                                title="{% trans 'Edit' %}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+            </div>
+            {% include "app_std/includes/std_table_pagination_client.html" with pagination_id="controlsTablePagination" %}
+        </div>
+    </div>
+
+    <div id="expandedDetails" style="display: none;">
+        {% for control in controls %}
+        <div id="expanded-{{ control.id }}" class="expanded-content">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <tr>
+                        <th colspan="2" class="bg-light">
+                            <span class="fw-bold">{{ control.control_number }}</span> {{ control.title }}
+                        </th>
+                    </tr>
+                    <tr>
+                        <th width="25%" class="bg-light">{% trans "Control Description" %}</th>
+                        <td>{{ control.control_description }}</td>
+                    </tr>
+                    {% if control.purpose %}
+                    <tr>
+                        <th class="bg-light">{% trans "Purpose" %}</th>
+                        <td>{{ control.purpose }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if control.guidance %}
+                    <tr>
+                        <th class="bg-light">{% trans "Guidance" %}</th>
+                        <td>{{ control.guidance }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if control.other_information %}
+                    <tr>
+                        <th class="bg-light">{% trans "Other Information" %}</th>
+                        <td>{{ control.other_information }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <th class="bg-light">{% trans "Control Type" %}</th>
+                        <td>{{ control.control_type }}</td>
+                    </tr>
+                    <tr>
+                        <th class="bg-light">{% trans "Security Domain" %}</th>
+                        <td>{{ control.security_domain }}</td>
+                    </tr>
+                    <tr>
+                        <th class="bg-light">{% trans "Information Security Properties" %}</th>
+                        <td>
+                            {% for property in control.information_security_properties %}
+                                <span class="badge bg-secondary me-1">{{ property }}</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="bg-light">{% trans "Cybersecurity Concepts" %}</th>
+                        <td>
+                            {% for concept in control.cybersecurity_concepts %}
+                                <span class="badge bg-info me-1">{{ concept }}</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div class="mt-2 text-end">
+                <button class="btn btn-sm btn-outline-primary copy-control-btn" data-id="{{ control.id }}">
+                    <i class="bi bi-clipboard"></i> {% trans "Copy Control Details" %}
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% include 'app_std/modals/edit_iso27002_modal.html' %}
+{% include 'app_std/modals/add_iso27002_modal.html' %}
+{% include 'app_std/modals/ai_iso27002_query_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+<script>
+// Make controls data available to JavaScript
+const controls = JSON.parse('{{ controls_json|escapejs }}');
+
+$(document).ready(function() {
+    var currentLanguage = '{{ LANGUAGE_CODE }}';
+    var canEdit = {{ can_edit|yesno:"true,false" }};
+
+    // Function to get CSRF token from cookies
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Get CSRF token from hidden input or cookie
+    let csrftoken = $('input[name="csrfmiddlewaretoken"]').val();
+    if (!csrftoken) {
+        csrftoken = getCookie('csrftoken');
+    }
+    console.log("CSRF Token:", csrftoken); // Debug log
+    
+    // Set up AJAX to always send the CSRF token
+    $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            if (!this.crossDomain) {
+                xhr.setRequestHeader("X-CSRFToken", csrftoken);
+            }
+        }
+    });
+
+    // Initialize modal
+    const aiQueryModalEl = document.getElementById('aiQueryModal');
+    let aiQueryModal;
+    
+    if (aiQueryModalEl) {
+        aiQueryModal = new bootstrap.Modal(aiQueryModalEl, {
+            keyboard: true,
+            backdrop: true,
+            focus: true
+        });
+        
+        // Clear data when modal is closed
+        aiQueryModalEl.addEventListener('hidden.bs.modal', function () {
+            $('#searchQueryDisplay').text('');
+            $('#aiSearchResults').hide();
+            $('#aiSearchError').hide();
+            $('#aiSearchLoading').hide();
+        });
+    } else {
+        console.error('Modal element not found');
+    }
+
+    // AI Model buttons functionality
+    $('.ai-model-btn').on('click', function(e) {
+        e.preventDefault();
+        
+        const query = $('#aiSearchQuery').val().trim();
+        const selectedModel = $(this).data('model');
+        
+        if (!query) {
+            showAlert('warning', '{% trans "Please enter a search query" %}');
+            return;
+        }
+
+        // Remove active class from all buttons
+        $('.ai-model-btn').removeClass('active');
+        // Add active class to clicked button
+        $(this).addClass('active');
+
+        // Show modal
+        if (aiQueryModal) {
+            aiQueryModal.show();
+        }
+        
+        // Display search query
+        $('#searchQueryDisplay').text(query);
+
+        // Initialize progress bar
+        $('#searchProgress').css('width', '0%').text('0%');
+        $('#searchStatus').text('{% trans "Initializing search..." %}');
+
+        const endpoints = {
+            'google': '{% url "search_iso27002_with_google" %}',
+            'claude': '{% url "search_iso27002_with_claude" %}',
+            'deepseek': '{% url "search_iso27002_with_deepseek" %}'
+        };
+
+        // Show loading indicator
+        $('#aiSearchLoading').show();
+        $('#aiSearchResults').hide();
+        $('#aiSearchError').hide();
+
+        // Simulate progress
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 90) {
+                progress = 90;
+                clearInterval(progressInterval);
+            }
+            $('#searchProgress').css('width', progress + '%').text(Math.round(progress) + '%');
+            
+            // Update status based on progress
+            if (progress < 30) {
+                $('#searchStatus').text('{% trans "Analyzing query..." %}');
+            } else if (progress < 60) {
+                $('#searchStatus').text('{% trans "Searching relevant controls..." %}');
+            } else {
+                $('#searchStatus').text('{% trans "Preparing results..." %}');
+            }
+        }, 300);
+
+        $.ajax({
+            url: endpoints[selectedModel],
+            type: 'POST',
+            data: JSON.stringify({
+                query: query,
+                language: currentLanguage
+            }),
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': csrftoken
+            },
+            success: function(response) {
+                clearInterval(progressInterval);
+                $('#searchProgress').css('width', '100%').text('100%');
+                $('#searchStatus').text('{% trans "Search completed!" %}');
+                setTimeout(() => handleAiSearchResponse(response), 500);
+            },
+            error: function(xhr, status, error) {
+                clearInterval(progressInterval);
+                $('#searchProgress').css('width', '100%').text('100%');
+                $('#searchStatus').text('{% trans "Search failed" %}');
+                console.error("AJAX Error:", status, error, xhr.responseText);
+                handleAiSearchError(xhr);
+            }
+        });
+    });
+
+    // Function to handle AI search response
+    function handleAiSearchResponse(response) {
+        $('#aiSearchLoading').hide();
+        if (response.success) {
+            displaySearchResults(response);
+        } else {
+            $('#aiSearchError').text(response.error).show();
+        }
+    }
+
+    // Function to handle AI search error
+    function handleAiSearchError(xhr) {
+        $('#aiSearchLoading').hide();
+        $('#aiSearchError').text('{% trans "Error processing request" %}').show();
+    }
+
+    // Function to display search results
+    function displaySearchResults(response) {
+        // Store the search query for highlighting
+        const searchQuery = $('#searchQueryDisplay').text();
+        
+        console.log("AI Response:", response); // Debug log to see the response structure
+        
+        // Check if we have controls in the response
+        if (!response.controls || response.controls.length === 0) {
+            $('#foundControls').html(`
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> {% trans "No controls found matching your query." %}
+                </div>
+            `);
+        } else {
+            let tableHtml = `
+                <h6>{% trans "Found Controls" %}:</h6>
+                <div class="d-flex justify-content-end mb-2">
+                    <button id="printResultsButton" class="btn btn-sm btn-outline-dark me-2">
+                        <i class="bi bi-printer"></i> {% trans "Print Results" %}
+                    </button>
+                    <button id="exportResultsButton" class="btn btn-sm btn-outline-success me-2">
+                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export to CSV" %}
+                    </button>
+                    <button id="copyTableButton" class="btn btn-sm btn-outline-primary me-2">
+                        <i class="bi bi-clipboard"></i> {% trans "Copy to Clipboard" %}
+                    </button>
+                    <button id="collapseAllButton" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrows-collapse"></i> {% trans "Collapse All" %}
+                    </button>
+                </div>`;
+
+            response.controls.forEach(function(control, index) {
+                // Ensure control has all required properties
+                if (!control.title) control.title = { en: "Unknown Title" };
+                if (!control.control_description) control.control_description = { en: "" };
+                if (!control.guidance) control.guidance = { en: "" };
+                if (!control.purpose) control.purpose = { en: "" };
+                
+                // Get the appropriate language version or fall back to English
+                const title = control.title[currentLanguage] || control.title.en || control.title || "Unknown Title";
+                const description = control.control_description[currentLanguage] || 
+                                    control.control_description.en || 
+                                    control.control_description || "";
+                const guidance = control.guidance[currentLanguage] || 
+                                 control.guidance.en || 
+                                 control.guidance || "";
+                const purpose = control.purpose[currentLanguage] || 
+                                control.purpose.en || 
+                                control.purpose || "";
+                
+                // Highlight search terms in title and description
+                const highlightedTitle = highlightSearchTerms(title, searchQuery);
+                const highlightedDescription = highlightSearchTerms(description, searchQuery);
+                
+                tableHtml += `
+                    <div class="mb-4">
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <tr style="background-color: #e9e9e9;">
+                                    <th colspan="3" style="padding: 8px;"><span class="fw-bold">${control.control_number || 'N/A'}</span> ${highlightedTitle}</th>
+                                </tr>
+                                <tr>
+                                    <th width="50%" class="bg-light text-center">{% trans "Control Description" %}</th>
+                                    <th width="50%" class="bg-light text-center">{% trans "Guidance" %}</th>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 10px; vertical-align: top;">${highlightedDescription}</td>
+                                    <td style="padding: 10px; vertical-align: top;">
+                                        ${highlightSearchTerms(guidance, searchQuery)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">
+                                        <div class="p-2 bg-light fw-bold">{% trans "Purpose" %}</div>
+                                        <div class="p-2">${highlightSearchTerms(purpose, searchQuery)}</div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="p-2 bg-light fw-bold">{% trans "Control Type" %}</div>
+                                        <div class="p-2">${control.control_type || '{% trans "Not specified" %}'}</div>
+                                    </td>
+                                    <td>
+                                        <div class="p-2 bg-light fw-bold">{% trans "Theme" %}</div>
+                                        <div class="p-2">${control.theme || '{% trans "Not specified" %}'}</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>`;
+            });
+            
+            $('#foundControls').html(tableHtml);
+        }
+        
+        $('#aiExplanation').html(`
+            <div class="mt-4">
+                <h6>{% trans "AI Explanation" %}:</h6>
+                <div class="p-3 bg-light rounded border">
+                    ${highlightSearchTerms(response.explanation || '{% trans "No explanation provided" %}', searchQuery)}
+                </div>
+            </div>
+        `);
+        
+        // Add click event for Export to CSV button
+        $('#exportResultsButton').on('click', function() {
+            exportSearchResultsToCSV(response.controls, searchQuery);
+        });
+        
+        // Add click event for Print Results button
+        $('#printResultsButton').on('click', function() {
+            printSearchResults(response.controls, searchQuery, response.explanation);
+        });
+        
+        // Add click event for Copy to Clipboard button
+        $('#copyTableButton').on('click', function() {
+            copyControlsToClipboard(response.controls, searchQuery);
+        });
+        
+        // Show results
+        $('#aiSearchResults').show();
+    }
+
+    // Function to highlight search terms in text
+    function highlightSearchTerms(text, searchQuery) {
+        if (!text || !searchQuery) return text;
+        
+        // Split search query into words
+        const searchTerms = searchQuery.split(/\s+/).filter(term => term.length > 2);
+        
+        if (searchTerms.length === 0) return text;
+        
+        // Create a regex pattern for all search terms
+        const pattern = new RegExp('(' + searchTerms.map(term => escapeRegExp(term)).join('|') + ')', 'gi');
+        
+        // Replace matches with highlighted version
+        return text.replace(pattern, '<span class="bg-warning">$1</span>');
+    }
+    
+    // Helper function to escape special characters in regex
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Function to print search results
+    function printSearchResults(controls, searchQuery, explanation) {
+        if (!controls || controls.length === 0) {
+            alert('{% trans "No controls to print" %}');
+            return;
+        }
+        
+        // Create a new window for printing
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            showAlert('error', '{% trans "Pop-up blocked. Please allow pop-ups for this site to use the print function." %}');
+            return;
+        }
+        
+        // Generate HTML content for printing
+        let printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>{% trans "ISO 27002 Search Results" %}</title>
+                <meta charset="UTF-8">
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+                    th { background-color: #f2f2f2; text-align: center; }
+                    .header { margin-bottom: 20px; }
+                    .explanation { margin: 20px 0; padding: 10px; background-color: #f9f9f9; border: 1px solid #ddd; }
+                    .section { margin: 15px 0; padding: 10px; border: 1px solid #ddd; }
+                    h1 { font-size: 18px; }
+                    h2 { font-size: 16px; }
+                    h3 { font-size: 14px; margin-top: 15px; }
+                    .bg-light { background-color: #f8f9fa; }
+                    .fw-bold { font-weight: bold; }
+                    .p-2 { padding: 8px; }
+                    .mb-3 { margin-bottom: 15px; }
+                    .control-header { background-color: #e9e9e9; padding: 8px; }
+                    @media print {
+                        .no-print { display: none; }
+                        body { margin: 0; }
+                        .page-break { page-break-after: always; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>{% trans "ISO 27002 Search Results" %}</h1>
+                    <p><strong>{% trans "Search Query" %}:</strong> ${searchQuery}</p>
+                    <p><strong>{% trans "Date" %}:</strong> ${new Date().toLocaleDateString()}</p>
+                    <div class="no-print">
+                        <button onclick="window.print()">{% trans "Print" %}</button>
+                        <button onclick="window.close()">{% trans "Close" %}</button>
+                    </div>
+                </div>
+                
+                <h2>{% trans "Found Controls" %}</h2>
+        `;
+        
+        // Add control tables
+        controls.forEach(function(control, index) {
+            // Ensure control has all required properties
+            if (!control.title) control.title = { en: "Unknown Title" };
+            if (!control.control_description) control.control_description = { en: "" };
+            if (!control.guidance) control.guidance = { en: "" };
+            if (!control.purpose) control.purpose = { en: "" };
+            
+            // Get the appropriate language version or fall back to English
+            const title = control.title[currentLanguage] || control.title.en || control.title || "Unknown Title";
+            const description = control.control_description[currentLanguage] || 
+                                control.control_description.en || 
+                                control.control_description || "";
+            const guidance = control.guidance[currentLanguage] || 
+                             control.guidance.en || 
+                             control.guidance || "";
+            const purpose = control.purpose[currentLanguage] || 
+                            control.purpose.en || 
+                            control.purpose || "";
+            
+            printContent += `
+                <div class="${index > 0 ? 'page-break' : ''}">
+                    <table>
+                        <tr>
+                            <th colspan="2" class="control-header"><span class="fw-bold">${control.control_number || 'N/A'}</span> ${title}</th>
+                        </tr>
+                        <tr>
+                            <th width="50%">{% trans "Control Description" %}</th>
+                            <th width="50%">{% trans "Guidance" %}</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px;">${description}</td>
+                            <td style="padding: 10px;">${guidance || '{% trans "Not specified" %}'}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                <div class="p-2 bg-light fw-bold">{% trans "Purpose" %}</div>
+                                <div class="p-2">${purpose || '{% trans "Not specified" %}'}</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="p-2 bg-light fw-bold">{% trans "Control Type" %}</div>
+                                <div class="p-2">${control.control_type || '{% trans "Not specified" %}'}</div>
+                            </td>
+                            <td>
+                                <div class="p-2 bg-light fw-bold">{% trans "Theme" %}</div>
+                                <div class="p-2">${control.theme || '{% trans "Not specified" %}'}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            `;
+        });
+        
+        // Add explanation and close HTML
+        printContent += `
+                <div class="page-break">
+                    <h2>{% trans "AI Explanation" %}</h2>
+                    <div class="explanation">
+                        ${explanation || '{% trans "No explanation provided" %}'}
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        // Write to the new window and prepare for printing
+        printWindow.document.open();
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        
+        // Wait for content to load before triggering print
+        printWindow.onload = function() {
+            // Automatically open print dialog
+            printWindow.setTimeout(function() {
+                printWindow.focus();
+                printWindow.print();
+            }, 500);
+        };
+    }
+
+    // Function to export search results to CSV
+    function exportSearchResultsToCSV(controls, searchQuery) {
+        if (!controls || controls.length === 0) {
+            alert('{% trans "No controls to export" %}');
+            return;
+        }
+        
+        // Create CSV header
+        let csvContent = 'data:text/csv;charset=utf-8,';
+        csvContent += '"{% trans "Search Query" %}","' + searchQuery + '"\r\n';
+        csvContent += '"{% trans "Export Date" %}","' + new Date().toLocaleDateString() + '"\r\n\r\n';
+        
+        csvContent += '"{% trans "Control Number" %}","{% trans "Theme" %}","{% trans "Title" %}","{% trans "Control Description" %}","{% trans "Purpose" %}","{% trans "Guidance" %}","{% trans "Control Type" %}"\r\n';
+        
+        // Add data rows
+        controls.forEach(function(control) {
+            // Ensure control has all required properties
+            if (!control.title) control.title = { en: "Unknown Title" };
+            if (!control.control_description) control.control_description = { en: "" };
+            if (!control.guidance) control.guidance = { en: "" };
+            if (!control.purpose) control.purpose = { en: "" };
+            
+            // Get the appropriate language version or fall back to English
+            const title = control.title[currentLanguage] || control.title.en || control.title || "Unknown Title";
+            const description = control.control_description[currentLanguage] || 
+                                control.control_description.en || 
+                                control.control_description || "";
+            const guidance = control.guidance[currentLanguage] || 
+                             control.guidance.en || 
+                             control.guidance || "";
+            const purpose = control.purpose[currentLanguage] || 
+                            control.purpose.en || 
+                            control.purpose || "";
+            
+            // Escape double quotes in text fields
+            const escapeCSV = (text) => {
+                if (!text) return '';
+                return `"${text.replace(/"/g, '""')}"`;
+            };
+            
+            const row = [
+                `"${control.control_number || 'N/A'}"`,
+                `"${control.theme || ''}"`,
+                escapeCSV(title),
+                escapeCSV(description),
+                escapeCSV(purpose),
+                escapeCSV(guidance),
+                `"${control.control_type || ''}"`
+            ];
+            
+            csvContent += row.join(',') + '\r\n';
+        });
+        
+        // Add AI explanation
+        csvContent += '\r\n"{% trans "AI Explanation" %}"\r\n';
+        csvContent += '"' + $('#aiExplanation').text().replace(/"/g, '""') + '"\r\n';
+        
+        try {
+            // Create download link
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `iso27002_search_results_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            
+            // Trigger download
+            link.click();
+            
+            // Clean up
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error('Error exporting to CSV:', err);
+            showAlert('error', '{% trans "Failed to export to CSV. Please try again." %}');
+        }
+    }
+
+    // Function to copy controls to clipboard
+    function copyControlsToClipboard(controls, searchQuery) {
+        if (!controls || controls.length === 0) {
+            alert('{% trans "No controls to copy" %}');
+            return;
+        }
+        
+        // Create a text representation of the controls
+        let clipboardText = `=======================================================\n`;
+        clipboardText += `ISO 27002 SEARCH RESULTS\n`;
+        clipboardText += `Search Query: ${searchQuery}\n`;
+        clipboardText += `Date: ${new Date().toLocaleDateString()}\n`;
+        clipboardText += `=======================================================\n\n`;
+        
+        controls.forEach(function(control, index) {
+            // Ensure control has all required properties
+            if (!control.title) control.title = { en: "Unknown Title" };
+            if (!control.control_description) control.control_description = { en: "" };
+            if (!control.guidance) control.guidance = { en: "" };
+            if (!control.purpose) control.purpose = { en: "" };
+            
+            // Get the appropriate language version or fall back to English
+            const title = control.title[currentLanguage] || control.title.en || control.title || "Unknown Title";
+            const description = control.control_description[currentLanguage] || 
+                                control.control_description.en || 
+                                control.control_description || "";
+            const guidance = control.guidance[currentLanguage] || 
+                             control.guidance.en || 
+                             control.guidance || "";
+            const purpose = control.purpose[currentLanguage] || 
+                            control.purpose.en || 
+                            control.purpose || "";
+            
+            clipboardText += `=======================================================\n`;
+            clipboardText += `ISO 27002 CONTROL ${control.control_number || 'N/A'}: ${title}\n`;
+            clipboardText += `=======================================================\n\n`;
+            
+            clipboardText += `## CONTROL DESCRIPTION ##\n`;
+            clipboardText += `${description}\n\n`;
+            
+            clipboardText += `## GUIDANCE ##\n`;
+            clipboardText += `${guidance || '{% trans "Not specified" %}'}\n\n`;
+            
+            if (purpose) {
+                clipboardText += `## PURPOSE ##\n`;
+                clipboardText += `${purpose}\n\n`;
+            }
+            
+            clipboardText += `## CONTROL TYPE ##\n`;
+            clipboardText += `${control.control_type || '{% trans "Not specified" %}'}\n\n`;
+            
+            clipboardText += `## THEME ##\n`;
+            clipboardText += `${control.theme || '{% trans "Not specified" %}'}\n\n`;
+        });
+        
+        clipboardText += `=======================================================\n`;
+        clipboardText += `AI EXPLANATION:\n`;
+        clipboardText += `${$('#aiExplanation').text().trim()}\n`;
+        clipboardText += `=======================================================\n`;
+        
+        // Create and show the copy modal
+        createCopyModal(clipboardText);
+    }
+
+    // Function to create and show a modal for copying text
+    function createCopyModal(text) {
+        // Remove any existing copy modal
+        $('#copyTextModal').remove();
+        
+        // Create the modal HTML
+        const modalHTML = `
+            <div class="modal fade" id="copyTextModal" tabindex="-1" aria-labelledby="copyTextModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="copyTextModalLabel">{% trans "Copy Text" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                {% trans "The text has been pre-selected. Press Ctrl+C (or Cmd+C on Mac) to copy it." %}
+                            </div>
+                            <textarea class="form-control" id="copyTextArea" rows="15" style="white-space: pre-wrap;">${text}</textarea>
+                            <div id="copyStatus" class="mt-2"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                            <button type="button" class="btn btn-primary" id="selectAllBtn">
+                                <i class="bi bi-cursor-text"></i> {% trans "Select All Text" %}
+                            </button>
+                            <button type="button" class="btn btn-success" id="copyBtn">
+                                <i class="bi bi-clipboard"></i> {% trans "Copy to Clipboard" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add the modal to the document
+        $('body').append(modalHTML);
+        
+        // Initialize the Bootstrap modal
+        const copyModal = new bootstrap.Modal(document.getElementById('copyTextModal'));
+        
+        // Show the modal
+        copyModal.show();
+        
+        // Select all text when the modal is shown
+        $('#copyTextModal').on('shown.bs.modal', function() {
+            const textarea = document.getElementById('copyTextArea');
+            textarea.focus();
+            textarea.select();
+        });
+        
+        // Handle the Select All button
+        $('#selectAllBtn').on('click', function() {
+            const textarea = document.getElementById('copyTextArea');
+            textarea.focus();
+            textarea.select();
+        });
+        
+        // Handle the Copy button
+        $('#copyBtn').on('click', function() {
+            const textarea = document.getElementById('copyTextArea');
+            textarea.focus();
+            textarea.select();
+            
+            // Try to copy using the Clipboard API first
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textarea.value)
+                    .then(() => {
+                        $('#copyStatus').html('<div class="alert alert-success">{% trans "Text copied to clipboard successfully!" %}</div>');
+                    })
+                    .catch(err => {
+                        console.error('Clipboard API error:', err);
+                        // Fall back to execCommand
+                        copyUsingExecCommand();
+                    });
+            } else {
+                // Fall back to execCommand
+                copyUsingExecCommand();
+            }
+            
+            // Function to copy using execCommand
+            function copyUsingExecCommand() {
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        $('#copyStatus').html('<div class="alert alert-success">{% trans "Text copied to clipboard successfully!" %}</div>');
+                    } else {
+                        $('#copyStatus').html('<div class="alert alert-warning">{% trans "Copy failed. Please select the text manually and press Ctrl+C/Cmd+C." %}</div>');
+                    }
+                } catch (err) {
+                    console.error('execCommand error:', err);
+                    $('#copyStatus').html('<div class="alert alert-warning">{% trans "Copy failed. Please select the text manually and press Ctrl+C/Cmd+C." %}</div>');
+                }
+            }
+        });
+    }
+
+    // Input clear functionality
+    const searchInput = $('#aiSearchQuery');
+    const clearButton = $('.clear-input');
+    
+    // Show/hide clear button
+    searchInput.on('input', function() {
+        clearButton.toggle(Boolean(this.value));
+    });
+    
+    // Clear field on button click
+    clearButton.on('click', function() {
+        searchInput.val('').focus();
+        $(this).hide();
+    });
+    
+    // Check initial state of field
+    clearButton.toggle(Boolean(searchInput.val()));
+
+    // Custom sorting function for control numbers
+    $.fn.dataTable.ext.type.order['control-number-pre'] = function(data) {
+        return data.split('.').map(part =>
+            part.padStart(10, '0')
+        ).join('.');
+    };
+
+    $('.filter-theme-btn').on('click', function() {
+        $('.filter-theme-btn').removeClass('active');
+        $(this).addClass('active');
+
+        var value = $(this).data('value');
+        var table = $('#controlsTable').DataTable();
+
+        if (value === 'all') {
+            table.column(2).search('').draw();
+        } else {
+            table.column(2).search(value).draw();
+        }
+    });
+
+    var table = $('#controlsTable').DataTable({
+        "dom": '<"row"<"col-sm-12"tr>>',
+        "lengthChange": false,
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],
+        "order": [[1, 'asc']],
+        "columnDefs": [
+            {
+                "orderable": false,
+                "targets": [0, 6]
+            },
+            {
+                "targets": 1,
+                "type": "control-number"
+            }
+        ],
+        "language": {
+            "emptyTable": "{% trans 'No data available in table' %}",
+            "info": "{% trans 'Showing _START_ to _END_ of _TOTAL_ entries' %}",
+            "infoEmpty": "{% trans 'Showing 0 to 0 of 0 entries' %}",
+            "infoFiltered": "{% trans '(filtered from _MAX_ total entries)' %}",
+            "lengthMenu": "{% trans 'Show _MENU_ entries' %}",
+            "search": "{% trans 'Search:' %}",
+            "zeroRecords": "{% trans 'No matching records found' %}",
+            "paginate": {
+                "first": "{% trans 'First' %}",
+                "last": "{% trans 'Last' %}",
+                "next": "{% trans 'Next' %}",
+                "previous": "{% trans 'Previous' %}"
+            }
+        },
+        "initComplete": function() {
+            if (window.initStdDataTablePagination) {
+                window.initStdDataTablePagination({
+                    api: this.api(),
+                    containerId: 'controlsTablePagination',
+                    paginationAriaLabel: '{% trans "ISO 27002 controls pagination" %}',
+                    labels: {
+                        showing: '{% trans "Showing" %}',
+                        of: '{% trans "of" %}',
+                        items: '{% trans "records" %}',
+                        perPage: '{% trans "Per page" %}'
+                    }
+                });
+            }
+        }
+    });
+
+    // Add Select All functionality
+    $('#controlsSelectAllMount').html(
+        '<div class="select-all-wrapper">' +
+        '<input type="checkbox" id="selectAllControls">' +
+        '<label for="selectAllControls">{% trans "Select All" %}</label>' +
+        '</div>'
+    );
+
+    $('#selectAllControls').on('change', function() {
+        var isChecked = $(this).prop('checked');
+        table.rows({ page: 'current' }).nodes().each(function(node) {
+            $(node).find('.control-checkbox').prop('checked', isChecked);
+        });
+    });
+
+    // Row expansion handling
+    $('#controlsTable tbody').on('click', 'tr.expandable-row', function(e) {
+        if (!$(e.target).is('input:checkbox') && !$(e.target).is('button')) {
+            var tr = $(this);
+            var row = table.row(tr);
+            var id = tr.data('id');
+
+            if (row.child.isShown()) {
+                row.child.hide();
+                tr.removeClass('shown');
+            } else {
+                var expandedContent = $('#expanded-' + id).html();
+                row.child(expandedContent).show();
+                tr.addClass('shown');
+                
+                // Add event listener to the copy button in the expanded row
+                row.child().find('.copy-control-btn').on('click', function() {
+                    copyControlDetailsToClipboard($(this).data('id'));
+                });
+            }
+        }
+    });
+
+    // Function to copy control details to clipboard
+    function copyControlDetailsToClipboard(controlId) {
+        // Find the control data
+        const control = controls.find(c => c.id === controlId);
+        if (!control) {
+            // If control not found in the controls array, try to get it from the DOM
+            const controlRow = $(`tr[data-id="${controlId}"]`);
+            if (controlRow.length) {
+                const controlNumber = controlRow.find('td:eq(1)').text().trim();
+                const theme = controlRow.find('td:eq(2)').text().trim();
+                const title = controlRow.find('td:eq(3)').text().trim();
+                const description = controlRow.find('td:eq(4)').text().trim();
+                const controlType = controlRow.find('td:eq(5) .badge.bg-info').text().trim();
+                
+                // Create a simplified control object
+                const simplifiedControl = {
+                    control_number: controlNumber,
+                    title: title,
+                    control_description: description,
+                    theme: theme,
+                    control_type: controlType
+                };
+                
+                // Create clipboard text from simplified control
+                createClipboardTextFromControl(simplifiedControl);
+                return;
+            }
+            
+            showAlert('error', '{% trans "Control not found" %}');
+            return;
+        }
+        
+        // Create clipboard text from control
+        createClipboardTextFromControl(control);
+    }
+    
+    // Function to create clipboard text from control data
+    function createClipboardTextFromControl(control) {
+        // Create a text representation of the control
+        let clipboardText = `=======================================================\n`;
+        clipboardText += `ISO 27002 CONTROL ${control.control_number}: ${control.title}\n`;
+        clipboardText += `=======================================================\n\n`;
+        
+        clipboardText += `## CONTROL DESCRIPTION ##\n`;
+        clipboardText += `${control.control_description || '{% trans "Not specified" %}'}\n\n`;
+        
+        if (control.purpose) {
+            clipboardText += `## PURPOSE ##\n`;
+            clipboardText += `${control.purpose}\n\n`;
+        }
+        
+        if (control.guidance) {
+            clipboardText += `## GUIDANCE ##\n`;
+            clipboardText += `${control.guidance}\n\n`;
+        }
+        
+        if (control.other_information) {
+            clipboardText += `## OTHER INFORMATION ##\n`;
+            clipboardText += `${control.other_information}\n\n`;
+        }
+        
+        clipboardText += `## CONTROL TYPE ##\n`;
+        clipboardText += `${control.control_type || '{% trans "Not specified" %}'}\n\n`;
+        
+        if (control.security_domain) {
+            clipboardText += `## SECURITY DOMAIN ##\n`;
+            clipboardText += `${control.security_domain || '{% trans "Not specified" %}'}\n\n`;
+        }
+        
+        if (control.information_security_properties && control.information_security_properties.length > 0) {
+            clipboardText += `## INFORMATION SECURITY PROPERTIES ##\n`;
+            clipboardText += `${control.information_security_properties.join(', ')}\n\n`;
+        }
+        
+        if (control.cybersecurity_concepts && control.cybersecurity_concepts.length > 0) {
+            clipboardText += `## CYBERSECURITY CONCEPTS ##\n`;
+            clipboardText += `${control.cybersecurity_concepts.join(', ')}\n\n`;
+        }
+        
+        clipboardText += `=======================================================\n`;
+        
+        // Create and show the copy modal
+        createCopyModal(clipboardText);
+    }
+
+    $('.edit-control').on('click', function() {
+       if (!canEdit) {
+           showAlert('error', '{% trans "You do not have permission to edit controls" %}');
+           return;
+       }
+
+       var id = $(this).data('id');
+       $.ajax({
+           url: '{% url "get_iso_control" 0 %}'.replace('0', id),
+           type: 'GET',
+           success: function(data) {
+               console.log('Server Response:', data);
+
+               // Basic fields
+               $('#control-id').val(id);
+               $('#control-number-modal').val(data.control_number);
+
+               // Theme
+               $('#theme-modal').val(data.theme.name.toLowerCase());
+
+               // Control type and security domain
+               $('#control-type-modal').val(data.control_type.toLowerCase());
+               $('#security-domain-modal').val(data.security_domain);
+
+               // Security Properties
+               $('.security-property-modal').prop('checked', false);
+               if (data.information_security_properties && Array.isArray(data.information_security_properties)) {
+                   data.information_security_properties.forEach(prop => {
+                       $(`.security-property-modal[value="${prop.toLowerCase()}"]`).prop('checked', true);
+                       console.log('Setting security property:', prop);
+                   });
+               }
+
+               // Cybersecurity Concepts
+               $('.cybersecurity-concept-modal').prop('checked', false);
+               if (data.cybersecurity_concepts && Array.isArray(data.cybersecurity_concepts)) {
+                   data.cybersecurity_concepts.forEach(concept => {
+                       $(`.cybersecurity-concept-modal[value="${concept.toLowerCase()}"]`).prop('checked', true);
+                       console.log('Setting cyber concept:', concept);
+                   });
+               }
+
+               // Text fields and textareas
+               ['title', 'control_description', 'purpose', 'guidance', 'other_information'].forEach(field => {
+                   ['uk', 'ru', 'en'].forEach(lang => {
+                       const fieldName = `${field}_${lang}`;
+                       const value = data[fieldName];
+                       const element = $(`[name="${fieldName}"]`);
+
+                       if (element.is('textarea')) {
+                           element.val(value).html(value);
+                           // Adjust height
+                           element.height('auto');
+                           element.height(element.prop('scrollHeight'));
+                       } else {
+                           element.val(value);
+                       }
+                   });
+               });
+
+               // Hidden fields for form submission
+                $('#information-security-properties-modal').val(JSON.stringify(data.information_security_properties || []));
+               $('#cybersecurity-concepts-modal').val(JSON.stringify(data.cybersecurity_concepts || []));
+               $('#operational-capabilities-modal').val(JSON.stringify(data.operational_capabilities));
+
+               $('#editISO27002Modal').modal('show');
+
+               // Debug logs
+               console.log('Values after setting:', {
+                   theme: $('#theme-modal').val(),
+                   securityProps: $('.security-property-modal:checked').map((i,el) => $(el).val()).get(),
+                   cyberConcepts: $('.cybersecurity-concept-modal:checked').map((i,el) => $(el).val()).get()
+               });
+           },
+           error: function(xhr) {
+               if (xhr.status === 403) {
+                   showAlert('error', '{% trans "Permission denied" %}');
+               } else {
+                   showAlert('error', '{% trans "Error fetching control data" %}');
+               }
+           }
+       });
+    });
+
+    // Save changes
+    $('#saveChanges').on('click', function() {
+        // Збираємо значення чекбоксів
+        const securityProperties = $('.security-property-modal:checked').map(function() {
+            return this.value;
+        }).get();
+
+        const cybersecurityConcepts = $('.cybersecurity-concept-modal:checked').map(function() {
+            return this.value;
+        }).get();
+
+        // Оновлюємо приховані поля перед відправкою
+        $('#information-security-properties-modal').val(JSON.stringify(securityProperties));
+        $('#cybersecurity-concepts-modal').val(JSON.stringify(cybersecurityConcepts));
+        $('#operational-capabilities-modal').val(JSON.stringify([]));
+
+        const formData = new FormData($('#editISO27002Form')[0]);
+        const id = $('#control-id').val();
+
+        $.ajax({
+            url: '{% url "edit_iso_control" 0 %}'.replace('0', id),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    location.reload();
+                }
+            }
+        });
+    });
+
+    // Translation functionality
+    $('#translateISO27002Btn').on('click', function() {
+        // Получаем CSRF токен
+        const csrftoken = $('[name=csrfmiddlewaretoken]').val();
+
+        var selectedIds = $('.control-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', 'Please select controls to translate');
+            return;
+        }
+
+        $('#translateISO27002Btn').prop('disabled', true);
+
+        // Получаем данные для перевода
+        Promise.all(selectedIds.map(id =>
+            $.ajax({
+                url: '{% url "get_iso_control" 0 %}'.replace('0', id),
+                type: 'GET'
+            })
+        )).then(results => {
+            const translationData = {};
+            results.forEach(data => {
+                translationData[data.id] = {};
+                ['title', 'control_description', 'purpose', 'guidance', 'other_information'].forEach(field => {
+                    if (data[`${field}_en`]?.trim()) {
+                        translationData[data.id][`${field}_en`] = data[`${field}_en`];
+                    }
+                });
+            });
+
+            return $.ajax({
+                url: '{% url "translate_iso27002_fields" %}',
+                method: 'POST',
+                data: JSON.stringify(translationData),
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            });
+        }).then(response => {
+            if (response.success) {
+                location.reload();
+            }
+        }).catch(error => {
+            showAlert('error', error.responseJSON?.error || 'Translation failed');
+        }).finally(() => {
+            $('#translateISO27002Btn').prop('disabled', false);
+        });
+    });
+
+    // Export functionality
+    $('#exportISO27002Btn').on('click', function() {
+        const csrftoken = $('[name=csrfmiddlewaretoken]').val();
+        const selectedIds = $('.control-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showAlert('warning', 'Please select controls to export');
+            return;
+        }
+
+        $.ajax({
+            url: '{% url "export_iso27002_controls" %}',
+            type: 'POST',
+            data: JSON.stringify({ ids: selectedIds }),
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': csrftoken
+            },
+            xhrFields: {
+                responseType: 'blob'
+            },
+            success: function(response) {
+                const blob = new Blob([response], { type: 'text/csv' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'iso27002_controls.csv';
+                link.click();
+            },
+            error: function(xhr) {
+                showAlert('error', xhr.responseJSON?.error || 'Export failed');
+            }
+        });
+    });
+
+    // Import functionality
+    $('#importISO27002Btn').on('click', function(e) {
+        if (!canEdit) {
+            e.preventDefault();
+            showAlert('error', '{% trans "You do not have permission to import controls" %}');
+            return;
+        }
+        $('#importFile').click();
+    });
+
+    $('#importFile').on('change', function(e) {
+        var file = e.target.files[0];
+        if (file) {
+            Papa.parse(file, {
+                complete: function(results) {
+                    $.ajax({
+                        url: '{% url "import_iso27002_controls" %}',
+                        type: 'POST',
+                        data: JSON.stringify(results.data),
+                        contentType: 'application/json',
+                        headers: {'X-CSRFToken': getCookie('csrftoken')},
+                        success: function(response) {
+                            if (response.success) {
+                                showAlert('success', '{% trans "Controls imported successfully" %}');
+                                location.reload();
+                            } else {
+                                showAlert('error', response.error || '{% trans "Error importing controls" %}');
+                            }
+                        },
+                        error: function() {
+                            showAlert('error', '{% trans "Error communicating with server" %}');
+                        }
+                    });
+                },
+                header: true,
+                skipEmptyLines: true
+            });
+        }
+    });
+
+    // Delete functionality
+    $('#deleteSelectedBtn').on('click', function() {
+       const csrftoken = $('[name=csrfmiddlewaretoken]').val();
+       const selectedIds = $('.control-checkbox:checked').map(function() {
+           return $(this).data('id');
+       }).get();
+
+       if (selectedIds.length === 0) {
+           showAlert('warning', 'Please select controls to delete');
+           return;
+       }
+
+       if (!confirm('Are you sure you want to delete selected controls?')) {
+           return;
+       }
+
+       $.ajax({
+           url: '{% url "delete_iso27002_controls" %}',
+           type: 'POST',
+           data: JSON.stringify({ids: selectedIds}),
+           contentType: 'application/json',
+           headers: {
+               'X-CSRFToken': csrftoken
+           },
+           success: function(response) {
+               if (response.success) {
+                   location.reload();
+               }
+           },
+           error: function(xhr) {
+               showAlert('error', xhr.responseJSON?.error || 'Delete failed');
+           }
+       });
+    });
+
+    function updateTableCell(id, field, value) {
+        try {
+            var table = $('#controlsTable').DataTable();
+            var rowSelector = `[data-id="${id}"]`;
+            var row = table.row(rowSelector);
+
+            if (row.length) {
+                var data = row.data();
+                if (field.startsWith('title_')) {
+                    data[3] = value;
+                } else if (field.startsWith('control_description_')) {
+                    data[4] = value.substring(0, 100) + (value.length > 100 ? '...' : '');
+                }
+                row.data(data);
+                table.draw(false);
+            }
+        } catch (error) {
+            console.error(`Error updating table cell for ID ${id}, field ${field}:`, error);
+        }
+    }
+
+    function showAlert(type, message) {
+        console.log("Showing alert:", type, message);
+        alert(message);
+    }
+
+    $(document).ajaxError(function(event, xhr) {
+        if (xhr.status === 403) {
+            showAlert('error', '{% trans "Permission denied" %}');
+        }
+    });
+});
+</script>
+{% endblock %}

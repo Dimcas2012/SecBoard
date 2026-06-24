@@ -1,0 +1,3403 @@
+<!--SecBoard/templates/app_cabinet/users.html-->
+
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load cabinet_custom_filters %}
+{% load cabinet_permissions %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_cabinet/includes/cabinet_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_cabinet/css/users-page.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+{% endblock %}
+
+{% block title %}{% trans "Users Management" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 cabinet-page">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center my-3">
+        <h1 class="mb-0">
+            <i class="bi bi-people me-2"></i>
+            {% trans "Users Management" %}
+        </h1>
+    </div>
+
+    <!-- Filters Section (collapsed by default) -->
+    <div class="card mb-2 filter-section access-request-filters cabinet-filters-card" id="filtersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="usersFiltersCollapse" toggle_id="toggleUsersFilters" icon_id="usersFiltersToggleIcon" clear_btn_id="clearFilters" %}
+        <div class="collapse{% if active_filters.company or active_filters.department or active_filters.position or active_filters.cabinet_group or active_filters.other_group or active_filters.employment_status or active_filters.status or active_filters.date_from or active_filters.date_to or active_filters.search %} show{% endif %}" id="usersFiltersCollapse">
+        <div class="card-body py-2">
+            <form id="userFilterForm" class="row g-1 align-items-end">
+                <input type="hidden" id="filter_search" name="search" value="{{ active_filters.search|default:'' }}">
+                <!-- Company Filter -->
+                <div class="col-lg-3 col-md-6">
+                    <label for="filter_company" class="form-label">
+                        <i class="fas fa-building me-1"></i>{% trans "Company" %}
+                    </label>
+                    <select id="filter_company" name="company" class="form-select form-select-sm">
+                        <option value="">{% trans "All Companies" %}</option>
+                        {% for company in companies %}
+                            <option value="{{ company.id }}" {% if active_filters.company|stringformat:"s" == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Department Filter -->
+                <div class="col-lg-3 col-md-6">
+                    <label for="filter_department" class="form-label">
+                        <i class="fas fa-sitemap me-1"></i>{% trans "Department" %}
+                    </label>
+                    <select id="filter_department" name="department" class="form-select form-select-sm" {% if not active_filters.company %}disabled{% endif %}>
+                        <option value="">{% trans "All Departments" %}</option>
+                        {% comment %}
+                        <!-- Static department options removed to prevent duplication with dynamically loaded options -->
+                        <!-- The departments will be populated by JavaScript when a company is selected -->
+                        {% endcomment %}
+                    </select>
+                </div>
+                
+                <!-- Position Filter -->
+                <div class="col-lg-3 col-md-6">
+                    <label for="filter_position" class="form-label">
+                        <i class="fas fa-id-badge me-1"></i>{% trans "Position" %}
+                    </label>
+                    <select id="filter_position" name="position" class="form-select form-select-sm" {% if not active_filters.department %}disabled{% endif %}>
+                        <option value="">{% trans "All Positions" %}</option>
+                        {% comment %}
+                        <!-- Static position options removed to prevent duplication with dynamically loaded options -->
+                        <!-- The positions will be populated by JavaScript when a department is selected -->
+                        {% endcomment %}
+                    </select>
+                </div>
+                
+                <!-- Cabinet Group Filter -->
+                <div class="col-lg-3 col-md-6">
+                    <label for="filter_cabinet_group" class="form-label">
+                        <i class="fas fa-users me-1"></i>{% trans "Cabinet Group" %}
+                    </label>
+                    <select id="filter_cabinet_group" name="cabinet_group" class="form-select form-select-sm" {% if not active_filters.company %}disabled{% endif %}>
+                        <option value="">{% trans "All Cabinet Groups" %}</option>
+                        {% for group in cabinet_groups %}
+                            <option value="{{ group.id }}" {% if active_filters.cabinet_group|stringformat:"s" == group.id|stringformat:"s" %}selected{% endif %}>{{ group.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Other Groups Filter -->
+                <div class="col-lg-3 col-md-6">
+                    <label for="filter_other_group" class="form-label">
+                        <i class="fas fa-layer-group me-1"></i>{% trans "Other Groups" %}
+                    </label>
+                    <select id="filter_other_group" name="other_group" class="form-select form-select-sm">
+                        <option value="">{% trans "All Other Groups" %}</option>
+                        {% for group in other_groups %}
+                            <option value="{{ group.id }}" {% if active_filters.other_group|stringformat:"s" == group.id|stringformat:"s" %}selected{% endif %}>{{ group.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Employment Status Filter -->
+                <div class="col-lg-3 col-md-6">
+                    <label for="filter_employment_status" class="form-label">
+                        <i class="fas fa-user-clock me-1"></i>{% trans "Employment Status" %}
+                    </label>
+                    <select id="filter_employment_status" name="employment_status" class="form-select form-select-sm">
+                        <option value="">{% trans "All Statuses" %}</option>
+                        <option value="active" {% if active_filters.employment_status == 'active' %}selected{% endif %}>{% trans "Currently Employed" %}</option>
+                        <option value="future" {% if active_filters.employment_status == 'future' %}selected{% endif %}>{% trans "Future Employment" %}</option>
+                        <option value="past" {% if active_filters.employment_status == 'past' %}selected{% endif %}>{% trans "Past Employment" %}</option>
+                        <option value="no_dates" {% if active_filters.employment_status == 'no_dates' %}selected{% endif %}>{% trans "No Dates Specified" %}</option>
+                    </select>
+                </div>
+                
+                <!-- Account Status Filter -->
+                <div class="col-lg-3 col-md-6">
+                    <label for="filter_status" class="form-label">
+                        <i class="fas fa-user-shield me-1"></i>{% trans "Account Status" %}
+                    </label>
+                    <select id="filter_status" name="status" class="form-select form-select-sm">
+                        <option value="">{% trans "All Statuses" %}</option>
+                        <option value="active" {% if active_filters.status == 'active' %}selected{% endif %}>{% trans "Active Account" %}</option>
+                        <option value="inactive" {% if active_filters.status == 'inactive' %}selected{% endif %}>{% trans "Inactive Account" %}</option>
+                        <option value="profile_completed" {% if active_filters.status == 'profile_completed' %}selected{% endif %}>{% trans "Profile Completed" %}</option>
+                        <option value="staff" {% if active_filters.status == 'staff' %}selected{% endif %}>{% trans "Staff" %}</option>
+                    </select>
+                </div>
+
+                <input type="hidden" name="active_only" id="filter_form_active_only" value="{{ active_filters.active_only|default:'0' }}">
+                <!-- Employment Date Range -->
+                <div class="col-lg-3 col-md-6">
+                    <label for="filter_date_from" class="form-label">
+                        <i class="fas fa-calendar-alt me-1"></i>{% trans "Employment Period" %}
+                    </label>
+                    <div class="input-group">
+                        <input type="text" id="filter_date_from" name="date_from" class="form-control form-control-sm datepicker" 
+                               placeholder="{% trans 'From date' %}" value="{{ active_filters.date_from|default:'' }}">
+                        <span class="input-group-text"><i class="fas fa-arrow-right"></i></span>
+                        <input type="text" id="filter_date_to" name="date_to" class="form-control form-control-sm datepicker" 
+                               placeholder="{% trans 'To date' %}" value="{{ active_filters.date_to|default:'' }}">
+                    </div>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="card mb-4">
+        <div class="card-header py-2">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <i class="bi bi-list-ul text-primary"></i>
+                <h6 class="mb-0 fw-bold">{% trans "Users List" %}</h6>
+                <span class="badge bg-primary rounded-pill">{{ page_obj.paginator.count }} {% trans "total" %}</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="export-controls px-3 pt-2 pb-0">
+                <div class="row align-items-center g-2">
+                    <div class="col-md-5">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="filter_active_only" {% if active_filters.active_only != '0' %}checked{% endif %}>
+                            <label class="form-check-label small" for="filter_active_only">{% trans "Active Users" %}</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="position-relative">
+                            <input type="text" id="search" name="search" class="form-control form-control-sm" placeholder="{% trans 'Search users...' %}" value="{{ active_filters.search|default:'' }}">
+                            <button type="button" class="btn btn-sm btn-outline-secondary position-absolute end-0 top-0 bottom-0 clear-input" style="border: none;">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if user_permissions.users.add %}
+                            <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#createUserModal" title="{% trans 'Create New User' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            {% endif %}
+                            {% if user_permissions.roles.view %}
+                            <a href="{% url 'roles' %}" class="btn btn-outline-primary btn-sm btn-icon-action" title="{% trans 'Manage Roles' %}">
+                                <i class="bi bi-person-badge"></i>
+                            </a>
+                            {% endif %}
+                            {% if user_permissions.users.export %}
+                            <button type="button" class="btn btn-success btn-sm btn-icon-action" id="exportToExcel" title="{% trans 'Export to Excel' %}">
+                                <i class="bi bi-file-earmark-excel"></i>
+                            </button>
+                            {% endif %}
+                            {% if user_permissions.users.edit %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#taskReminderModal" title="{% trans 'Task reminder' %}">
+                                <i class="bi bi-bell"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#telegramBroadcastModal" title="{% trans 'Telegram broadcast' %}">
+                                <i class="bi bi-telegram"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-primary btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#emailBroadcastModal" title="{% trans 'Email broadcast' %}">
+                                <i class="bi bi-envelope"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-warning btn-sm btn-icon-action" id="applyBulk2FA" style="display: none;" title="{% trans 'Apply 2FA Changes' %}">
+                                <i class="bi bi-shield-lock"></i>
+                            </button>
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" data-bs-toggle="modal" data-bs-target="#cabinetUsersGuideModal" title="{% trans 'Guide' %}">
+                                <i class="bi bi-book"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive full-width-table"><table id="usersTable" class="table table-hover table-sm table-sm-font sb-data-table align-middle mb-0 w-100">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="px-3 py-3 border-0 user-info-column">
+                                <span>{% trans "User Information" %}</span>
+                            </th>
+
+                            <th class="px-3 py-3 border-0 text-center">
+                                <div class="d-flex align-items-center justify-content-center sortable" data-sort="status" data-bs-toggle="tooltip" title="{% trans 'Sort by status' %}">
+                                    <span>{% trans "Status" %}</span>
+                                    <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </div>
+                            </th>
+                            <th class="px-3 py-3 border-0">
+                                <div class="d-flex align-items-center justify-content-between sortable" data-sort="company" data-bs-toggle="tooltip" title="{% trans 'Sort by company' %}">
+                                    <span>{% trans "Company" %}</span>
+                                    <i class="fas fa-sort text-muted sort-icon"></i>
+                                </div>
+                            </th>
+                            <th class="px-3 py-3 border-0">
+                                <div class="d-flex align-items-center justify-content-between sortable" data-sort="department" data-bs-toggle="tooltip" title="{% trans 'Sort by department' %}">
+                                    <span>{% trans "Department" %}</span>
+                                    <i class="fas fa-sort text-muted sort-icon"></i>
+                                </div>
+                            </th>
+                            <th class="px-3 py-3 border-0">
+                                <div class="d-flex align-items-center justify-content-between sortable" data-sort="position" data-bs-toggle="tooltip" title="{% trans 'Sort by position' %}">
+                                    <span>{% trans "Position" %}</span>
+                                    <i class="fas fa-sort text-muted sort-icon"></i>
+                                </div>
+                            </th>
+                            <th class="px-3 py-3 border-0">{% trans "Platform Roles" %}</th>
+                            <th class="px-3 py-3 border-0">{% trans "Groups" %}</th>
+                            <th class="px-3 py-3 border-0">{% trans "Tasks" %}</th>
+                            <th class="px-3 py-3 border-0 employment-column">{% trans "Employment Period" %}</th>
+                            <th class="px-3 py-3 border-0 text-center">
+                                <div class="d-flex flex-column align-items-center gap-2">
+                                     
+                                    {% if user_permissions.users.edit %}
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label small" for="selectAll2FA">{% trans "2FA required" %}</label>
+                                        <input class="form-check-input" type="checkbox" id="selectAll2FA" role="switch">
+                                        <label class="form-check-label small" for="selectAll2FA">{% trans "Select All" %}</label>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </th>
+                            {% if user_permissions.users.edit or user_permissions.users.delete %}
+                            <th class="px-3 py-3 border-0 text-center">{% trans "Actions" %}</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cabinet_user in cabinet_users %}
+                        <tr class="{% if not cabinet_user.user.is_active %}inactive-user{% endif %} border-bottom">
+                            <td class="px-3 py-3 user-info-column">
+                                <div class="d-flex">
+                                    <div class="user-avatar rounded-circle me-3" style="width: 35px; height: 35px; flex-shrink: 0;">
+                                        {% if cabinet_user.avatar %}
+                                            <img src="{{ cabinet_user.avatar.url }}"
+                                                 class="rounded-circle img-fluid"
+                                                 alt="{{ cabinet_user.user.get_full_name }}"
+                                                 style="width: 100%; height: 100%; object-fit: cover;">
+                                        {% else %}
+                                            <div class="avatar-placeholder rounded-circle d-flex align-items-center justify-content-center"
+                                                 style="width: 100%; height: 100%; background-color: {{ cabinet_user.display_color }}; color: #ffffff; font-weight: bold; font-size: 1.2rem;">
+                                                {{ cabinet_user.user.get_full_name|make_list|first|upper }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="user-details">
+                                        <div class="fw-bold mb-1" style="color: {{ cabinet_user.display_color }};">
+                                            {{ cabinet_user.display_name }}
+                                        </div>
+                                        <div class="d-flex flex-column mt-1 user-contact-info">
+                                            <div class="mb-1 d-flex align-items-center">
+                                                <i class="fas fa-envelope me-2 text-muted small"></i>
+                                                <a href="mailto:{{ cabinet_user.user.email }}" class="text-decoration-none text-muted small">
+                                                    {{ cabinet_user.user.email }}
+                                                </a>
+                                            </div>
+                                            {% if cabinet_user.phone %}
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-phone-alt me-2 text-muted small"></i>
+                                                    <a href="tel:{{ cabinet_user.phone }}" class="text-decoration-none text-muted small">
+                                                        {{ cabinet_user.phone }}
+                                                    </a>
+                                                </div>
+                                            {% endif %}
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td class="px-3 py-3 status-column text-center">
+                                <div class="d-flex align-items-center justify-content-center flex-wrap gap-1">
+                                    {% if cabinet_user.is_active_employee %}
+                                        <span class="status-icon small" data-bs-toggle="tooltip" title="{% trans 'Active Employee' %}">
+                                            <i class="fas fa-user-check text-success"></i>
+                                        </span>
+                                    {% endif %}
+                                    {% if cabinet_user.user.is_active %}
+                                        <span class="status-icon small" data-bs-toggle="tooltip" title="{% trans 'Account Active' %}">
+                                            <i class="fas fa-toggle-on text-primary"></i>
+                                        </span>
+                                    {% else %}
+                                        <span class="status-icon small" data-bs-toggle="tooltip" title="{% trans 'Account Inactive' %}">
+                                            <i class="fas fa-toggle-off text-muted"></i>
+                                        </span>
+                                    {% endif %}
+                                    {% if cabinet_user.is_profile_completed %}
+                                        <span class="status-icon small" data-bs-toggle="tooltip" title="{% trans 'Profile Complete' %}">
+                                            <i class="fas fa-user-edit text-info"></i>
+                                        </span>
+                                    {% endif %}
+                                    {% if cabinet_user.user.is_staff %}
+                                        <span class="status-icon small" data-bs-toggle="tooltip" title="{% trans 'Staff' %}">
+                                            <i class="fas fa-user-shield text-warning"></i>
+                                        </span>
+                                    {% endif %}
+                                    {% if cabinet_user.is_ad_synced %}
+                                        <span class="status-icon small" data-bs-toggle="tooltip" title="{% trans 'Synced from AD' %}">
+                                            <i class="fas fa-network-wired text-dark"></i>
+                                        </span>
+                                    {% endif %}
+                                    {% if cabinet_user.is_telegram_linked %}
+                                        <span class="status-icon small" data-bs-toggle="tooltip" title="{% trans 'Telegram bot connected' %}">
+                                            <i class="bi bi-telegram text-success"></i>
+                                        </span>
+                                    {% else %}
+                                        <span class="status-icon small" data-bs-toggle="tooltip" title="{% trans 'Telegram bot not connected' %}">
+                                            <i class="bi bi-telegram text-muted"></i>
+                                        </span>
+                                    {% endif %}
+                                    {% if not cabinet_user.is_active_employee and not cabinet_user.user.is_active and not cabinet_user.is_profile_completed and not cabinet_user.user.is_staff and not cabinet_user.is_ad_synced %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <td class="px-3 py-3 company-column">
+                                {% if cabinet_user.company %}
+                                    {{ cabinet_user.company.name }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="px-3 py-3 department-column">
+                                {% if cabinet_user.department %}
+                                    <span class="department-tooltip d-inline-block"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-placement="top"
+                                          title="{{ cabinet_user.department.get_description|default:'' }}">
+                                        <i class="fas fa-sitemap text-secondary me-1"></i>{{ cabinet_user.department.get_name }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-3 py-3 position-column">
+                                {% if cabinet_user.position %}
+                                    <span class="position-tooltip d-inline-block"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-placement="top"
+                                          title="{{ cabinet_user.position.get_description|default:'' }}">
+                                        <i class="fas fa-id-badge text-info me-1"></i>{{ cabinet_user.position.get_name }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="py-3 platform-roles-column">
+                                {% if cabinet_user.roles.exists %}
+                                    {% for role in cabinet_user.roles.all %}
+                                        <span class="badge rounded-pill me-1 mb-1" style="background-color: {{ role.color|default:'#6c757d' }}; color: #fff;">{{ role.name }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 user-groups" style="padding-left: 0.25rem !important; padding-right: 1rem;">
+                                {% with total_groups=cabinet_user.cabinet_groups_total|add:cabinet_user.other_groups_total %}
+                                <button type="button"
+                                        class="btn btn-link btn-sm p-0 text-primary text-decoration-none"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#userGroupsModal{{ cabinet_user.id }}"
+                                        title="{% trans 'View groups' %}">
+                                    {% blocktrans count counter=total_groups %}
+                                        {{ counter }} group
+                                    {% plural %}
+                                        {{ counter }} groups
+                                    {% endblocktrans %}
+                                </button>
+                                {% endwith %}
+                                <div class="modal fade"
+                                     id="userGroupsModal{{ cabinet_user.id }}"
+                                     tabindex="-1"
+                                     aria-labelledby="userGroupsModalLabel{{ cabinet_user.id }}"
+                                     aria-hidden="true">
+                                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="userGroupsModalLabel{{ cabinet_user.id }}">
+                                                    {% trans "Groups" %} – {{ cabinet_user.display_name }}
+                                                </h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <h6 class="text-muted small text-uppercase mb-2">{% trans "Groups applied from selected roles" %}</h6>
+                                                {% if cabinet_user.groups_from_roles %}
+                                                <ol class="list-group list-group-numbered mb-4">
+                                                    {% for group in cabinet_user.groups_from_roles %}
+                                                        <li class="list-group-item d-flex flex-column align-items-start gap-1">
+                                                            {% if group.cabinet_details %}
+                                                            <span class="badge group-text-badge" style="color: {{ group.cabinet_details.color }};">{{ group.cabinet_details.get_name }}{% if group.cabinet_details.company %} ({{ group.cabinet_details.company.name }}){% endif %}</span>
+                                                            {% if group.cabinet_details.get_description %}
+                                                            <div class="small text-muted ms-2">{{ group.cabinet_details.get_description }}</div>
+                                                            {% endif %}
+                                                            {% else %}
+                                                            <span class="badge group-text-badge neutral-group-badge" style="color: #000000 !important;">{{ group.name }}</span>
+                                                            {% if group.description %}
+                                                            <div class="small text-muted ms-2">{{ group.description }}</div>
+                                                            {% endif %}
+                                                            {% endif %}
+                                                        </li>
+                                                    {% endfor %}
+                                                </ol>
+                                                {% else %}
+                                                <p class="text-muted mb-4">{% trans "No groups from roles" %}</p>
+                                                {% endif %}
+                                                <h6 class="text-muted small text-uppercase mb-2">{% trans "Additional Cabinet Groups" %}</h6>
+                                                {% if cabinet_user.additional_cabinet_groups %}
+                                                <ol class="list-group list-group-numbered mb-4">
+                                                    {% for group in cabinet_user.additional_cabinet_groups %}
+                                                        <li class="list-group-item d-flex flex-column align-items-start gap-1">
+                                                            <span class="badge group-text-badge" style="color: {{ group.cabinet_details.color }};">{{ group.cabinet_details.get_name }}{% if group.cabinet_details.company %} ({{ group.cabinet_details.company.name }}){% endif %}</span>
+                                                            {% if group.cabinet_details.get_description %}
+                                                            <div class="small text-muted ms-2">{{ group.cabinet_details.get_description }}</div>
+                                                            {% endif %}
+                                                        </li>
+                                                    {% endfor %}
+                                                </ol>
+                                                {% else %}
+                                                <p class="text-muted mb-4">{% trans "No additional cabinet groups" %}</p>
+                                                {% endif %}
+                                                <h6 class="text-muted small text-uppercase mb-2">{% trans "Other Groups" %}</h6>
+                                                {% if cabinet_user.all_other_groups %}
+                                                <ol class="list-group list-group-numbered">
+                                                    {% for group in cabinet_user.all_other_groups %}
+                                                        <li class="list-group-item d-flex flex-column align-items-start gap-1">
+                                                            <span class="badge group-text-badge neutral-group-badge" style="color: #000000 !important;">{{ group.name }}</span>
+                                                            {% if group.description %}
+                                                            <div class="small text-muted ms-2">{{ group.description }}</div>
+                                                            {% endif %}
+                                                        </li>
+                                                    {% endfor %}
+                                                </ol>
+                                                {% else %}
+                                                <p class="text-muted mb-0">{% trans "No other groups" %}</p>
+                                                {% endif %}
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-3 py-3 text-center">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary user-tasks-btn"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#userTasksModal"
+                                        data-cabinet-user-id="{{ cabinet_user.id }}"
+                                        data-display-name="{{ cabinet_user.display_name }}"
+                                        data-tasks-url="{% url 'get_user_tasks_content' cabinet_user.id %}"
+                                        title="{% trans 'View tasks' %}">
+                                    <i class="bi bi-list-check"></i>
+                                    {% blocktrans count counter=cabinet_user.tasks_count|default:0 %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}
+                                </button>
+                            </td>
+                            <td class="px-3 py-3 employment-column">
+                                {% if cabinet_user.start_date or cabinet_user.end_date %}
+                                    <div class="small">
+                                        {% if cabinet_user.start_date %}
+                                            <div class="mb-1 d-flex align-items-center">
+                                                <span class="badge bg-light text-dark border me-1">
+                                                    <i class="fas fa-calendar-plus text-success"></i>
+                                                </span>
+                                                <span>
+                                                    {% trans "From" %}:
+                                                    <strong>{{ cabinet_user.start_date|date:"d/m/Y" }}</strong>
+                                                </span>
+                                            </div>
+                                        {% endif %}
+                                        {% if cabinet_user.end_date %}
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-light text-dark border me-1">
+                                                    <i class="fas fa-calendar-minus text-danger"></i>
+                                                </span>
+                                                <span>
+                                                    {% trans "To" %}:
+                                                    <strong>{{ cabinet_user.end_date|date:"d/m/Y" }}</strong>
+                                                </span>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-3 py-3 text-center">
+                                <div class="form-check form-switch justify-content-center d-inline-flex align-items-center">
+                                    <input class="form-check-input force-two-factor-toggle user-2fa-checkbox"
+                                           type="checkbox"
+                                           role="switch"
+                                           data-user-id="{{ cabinet_user.id }}"
+                                           data-toggle-url="{% url 'set_user_force_two_factor' cabinet_user.id %}"
+                                           {% if cabinet_user.force_two_factor %}checked{% endif %}
+                                           {% if not user_permissions.users.edit %}disabled{% endif %}>
+                                </div>
+                            </td>
+                            {% if user_permissions.users.edit or user_permissions.users.delete %}
+                            <td class="px-3 py-3 text-center table-actions">
+                                <div class="btn-group">
+                                    {% if user_permissions.users.edit %}
+                                    <button class="btn btn-sm btn-outline-primary edit-user"
+                                            data-user-id="{{ cabinet_user.id }}"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editUserModal"
+                                            title="{% trans 'Edit user' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if user_permissions.users.delete %}
+                                    <button class="btn btn-sm btn-outline-danger delete-user"
+                                            data-user-id="{{ cabinet_user.id }}"
+                                            title="{% trans 'Delete user' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if user_permissions.users.edit or user_permissions.users.delete %}12{% else %}11{% endif %}" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="fas fa-users fa-3x mb-3 text-secondary"></i>
+                                    <p class="mb-0 fs-5">{% trans "No users found" %}</p>
+                                    <p class="small text-muted mt-2">{% trans "Try adjusting your search or create a new user" %}</p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light border-top px-3 py-3 mb-0">
+            {% include 'app_cabinet/includes/cabinet_table_pagination.html' %}
+        </div>
+    </div>
+</div>
+
+<!-- User Tasks Modal (content loaded via AJAX) -->
+<div class="modal fade" id="userTasksModal" tabindex="-1" aria-labelledby="userTasksModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userTasksModalLabel">{% trans "Tasks" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body" id="userTasksModalBody">
+                <div class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2" role="status"></span>{% trans "Loading…" %}</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if user_permissions.users.edit %}
+<!-- Task reminder: company + recipients + once or recurring schedule -->
+<div class="modal fade" id="taskReminderModal" tabindex="-1" aria-labelledby="taskReminderModalLabel" aria-hidden="true"
+     data-submit-url="{{ task_reminder_submit_url }}"
+     data-list-url="{{ task_reminder_schedules_list_url }}"
+     data-schedules-base-url="{{ task_reminder_schedules_base_url }}"
+     data-label-submit="{% trans 'Send / save schedule' %}"
+     data-label-update="{% trans 'Save changes' %}">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="taskReminderModalLabel"><i class="fas fa-bell me-2"></i>{% trans "Task reminder" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">{% trans "Send an email summary of open cabinet tasks (personal cabinet Tasks) to selected users. One-time sends immediately; recurring schedules require Celery Beat." %}</p>
+                <input type="hidden" id="taskReminderEditId" value="">
+                <div id="taskReminderEditBanner" class="alert alert-info py-2 small d-none mb-3" role="status"></div>
+                <div class="mb-4 pb-3 border-bottom" id="taskReminderScheduledSection">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <h6 class="mb-0 fw-bold">{% trans "Scheduled reminders" %}</h6>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="taskReminderRefreshSchedules">
+                            <i class="fas fa-sync-alt me-1"></i>{% trans "Refresh" %}
+                        </button>
+                    </div>
+                    <div id="taskReminderSchedulesLoading" class="small text-muted py-2 d-none">
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>{% trans "Loading…" %}
+                    </div>
+                    <div id="taskReminderSchedulesError" class="alert alert-warning py-2 small d-none"></div>
+                    <div id="taskReminderSchedulesTableWrap" class="table-responsive"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="taskReminderCompany">{% trans "Company" %}</label>
+                    <select class="form-select" id="taskReminderCompany">
+                        <option value="">{% trans "Select company" %}</option>
+                        {% for c in companies %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0" for="taskReminderUsersWrap">{% trans "Cabinet users" %}</label>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="taskReminderSelectAll">{% trans "Select all" %}</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="taskReminderClearAll">{% trans "Clear" %}</button>
+                        </div>
+                    </div>
+                    <div id="taskReminderUsersWrap" class="border rounded p-2" style="max-height: 220px; overflow-y: auto;">
+                        <span class="text-muted small" id="taskReminderUsersPlaceholder">{% trans "Choose a company to load users." %}</span>
+                        <div id="taskReminderUsersList" class="d-none"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <span class="form-label d-block">{% trans "Schedule" %}</span>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="taskReminderSchedule" id="trSchedOnce" value="once" checked>
+                        <label class="form-check-label" for="trSchedOnce">{% trans "Once (send now)" %}</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="taskReminderSchedule" id="trSchedDaily" value="daily">
+                        <label class="form-check-label" for="trSchedDaily">{% trans "Daily" %}</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="taskReminderSchedule" id="trSchedWeekly" value="weekly">
+                        <label class="form-check-label" for="trSchedWeekly">{% trans "Weekly" %}</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="taskReminderSchedule" id="trSchedMonthly" value="monthly">
+                        <label class="form-check-label" for="trSchedMonthly">{% trans "Monthly" %}</label>
+                    </div>
+                </div>
+                <div class="row g-2 mb-3 d-none" id="taskReminderRecurringOpts">
+                    <div class="col-md-4">
+                        <label class="form-label" for="taskReminderSendTime">{% trans "Send time" %}</label>
+                        <input type="time" class="form-control" id="taskReminderSendTime" value="09:00">
+                    </div>
+                    <div class="col-md-4 d-none" id="taskReminderWeekdayWrap">
+                        <label class="form-label" for="taskReminderWeekday">{% trans "Weekday" %}</label>
+                        <select class="form-select" id="taskReminderWeekday">
+                            <option value="0">{% trans "Monday" %}</option>
+                            <option value="1">{% trans "Tuesday" %}</option>
+                            <option value="2">{% trans "Wednesday" %}</option>
+                            <option value="3">{% trans "Thursday" %}</option>
+                            <option value="4">{% trans "Friday" %}</option>
+                            <option value="5">{% trans "Saturday" %}</option>
+                            <option value="6">{% trans "Sunday" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-none" id="taskReminderMonthDayWrap">
+                        <label class="form-label" for="taskReminderMonthDay">{% trans "Day of month" %}</label>
+                        <select class="form-select" id="taskReminderMonthDay">
+                            {% for d in "x"|ljust:31 %}
+                            <option value="{{ forloop.counter }}">{{ forloop.counter }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-check mb-2 d-none" id="taskReminderActiveWrap">
+                    <input class="form-check-input" type="checkbox" id="taskReminderIsActive" checked>
+                    <label class="form-check-label" for="taskReminderIsActive">{% trans "Schedule is active" %}</label>
+                </div>
+                <div class="alert d-none" id="taskReminderAlert" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary d-none" id="taskReminderCancelEdit">{% trans "Cancel editing" %}</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="taskReminderSubmit">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="taskReminderSpinner" role="status"></span>
+                    <span id="taskReminderSubmitLabel">{% trans "Send / save schedule" %}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Telegram broadcast to selected cabinet users -->
+<div class="modal fade" id="telegramBroadcastModal" tabindex="-1" aria-labelledby="telegramBroadcastModalLabel" aria-hidden="true"
+     data-submit-url="{% url 'telegram_broadcast_submit' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="telegramBroadcastModalLabel"><i class="bi bi-telegram me-2"></i>{% trans "Telegram broadcast" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">{% trans "Send a Telegram message to selected users who have linked their account. Each user receives the message in their profile language when using the task summary template." %}</p>
+                <div class="mb-3">
+                    <label class="form-label" for="telegramBroadcastCompany">{% trans "Company" %}</label>
+                    <select class="form-select" id="telegramBroadcastCompany">
+                        <option value="">{% trans "Select company" %}</option>
+                        {% for c in companies %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <label class="form-label mb-0" for="telegramBroadcastUsersWrap">{% trans "Cabinet users" %}</label>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="telegramBroadcastSelectLinked">{% trans "Select Telegram connected" %}</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="telegramBroadcastClearAll">{% trans "Clear" %}</button>
+                        </div>
+                    </div>
+                    <div class="mb-2 d-flex gap-2 flex-wrap">
+                        <div class="flex-grow-1" style="min-width: 140px;">
+                            <label for="telegramBroadcastDepartment" class="form-label small text-muted mb-0">{% trans "Filter by Department" %}</label>
+                            <select id="telegramBroadcastDepartment" class="form-select form-select-sm" disabled>
+                                <option value="">{% trans "All" %}</option>
+                            </select>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 140px;">
+                            <label for="telegramBroadcastPosition" class="form-label small text-muted mb-0">{% trans "Filter by Position" %}</label>
+                            <select id="telegramBroadcastPosition" class="form-select form-select-sm" disabled>
+                                <option value="">{% trans "All" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="telegramBroadcastUsersWrap" class="border rounded p-2" style="max-height: 220px; overflow-y: auto;">
+                        <span class="text-muted small" id="telegramBroadcastUsersPlaceholder">{% trans "Choose a company to load users." %}</span>
+                        <div id="telegramBroadcastUsersList" class="d-none"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <span class="form-label d-block">{% trans "Message type" %}</span>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="telegramBroadcastType" id="tgBroadcastCustom" value="custom" checked>
+                        <label class="form-check-label" for="tgBroadcastCustom">{% trans "Custom text" %}</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="telegramBroadcastType" id="tgBroadcastTasks" value="tasks">
+                        <label class="form-check-label" for="tgBroadcastTasks">{% trans "Open tasks summary (personalized)" %}</label>
+                    </div>
+                </div>
+                <div class="mb-3" id="telegramBroadcastMessageWrap">
+                    <label class="form-label" for="telegramBroadcastMessage">{% trans "Message" %}</label>
+                    <textarea class="form-control" id="telegramBroadcastMessage" rows="5" maxlength="4000" placeholder="{% trans 'Enter message text…' %}"></textarea>
+                    <div class="form-text">{% trans "Maximum 4000 characters. Sent as plain text." %}</div>
+                </div>
+                <div class="alert d-none" id="telegramBroadcastAlert" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="telegramBroadcastSubmit">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="telegramBroadcastSpinner" role="status"></span>
+                    {% trans "Send" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Email broadcast to selected cabinet users -->
+<div class="modal fade" id="emailBroadcastModal" tabindex="-1" aria-labelledby="emailBroadcastModalLabel" aria-hidden="true"
+     data-submit-url="{% url 'email_broadcast_submit' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="emailBroadcastModalLabel"><i class="bi bi-envelope me-2"></i>{% trans "Email broadcast" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">{% trans "Send an email to selected cabinet users. Each user receives the task summary in their profile language when using the tasks template." %}</p>
+                <div class="mb-3">
+                    <label class="form-label" for="emailBroadcastCompany">{% trans "Company" %}</label>
+                    <select class="form-select" id="emailBroadcastCompany">
+                        <option value="">{% trans "Select company" %}</option>
+                        {% for c in companies %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <label class="form-label mb-0" for="emailBroadcastUsersWrap">{% trans "Cabinet users" %}</label>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="emailBroadcastSelectWithEmail">{% trans "Select users with email" %}</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="emailBroadcastClearAll">{% trans "Clear" %}</button>
+                        </div>
+                    </div>
+                    <div class="mb-2 d-flex gap-2 flex-wrap">
+                        <div class="flex-grow-1" style="min-width: 140px;">
+                            <label for="emailBroadcastDepartment" class="form-label small text-muted mb-0">{% trans "Filter by Department" %}</label>
+                            <select id="emailBroadcastDepartment" class="form-select form-select-sm" disabled>
+                                <option value="">{% trans "All" %}</option>
+                            </select>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 140px;">
+                            <label for="emailBroadcastPosition" class="form-label small text-muted mb-0">{% trans "Filter by Position" %}</label>
+                            <select id="emailBroadcastPosition" class="form-select form-select-sm" disabled>
+                                <option value="">{% trans "All" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="emailBroadcastUsersWrap" class="border rounded p-2" style="max-height: 220px; overflow-y: auto;">
+                        <span class="text-muted small" id="emailBroadcastUsersPlaceholder">{% trans "Choose a company to load users." %}</span>
+                        <div id="emailBroadcastUsersList" class="d-none"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <span class="form-label d-block">{% trans "Message type" %}</span>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="emailBroadcastType" id="ebBroadcastCustom" value="custom" checked>
+                        <label class="form-check-label" for="ebBroadcastCustom">{% trans "Custom text" %}</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="emailBroadcastType" id="ebBroadcastTasks" value="tasks">
+                        <label class="form-check-label" for="ebBroadcastTasks">{% trans "Open tasks summary (personalized)" %}</label>
+                    </div>
+                </div>
+                <div class="mb-3" id="emailBroadcastSubjectWrap">
+                    <label class="form-label" for="emailBroadcastSubject">{% trans "Subject" %}</label>
+                    <input type="text" class="form-control" id="emailBroadcastSubject" maxlength="200" placeholder="{% trans 'Enter email subject...' %}">
+                </div>
+                <div class="mb-3" id="emailBroadcastMessageWrap">
+                    <label class="form-label" for="emailBroadcastMessage">{% trans "Message" %}</label>
+                    <textarea class="form-control" id="emailBroadcastMessage" rows="8"></textarea>
+                    <div class="form-text">{% trans "Rich text email (HTML). Task summary template is sent as plain text." %}</div>
+                </div>
+                <div class="alert d-none" id="emailBroadcastAlert" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="emailBroadcastSubmit">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="emailBroadcastSpinner" role="status"></span>
+                    {% trans "Send" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Include modals -->
+{% if user_permissions.users.add %}
+{% include 'app_cabinet/modals/add_user_modal.html' %}
+{% endif %}
+{% if user_permissions.users.edit %}
+{% include 'app_cabinet/modals/edit_user_modal.html' %}
+{% endif %}
+
+<!-- Cabinet Users Guide Modal -->
+<div class="modal fade" id="cabinetUsersGuideModal" tabindex="-1" aria-labelledby="cabinetUsersGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'cabinet_users_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cabinetUsersGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Cabinet Users Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="cabinetUsersGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('cabinetUsersGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('cabinetUsersGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/locales/bootstrap-datepicker.ru.min.js"></script>
+<script src="{% static 'tinymce/tinymce.min.js' %}"></script>
+<script>
+// Global variables
+const currentLang = document.documentElement.lang || '{{ request.LANGUAGE_CODE }}' || 'uk';
+const DEBOUNCE_DELAY = 500;
+const csrfToken = '{{ csrf_token }}';
+const cabinetCompanyUsersUrlTemplate = '{% url "get_company_users" 0 %}';
+
+function cabinetCompanyUsersUrl(companyId) {
+    if (!companyId) return '';
+    return cabinetCompanyUsersUrlTemplate.replace(/\/0\//, '/' + companyId + '/');
+}
+
+// Debug language detection
+console.log('Current language detected:', {
+    htmlLang: document.documentElement.lang,
+    djangoLang: '{{ request.LANGUAGE_CODE }}',
+    currentLang: currentLang
+});
+
+// Debounce function to prevent too many requests
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Initialize tooltips
+function initializeTooltips() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    const tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true,
+            container: 'body',
+            boundary: 'window',
+            animation: true
+        });
+    });
+}
+
+// Initialize table sorting
+function initializeTableSorting() {
+    $('.sortable').on('click', function() {
+        const $this = $(this);
+        const sortType = $this.data('sort');
+        let sortDirection = 'asc';
+        
+        // Reset other sortable headers
+        $('.sortable').not($this).removeClass('active asc desc').find('.sort-icon').removeClass('fa-sort-up fa-sort-down').addClass('fa-sort');
+        
+        // Toggle current sort direction
+        if ($this.hasClass('asc')) {
+            sortDirection = 'desc';
+            $this.removeClass('asc').addClass('desc');
+            $this.find('.sort-icon').removeClass('fa-sort fa-sort-up').addClass('fa-sort-down');
+        } else {
+            $this.removeClass('desc').addClass('asc active');
+            $this.find('.sort-icon').removeClass('fa-sort fa-sort-down').addClass('fa-sort-up');
+        }
+        
+        // Apply sorting via URL parameters
+        const params = new URLSearchParams(window.location.search);
+        params.set('sort', sortType);
+        params.set('direction', sortDirection);
+        params.delete('page'); // Reset to page 1 when sorting
+        
+        window.location.href = '?' + params.toString();
+    });
+    
+    // Set initial sort state from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentSort = urlParams.get('sort');
+    const currentDirection = urlParams.get('direction');
+    
+    if (currentSort && currentDirection) {
+        const $sortHeader = $(`.sortable[data-sort="${currentSort}"]`);
+        if ($sortHeader.length) {
+            $sortHeader.addClass('active ' + currentDirection);
+            if (currentDirection === 'asc') {
+                $sortHeader.find('.sort-icon').removeClass('fa-sort').addClass('fa-sort-up');
+            } else {
+                $sortHeader.find('.sort-icon').removeClass('fa-sort').addClass('fa-sort-down');
+            }
+        }
+    }
+}
+
+function destroyAllTooltips() {
+    $('.tooltip').remove();
+    $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+}
+
+function reinitializeTooltips() {
+    destroyAllTooltips();
+    initializeTooltips();
+}
+
+// Enhanced alert handling with animation
+function showAlert(message, type = 'danger') {
+    const alertElement = $('#editUserAlert');
+    const alertTypes = ['success', 'danger', 'warning', 'info'];
+
+    // Remove all alert types and add the new one
+    alertElement.removeClass(alertTypes.map(t => `alert-${t}`).join(' '))
+        .addClass(`alert-${type}`);
+
+    // Set message with icon
+    const icons = {
+        success: 'fas fa-check-circle',
+        danger: 'fas fa-exclamation-circle',
+        warning: 'fas fa-exclamation-triangle',
+        info: 'fas fa-info-circle'
+    };
+
+    alertElement.find('.alert-message')
+        .html(`<i class="${icons[type]} me-2"></i>${message}`);
+
+    // Show alert with animation
+    alertElement.css('opacity', 0)
+        .show()
+        .animate({ opacity: 1 }, 200)
+        .removeClass('fade')
+        .addClass('show');
+
+    // Auto hide with animation
+    setTimeout(() => {
+        alertElement.animate({ opacity: 0 }, 200, function() {
+            $(this).removeClass('show').addClass('fade').hide();
+        });
+    }, 5000);
+}
+
+// Loading state handler
+function setLoadingState(element, isLoading) {
+    const originalContent = element.data('original-content') || element.html();
+
+    if (isLoading) {
+        element.data('original-content', originalContent);
+
+        if (element.is('select')) {
+            element.prop('disabled', true);
+            if (!element.next('.spinner-container').length) {
+                element.after('<div class="spinner-container"><span class="spinner-border spinner-border-sm text-primary" role="status"></span></div>');
+            }
+        } else {
+            const spinner = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>`;
+            element.prop('disabled', true)
+                .html(spinner + (element.data('loading-text') || '{% trans "Loading..." %}'));
+        }
+    } else {
+        element.prop('disabled', false);
+        if (element.is('select')) {
+            element.next('.spinner-container').remove();
+        } else {
+            element.html(originalContent);
+        }
+    }
+}
+
+// Excel Export Function
+function exportToExcel() {
+    const button = document.getElementById('exportToExcel');
+    const originalContent = button.innerHTML;
+
+    try {
+        // Set loading state
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
+                          '{% trans "Exporting..." %}';
+
+        // Get all current filter values
+        const filters = {
+            search: $('#filter_search').val(),
+            company: $('#filter_company').val(),
+            status: $('#filter_status').val(),
+            department: $('#filter_department').val(),
+            position: $('#filter_position').val(),
+            cabinet_group: $('#filter_cabinet_group').val(),
+            other_group: $('#filter_other_group').val(),
+            employment_status: $('#filter_employment_status').val(),
+            date_from: $('#filter_date_from').val(),
+            date_to: $('#filter_date_to').val(),
+            active_only: $('#filter_active_only').is(':checked') ? '1' : '0'
+        };
+
+        // Build URL with query parameters
+        let url = '{% url "export_users_excel" %}';
+        const queryParams = new URLSearchParams();
+        
+        // Add all non-empty filters to query params
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value) {
+                queryParams.append(key, value);
+            }
+        });
+        
+        if (queryParams.toString()) {
+            url += '?' + queryParams.toString();
+        }
+        
+        // Create hidden form to post to the export endpoint (this handles the file download)
+        const form = document.createElement('form');
+        form.method = 'GET';
+        form.action = url;
+        form.style.display = 'none';
+        document.body.appendChild(form);
+        form.submit();
+        
+        // Show success message
+        setTimeout(() => {
+            showAlert('{% trans "Export started. File will download shortly." %}', 'success');
+        }, 500);
+    } catch (error) {
+        console.error('Export error:', error);
+        showAlert('{% trans "Error exporting data" %}', 'danger');
+    } finally {
+        // Reset button state after a short delay
+        setTimeout(() => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+        }, 2000);
+    }
+}
+
+// Form validation
+function validateForm(form) {
+    const requiredFields = form.find('[required]');
+    let isValid = true;
+    let firstError = null;
+
+    requiredFields.each(function() {
+        const field = $(this);
+        if (!field.val()) {
+            isValid = false;
+            field.addClass('is-invalid');
+            if (!firstError) firstError = field;
+        } else {
+            field.removeClass('is-invalid');
+        }
+    });
+
+    if (firstError) {
+        firstError.focus();
+    }
+
+    return isValid;
+}
+
+// Update filters state
+function updateFiltersState() {
+    const companySelected = $('#filter_company').val() !== '';
+    const departmentSelected = $('#filter_department').val() !== '';
+    
+    $('#filter_department').prop('disabled', !companySelected);
+    $('#filter_position').prop('disabled', !departmentSelected);
+    $('#filter_cabinet_group').prop('disabled', !companySelected);
+    
+    // If company is changed but not selected, clear dependent filters
+    if (!companySelected) {
+        $('#filter_department').val('');
+        $('#filter_position').val('');
+        $('#filter_cabinet_group').val('');
+    }
+    
+    // If department is changed but not selected, clear position filter
+    if (!departmentSelected) {
+        $('#filter_position').val('');
+    }
+}
+
+function applySearch(value) {
+    const params = new URLSearchParams(window.location.search);
+    const sanitizedValue = (value || '').trim();
+
+    if (sanitizedValue) {
+        params.set('search', sanitizedValue);
+    } else {
+        params.delete('search');
+    }
+
+    params.delete('page');
+    window.location.href = '?' + params.toString();
+}
+
+    // Initialize everything when the document is ready
+$(document).ready(function() {
+    console.log('Initializing users page script');
+    
+    // Initialize tooltips
+    initializeTooltips();
+    
+    // Initialize table sorting
+    initializeTableSorting();
+
+    // User Tasks modal: load content via AJAX when opened
+    const userTasksModalEl = document.getElementById('userTasksModal');
+    if (userTasksModalEl) {
+        userTasksModalEl.addEventListener('show.bs.modal', function(event) {
+            const trigger = event.relatedTarget;
+            if (!trigger || !trigger.closest('.user-tasks-btn')) return;
+            const btn = trigger.closest('.user-tasks-btn');
+            const displayName = btn.getAttribute('data-display-name') || '';
+            const tasksUrl = btn.getAttribute('data-tasks-url');
+            const titleEl = document.getElementById('userTasksModalLabel');
+            const bodyEl = document.getElementById('userTasksModalBody');
+            if (titleEl) titleEl.textContent = '{% trans "Tasks for" %} ' + (displayName || '{% trans "User" %}');
+            if (!bodyEl || !tasksUrl) return;
+            bodyEl.innerHTML = '<div class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2" role="status"></span>{% trans "Loading…" %}</div>';
+            fetch(tasksUrl, { headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(r) { return r.ok ? r.text() : Promise.reject(r); })
+                .then(function(html) { bodyEl.innerHTML = html; })
+                .catch(function() { bodyEl.innerHTML = '<p class="text-danger">{% trans "Failed to load tasks." %}</p>'; });
+        });
+    }
+
+    // Task reminder modal (email summaries of cabinet tasks)
+    (function taskReminderSetup() {
+        const modalEl = document.getElementById('taskReminderModal');
+        if (!modalEl) return;
+        const submitUrl = modalEl.getAttribute('data-submit-url');
+        const listUrl = modalEl.getAttribute('data-list-url');
+        const schedulesBase = (modalEl.getAttribute('data-schedules-base-url') || '').replace(/\/$/, '');
+        if (!submitUrl) return;
+
+        const trFreqRadio = { daily: '#trSchedDaily', weekly: '#trSchedWeekly', monthly: '#trSchedMonthly' };
+
+        function trResetTaskReminderForm() {
+            $('#taskReminderEditId').val('');
+            $('#taskReminderEditBanner').addClass('d-none').text('');
+            $('#taskReminderCancelEdit').addClass('d-none');
+            $('#taskReminderActiveWrap').addClass('d-none');
+            $('#trSchedOnce').prop('disabled', false);
+            $('#trSchedOnce').prop('checked', true);
+            const defLabel = modalEl.getAttribute('data-label-submit') || '';
+            $('#taskReminderSubmitLabel').text(defLabel);
+            $('#taskReminderCompany').val('');
+            $('#taskReminderIsActive').prop('checked', true);
+            trLoadCompanyUsers('');
+            trUpdateRecurringVisibility();
+        }
+
+        function trLoadScheduledReminders() {
+            if (!listUrl) return;
+            const loading = document.getElementById('taskReminderSchedulesLoading');
+            const wrap = document.getElementById('taskReminderSchedulesTableWrap');
+            const errEl = document.getElementById('taskReminderSchedulesError');
+            if (errEl) {
+                errEl.classList.add('d-none');
+                errEl.textContent = '';
+            }
+            if (loading) loading.classList.remove('d-none');
+            if (wrap) wrap.innerHTML = '';
+            fetch(listUrl, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+                .then(function(res) {
+                    if (loading) loading.classList.add('d-none');
+                    if (!wrap) return;
+                    if (!res.ok || !res.data || !Array.isArray(res.data.schedules)) {
+                        if (errEl) {
+                            errEl.textContent = '{% trans "Could not load scheduled reminders." %}';
+                            errEl.classList.remove('d-none');
+                        }
+                        return;
+                    }
+                    const rows = res.data.schedules;
+                    if (!rows.length) {
+                        wrap.innerHTML = '<p class="text-muted small mb-0">{% trans "No scheduled reminders yet." %}</p>';
+                        return;
+                    }
+                    let html = '<table class="table table-sm table-striped align-middle mb-0"><thead class="table-light"><tr>' +
+                        '<th>{% trans "Company" %}</th>' +
+                        '<th>{% trans "Schedule" %}</th>' +
+                        '<th>{% trans "Recipients" %}</th>' +
+                        '<th>{% trans "Last sent" %}</th>' +
+                        '<th>{% trans "Next sent" %}</th>' +
+                        '<th>{% trans "Status" %}</th>' +
+                        '<th class="text-end text-nowrap">{% trans "Actions" %}</th>' +
+                        '</tr></thead><tbody>';
+                    rows.forEach(function(s) {
+                        const prev = (s.recipient_preview || []).map(function(p) { return trEscapeHtml(p); }).join(', ');
+                        const more = (s.recipient_count > 3) ? '…' : '';
+                        const recCell = '<span class="fw-medium">' + (s.recipient_count != null ? s.recipient_count : 0) + '</span>' +
+                            (prev ? '<br><span class="small text-muted">' + prev + more + '</span>' : '');
+                        const activeBadge = s.is_active
+                            ? '<span class="badge bg-success">' + trEscapeHtml(s.status_display || '') + '</span>'
+                            : '<span class="badge bg-secondary">' + trEscapeHtml(s.status_display || '') + '</span>';
+                        const sid = s.id;
+                        const act = schedulesBase
+                            ? '<button type="button" class="btn btn-sm btn-outline-primary task-reminder-edit me-1" data-id="' + sid + '"><i class="fas fa-edit"></i></button>' +
+                              '<button type="button" class="btn btn-sm btn-outline-danger task-reminder-delete" data-id="' + sid + '"><i class="fas fa-trash-alt"></i></button>'
+                            : '';
+                        html += '<tr><td>' + trEscapeHtml(s.company_name || '') + '</td><td>' +
+                            trEscapeHtml(s.schedule_summary || '') + '</td><td>' + recCell + '</td><td>' +
+                            trEscapeHtml(s.last_sent_at || '—') + '</td><td>' +
+                            trEscapeHtml(s.next_sent_display || '—') + '</td><td>' + activeBadge + '</td><td class="text-end">' + act + '</td></tr>';
+                    });
+                    html += '</tbody></table>';
+                    wrap.innerHTML = html;
+                })
+                .catch(function() {
+                    if (loading) loading.classList.add('d-none');
+                    if (errEl) {
+                        errEl.textContent = '{% trans "Could not load scheduled reminders." %}';
+                        errEl.classList.remove('d-none');
+                    }
+                });
+        }
+
+        function trShowAlert(type, text) {
+            const el = document.getElementById('taskReminderAlert');
+            if (!el) return;
+            el.className = 'alert alert-' + (type === 'error' ? 'danger' : 'success');
+            el.textContent = text;
+            el.classList.remove('d-none');
+        }
+        function trHideAlert() {
+            const el = document.getElementById('taskReminderAlert');
+            if (el) el.classList.add('d-none');
+        }
+        function trEscapeHtml(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+        function trUpdateRecurringVisibility() {
+            const v = ($('input[name="taskReminderSchedule"]:checked').val() || 'once');
+            const rec = $('#taskReminderRecurringOpts');
+            const weekly = $('#taskReminderWeekdayWrap');
+            const monthly = $('#taskReminderMonthDayWrap');
+            if (v === 'once') {
+                rec.addClass('d-none');
+                weekly.addClass('d-none');
+                monthly.addClass('d-none');
+            } else {
+                rec.removeClass('d-none');
+                weekly.toggleClass('d-none', v !== 'weekly');
+                monthly.toggleClass('d-none', v !== 'monthly');
+            }
+        }
+        function trLoadCompanyUsers(companyId, opts) {
+            opts = opts || {};
+            const selectIds = opts.selectCabinetUserIds || null;
+            const onDone = opts.onDone || null;
+            const ph = document.getElementById('taskReminderUsersPlaceholder');
+            const list = document.getElementById('taskReminderUsersList');
+            if (!companyId) {
+                if (ph) { ph.classList.remove('d-none'); ph.textContent = '{% trans "Choose a company to load users." %}'; }
+                if (list) { list.classList.add('d-none'); list.innerHTML = ''; }
+                if (onDone) onDone();
+                return;
+            }
+            if (ph) { ph.classList.remove('d-none'); ph.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{% trans "Loading…" %}'; }
+            if (list) list.classList.add('d-none');
+            const url = cabinetCompanyUsersUrl(companyId);
+            if (!url) return;
+            fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+                .then(function(rows) {
+                    if (!Array.isArray(rows)) throw new Error('bad data');
+                    if (ph) ph.classList.add('d-none');
+                    if (!list) return;
+                    let html = '';
+                    rows.forEach(function(u) {
+                        if (!u.cabinet_user_id) return;
+                        const mail = (u.email || '').trim();
+                        const inactive = !u.is_active;
+                        const line = trEscapeHtml((u.full_name || u.username || '') + (mail ? ' <' + mail + '>' : ''));
+                        const dis = inactive || !mail ? ' disabled' : '';
+                        const hint = inactive ? ' ({% trans "inactive" %})' : (!mail ? ' ({% trans "no email" %})' : '');
+                        html += '<div class="form-check"><input class="form-check-input task-reminder-user-cb" type="checkbox" value="' +
+                            u.cabinet_user_id + '" id="tr_u_' + u.cabinet_user_id + '"' + dis + '>' +
+                            '<label class="form-check-label" for="tr_u_' + u.cabinet_user_id + '">' + line + hint + '</label></div>';
+                    });
+                    list.innerHTML = html || '<span class="text-muted small">{% trans "No users in this company." %}</span>';
+                    list.classList.remove('d-none');
+                    if (selectIds && selectIds.length) {
+                        selectIds.forEach(function(cid) {
+                            const el = document.getElementById('tr_u_' + cid);
+                            if (el && !el.disabled) el.checked = true;
+                        });
+                    }
+                    if (onDone) onDone();
+                })
+                .catch(function() {
+                    if (ph) {
+                        ph.classList.remove('d-none');
+                        ph.textContent = '{% trans "Failed to load users." %}';
+                    }
+                    if (onDone) onDone();
+                });
+        }
+
+        function trStartEdit(scheduleId) {
+            if (!schedulesBase || !scheduleId) return;
+            trHideAlert();
+            fetch(schedulesBase + '/' + scheduleId + '/', {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+                .then(function(res) {
+                    if (!res.ok || !res.data || res.data.error) {
+                        trShowAlert('error', (res.data && res.data.error) ? res.data.error : '{% trans "Could not load schedule." %}');
+                        return;
+                    }
+                    const d = res.data;
+                    $('#taskReminderEditId').val(String(d.id));
+                    $('#taskReminderEditBanner').removeClass('d-none').text('{% trans "Editing saved schedule" %} #' + d.id);
+                    $('#taskReminderCancelEdit').removeClass('d-none');
+                    $('#taskReminderActiveWrap').removeClass('d-none');
+                    $('#taskReminderIsActive').prop('checked', !!d.is_active);
+                    $('#trSchedOnce').prop('disabled', true);
+                    $('#trSchedOnce').prop('checked', false);
+                    const rsel = trFreqRadio[d.frequency];
+                    if (rsel) {
+                        $(rsel).prop('checked', true);
+                    } else {
+                        $('#trSchedDaily').prop('checked', true);
+                    }
+                    $('#taskReminderSendTime').val(d.send_time || '09:00');
+                    if (d.weekday != null && d.weekday !== '') $('#taskReminderWeekday').val(String(d.weekday));
+                    if (d.month_day != null && d.month_day !== '') $('#taskReminderMonthDay').val(String(d.month_day));
+                    const updLabel = modalEl.getAttribute('data-label-update');
+                    if (updLabel) $('#taskReminderSubmitLabel').text(updLabel);
+                    $('#taskReminderCompany').val(String(d.company_id));
+                    trLoadCompanyUsers(String(d.company_id), {
+                        selectCabinetUserIds: d.cabinet_user_ids || [],
+                        onDone: function() {
+                            trUpdateRecurringVisibility();
+                            const formEl = document.getElementById('taskReminderCompany');
+                            if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    });
+                })
+                .catch(function() {
+                    trShowAlert('error', '{% trans "Could not load schedule." %}');
+                });
+        }
+
+        function trDeleteSchedule(scheduleId) {
+            if (!schedulesBase || !scheduleId) return;
+            if (!confirm('{% trans "Delete this scheduled reminder? This cannot be undone." %}')) return;
+            fetch(schedulesBase + '/' + scheduleId + '/', {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+                .then(function(res) {
+                    if (!res.ok || !(res.data && res.data.success)) {
+                        trShowAlert('error', (res.data && res.data.error) ? res.data.error : '{% trans "Delete failed." %}');
+                        return;
+                    }
+                    trLoadScheduledReminders();
+                    if ($('#taskReminderEditId').val() === String(scheduleId)) trResetTaskReminderForm();
+                })
+                .catch(function() {
+                    trShowAlert('error', '{% trans "Delete failed." %}');
+                });
+        }
+
+        modalEl.addEventListener('click', function(e) {
+            const editBtn = e.target.closest('.task-reminder-edit');
+            if (editBtn) {
+                trStartEdit(parseInt(editBtn.getAttribute('data-id'), 10));
+                return;
+            }
+            const delBtn = e.target.closest('.task-reminder-delete');
+            if (delBtn) {
+                trDeleteSchedule(parseInt(delBtn.getAttribute('data-id'), 10));
+            }
+        });
+
+        $('#taskReminderCompany').on('change', function() { trLoadCompanyUsers($(this).val()); });
+        $('input[name="taskReminderSchedule"]').on('change', trUpdateRecurringVisibility);
+        $('#taskReminderSelectAll').on('click', function() {
+            $('.task-reminder-user-cb:not(:disabled)').prop('checked', true);
+        });
+        $('#taskReminderClearAll').on('click', function() {
+            $('.task-reminder-user-cb').prop('checked', false);
+        });
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            trHideAlert();
+            $('#taskReminderSpinner').addClass('d-none');
+            $('#taskReminderSubmit').prop('disabled', false);
+            trResetTaskReminderForm();
+        });
+        modalEl.addEventListener('show.bs.modal', function() {
+            trHideAlert();
+            trResetTaskReminderForm();
+            trLoadScheduledReminders();
+        });
+        $('#taskReminderRefreshSchedules').on('click', function() { trLoadScheduledReminders(); });
+        $('#taskReminderCancelEdit').on('click', function() { trResetTaskReminderForm(); trHideAlert(); });
+        $('#taskReminderSubmit').on('click', function() {
+            trHideAlert();
+            const editId = $('#taskReminderEditId').val();
+            const companyId = $('#taskReminderCompany').val();
+            const ids = $('.task-reminder-user-cb:checked').map(function() { return parseInt($(this).val(), 10); }).get();
+            const schedule = $('input[name="taskReminderSchedule"]:checked').val() || 'once';
+            if (editId && schedule === 'once') {
+                trShowAlert('error', '{% trans "Choose Daily, Weekly, or Monthly when editing a saved schedule." %}');
+                return;
+            }
+            if (!companyId) {
+                trShowAlert('error', '{% trans "Select a company." %}');
+                return;
+            }
+            if (!ids.length) {
+                trShowAlert('error', '{% trans "Select at least one user with an email address." %}');
+                return;
+            }
+            const payload = {
+                company_id: parseInt(companyId, 10),
+                cabinet_user_ids: ids,
+                schedule: schedule
+            };
+            if (schedule !== 'once') {
+                payload.send_time = $('#taskReminderSendTime').val() || '09:00';
+                if (schedule === 'weekly') payload.weekday = parseInt($('#taskReminderWeekday').val(), 10);
+                if (schedule === 'monthly') payload.month_day = parseInt($('#taskReminderMonthDay').val(), 10);
+            }
+            if (editId) {
+                payload.is_active = $('#taskReminderIsActive').is(':checked');
+            }
+            const postUrl = editId ? (schedulesBase + '/' + editId + '/update/') : submitUrl;
+            const spin = document.getElementById('taskReminderSpinner');
+            if (spin) spin.classList.remove('d-none');
+            $('#taskReminderSubmit').prop('disabled', true);
+            fetch(postUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(payload)
+            })
+                .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }); })
+                .then(function(res) {
+                    if (spin) spin.classList.add('d-none');
+                    $('#taskReminderSubmit').prop('disabled', false);
+                    const d = res.data || {};
+                    if (!res.ok || !d.success) {
+                        trShowAlert('error', d.error || ('HTTP ' + res.status));
+                        return;
+                    }
+                    if (schedule === 'once' && !editId) {
+                        let msg = (d.message || '') + ' ';
+                        msg += '{% trans "Sent:" %} ' + (d.sent != null ? d.sent : 0) + ', {% trans "skipped (no email):" %} ' + (d.skipped != null ? d.skipped : 0);
+                        if (d.errors && d.errors.length) msg += '. ' + d.errors.join('; ');
+                        trShowAlert('ok', msg);
+                    } else {
+                        trShowAlert('ok', d.message || '{% trans "Schedule saved." %}');
+                        trResetTaskReminderForm();
+                        trLoadScheduledReminders();
+                    }
+                })
+                .catch(function() {
+                    if (spin) spin.classList.add('d-none');
+                    $('#taskReminderSubmit').prop('disabled', false);
+                    trShowAlert('error', '{% trans "Request failed." %}');
+                });
+        });
+        trUpdateRecurringVisibility();
+    })();
+
+    // Telegram broadcast modal
+    (function telegramBroadcastSetup() {
+        const modalEl = document.getElementById('telegramBroadcastModal');
+        if (!modalEl) return;
+        const submitUrl = (modalEl.getAttribute('data-submit-url') || '').trim();
+
+        function tgEscapeHtml(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+        function tgShowAlert(type, text) {
+            const el = document.getElementById('telegramBroadcastAlert');
+            if (!el) return;
+            el.className = 'alert alert-' + (type === 'error' ? 'danger' : 'success');
+            el.textContent = text;
+            el.classList.remove('d-none');
+        }
+        function tgHideAlert() {
+            const el = document.getElementById('telegramBroadcastAlert');
+            if (el) el.classList.add('d-none');
+        }
+        function tgUpdateMessageVisibility() {
+            const v = ($('input[name="telegramBroadcastType"]:checked').val() || 'custom');
+            $('#telegramBroadcastMessageWrap').toggleClass('d-none', v !== 'custom');
+        }
+        let tgBroadcastUsersFull = [];
+
+        function tgBuildUserLineText(u) {
+            const name = (u.full_name || u.username || '').trim();
+            const parts = [name];
+            const dept = (u.department_name || '').trim();
+            const pos = (u.position_name || '').trim();
+            if (dept || pos) {
+                parts.push([dept, pos].filter(Boolean).join(' / '));
+            }
+            return parts.join(' — ');
+        }
+
+        function tgResetDeptPosFilters() {
+            const deptSel = document.getElementById('telegramBroadcastDepartment');
+            const posSel = document.getElementById('telegramBroadcastPosition');
+            if (deptSel) {
+                deptSel.innerHTML = '<option value="">{% trans "All" %}</option>';
+                deptSel.disabled = true;
+                deptSel.value = '';
+            }
+            if (posSel) {
+                posSel.innerHTML = '<option value="">{% trans "All" %}</option>';
+                posSel.disabled = true;
+                posSel.value = '';
+            }
+        }
+
+        function tgPopulateDeptPosFilters(rows) {
+            const deptSel = document.getElementById('telegramBroadcastDepartment');
+            const posSel = document.getElementById('telegramBroadcastPosition');
+            if (!deptSel || !posSel) return;
+
+            const depts = {};
+            const poss = {};
+            rows.forEach(function(u) {
+                if (u.department_id) {
+                    depts[u.department_id] = (u.department_name || '').trim() || ('#' + u.department_id);
+                }
+                if (u.position_id) {
+                    poss[u.position_id] = (u.position_name || '').trim() || ('#' + u.position_id);
+                }
+            });
+
+            deptSel.innerHTML = '<option value="">{% trans "All" %}</option>';
+            Object.keys(depts).sort(function(a, b) {
+                return depts[a].localeCompare(depts[b], undefined, { sensitivity: 'base' });
+            }).forEach(function(id) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = depts[id];
+                deptSel.appendChild(opt);
+            });
+            deptSel.disabled = Object.keys(depts).length === 0;
+
+            posSel.innerHTML = '<option value="">{% trans "All" %}</option>';
+            Object.keys(poss).sort(function(a, b) {
+                return poss[a].localeCompare(poss[b], undefined, { sensitivity: 'base' });
+            }).forEach(function(id) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = poss[id];
+                posSel.appendChild(opt);
+            });
+            posSel.disabled = Object.keys(poss).length === 0;
+        }
+
+        function tgRenderUserList() {
+            const list = document.getElementById('telegramBroadcastUsersList');
+            if (!list) return;
+
+            const deptId = ($('#telegramBroadcastDepartment').val() || '').toString();
+            const posId = ($('#telegramBroadcastPosition').val() || '').toString();
+            const checkedIds = new Set();
+            $('.telegram-broadcast-user-cb:checked').each(function() {
+                checkedIds.add($(this).val());
+            });
+
+            const filtered = tgBroadcastUsersFull.filter(function(u) {
+                const matchDept = !deptId || String(u.department_id) === deptId;
+                const matchPos = !posId || String(u.position_id) === posId;
+                return (matchDept && matchPos) || checkedIds.has(String(u.cabinet_user_id));
+            });
+
+            const seen = new Set();
+            const ordered = [];
+            filtered.forEach(function(u) {
+                if (!seen.has(u.cabinet_user_id)) {
+                    seen.add(u.cabinet_user_id);
+                    ordered.push(u);
+                }
+            });
+
+            let html = '';
+            ordered.forEach(function(u) {
+                const inactive = !u.is_active;
+                const linked = !!u.telegram_linked;
+                const line = tgEscapeHtml(tgBuildUserLineText(u));
+                const dis = inactive || !linked ? ' disabled' : '';
+                let hint = '';
+                if (inactive) hint = ' ({% trans "inactive" %})';
+                else if (!linked) hint = ' ({% trans "Telegram not connected" %})';
+                const icon = linked ? ' <i class="bi bi-telegram text-success" title="{% trans "Telegram connected" %}"></i>' : '';
+                const checked = checkedIds.has(String(u.cabinet_user_id)) ? ' checked' : '';
+                html += '<div class="form-check"><input class="form-check-input telegram-broadcast-user-cb" type="checkbox" value="' +
+                    u.cabinet_user_id + '" id="tg_u_' + u.cabinet_user_id + '" data-linked="' + (linked ? '1' : '0') + '"' + dis + checked + '>' +
+                    '<label class="form-check-label" for="tg_u_' + u.cabinet_user_id + '">' + line + hint + icon + '</label></div>';
+            });
+            list.innerHTML = html || '<span class="text-muted small">{% trans "No users in this company." %}</span>';
+            list.classList.remove('d-none');
+            const tgPh = document.getElementById('telegramBroadcastUsersPlaceholder');
+            if (tgPh) tgPh.classList.add('d-none');
+        }
+
+        function tgResetForm() {
+            $('#telegramBroadcastCompany').val('');
+            $('#telegramBroadcastMessage').val('');
+            $('#tgBroadcastCustom').prop('checked', true);
+            tgUpdateMessageVisibility();
+            tgBroadcastUsersFull = [];
+            tgResetDeptPosFilters();
+            tgLoadCompanyUsers('');
+        }
+        function tgLoadCompanyUsers(companyId) {
+            const ph = document.getElementById('telegramBroadcastUsersPlaceholder');
+            const list = document.getElementById('telegramBroadcastUsersList');
+            tgBroadcastUsersFull = [];
+            tgResetDeptPosFilters();
+            if (!companyId) {
+                if (ph) { ph.classList.remove('d-none'); ph.textContent = '{% trans "Choose a company to load users." %}'; }
+                if (list) { list.classList.add('d-none'); list.innerHTML = ''; }
+                return;
+            }
+            if (ph) { ph.classList.remove('d-none'); ph.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{% trans "Loading…" %}'; }
+            if (list) list.classList.add('d-none');
+            const url = cabinetCompanyUsersUrl(companyId);
+            if (!url) return;
+            fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+                .then(function(rows) {
+                    if (!Array.isArray(rows)) throw new Error('bad data');
+                    if (ph) ph.classList.add('d-none');
+                    tgBroadcastUsersFull = rows.filter(function(u) { return u.cabinet_user_id; });
+                    tgPopulateDeptPosFilters(tgBroadcastUsersFull);
+                    tgRenderUserList();
+                })
+                .catch(function() {
+                    if (ph) {
+                        ph.classList.remove('d-none');
+                        ph.textContent = '{% trans "Failed to load users." %}';
+                    }
+                });
+        }
+
+        const tgCompanySelect = document.getElementById('telegramBroadcastCompany');
+        if (tgCompanySelect) {
+            tgCompanySelect.addEventListener('change', function() {
+                tgLoadCompanyUsers(this.value);
+            });
+        }
+        $('#telegramBroadcastDepartment, #telegramBroadcastPosition').on('change', tgRenderUserList);
+        $('input[name="telegramBroadcastType"]').on('change', tgUpdateMessageVisibility);
+        $('#telegramBroadcastSelectLinked').on('click', function() {
+            $('.telegram-broadcast-user-cb').each(function() {
+                if ($(this).data('linked') === 1 || $(this).attr('data-linked') === '1') {
+                    if (!this.disabled) this.checked = true;
+                }
+            });
+        });
+        $('#telegramBroadcastClearAll').on('click', function() {
+            $('.telegram-broadcast-user-cb').prop('checked', false);
+        });
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            tgHideAlert();
+            $('#telegramBroadcastSpinner').addClass('d-none');
+            $('#telegramBroadcastSubmit').prop('disabled', false);
+            tgResetForm();
+        });
+        modalEl.addEventListener('show.bs.modal', function() {
+            tgHideAlert();
+            tgResetForm();
+        });
+        $('#telegramBroadcastSubmit').on('click', function() {
+            tgHideAlert();
+            if (!submitUrl) {
+                tgShowAlert('error', '{% trans "Request failed." %}');
+                return;
+            }
+            const companyId = $('#telegramBroadcastCompany').val();
+            const ids = $('.telegram-broadcast-user-cb:checked').map(function() { return parseInt($(this).val(), 10); }).get();
+            const messageType = $('input[name="telegramBroadcastType"]:checked').val() || 'custom';
+            const message = $('#telegramBroadcastMessage').val().trim();
+            if (!companyId) {
+                tgShowAlert('error', '{% trans "Select a company." %}');
+                return;
+            }
+            if (!ids.length) {
+                tgShowAlert('error', '{% trans "Select at least one cabinet user." %}');
+                return;
+            }
+            if (messageType === 'custom' && !message) {
+                tgShowAlert('error', '{% trans "Message text is required." %}');
+                return;
+            }
+            const payload = {
+                company_id: parseInt(companyId, 10),
+                cabinet_user_ids: ids,
+                message_type: messageType,
+                message: message
+            };
+            const spin = document.getElementById('telegramBroadcastSpinner');
+            if (spin) spin.classList.remove('d-none');
+            $('#telegramBroadcastSubmit').prop('disabled', true);
+            fetch(submitUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(payload)
+            })
+                .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }); })
+                .then(function(res) {
+                    if (spin) spin.classList.add('d-none');
+                    $('#telegramBroadcastSubmit').prop('disabled', false);
+                    const d = res.data || {};
+                    if (!res.ok || !d.success) {
+                        let err = d.error || ('HTTP ' + res.status);
+                        if (d.errors && d.errors.length) err += '. ' + d.errors.join('; ');
+                        tgShowAlert('error', err);
+                        return;
+                    }
+                    let msg = d.message || '';
+                    if (d.errors && d.errors.length) msg += ' ' + d.errors.join('; ');
+                    tgShowAlert('ok', msg);
+                })
+                .catch(function() {
+                    if (spin) spin.classList.add('d-none');
+                    $('#telegramBroadcastSubmit').prop('disabled', false);
+                    tgShowAlert('error', '{% trans "Request failed." %}');
+                });
+        });
+        tgUpdateMessageVisibility();
+    })();
+
+    // Email broadcast modal
+    (function emailBroadcastSetup() {
+        const modalEl = document.getElementById('emailBroadcastModal');
+        if (!modalEl) return;
+        const submitUrl = (modalEl.getAttribute('data-submit-url') || '').trim();
+
+        let ebBroadcastUsersFull = [];
+
+        function ebEscapeHtml(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+        function ebShowAlert(type, text) {
+            const el = document.getElementById('emailBroadcastAlert');
+            if (!el) return;
+            el.className = 'alert alert-' + (type === 'error' ? 'danger' : 'success');
+            el.textContent = text;
+            el.classList.remove('d-none');
+        }
+        function ebHideAlert() {
+            const el = document.getElementById('emailBroadcastAlert');
+            if (el) el.classList.add('d-none');
+        }
+        function ebGetMessageEditor() {
+            if (typeof tinymce === 'undefined') return null;
+            return tinymce.get('emailBroadcastMessage');
+        }
+        function ebGetMessageContent() {
+            const editor = ebGetMessageEditor();
+            if (editor) return editor.getContent();
+            return ($('#emailBroadcastMessage').val() || '').trim();
+        }
+        function ebGetMessagePlainText() {
+            const editor = ebGetMessageEditor();
+            if (editor) return (editor.getContent({ format: 'text' }) || '').trim();
+            return ($('#emailBroadcastMessage').val() || '').replace(/<[^>]+>/g, '').trim();
+        }
+        function ebDestroyTinyMce() {
+            const editor = ebGetMessageEditor();
+            if (editor) editor.remove();
+        }
+        function ebInitTinyMce() {
+            if (typeof tinymce === 'undefined') return;
+            if (($('input[name="emailBroadcastType"]:checked').val() || 'custom') !== 'custom') return;
+            if ($('#emailBroadcastMessageWrap').hasClass('d-none')) return;
+            if (ebGetMessageEditor()) return;
+            const tinymceLang = currentLang === 'uk' ? 'uk' : (currentLang === 'ru' ? 'ru' : 'en');
+            tinymce.init({
+                selector: '#emailBroadcastMessage',
+                height: 280,
+                menubar: false,
+                statusbar: true,
+                branding: false,
+                language: tinymceLang,
+                plugins: 'lists link table code help wordcount autolink',
+                toolbar: 'undo redo | styles | bold italic underline | forecolor backcolor | alignleft aligncenter alignright | bullist numlist | link table | removeformat code',
+                content_style: "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; margin: 8px; }",
+                setup: function(editor) {
+                    editor.on('change keyup', function() {
+                        editor.save();
+                    });
+                }
+            });
+        }
+        function ebUpdateCustomFieldsVisibility() {
+            const v = ($('input[name="emailBroadcastType"]:checked').val() || 'custom');
+            const isCustom = v === 'custom';
+            $('#emailBroadcastSubjectWrap').toggleClass('d-none', !isCustom);
+            $('#emailBroadcastMessageWrap').toggleClass('d-none', !isCustom);
+            if (isCustom) {
+                setTimeout(ebInitTinyMce, 100);
+            } else {
+                ebDestroyTinyMce();
+            }
+        }
+        function ebBuildUserLineText(u) {
+            const name = (u.full_name || u.username || '').trim();
+            const parts = [name];
+            const dept = (u.department_name || '').trim();
+            const pos = (u.position_name || '').trim();
+            if (dept || pos) {
+                parts.push([dept, pos].filter(Boolean).join(' / '));
+            }
+            return parts.join(' — ');
+        }
+        function ebResetDeptPosFilters() {
+            const deptSel = document.getElementById('emailBroadcastDepartment');
+            const posSel = document.getElementById('emailBroadcastPosition');
+            if (deptSel) {
+                deptSel.innerHTML = '<option value="">{% trans "All" %}</option>';
+                deptSel.disabled = true;
+                deptSel.value = '';
+            }
+            if (posSel) {
+                posSel.innerHTML = '<option value="">{% trans "All" %}</option>';
+                posSel.disabled = true;
+                posSel.value = '';
+            }
+        }
+        function ebPopulateDeptPosFilters(rows) {
+            const deptSel = document.getElementById('emailBroadcastDepartment');
+            const posSel = document.getElementById('emailBroadcastPosition');
+            if (!deptSel || !posSel) return;
+
+            const depts = {};
+            const poss = {};
+            rows.forEach(function(u) {
+                if (u.department_id) {
+                    depts[u.department_id] = (u.department_name || '').trim() || ('#' + u.department_id);
+                }
+                if (u.position_id) {
+                    poss[u.position_id] = (u.position_name || '').trim() || ('#' + u.position_id);
+                }
+            });
+
+            deptSel.innerHTML = '<option value="">{% trans "All" %}</option>';
+            Object.keys(depts).sort(function(a, b) {
+                return depts[a].localeCompare(depts[b], undefined, { sensitivity: 'base' });
+            }).forEach(function(id) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = depts[id];
+                deptSel.appendChild(opt);
+            });
+            deptSel.disabled = Object.keys(depts).length === 0;
+
+            posSel.innerHTML = '<option value="">{% trans "All" %}</option>';
+            Object.keys(poss).sort(function(a, b) {
+                return poss[a].localeCompare(poss[b], undefined, { sensitivity: 'base' });
+            }).forEach(function(id) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = poss[id];
+                posSel.appendChild(opt);
+            });
+            posSel.disabled = Object.keys(poss).length === 0;
+        }
+        function ebRenderUserList() {
+            const list = document.getElementById('emailBroadcastUsersList');
+            if (!list) return;
+
+            const deptId = ($('#emailBroadcastDepartment').val() || '').toString();
+            const posId = ($('#emailBroadcastPosition').val() || '').toString();
+            const checkedIds = new Set();
+            $('.email-broadcast-user-cb:checked').each(function() {
+                checkedIds.add($(this).val());
+            });
+
+            const filtered = ebBroadcastUsersFull.filter(function(u) {
+                const matchDept = !deptId || String(u.department_id) === deptId;
+                const matchPos = !posId || String(u.position_id) === posId;
+                return (matchDept && matchPos) || checkedIds.has(String(u.cabinet_user_id));
+            });
+
+            const seen = new Set();
+            const ordered = [];
+            filtered.forEach(function(u) {
+                if (!seen.has(u.cabinet_user_id)) {
+                    seen.add(u.cabinet_user_id);
+                    ordered.push(u);
+                }
+            });
+
+            let html = '';
+            ordered.forEach(function(u) {
+                const inactive = !u.is_active;
+                const hasEmail = !!((u.email || '').trim());
+                const line = ebEscapeHtml(ebBuildUserLineText(u));
+                const dis = inactive || !hasEmail ? ' disabled' : '';
+                let hint = '';
+                if (inactive) hint = ' ({% trans "inactive" %})';
+                else if (!hasEmail) hint = ' ({% trans "no email" %})';
+                const icon = hasEmail ? ' <i class="bi bi-envelope-check text-primary" title="{% trans "Email available" %}"></i>' : '';
+                const checked = checkedIds.has(String(u.cabinet_user_id)) ? ' checked' : '';
+                html += '<div class="form-check"><input class="form-check-input email-broadcast-user-cb" type="checkbox" value="' +
+                    u.cabinet_user_id + '" id="eb_u_' + u.cabinet_user_id + '" data-has-email="' + (hasEmail ? '1' : '0') + '"' + dis + checked + '>' +
+                    '<label class="form-check-label" for="eb_u_' + u.cabinet_user_id + '">' + line + hint + icon + '</label></div>';
+            });
+            list.innerHTML = html || '<span class="text-muted small">{% trans "No users in this company." %}</span>';
+            list.classList.remove('d-none');
+            const ebPh = document.getElementById('emailBroadcastUsersPlaceholder');
+            if (ebPh) ebPh.classList.add('d-none');
+        }
+        function ebResetForm() {
+            ebDestroyTinyMce();
+            $('#emailBroadcastCompany').val('');
+            $('#emailBroadcastSubject').val('');
+            $('#emailBroadcastMessage').val('');
+            $('#ebBroadcastCustom').prop('checked', true);
+            ebUpdateCustomFieldsVisibility();
+            ebBroadcastUsersFull = [];
+            ebResetDeptPosFilters();
+            ebLoadCompanyUsers('');
+        }
+        function ebLoadCompanyUsers(companyId) {
+            const ph = document.getElementById('emailBroadcastUsersPlaceholder');
+            const list = document.getElementById('emailBroadcastUsersList');
+            ebBroadcastUsersFull = [];
+            ebResetDeptPosFilters();
+            if (!companyId) {
+                if (ph) { ph.classList.remove('d-none'); ph.textContent = '{% trans "Choose a company to load users." %}'; }
+                if (list) { list.classList.add('d-none'); list.innerHTML = ''; }
+                return;
+            }
+            if (ph) { ph.classList.remove('d-none'); ph.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{% trans "Loading…" %}'; }
+            if (list) list.classList.add('d-none');
+            const url = cabinetCompanyUsersUrl(companyId);
+            if (!url) return;
+            fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+                .then(function(rows) {
+                    if (!Array.isArray(rows)) throw new Error('bad data');
+                    if (ph) ph.classList.add('d-none');
+                    ebBroadcastUsersFull = rows.filter(function(u) { return u.cabinet_user_id; });
+                    ebPopulateDeptPosFilters(ebBroadcastUsersFull);
+                    ebRenderUserList();
+                })
+                .catch(function() {
+                    if (ph) {
+                        ph.classList.remove('d-none');
+                        ph.textContent = '{% trans "Failed to load users." %}';
+                    }
+                });
+        }
+
+        const ebCompanySelect = document.getElementById('emailBroadcastCompany');
+        if (ebCompanySelect) {
+            ebCompanySelect.addEventListener('change', function() {
+                ebLoadCompanyUsers(this.value);
+            });
+        }
+        $('#emailBroadcastDepartment, #emailBroadcastPosition').on('change', ebRenderUserList);
+        $('input[name="emailBroadcastType"]').on('change', ebUpdateCustomFieldsVisibility);
+        $('#emailBroadcastSelectWithEmail').on('click', function() {
+            $('.email-broadcast-user-cb').each(function() {
+                if ($(this).data('has-email') === 1 || $(this).attr('data-has-email') === '1') {
+                    if (!this.disabled) this.checked = true;
+                }
+            });
+        });
+        $('#emailBroadcastClearAll').on('click', function() {
+            $('.email-broadcast-user-cb').prop('checked', false);
+        });
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            ebHideAlert();
+            $('#emailBroadcastSpinner').addClass('d-none');
+            $('#emailBroadcastSubmit').prop('disabled', false);
+            ebDestroyTinyMce();
+            ebResetForm();
+        });
+        modalEl.addEventListener('shown.bs.modal', function() {
+            ebHideAlert();
+            setTimeout(ebInitTinyMce, 150);
+        });
+        modalEl.addEventListener('show.bs.modal', function() {
+            ebHideAlert();
+            ebResetForm();
+        });
+        $('#emailBroadcastSubmit').on('click', function() {
+            ebHideAlert();
+            if (!submitUrl) {
+                ebShowAlert('error', '{% trans "Request failed." %}');
+                return;
+            }
+            const companyId = $('#emailBroadcastCompany').val();
+            const ids = $('.email-broadcast-user-cb:checked').map(function() { return parseInt($(this).val(), 10); }).get();
+            const messageType = $('input[name="emailBroadcastType"]:checked').val() || 'custom';
+            const subject = $('#emailBroadcastSubject').val().trim();
+            const message = ebGetMessageContent();
+            const messagePlain = ebGetMessagePlainText();
+            if (!companyId) {
+                ebShowAlert('error', '{% trans "Select a company." %}');
+                return;
+            }
+            if (!ids.length) {
+                ebShowAlert('error', '{% trans "Select at least one cabinet user." %}');
+                return;
+            }
+            if (messageType === 'custom') {
+                if (!subject) {
+                    ebShowAlert('error', '{% trans "Subject is required." %}');
+                    return;
+                }
+                if (!messagePlain) {
+                    ebShowAlert('error', '{% trans "Message text is required." %}');
+                    return;
+                }
+            }
+            const payload = {
+                company_id: parseInt(companyId, 10),
+                cabinet_user_ids: ids,
+                message_type: messageType,
+                subject: subject,
+                message: message
+            };
+            const spin = document.getElementById('emailBroadcastSpinner');
+            if (spin) spin.classList.remove('d-none');
+            $('#emailBroadcastSubmit').prop('disabled', true);
+            fetch(submitUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(payload)
+            })
+                .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }); })
+                .then(function(res) {
+                    if (spin) spin.classList.add('d-none');
+                    $('#emailBroadcastSubmit').prop('disabled', false);
+                    const d = res.data || {};
+                    if (!res.ok || !d.success) {
+                        let err = d.error || ('HTTP ' + res.status);
+                        if (d.errors && d.errors.length) err += '. ' + d.errors.join('; ');
+                        ebShowAlert('error', err);
+                        return;
+                    }
+                    let msg = d.message || '';
+                    if (d.errors && d.errors.length) msg += ' ' + d.errors.join('; ');
+                    ebShowAlert('ok', msg);
+                })
+                .catch(function() {
+                    if (spin) spin.classList.add('d-none');
+                    $('#emailBroadcastSubmit').prop('disabled', false);
+                    ebShowAlert('error', '{% trans "Request failed." %}');
+                });
+        });
+        ebUpdateCustomFieldsVisibility();
+    })();
+
+    // Initialize date pickers with localization
+    $('.datepicker').datepicker({
+        format: 'yyyy-mm-dd',
+        autoclose: true,
+        language: currentLang === 'uk' ? 'ru' : currentLang // Use ru locale for Ukrainian
+    });
+    
+    // Edit user button handler
+    if ($('.edit-user').length) {
+        $('.edit-user').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation(); // Stop Bootstrap's automatic modal showing
+        
+        const userId = $(this).data('user-id');
+        if (!userId) return;
+        
+        // Show loading spinner
+        const form = $('#editUserForm');
+        form.find('button[type="submit"]').prop('disabled', true);
+        form.find('button[type="submit"] .spinner-border').removeClass('d-none');
+        
+        // Clear previous form data
+        form[0].reset();
+        
+        // Set the user ID as data attribute on the form
+        form.data('user-id', userId);
+        
+        // Fetch user data
+        $.ajax({
+            url: '{% url "get_user_data" 0 %}'.replace('0', userId),
+            method: 'GET',
+            success: function(response) {
+                if (response.status === 'success') {
+                    // Debug which functions are available
+                    console.log('Available functions:', {
+                        updateAvatarPreview: typeof updateAvatarPreview === 'function',
+                        loadEditDepartments: typeof loadEditDepartments === 'function',
+                        loadPositionsForDepartment: typeof loadPositionsForDepartment === 'function'
+                    });
+
+                    // Populate form fields with user data
+                    const userData = response.data;
+                    
+                    // Show user info panel
+                    const fullName = (userData.first_name || '') + ' ' + (userData.last_name || '');
+                    $('#editingUserName').text(fullName.trim() || 'Користувач');
+                    $('#editingUserId').text(userId);
+                    $('#editUserInfoPanel').show();
+                    
+                    // Active Directory profile (show only for AD-synced users) — blocks, 4 per row
+                    if (userData.is_ad_synced) {
+                        $('#editUserADProfilePanel').show();
+                        $('#editUserADProfilePanel').data('cabinet-user-id', userId);
+                    }
+                    window.renderEditUserADProfile = function(userData, cabinetUserId) {
+                        if (!userData || !userData.is_ad_synced) {
+                            $('#editUserADProfilePanel').hide();
+                            return;
+                        }
+                        if (cabinetUserId != null) $('#editUserADProfilePanel').data('cabinet-user-id', cabinetUserId);
+                        $('#editUserADProfilePanel').show();
+                        var esc = function (v) { var s = String(v); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+                        const adConn = userData.ad_connection_display || '';
+                        const connText = adConn ? ('{% trans "AD connection:" %} ' + adConn) : '{% trans "AD connection not configured for this company." %}';
+                        // Current synced data
+                        const lines = [];
+                        if (userData.first_name || userData.last_name) {
+                            lines.push(((userData.first_name || '') + ' ' + (userData.last_name || '')).trim());
+                        }
+                        if (userData.email) lines.push('{% trans "Email:" %} ' + userData.email);
+                        if (userData.phone) lines.push('{% trans "Phone:" %} ' + userData.phone);
+                        if (userData.start_date) {
+                            const startStr = userData.start_time ? (userData.start_date + ' ' + userData.start_time) : userData.start_date;
+                            lines.push('{% trans "Start date:" %} ' + startStr);
+                        }
+                        if (userData.end_date) {
+                            const endStr = userData.end_time ? (userData.end_date + ' ' + userData.end_time) : userData.end_date;
+                            lines.push('{% trans "End date:" %} ' + endStr);
+                        }
+                        lines.push('{% trans "Account active:" %} ' + (userData.is_active ? '{% trans "Yes" %}' : '{% trans "No" %}'));
+                        if (userData.ad_account_disabled !== undefined) {
+                            lines.push('{% trans "Disabled in AD:" %} ' + (userData.ad_account_disabled ? '{% trans "Yes" %}' : '{% trans "No" %}'));
+                        }
+                        const blocks = [{ title: '{% trans "Current synced data" %}', content: lines.join('<br>') }];
+                        // Additional AD data by group
+                        const adExtra = userData.ad_extra_attributes || {};
+                        const adAttrLabels = {
+                            description: '{% trans "Description" %}', displayName: '{% trans "Display name" %}',
+                            physicalDeliveryOfficeName: '{% trans "Office" %}', initials: '{% trans "Initials" %}',
+                            wWWHomePage: '{% trans "Web page" %}', streetAddress: '{% trans "Street" %}',
+                            postOfficeBox: '{% trans "P.O. Box" %}', l: '{% trans "City" %}',
+                            st: '{% trans "State/Province" %}', postalCode: '{% trans "Postal code" %}',
+                            c: '{% trans "Country code" %}', co: '{% trans "Country" %}',
+                            mobile: '{% trans "Mobile" %}', facsimileTelephoneNumber: '{% trans "Fax" %}',
+                            ipPhone: '{% trans "IP phone" %}', title: '{% trans "Title" %}',
+                            department: '{% trans "Department" %}', company: '{% trans "Company" %}',
+                            accountLocked: '{% trans "Locked out (AD)" %}',
+                            memberOf: '{% trans "Groups" %}'
+                        };
+                        const adAttrGroups = {
+                            description: 'General', displayName: 'General', physicalDeliveryOfficeName: 'General',
+                            initials: 'General', wWWHomePage: 'General',
+                            streetAddress: 'Address', postOfficeBox: 'Address', l: 'Address',
+                            st: 'Address', postalCode: 'Address', c: 'Address', co: 'Address',
+                            mobile: 'Telephones', facsimileTelephoneNumber: 'Telephones', ipPhone: 'Telephones',
+                            title: 'Organization', department: 'Organization', company: 'Organization',
+                            accountLocked: 'Account',
+                            memberOf: 'Member of'
+                        };
+                        function cnFromDn(dn) { var m = (dn || '').match(/^CN=([^,]+)/i); return m ? m[1].trim() : dn; }
+                        function attrLabelAndGroup(key) {
+                            var k = key && Object.keys(adAttrLabels).find(function(x) { return x.toLowerCase() === key.toLowerCase(); });
+                            return { label: (k ? adAttrLabels[k] : null) || key, group: (k ? adAttrGroups[k] : null) || 'Other' };
+                        }
+                        const byGroup = {};
+                        for (const [key, val] of Object.entries(adExtra)) {
+                            if (key.indexOf('_') === 0) continue;
+                            var la = attrLabelAndGroup(key);
+                            const label = la.label;
+                            const group = la.group;
+                            if (!byGroup[group]) byGroup[group] = [];
+                            var displayVal = val;
+                            if (key && key.toLowerCase() === 'memberof') {
+                                var arr = Array.isArray(val) ? val : (val ? [val] : []);
+                                displayVal = arr.map(cnFromDn).filter(Boolean).join(', ') || '—';
+                            } else if (Array.isArray(val)) {
+                                displayVal = val.join(', ');
+                            }
+                            byGroup[group].push({ label: label, value: displayVal });
+                        }
+                        // Member of block: always show for AD users (Groups from memberOf or "—")
+                        if (!byGroup['Member of'] || !byGroup['Member of'].length) {
+                            byGroup['Member of'] = [{ label: '{% trans "Groups" %}', value: '—' }];
+                        }
+                        // Account block: show Account Disabled / Account Enabled from AD
+                        if (userData.ad_account_disabled !== undefined) {
+                            if (!byGroup['Account']) byGroup['Account'] = [];
+                            byGroup['Account'].unshift({
+                                label: '{% trans "Status" %}',
+                                value: userData.ad_account_disabled ? '{% trans "Account Disabled" %}' : '{% trans "Account Enabled" %}'
+                            });
+                        }
+                        const groupOrder = ['General', 'Address', 'Telephones', 'Organization', 'Account', 'Member of', 'Other'];
+                        const groupTitles = { General: '{% trans "General" %}', Address: '{% trans "Address" %}', Telephones: '{% trans "Telephones" %}', Organization: '{% trans "Organization" %}', Account: '{% trans "Account" %}', 'Member of': '{% trans "Member of" %}', Other: '{% trans "Other" %}' };
+                        for (var gi = 0; gi < groupOrder.length; gi++) {
+                            var g = groupOrder[gi];
+                            if (!byGroup[g] || !byGroup[g].length) continue;
+                            var gContent = byGroup[g].map(function (e) { return e.label + ': ' + esc(e.value); }).join('<br>');
+                            blocks.push({ title: groupTitles[g] || g, content: gContent });
+                        }
+                        blocks.push({ title: '{% trans "AD connection" %}', content: esc(connText) });
+                        // Render blocks: 4 per row (col-md-3)
+                        var rowHtml = '';
+                        for (var bi = 0; bi < blocks.length; bi++) {
+                            var b = blocks[bi];
+                            rowHtml += '<div class="col-6 col-md-3"><div class="card ad-block-card h-100 mb-0"><div class="card-header">' + esc(b.title) + '</div><div class="card-body small text-muted">' + (b.content || '—') + '</div></div></div>';
+                        }
+                        $('#editUserADBlocksRow').html(rowHtml);
+                    };
+                    renderEditUserADProfile(userData, userId);
+
+                    // Basic info
+                    $('#edit_first_name').val(userData.first_name || '');
+                    $('#edit_last_name').val(userData.last_name || '');
+                    $('#edit_email').val(userData.email || '');
+                    $('#edit_phone').val(userData.phone || '');
+                    $('#edit_telegram_chat_id').val(userData.telegram_chat_id || '');
+                    $('#edit_color').val(userData.color || '#2e6da4');
+                    $('#editColorHexValue').text(userData.color || '#2e6da4');
+                    
+                    // Status
+                    $('#edit_is_active').prop('checked', userData.is_active || false);
+                    $('#edit_is_staff').prop('checked', userData.is_staff || false);
+                    $('#edit_force_two_factor').prop('checked', userData.force_two_factor || false);
+                    
+                    // Company, Department and Position
+                    $('#edit_company').val(userData.company_id || '');
+                    
+                    // Employment period
+                    if (userData.start_date) {
+                        $('#edit_start_date').val(formatDateForInput(userData.start_date));
+                        if (userData.start_time) {
+                            $('#edit_start_time').val(userData.start_time);
+                        }
+                    }
+                    
+                    if (userData.end_date) {
+                        $('#edit_end_date').val(formatDateForInput(userData.end_date));
+                        if (userData.end_time) {
+                            $('#edit_end_time').val(userData.end_time);
+                        }
+                    }
+                    
+                    // Avatar preview
+                    if (userData.avatar_url) {
+                        if (typeof updateAvatarPreview === 'function') {
+                            updateAvatarPreview(userData.avatar_url);
+                        } else {
+                            $('#editAvatarPreview').attr('src', userData.avatar_url);
+                        }
+                    }
+                    
+                    // Load departments and parent positions for selected company
+                    if (userData.company_id) {
+                        if (typeof loadEditDepartments === 'function' && typeof loadEditParentPositions === 'function') {
+                            $.when(
+                                loadEditDepartments(userData.company_id),
+                                loadEditParentPositions(userData.company_id)
+                            ).then(() => {
+                                if (userData.position_parent_position_id) {
+                                    // Position is under parent position - load by parent
+                                    $('#edit_parent_position').val(userData.position_parent_position_id);
+                                    loadEditPositions(userData.company_id, null, userData.position_parent_position_id).then(() => {
+                                        if (userData.position_id) {
+                                            $('#edit_position').val(userData.position_id);
+                                        }
+                                    });
+                                } else if (userData.department_id) {
+                                    // Position is in department
+                                    $('#edit_department').val(userData.department_id);
+                                    loadEditPositions(userData.company_id, userData.department_id, null).then(() => {
+                                        if (userData.position_id) {
+                                            $('#edit_position').val(userData.position_id);
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            $('#edit_company').val(userData.company_id).trigger('change');
+                            if (userData.department_id) {
+                                setTimeout(() => {
+                                    $('#edit_department').val(userData.department_id).trigger('change');
+                                    if (userData.position_id) {
+                                        setTimeout(() => {
+                                            $('#edit_position').val(userData.position_id);
+                                        }, 500);
+                                    }
+                                }, 500);
+                            } else if (userData.position_parent_position_id) {
+                                setTimeout(() => {
+                                    $('#edit_parent_position').val(userData.position_parent_position_id).trigger('change');
+                                    if (userData.position_id) {
+                                        setTimeout(() => $('#edit_position').val(userData.position_id), 500);
+                                    }
+                                }, 500);
+                            }
+                        }
+                    }
+                    
+                    // Platform roles data for "Groups from selected roles"
+                    var roleIds = (userData.role_ids && Array.isArray(userData.role_ids)) ? userData.role_ids : [];
+                    var platformRoles = (userData.platform_roles && Array.isArray(userData.platform_roles)) ? userData.platform_roles : [];
+                    window._editPlatformRolesWithGroups = platformRoles;
+                    var groupIdsFromRoles = {};
+                    platformRoles.forEach(function(role) {
+                        if (roleIds.indexOf(role.id) === -1) return;
+                        (role.groups || []).forEach(function(g) {
+                            groupIdsFromRoles[g.id] = g.name;
+                        });
+                    });
+                    var groupIdsFromRolesSet = Object.keys(groupIdsFromRoles).map(Number);
+                    
+                    // Populate Cabinet Groups and Other Groups (pass groupIdsFromRoles to mark "from roles")
+                    if (userData.cabinet_groups && Array.isArray(userData.cabinet_groups)) {
+                        console.log('Cabinet groups data:', userData.cabinet_groups);
+                        populateCabinetGroups(userData.cabinet_groups, groupIdsFromRolesSet);
+                    } else {
+                        console.warn('No cabinet groups data found in user data');
+                    }
+                    
+                    if (userData.other_groups && Array.isArray(userData.other_groups)) {
+                        populateOtherGroups(userData.other_groups);
+                    } else {
+                        console.warn('No other groups data found in user data');
+                    }
+                    
+                    // Platform roles: rebuild from API (only roles for this user's company)
+                    var $container = $('#editPlatformRolesContainer');
+                    $container.empty();
+                    if (platformRoles.length === 0) {
+                        $container.append('<span class="text-muted">{% trans "No roles for this company" %}</span>');
+                    } else {
+                        function escRole(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+                        platformRoles.forEach(function(role) {
+                            var checked = roleIds.indexOf(role.id) !== -1 ? ' checked' : '';
+                            var color = (role.color || '#6c757d').replace(/"/g, '');
+                            var safeName = escRole(role.name);
+                            var companyNames = role.company_names && role.company_names.length ? role.company_names : [];
+                            var companyLabel = companyNames.length ? companyNames.join(', ') : '{% trans "All" %}';
+                            var safeCompany = escRole(companyLabel);
+                            var desc = (role.description || '').substring(0, 120);
+                            if (role.description && role.description.length > 120) desc += '\u2026';
+                            var safeDesc = escRole(desc);
+                            $container.append(
+                                '<div class="platform-role-item form-check border-start mb-3 px-2 py-2 rounded" style="border-left-width: 4px !important; border-left-color: ' + color + ' !important; background: #f8f9fa;">' +
+                                '<input class="form-check-input mt-1" type="checkbox" name="roles[]" value="' + role.id + '" id="edit_role_' + role.id + '"' + checked + '>' +
+                                '<label class="form-check-label w-100 ms-2" for="edit_role_' + role.id + '">' +
+                                '<span class="badge me-1" style="background-color:' + color + ';color:#fff;">' + safeName + '</span>' +
+                                '<span class="small text-muted d-block mt-1">' + safeCompany + '</span>' +
+                                (safeDesc ? '<span class="small text-muted d-block">' + safeDesc + '</span>' : '') +
+                                '</label></div>'
+                            );
+                        });
+                    }
+                    updateEditGroupsFromRoles();
+                    // Use full list of user's cabinet group IDs so Additional Cabinet Groups (from role companies) are pre-checked
+                    var userCabinetGroupIds = (userData.user_cabinet_group_ids && userData.user_cabinet_group_ids.length)
+                        ? userData.user_cabinet_group_ids
+                        : (userData.cabinet_groups || []).filter(function(g) { return g.selected; }).map(function(g) { return g.id; });
+                    window._editUserCabinetGroupIds = userCabinetGroupIds;
+                    loadEditAdditionalCabinetGroups();
+                    // Store initial cabinet group IDs (user's company) so submit can send them when Cabinet Groups section is hidden
+                    var initialCabinetIds = (userData.cabinet_groups || []).filter(function(g) { return g.selected; }).map(function(g) { return g.id; });
+                    form.data('initialCabinetGroupIds', initialCabinetIds);
+                    
+                    // When role checkboxes change, update "Groups from selected roles" and additional groups
+                    $('#editUserModal').off('change.editRoleGroups').on('change.editRoleGroups', 'input[name="roles[]"]', function() {
+                        updateEditGroupsFromRoles();
+                        loadEditAdditionalCabinetGroups();
+                    });
+                    
+                    // Load available quizzes for this user
+                    if (userData.company_id) {
+                        loadEditAvailableQuizzes(userData.user_id, userData.company_id);
+                    } else {
+                        $('#editAvailableQuizzesContainer').html('<div class="text-muted p-3">{% trans "No company selected" %}</div>');
+                        $('.quiz-count').text('0');
+                    }
+                    
+                    // Re-enable form submission
+                    form.find('button[type="submit"]').prop('disabled', false);
+                    form.find('button[type="submit"] .spinner-border').addClass('d-none');
+                    
+                    // Show the modal programmatically
+                    const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+                    modal.show();
+                } else {
+                    showAlert(response.message || 'Error loading user data', 'danger');
+                }
+            },
+            error: function(xhr) {
+                console.error('Error fetching user data:', xhr.responseText);
+                showAlert('Failed to load user data. Please try again.', 'danger');
+                form.find('button[type="submit"]').prop('disabled', false);
+                form.find('button[type="submit"] .spinner-border').addClass('d-none');
+            }
+        });
+    });
+    }
+
+    // Refresh from AD button (Edit User modal)
+    $(document).on('click', '#editUserRefreshADBtn', function() {
+        var id = $('#editUserADProfilePanel').data('cabinet-user-id');
+        if (!id) return;
+        var btn = $(this);
+        var url = '{% url "refresh_user_from_ad" 0 %}'.replace('0', id);
+        btn.prop('disabled', true).find('i').addClass('fa-spin');
+        $.ajax({
+            url: url,
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            data: { csrfmiddlewaretoken: csrfToken },
+            success: function(res) {
+                if (res.status === 'success') {
+                    $.get('{% url "get_user_data" 0 %}'.replace('0', id), function(r) {
+                        if (r.status === 'success' && r.data && typeof renderEditUserADProfile === 'function')
+                            renderEditUserADProfile(r.data);
+                    });
+                    if (typeof showAlert === 'function') showAlert(res.message || '{% trans "Refreshed from AD" %}', 'success');
+                } else {
+                    if (typeof showAlert === 'function') showAlert(res.message || '{% trans "Refresh failed" %}', 'danger');
+                }
+            },
+            error: function(xhr) {
+                var msg = (xhr.responseJSON && xhr.responseJSON.message) || xhr.statusText || '{% trans "Refresh failed" %}';
+                if (typeof showAlert === 'function') showAlert(msg, 'danger');
+            },
+            complete: function() {
+                btn.prop('disabled', false).find('i').removeClass('fa-spin');
+            }
+        });
+    });
+    
+    // Export to Excel button event binding
+    if ($('#exportToExcel').length) {
+        $('#exportToExcel').on('click', function(e) {
+            e.preventDefault();
+            console.log('Export to Excel button clicked');
+            exportToExcel();
+        });
+    }
+    
+    // Other events and initialization
+    $('#clearFilters').on('click', function() {
+        $('#userFilterForm select').val('');
+        $('#filter_search, #search').val('');
+        $('#userFilterForm input').not('#filter_active_only, [type="hidden"]').val('');
+        $('#filter_active_only').prop('checked', true);
+        updateFiltersState();
+        window.location.href = '{% url "users" %}';
+    });
+    
+    // Before any submit: sync Active Users checkbox (in header) into form hidden so it is sent
+    $('#userFilterForm').on('submit', function() {
+        $('#filter_form_active_only').val($('#filter_active_only').is(':checked') ? '1' : '0');
+    });
+
+    // Filter form changes
+    $('#userFilterForm select, #userFilterForm input').on('change', debounce(function() {
+        $('#userFilterForm').submit();
+    }, DEBOUNCE_DELAY));
+
+    // Active Users toggle in header (outside form): submit form (sync happens in submit handler)
+    $('#filter_active_only').on('change', function() {
+        $('#userFilterForm').submit();
+    });
+    
+    // Search box
+    const debouncedSearch = debounce(function(value) {
+        applySearch(value);
+    }, DEBOUNCE_DELAY);
+
+    $('#search').on('input', function() {
+        const value = $(this).val();
+        $('#filter_search').val(value);
+        debouncedSearch(value);
+    });
+
+    $('#search').on('keypress', function(e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            const value = $(this).val();
+            $('#filter_search').val(value);
+            applySearch(value);
+        }
+    });
+    
+    // Update filters state on page load
+    updateFiltersState();
+    
+    // Clear search input button
+    $('.clear-input').on('click', function() {
+        $(this).prev('input').val('');
+        $('#filter_search').val('');
+        const params = new URLSearchParams(window.location.search);
+        params.delete('search');
+        window.location.href = '?' + params.toString();
+    });
+    
+    // Company change should reload departments
+    $('#filter_company').on('change', function() {
+        updateFiltersState();
+        loadDepartments();
+    });
+    
+    // Department change should reload positions
+    $('#filter_department').on('change', function() {
+        updateFiltersState();
+        loadPositions();
+    });
+    
+    // Delete user handlers
+    if ($('.delete-user').length) {
+        $('.delete-user').on('click', function() {
+            const userId = $(this).data('user-id');
+            if (confirm('{% trans "Are you sure you want to delete this user?" %}')) {
+                $.post('{% url "delete_user" 0 %}'.replace('0', userId), {
+                    csrfmiddlewaretoken: '{{ csrf_token }}'
+                })
+                .done(function(response) {
+                    if (response.status === 'success') {
+                        showAlert(response.message, 'success');
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        showAlert(response.message, 'danger');
+                    }
+                })
+                .fail(function() {
+                    showAlert('{% trans "Error deleting user" %}', 'danger');
+                });
+            }
+        });
+    }
+
+    // Select All 2FA checkbox handler
+    $('#selectAll2FA').on('change', function() {
+        const isChecked = $(this).is(':checked');
+        $('.user-2fa-checkbox:not(:disabled)').each(function() {
+            const checkbox = $(this);
+            // Save original state before changing if not already saved
+            if (checkbox.data('original-state') === undefined) {
+                checkbox.data('original-state', checkbox.is(':checked'));
+            }
+            checkbox.prop('checked', isChecked);
+        });
+        updateBulk2FAButton();
+    });
+
+    // Individual 2FA checkbox handler - track changes for bulk apply
+    $('.user-2fa-checkbox').on('change', function() {
+        const checkbox = $(this);
+        const originalState = checkbox.data('original-state');
+        if (originalState === undefined) {
+            checkbox.data('original-state', !checkbox.is(':checked'));
+        }
+        updateBulk2FAButton();
+        updateSelectAllState();
+        
+        // If Select All is not active, apply immediately
+        if (!$('#selectAll2FA').is(':checked') && !$('#selectAll2FA').prop('indeterminate')) {
+            // This will be handled by the force-two-factor-toggle handler
+        }
+    });
+
+    // Update Select All checkbox state based on individual checkboxes
+    function updateSelectAllState() {
+        const enabledCheckboxes = $('.user-2fa-checkbox:not(:disabled)');
+        const checkedCount = enabledCheckboxes.filter(':checked').length;
+        const totalCount = enabledCheckboxes.length;
+        
+        if (totalCount === 0) {
+            $('#selectAll2FA').prop('indeterminate', false).prop('checked', false);
+        } else if (checkedCount === totalCount) {
+            $('#selectAll2FA').prop('indeterminate', false).prop('checked', true);
+        } else if (checkedCount > 0) {
+            $('#selectAll2FA').prop('indeterminate', true);
+        } else {
+            $('#selectAll2FA').prop('indeterminate', false).prop('checked', false);
+        }
+    }
+
+    // Update bulk apply button visibility
+    function updateBulk2FAButton() {
+        let hasChanges = false;
+        $('.user-2fa-checkbox:not(:disabled)').each(function() {
+            const originalState = $(this).data('original-state');
+            const currentState = $(this).is(':checked');
+            if (originalState !== undefined && originalState !== currentState) {
+                hasChanges = true;
+                return false; // break loop
+            }
+        });
+        $('#applyBulk2FA').toggle(hasChanges);
+    }
+
+    // Initialize original states on page load
+    $('.user-2fa-checkbox:not(:disabled)').each(function() {
+        $(this).data('original-state', $(this).is(':checked'));
+    });
+    updateSelectAllState();
+
+    // Bulk apply 2FA changes
+    $('#applyBulk2FA').on('click', function() {
+        const button = $(this);
+        const originalContent = button.html();
+        button.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2" role="status"></span>{% trans "Applying..." %}');
+
+        const changes = [];
+        $('.user-2fa-checkbox:not(:disabled)').each(function() {
+            const checkbox = $(this);
+            const originalState = checkbox.data('original-state');
+            const currentState = checkbox.is(':checked');
+            
+            if (originalState !== undefined && originalState !== currentState) {
+                changes.push({
+                    userId: checkbox.data('user-id'),
+                    url: checkbox.data('toggle-url'),
+                    enabled: currentState,
+                    checkbox: checkbox
+                });
+            }
+        });
+
+        if (changes.length === 0) {
+            button.prop('disabled', false).html(originalContent);
+            return;
+        }
+
+        // Apply changes sequentially
+        let completed = 0;
+        let failed = 0;
+        
+        function applyNext() {
+            if (completed + failed >= changes.length) {
+                button.prop('disabled', false).html(originalContent);
+                if (failed === 0) {
+                    showAlert('{% trans "All 2FA requirements updated successfully." %}', 'success');
+                    // Reset original states
+                    $('.user-2fa-checkbox:not(:disabled)').each(function() {
+                        $(this).data('original-state', $(this).is(':checked'));
+                    });
+                    updateBulk2FAButton();
+                    updateSelectAllState();
+                } else {
+                    showAlert('{% trans "Some 2FA requirements failed to update." %}', 'warning');
+                }
+                return;
+            }
+
+            const change = changes[completed + failed];
+            change.checkbox.prop('disabled', true);
+
+            $.ajax({
+                url: change.url,
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                data: {
+                    force_two_factor: change.enabled ? '1' : '0'
+                }
+            }).done(function(response) {
+                if (response.status === 'success') {
+                    completed++;
+                } else {
+                    change.checkbox.prop('checked', !change.enabled);
+                    failed++;
+                }
+            }).fail(function() {
+                change.checkbox.prop('checked', !change.enabled);
+                failed++;
+            }).always(function() {
+                change.checkbox.prop('disabled', false);
+                applyNext();
+            });
+        }
+
+        applyNext();
+    });
+
+    // Force 2FA toggle handler (for individual changes without bulk mode)
+    $('.force-two-factor-toggle').on('change', function(e) {
+        const checkbox = $(this);
+        
+        // Check if Select All is active (checked or indeterminate)
+        const selectAllCheckbox = $('#selectAll2FA');
+        const isSelectAllActive = selectAllCheckbox.is(':checked') || selectAllCheckbox.prop('indeterminate');
+        
+        // If Select All is active, don't apply immediately - wait for bulk apply
+        // The change will be tracked by user-2fa-checkbox handler
+        if (isSelectAllActive) {
+            return;
+        }
+
+        // Save original state if not already saved
+        if (checkbox.data('original-state') === undefined) {
+            checkbox.data('original-state', !checkbox.is(':checked'));
+        }
+
+        const userId = checkbox.data('user-id');
+        const targetUrl = checkbox.data('toggle-url');
+
+        if (!userId || !targetUrl) {
+            return;
+        }
+
+        const isEnabled = checkbox.is(':checked');
+        checkbox.prop('disabled', true);
+
+        $.ajax({
+            url: targetUrl,
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            data: {
+                force_two_factor: isEnabled ? '1' : '0'
+            }
+        }).done(function(response) {
+            if (response.status !== 'success') {
+                checkbox.prop('checked', !isEnabled);
+                showAlert(response.message || '{% trans "Failed to update 2FA requirement." %}', 'danger');
+            } else {
+                showAlert(response.message || '{% trans "2FA requirement updated successfully." %}', 'success');
+                // Update original state after successful change
+                checkbox.data('original-state', isEnabled);
+                updateSelectAllState();
+            }
+        }).fail(function() {
+            checkbox.prop('checked', !isEnabled);
+            showAlert('{% trans "Error updating 2FA requirement." %}', 'danger');
+        }).always(function() {
+            checkbox.prop('disabled', false);
+        });
+    });
+});
+
+// Load departments for selected company
+function loadDepartments() {
+    const companyId = $('#filter_company').val();
+    const departmentSelect = $('#filter_department');
+    
+    if (!companyId) {
+        departmentSelect.empty().append('<option value="">{% trans "All Departments" %}</option>').prop('disabled', true);
+        return;
+    }
+    
+    departmentSelect.empty().append('<option value="">{% trans "Loading..." %}</option>').prop('disabled', true);
+    
+    $.get('{% url "get_company_departments" 0 %}'.replace('0', companyId))
+        .done(function(departments) {
+            departmentSelect.empty().append('<option value="">{% trans "All Departments" %}</option>');
+            
+            departments.forEach(function(dept) {
+                departmentSelect.append(`<option value="${dept.id}">${dept.name}</option>`);
+            });
+            
+            departmentSelect.prop('disabled', false);
+        })
+        .fail(function() {
+            departmentSelect.empty().append('<option value="">{% trans "Error loading departments" %}</option>');
+        });
+}
+
+// Load positions for selected department
+function loadPositions() {
+    const companyId = $('#filter_company').val();
+    const departmentId = $('#filter_department').val();
+    const positionSelect = $('#filter_position');
+    
+    if (!departmentId) {
+        positionSelect.empty().append('<option value="">{% trans "All Positions" %}</option>').prop('disabled', true);
+        return;
+    }
+    
+    positionSelect.empty().append('<option value="">{% trans "Loading..." %}</option>').prop('disabled', true);
+    
+    $.get('{% url "get_department_positions" 0 0 %}'.replace(/0/, companyId).replace(/0/, departmentId))
+        .done(function(positions) {
+            positionSelect.empty().append('<option value="">{% trans "All Positions" %}</option>');
+            
+            positions.forEach(function(pos) {
+                positionSelect.append(`<option value="${pos.id}">${pos.name}</option>`);
+            });
+            
+            positionSelect.prop('disabled', false);
+        })
+        .fail(function() {
+            positionSelect.empty().append('<option value="">{% trans "Error loading positions" %}</option>');
+        });
+}
+
+// Format date for date input elements (YYYY-MM-DD)
+function formatDateForInput(dateString) {
+    if (!dateString) return '';
+    
+    // Handle different date formats
+    let date;
+    if (dateString.includes('.')) {
+        // DD.MM.YY or DD.MM.YYYY format
+        const parts = dateString.split('.');
+        if (parts.length === 3) {
+            const year = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+            date = new Date(`${year}-${parts[1]}-${parts[0]}`);
+        } else {
+            date = new Date(dateString);
+        }
+    } else {
+        date = new Date(dateString);
+    }
+    
+    if (isNaN(date.getTime())) return '';
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+}
+
+// Function to populate Cabinet Groups section (groupIdsFromRoles = optional array of group ids that come from selected platform roles)
+function populateCabinetGroups(groups, groupIdsFromRoles) {
+    const container = $('#editCabinetGroupsContainer');
+    if (!container.length) return; // Cabinet Groups section removed under Additional Cabinet Groups
+    const fromRolesSet = (groupIdsFromRoles || []).reduce(function(s, id) { s[id] = true; return s; }, {});
+    
+    if (!groups || groups.length === 0) {
+        container.html('<div class="text-muted p-3">No cabinet groups available</div>');
+        $('#editCabinetGroupsContainer').closest('.col-12').find('.group-count').text('0');
+        return;
+    }
+    
+    let html = '<div class="row g-2 p-2">';
+    let selectedCount = 0;
+    
+    groups.forEach(group => {
+        const checkboxId = `edit_cabinet_group_${group.id}`;
+        const backgroundColor = group.color || '#6c757d';
+        if (group.selected) selectedCount++;
+        const description = group.description ? group.description : '';
+        const fromRolesBadge = fromRolesSet[group.id] ? ' <span class="badge bg-info text-white small">{% trans "from roles" %}</span>' : '';
+        html += `
+        <div class="col-md-4 col-sm-6">
+            <div class="form-check mb-1">
+                <input class="form-check-input cabinet-group-checkbox" type="checkbox" 
+                       id="${checkboxId}" 
+                       name="cabinet_groups[]" 
+                       value="${group.id}" 
+                       ${group.selected ? 'checked' : ''}>
+                <label class="form-check-label" for="${checkboxId}" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top" 
+                       title="${group.name}${description ? ' - ' + description : ''}">
+                    <span class="group-indicator" style="background-color: ${backgroundColor}"></span>
+                    <span class="text-truncate" style="max-width: 200px; display: inline-block;">${group.name}</span>${fromRolesBadge}
+                </label>
+            </div>
+        </div>`;
+    });
+    
+    html += '</div>';
+    container.html(html);
+    
+    // Update the count badge
+    $('#editCabinetGroupsContainer').closest('.col-12').find('.group-count').text(selectedCount);
+    
+    // Add change event to update counter when checkboxes are clicked
+    $('.cabinet-group-checkbox').on('change', function() {
+        const checkedCount = $('.cabinet-group-checkbox:checked').length;
+        $('#editCabinetGroupsContainer').closest('.col-12').find('.group-count').text(checkedCount);
+    });
+    // Initialize tooltips
+    if (typeof initializeTooltips === 'function') initializeTooltips();
+}
+
+function updateEditGroupsFromRoles() {
+    const roles = window._editPlatformRolesWithGroups || [];
+    const checkedIds = [];
+    $('#editUserModal input[name="roles[]"]:checked').each(function() { checkedIds.push(parseInt($(this).val(), 10)); });
+    const groupMap = {};
+    roles.forEach(function(role) {
+        if (checkedIds.indexOf(role.id) === -1) return;
+        (role.groups || []).forEach(function(g) {
+            groupMap[g.id] = { id: g.id, name: g.name || '', description: g.description || '', company_name: g.company_name || '' };
+        });
+    });
+    const list = Object.keys(groupMap).map(function(id) { return groupMap[id]; }).sort(function(a, b) {
+        var c = (a.company_name || '').localeCompare(b.company_name || '');
+        return c !== 0 ? c : (a.name || '').localeCompare(b.name || '');
+    });
+    const wrap = $('#editUserGroupsFromRolesWrap');
+    const cont = $('#editUserGroupsFromRolesContainer');
+    if (list.length === 0) {
+        wrap.hide();
+        cont.empty();
+        $('#editUserGroupsFromRolesCount').text('0');
+        updateEditUserGroupsTotal();
+        return;
+    }
+    wrap.show();
+    $('#editUserGroupsFromRolesCount').text(list.length);
+    var html = '';
+    list.forEach(function(g) {
+        var safeName = (g.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        var safeDesc = (g.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        var companyPart = g.company_name ? ' <span class="text-muted small">(' + (g.company_name || '').replace(/</g, '&lt;') + ')</span>' : '';
+        var color = (g.color || '#000000').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        html += '<div class="d-flex flex-column mb-2 py-1 border-bottom border-light"><div class="fw-bold small" style="color:' + color + ';">' + safeName + companyPart + '</div>';
+        if (safeDesc) html += '<div class="small text-muted">' + safeDesc + '</div>';
+        html += '</div>';
+    });
+    cont.html(html);
+    updateEditUserGroupsTotal();
+}
+
+function getEditRoleGroupsApiUrl() {
+    var path = window.location.pathname || '';
+    var base = path.indexOf('/app_cabinet') !== -1 ? path.split('/app_cabinet')[0] + '/app_cabinet' : ('/' + (document.documentElement.lang || 'en') + '/app_cabinet');
+    return base + '/users/roles/api/groups-by-companies/';
+}
+
+function loadEditAdditionalCabinetGroups() {
+    var roles = window._editPlatformRolesWithGroups || [];
+    var checkedIds = [];
+    $('#editUserModal input[name="roles[]"]:checked').each(function() { checkedIds.push(parseInt($(this).val(), 10)); });
+    var companyIdsMap = {};
+    var excludeGroupIds = [];
+    roles.forEach(function(role) {
+        if (checkedIds.indexOf(role.id) === -1) return;
+        (role.company_ids || []).forEach(function(cid) { companyIdsMap[cid] = true; });
+        (role.groups || []).forEach(function(g) { excludeGroupIds.push(g.id); });
+    });
+    var companyIds = Object.keys(companyIdsMap).map(Number);
+    var excludeSet = {};
+    excludeGroupIds.forEach(function(id) { excludeSet[id] = true; });
+    var selectedIds = window._editUserCabinetGroupIds || [];
+    var wrap = $('#editUserAdditionalGroupsWrap');
+    var cont = $('#editUserAdditionalGroupsContainer');
+    if (!companyIds.length) {
+        wrap.hide();
+        cont.empty();
+        $('#editUserAdditionalGroupsCount').text('0');
+        updateEditUserGroupsTotal();
+        return;
+    }
+    wrap.show();
+    $('#editUserAdditionalGroupsCount').text('0');
+    cont.html('<span class="text-muted">{% trans "Loading..." %}</span>');
+    $.ajax({
+        url: getEditRoleGroupsApiUrl() + '?companies=' + encodeURIComponent(companyIds.join(',')),
+        method: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        success: function(res) {
+            var groups = (res.groups || []).filter(function(g) { return !excludeSet[g.id]; });
+            if (groups.length === 0) {
+                cont.html('<span class="text-muted">{% trans "No additional groups for these companies" %}</span>');
+                $('#editUserAdditionalGroupsCount').text('0');
+                updateEditUserGroupsTotal();
+                return;
+            }
+            var html = '';
+            var selectedCount = 0;
+            groups.forEach(function(g) {
+                var checked = selectedIds.indexOf(g.id) !== -1;
+                if (checked) selectedCount++;
+                var checkedStr = checked ? ' checked' : '';
+                var safeName = (g.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                var companyPart = g.company_name ? ' <span class="text-muted small">(' + (g.company_name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;') + ')</span>' : '';
+                var desc = (g.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                var descPart = desc ? '<div class="small text-muted ms-4 mt-0">' + desc + '</div>' : '';
+                var color = (g.color || '#000000').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                html += '<div class="form-check mb-2"><input class="form-check-input edit-additional-group-cb" type="checkbox" name="additional_cabinet_groups[]" value="' + g.id + '" id="edit_ag_' + g.id + '"' + checkedStr + '><label class="form-check-label small" for="edit_ag_' + g.id + '" style="color:' + color + ';">' + safeName + companyPart + '</label>' + descPart + '</div>';
+            });
+            cont.html(html);
+            $('#editUserAdditionalGroupsCount').text(selectedCount + ' / ' + groups.length);
+            updateEditUserGroupsTotal();
+            $('#editUserModal').off('change.editAdditionalGroup').on('change.editAdditionalGroup', '.edit-additional-group-cb', function() {
+                var sel = $('#editUserAdditionalGroupsContainer input.edit-additional-group-cb:checked').length;
+                var tot = $('#editUserAdditionalGroupsContainer input.edit-additional-group-cb').length;
+                $('#editUserAdditionalGroupsCount').text(sel + ' / ' + tot);
+                updateEditUserGroupsTotal();
+            });
+        },
+        error: function() {
+            cont.html('<span class="text-danger">{% trans "Error loading groups" %}</span>');
+            $('#editUserAdditionalGroupsCount').text('0');
+            updateEditUserGroupsTotal();
+        }
+    });
+}
+function updateEditUserGroupsTotal() {
+    var n1 = parseInt($('#editUserGroupsFromRolesCount').text(), 10) || 0;
+    var n2 = 0;
+    var t = $('#editUserAdditionalGroupsCount').text();
+    if (t.indexOf(' / ') !== -1) n2 = parseInt(t.split(' / ')[0], 10) || 0;
+    else n2 = parseInt(t, 10) || 0;
+    var n3 = parseInt($('#editUserOtherGroupsCount').text(), 10) || 0;
+    var total = n1 + n2 + n3;
+    $('#editUserGroupsTotalCount').text(total);
+    $('#editUserGroupsTotalWrap').toggle(total > 0);
+}
+
+// Load available quizzes for new user (used in create modal)
+function loadCreateAvailableQuizzes(companyId) {
+    const container = $('#createAvailableQuizzesContainer');
+    
+    // Show loading state
+    container.html(`
+        <div class="text-center p-3">
+            <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+            <span class="ms-2">{% trans "Loading available quizzes..." %}</span>
+        </div>
+    `);
+    
+    const currentLang = document.documentElement.lang || '{{ request.LANGUAGE_CODE }}' || 'uk';
+    
+    $.ajax({
+        url: `/${currentLang}/app_study/quiz/available/`,
+        method: 'GET',
+        data: { 
+            company_id: companyId 
+        },
+        success: function(response) {
+            if (response.status === 'success' && response.data) {
+                populateCreateAvailableQuizzes(response.data);
+            } else {
+                container.html('<div class="text-muted p-3">{% trans "No quizzes available" %}</div>');
+                $('#createAvailableQuizzesContainer').closest('.col-12').find('.quiz-count').text('0');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading quizzes:', xhr.responseText);
+            container.html('<div class="text-danger p-3">{% trans "Error loading quizzes" %}</div>');
+            $('#createAvailableQuizzesContainer').closest('.col-12').find('.quiz-count').text('0');
+        }
+    });
+}
+
+// Populate available quizzes (used in create modal)
+function populateCreateAvailableQuizzes(quizzes) {
+    const container = $('#createAvailableQuizzesContainer');
+    
+    if (!quizzes || quizzes.length === 0) {
+        container.html('<div class="text-muted p-3">{% trans "No quizzes available for this company" %}</div>');
+        $('#createAvailableQuizzesContainer').closest('.col-12').find('.quiz-count').text('0');
+        return;
+    }
+    
+    let html = '';
+    quizzes.forEach(quiz => {
+        const checkboxId = `create_quiz_${quiz.id}`;
+        const safeTitle = (quiz.title || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const badges = [
+            '<span class="badge bg-secondary me-1">' + (quiz.passing_score || 0) + '%</span>',
+            quiz.youtube_video_id ? '<span class="badge bg-danger me-1">Video</span>' : '',
+            quiz.pdf_material ? '<span class="badge bg-primary me-1">PDF</span>' : ''
+        ].filter(Boolean).join('');
+        html += '<div class="quiz-item"><div class="d-flex align-items-center">' +
+            '<div class="form-check me-2 mb-0"><input class="form-check-input quiz-checkbox" type="checkbox" id="' + checkboxId + '" name="assigned_quizzes[]" value="' + quiz.id + '"><label class="form-check-label" for="' + checkboxId + '"></label></div>' +
+            '<div class="flex-grow-1 min-width-0"><div class="quiz-title text-truncate" title="' + safeTitle + '"><i class="fas fa-question-circle me-1 text-info small"></i>' + safeTitle + '</div>' +
+            (badges ? '<div class="quiz-meta">' + badges + '</div>' : '') + '</div></div></div>';
+    });
+    container.html(html);
+    $('#createAvailableQuizzesContainer').closest('.col-12').find('.quiz-count').text(`0/${quizzes.length}`);
+    
+    // Add change event to update counter when checkboxes are clicked
+    $('.quiz-checkbox').on('change', function() {
+        const checkedCount = $('.quiz-checkbox:checked').length;
+        $('#createAvailableQuizzesContainer').closest('.col-12').find('.quiz-count').text(`${checkedCount}/${quizzes.length}`);
+        
+        // Update visual state
+        const quizItem = $(this).closest('.quiz-item');
+        if ($(this).is(':checked')) {
+            quizItem.addClass('quiz-assigned');
+        } else {
+            quizItem.removeClass('quiz-assigned');
+        }
+    });
+}
+
+// Load available quizzes for user (used in edit modal)
+function loadEditAvailableQuizzes(userId, companyId) {
+    const container = $('#editAvailableQuizzesContainer');
+    
+    // Debug logging
+    console.log('loadEditAvailableQuizzes called with:', {
+        userId: userId,
+        companyId: companyId,
+        userIdType: typeof userId,
+        companyIdType: typeof companyId
+    });
+    
+    // Show loading state
+    container.html(`
+        <div class="text-center p-3">
+            <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+            <span class="ms-2">{% trans "Loading available quizzes..." %}</span>
+        </div>
+    `);
+    
+    const currentLang = document.documentElement.lang || '{{ request.LANGUAGE_CODE }}' || 'uk';
+    
+    $.ajax({
+        url: `/${currentLang}/app_study/quiz/available/`,
+        method: 'GET',
+        data: { 
+            user_id: userId,
+            company_id: companyId 
+        },
+        success: function(response) {
+            console.log('Quiz API response:', response);
+            if (response.status === 'success' && response.data) {
+                populateEditAvailableQuizzes(response.data);
+            } else {
+                container.html('<div class="text-muted p-3">{% trans "No quizzes available" %}</div>');
+                $('.quiz-count').text('0');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading quizzes:', xhr.responseText);
+            container.html('<div class="text-danger p-3">{% trans "Error loading quizzes" %}</div>');
+            $('.quiz-count').text('0');
+        }
+    });
+}
+
+// Populate available quizzes (used in edit modal)
+function populateEditAvailableQuizzes(quizzes) {
+    const container = $('#editAvailableQuizzesContainer');
+    
+    if (!quizzes || quizzes.length === 0) {
+        container.html('<div class="text-muted p-3">{% trans "No quizzes available for this user" %}</div>');
+        $('#editAvailableQuizzesContainer').closest('.col-12').find('.quiz-count').text('0');
+        return;
+    }
+    
+    let html = '';
+    let assignedCount = 0;
+    quizzes.forEach(quiz => {
+        const hasAttempt = quiz.user_attempts && quiz.user_attempts.length > 0;
+        const lastAttempt = hasAttempt ? quiz.user_attempts[quiz.user_attempts.length - 1] : null;
+        const isPassed = lastAttempt && lastAttempt.score >= quiz.passing_score;
+        const isAssigned = quiz.is_assigned || false;
+        if (isAssigned) assignedCount++;
+        const checkboxId = 'edit_quiz_' + quiz.id;
+        const safeTitle = (quiz.title || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        let badges = ['<span class="badge bg-secondary me-1">' + (quiz.passing_score || 0) + '%</span>'];
+        if (hasAttempt) badges.push('<span class="badge me-1 ' + (isPassed ? 'bg-success' : 'bg-warning') + '">' + lastAttempt.score + '%</span>');
+        else badges.push('<span class="badge bg-light text-dark me-1">{% trans "Not attempted" %}</span>');
+        if (quiz.youtube_video_id) badges.push('<span class="badge bg-danger me-1">Video</span>');
+        if (quiz.pdf_material) badges.push('<span class="badge bg-primary me-1">PDF</span>');
+        if (isAssigned) badges.push('<span class="badge bg-success me-1">{% trans "Assigned" %}</span>');
+        html += '<div class="quiz-item' + (isAssigned ? ' quiz-assigned' : '') + '"><div class="d-flex align-items-center">' +
+            '<div class="form-check me-2 mb-0"><input class="form-check-input quiz-checkbox" type="checkbox" id="' + checkboxId + '" name="assigned_quizzes[]" value="' + quiz.id + '"' + (isAssigned ? ' checked' : '') + '><label class="form-check-label" for="' + checkboxId + '"></label></div>' +
+            '<div class="flex-grow-1 min-width-0"><div class="quiz-title text-truncate" title="' + safeTitle + '"><i class="fas fa-question-circle me-1 text-info small"></i>' + safeTitle + '</div>' +
+            '<div class="quiz-meta">' + badges.join('') + '</div></div></div></div>';
+    });
+    container.html(html);
+    $('#editAvailableQuizzesContainer').closest('.col-12').find('.quiz-count').text(`${assignedCount}/${quizzes.length}`);
+    
+    // Add change event to update counter when checkboxes are clicked
+    $('.quiz-checkbox').on('change', function() {
+        const checkedCount = $('.quiz-checkbox:checked').length;
+        $('#editAvailableQuizzesContainer').closest('.col-12').find('.quiz-count').text(`${checkedCount}/${quizzes.length}`);
+        
+        // Update visual state
+        const quizItem = $(this).closest('.quiz-item');
+        if ($(this).is(':checked')) {
+            quizItem.addClass('quiz-assigned');
+        } else {
+            quizItem.removeClass('quiz-assigned');
+        }
+    });
+    
+    // Initialize tooltips for quiz elements
+    initializeTooltips();
+}
+
+// Function to populate Other Groups section (only applied/selected groups - view only)
+function populateOtherGroups(groups) {
+    const container = $('#editOtherGroupsContainer');
+    const appliedOnly = (groups || []).filter(function(g) { return g.selected; });
+    
+    if (appliedOnly.length === 0) {
+        container.html('<div class="text-muted p-3">{% trans "No other groups" %}</div>');
+        $('#editUserOtherGroupsCount').text('0');
+        updateEditUserGroupsTotal();
+        return;
+    }
+    
+    let html = '<div class="row g-2 p-2">';
+    appliedOnly.forEach(function(group) {
+        const description = group.description ? group.description : '';
+        const safeName = (group.name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        const safeDesc = (description || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        html += '<div class="col-md-4 col-sm-6 mb-2">' +
+            '<span class="badge bg-secondary w-100 text-start p-2" data-bs-toggle="tooltip" data-bs-placement="top" title="' + safeName + (safeDesc ? ' - ' + safeDesc : '') + '">' +
+            '<i class="fas fa-check-circle text-light me-1"></i>' +
+            '<span class="text-truncate d-inline-block" style="max-width: 180px; vertical-align: middle;">' + safeName + '</span>' +
+            '</span></div>';
+    });
+    html += '</div>';
+    container.html(html);
+    $('#editUserOtherGroupsCount').text(appliedOnly.length);
+    updateEditUserGroupsTotal();
+    initializeTooltips();
+}
+</script>
+{% endblock %}

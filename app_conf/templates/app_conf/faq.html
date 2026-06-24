@@ -1,0 +1,467 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "FAQ - Frequently Asked Questions" %}{% endblock %}
+
+{% block meta_description %}{{ meta_description }}{% endblock %}
+{% block meta_keywords %}{{ meta_keywords }}{% endblock %}
+{% block meta_robots %}index, follow{% endblock %}
+
+{% block og_title %}{% trans "SecBoard FAQ - Frequently Asked Questions" %}{% endblock %}
+{% block og_description %}{{ meta_description }}{% endblock %}
+{% block og_type %}website{% endblock %}
+
+{% block twitter_title %}{% trans "SecBoard FAQ - Frequently Asked Questions" %}{% endblock %}
+{% block twitter_description %}{{ meta_description }}{% endblock %}
+
+{% block structured_data %}
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {% for category in faq_categories %}
+            {% for faq in category.questions %}
+            {
+                "@type": "Question",
+                "name": "{{ faq.question|escapejs }}",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "{{ faq.answer|escapejs }}"
+                }
+            }{% if not forloop.last or not forloop.parentloop.last %},{% endif %}
+            {% endfor %}
+        {% endfor %}
+    ]
+}
+{% endblock structured_data %}
+
+{% block styles %}
+<style>
+    .faq-hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 4rem 0;
+        margin-bottom: 3rem;
+        border-radius: 0 0 20px 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+
+    .faq-hero h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .faq-hero p {
+        font-size: 1.2rem;
+        opacity: 0.95;
+    }
+
+    .search-box {
+        max-width: 600px;
+        margin: 2rem auto 0;
+        position: relative;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 1rem 3rem 1rem 1.5rem;
+        border: none;
+        border-radius: 50px;
+        font-size: 1rem;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+
+    .search-box i {
+        position: absolute;
+        right: 1.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #667eea;
+        font-size: 1.2rem;
+    }
+
+    .faq-section {
+        margin-bottom: 3rem;
+    }
+
+    .faq-category-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 3px solid;
+    }
+
+    .faq-category-header.color-primary { border-color: #3498db; }
+    .faq-category-header.color-success { border-color: #2ecc71; }
+    .faq-category-header.color-info { border-color: #17a2b8; }
+    .faq-category-header.color-warning { border-color: #f39c12; }
+    .faq-category-header.color-danger { border-color: #e74c3c; }
+    .faq-category-header.color-secondary { border-color: #95a5a6; }
+    .faq-category-header.color-dark { border-color: #34495e; }
+
+    .faq-category-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+        margin-right: 1rem;
+    }
+
+    .faq-category-icon.bg-primary { background: linear-gradient(135deg, #3498db, #2980b9); }
+    .faq-category-icon.bg-success { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+    .faq-category-icon.bg-info { background: linear-gradient(135deg, #17a2b8, #138496); }
+    .faq-category-icon.bg-warning { background: linear-gradient(135deg, #f39c12, #e67e22); }
+    .faq-category-icon.bg-danger { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+    .faq-category-icon.bg-secondary { background: linear-gradient(135deg, #95a5a6, #7f8c8d); }
+    .faq-category-icon.bg-dark { background: linear-gradient(135deg, #34495e, #2c3e50); }
+
+    .faq-category-title {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin: 0;
+    }
+
+    .accordion-item {
+        border: none;
+        margin-bottom: 1rem;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+    }
+
+    .accordion-item:hover {
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+
+    .accordion-button {
+        background: white;
+        color: #2c3e50;
+        font-size: 1.1rem;
+        font-weight: 600;
+        padding: 1.25rem 1.5rem;
+        border: none;
+        box-shadow: none !important;
+    }
+
+    .accordion-button:not(.collapsed) {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .accordion-button::after {
+        filter: brightness(0);
+    }
+
+    .accordion-button:not(.collapsed)::after {
+        filter: brightness(0) invert(1);
+    }
+
+    .accordion-body {
+        padding: 1.5rem;
+        background: #f8f9fa;
+        color: #555;
+        line-height: 1.8;
+        font-size: 1rem;
+    }
+
+    .stats-section {
+        background: #f8f9fa;
+        padding: 3rem 0;
+        margin: 3rem 0;
+        border-radius: 15px;
+    }
+
+    .stat-box {
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .stat-number {
+        font-size: 3rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 1.1rem;
+        color: #7f8c8d;
+    }
+
+    .cta-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 3rem;
+        border-radius: 20px;
+        text-align: center;
+        margin: 3rem 0 2rem;
+    }
+
+    .cta-box h2 {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+
+    .cta-box p {
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+        opacity: 0.95;
+    }
+
+    .btn-cta {
+        padding: 1rem 2.5rem;
+        font-size: 1.1rem;
+        border-radius: 50px;
+        border: 2px solid white;
+        background: white;
+        color: #667eea;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.3s ease;
+        font-weight: 600;
+    }
+
+    .btn-cta:hover {
+        background: transparent;
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    .no-results {
+        text-align: center;
+        padding: 3rem;
+        color: #7f8c8d;
+    }
+
+    .no-results i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    @media (max-width: 768px) {
+        .faq-hero h1 {
+            font-size: 2rem;
+        }
+
+        .faq-category-title {
+            font-size: 1.4rem;
+        }
+
+        .accordion-button {
+            font-size: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="faq-hero">
+    <div class="container text-center">
+        <h1>
+            <i class="fas fa-question-circle me-3"></i>
+            {% trans "Frequently Asked Questions" %}
+        </h1>
+        <p>
+            {% trans "Find answers to common questions about SecBoard" %}
+        </p>
+        <div class="search-box">
+            <input type="text" id="faqSearch" placeholder="{% trans 'Search for answers...' %}" class="form-control">
+            <i class="fas fa-search"></i>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Section -->
+<div class="container">
+    <div class="stats-section">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="stat-box">
+                    <span class="stat-number">{{ faq_categories|length }}</span>
+                    <span class="stat-label">{% trans "Categories" %}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-box">
+                    <span class="stat-number">
+                        {% widthratio faq_categories|length 1 4 %}+
+                    </span>
+                    <span class="stat-label">{% trans "Questions Answered" %}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-box">
+                    <span class="stat-number">24/7</span>
+                    <span class="stat-label">{% trans "Support Available" %}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAQ Categories -->
+    <div id="faqContent">
+        {% for category in faq_categories %}
+        <div class="faq-section" data-category="{{ category.category }}">
+            <div class="faq-category-header color-{{ category.color }}">
+                <div class="faq-category-icon bg-{{ category.color }}">
+                    <i class="fas {{ category.icon }}"></i>
+                </div>
+                <h2 class="faq-category-title">{{ category.category }}</h2>
+            </div>
+
+            <div class="accordion" id="accordion-{{ forloop.counter }}">
+                {% for faq in category.questions %}
+                <div class="accordion-item" data-question="{{ faq.question|lower }}" data-answer="{{ faq.answer|lower }}">
+                    <h3 class="accordion-header">
+                        <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" 
+                                type="button" 
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#collapse-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" 
+                                aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" 
+                                aria-controls="collapse-{{ forloop.parentloop.counter }}-{{ forloop.counter }}">
+                            {{ faq.question }}
+                        </button>
+                    </h3>
+                    <div id="collapse-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" 
+                         class="accordion-collapse collapse {% if forloop.first and forloop.parentloop.first %}show{% endif %}" 
+                         data-bs-parent="#accordion-{{ forloop.parentloop.counter }}">
+                        <div class="accordion-body">
+                            {{ faq.answer }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- No Results Message -->
+        <div id="noResults" class="no-results" style="display: none;">
+            <i class="fas fa-search"></i>
+            <h3>{% trans "No results found" %}</h3>
+            <p>{% trans "Try different keywords or browse all categories above" %}</p>
+        </div>
+    </div>
+
+    <!-- CTA Section -->
+    <div class="cta-box">
+        <h2>{% trans "Still have questions?" %}</h2>
+        <p>
+            {% trans "Can't find the answer you're looking for? Our support team is here to help!" %}
+        </p>
+        <a href="{% url 'app_conf:about' %}" class="btn-cta me-2 mb-2">
+            <i class="fas fa-info-circle me-2"></i>{% trans "Learn More" %}
+        </a>
+        {% if not user.is_authenticated %}
+        <a href="{% url 'login' %}" class="btn-cta mb-2">
+            <i class="fas fa-sign-in-alt me-2"></i>{% trans "Get Started" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('faqSearch');
+    const faqItems = document.querySelectorAll('.accordion-item');
+    const faqSections = document.querySelectorAll('.faq-section');
+    const noResults = document.getElementById('noResults');
+    
+    // Search functionality
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        let hasResults = false;
+        
+        if (searchTerm === '') {
+            // Show all items
+            faqItems.forEach(item => {
+                item.style.display = '';
+            });
+            faqSections.forEach(section => {
+                section.style.display = '';
+            });
+            noResults.style.display = 'none';
+            return;
+        }
+        
+        // Filter items
+        faqSections.forEach(section => {
+            let sectionHasResults = false;
+            const items = section.querySelectorAll('.accordion-item');
+            
+            items.forEach(item => {
+                const question = item.getAttribute('data-question');
+                const answer = item.getAttribute('data-answer');
+                
+                if (question.includes(searchTerm) || answer.includes(searchTerm)) {
+                    item.style.display = '';
+                    sectionHasResults = true;
+                    hasResults = true;
+                    
+                    // Expand matching item
+                    const button = item.querySelector('.accordion-button');
+                    const collapse = item.querySelector('.accordion-collapse');
+                    if (button.classList.contains('collapsed')) {
+                        button.click();
+                    }
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // Show/hide section based on results
+            section.style.display = sectionHasResults ? '' : 'none';
+        });
+        
+        // Show/hide no results message
+        noResults.style.display = hasResults ? 'none' : 'block';
+    });
+    
+    // Highlight search term in results
+    searchInput.addEventListener('input', debounce(function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        if (searchTerm !== '') {
+            highlightText(searchTerm);
+        }
+    }, 300));
+});
+
+// Debounce function for performance
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Highlight matching text
+function highlightText(searchTerm) {
+    // This is a simple implementation
+    // In production, you might want to use a library like mark.js
+    console.log('Highlighting:', searchTerm);
+}
+</script>
+{% endblock %}
+

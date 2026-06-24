@@ -1,0 +1,174 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Landing Pages" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fas fa-globe me-2"></i>{% trans "Landing Pages" %}</h2>
+    </div>
+</div>
+
+{% url 'app_gophish:landing_page_list' as landing_page_list_clear_url %}
+{% filters_expanded 'search' 'server' 'server_id' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="landingPageFiltersCollapse" toggle_id="toggleLandingPageFilters" icon_id="landingPageFiltersToggleIcon" filter_clear_url=landing_page_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="landingPageFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" class="row g-1 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" class="form-control form-control-sm" id="filterSearch" name="search"
+                       value="{{ search }}" placeholder="{% trans 'Page name...' %}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="filterServer">{% trans "Server" %}</label>
+                <select class="form-select form-select-sm" id="filterServer" name="server">
+                    <option value="">{% trans "All Servers" %}</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}" {% if server_id == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+<!-- Landing Pages Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font landing-page-settings-table sb-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Server" %}</th>
+                                <th class="text-center">{% trans "Capture Credentials" %}</th>
+                                <th class="text-center">{% trans "Capture Passwords" %}</th>
+                                <th>{% trans "Last Sync" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for page in page_obj %}
+                            <tr>
+                                <td>
+                                    <strong>{{ page.name }}</strong>
+                                    {% if page.gophish_id %}
+                                    <br><small class="text-muted">ID: {{ page.gophish_id }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ page.server.name }}</td>
+                                <td class="boolean-{% if page.capture_credentials %}yes{% else %}no{% endif %}">
+                                    {% if page.capture_credentials %}
+                                    {% trans "Yes" %}
+                                    {% else %}
+                                    {% trans "No" %}
+                                    {% endif %}
+                                </td>
+                                <td class="boolean-{% if page.capture_passwords %}yes{% else %}no{% endif %}">
+                                    {% if page.capture_passwords %}
+                                    {% trans "Yes" %}
+                                    {% else %}
+                                    {% trans "No" %}
+                                    {% endif %}
+                                </td>
+                                <td>{{ page.last_sync|date:"M d, H:i" }}</td>
+                                <td>
+                                    <a href="{% url 'app_gophish:landing_page_preview' page.id %}" 
+                                       class="btn btn-outline-info btn-sm me-1" 
+                                       title="{% trans 'Preview' %}"
+                                       target="_blank">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <button class="btn btn-outline-success btn-sm" 
+                                            onclick="copyPageHtml('{{ page.html_content|escapejs }}')"
+                                            title="{% trans 'Copy HTML' %}">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if page_obj|length == 0 %}
+                <div class="text-center text-muted py-4">
+                    {% trans "No landing pages found" %}
+                </div>
+                {% endif %}
+                {% include 'app_gophish/includes/gophish_table_pagination.html' with pagination_item_label=_("pages") pagination_aria_label=_("Landing pages pagination") %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyPageHtml(htmlContent) {
+    const btn = event.target;
+    const originalHtml = btn.innerHTML;
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(htmlContent).then(function() {
+            // Show success message
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalHtml;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+            }, 2000);
+        }).catch(function(err) {
+            console.error('Clipboard API failed: ', err);
+            fallbackCopyPageHtml(htmlContent, btn, originalHtml);
+        });
+    } else {
+        fallbackCopyPageHtml(htmlContent, btn, originalHtml);
+    }
+}
+
+function fallbackCopyPageHtml(text, btn, originalHtml) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    
+    try {
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (successful) {
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalHtml;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+            }, 2000);
+        } else {
+            throw new Error('execCommand failed');
+        }
+    } catch (err) {
+        console.error('Fallback copy failed: ', err);
+        document.body.removeChild(textarea);
+        alert('{% trans "Failed to copy HTML content" %}');
+    }
+}
+</script>
+{% endblock %}

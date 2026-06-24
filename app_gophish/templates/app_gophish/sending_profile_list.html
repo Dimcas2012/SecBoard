@@ -1,0 +1,93 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Sending Profiles" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fas fa-paper-plane me-2"></i>{% trans "Sending Profiles" %}</h2>
+    </div>
+</div>
+
+{% url 'app_gophish:sending_profile_list' as sending_profile_list_clear_url %}
+{% filters_expanded 'search' 'server' 'server_id' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="sendingProfileFiltersCollapse" toggle_id="toggleSendingProfileFilters" icon_id="sendingProfileFiltersToggleIcon" filter_clear_url=sending_profile_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="sendingProfileFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" class="row g-1 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" class="form-control form-control-sm" id="filterSearch" name="search"
+                       value="{{ search }}" placeholder="{% trans 'Profile name...' %}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="filterServer">{% trans "Server" %}</label>
+                <select class="form-select form-select-sm" id="filterServer" name="server">
+                    <option value="">{% trans "All Servers" %}</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}" {% if server_id == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+<!-- Sending Profiles Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table sb-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Server" %}</th>
+                                <th>{% trans "From Address" %}</th>
+                                <th>{% trans "From Name" %}</th>
+                                <th>{% trans "SMTP Host" %}</th>
+                                <th class="text-center">{% trans "Port" %}</th>
+                                <th>{% trans "Last Sync" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for profile in page_obj %}
+                            <tr>
+                                <td>
+                                    <strong>{{ profile.name }}</strong>
+                                    {% if profile.gophish_id %}
+                                    <br><small class="text-muted">ID: {{ profile.gophish_id }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ profile.server.name }}</td>
+                                <td>{{ profile.from_address }}</td>
+                                <td>{{ profile.from_name }}</td>
+                                <td>{{ profile.smtp_host }}</td>
+                                <td>{{ profile.smtp_port }}</td>
+                                <td>{{ profile.last_sync|date:"M d, H:i" }}</td>
+                                <td>
+                                    <span class="text-muted">—</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if page_obj|length == 0 %}
+                <div class="text-center text-muted py-4">
+                    {% trans "No sending profiles found" %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'app_gophish/includes/gophish_table_pagination.html' with pagination_item_label=_("profiles") pagination_aria_label=_("Sending profiles pagination") %}
+{% endblock %}

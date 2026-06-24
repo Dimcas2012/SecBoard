@@ -1,0 +1,528 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Local Requirement Templates" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_compliance/includes/compliance_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 compliance-page">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h1>
+                <i class="bi bi-journal-text me-2"></i>{% trans "Local Requirement Templates" %}
+            </h1>
+            <p class="text-muted">
+                {% trans "Manage templates of regulatory requirements with controls" %}
+            </p>
+        </div>
+        <div class="col-md-6 text-end">
+            {% include "app_compliance/includes/compliance_local_nav_toolbar.html" with active="templates" show_create=permissions.can_add_requirements %}
+        </div>
+    </div>
+
+    {% with filters_expanded=search or selected_regulator or selected_type or selected_status %}
+    <div class="card mb-2 filter-section access-request-filters compliance-filters-card">
+        {% url 'compliance:local_requirements_library' as local_requirements_clear_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="localRequirementsFiltersCollapse" toggle_id="toggleLocalRequirementsFilters" icon_id="localRequirementsFiltersToggleIcon" filter_clear_url=local_requirements_clear_url filters_expanded=filters_expanded %}
+        <div class="collapse{% if filters_expanded %} show{% endif %}" id="localRequirementsFiltersCollapse">
+        <div class="card-body py-2">
+            <form method="get" id="filterForm" class="row g-1 align-items-end">
+                <input type="hidden" name="view" value="{{ view_mode }}">
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Search" %}</label>
+                    <input type="text" name="search" class="form-control form-control-sm"
+                           value="{{ search }}" placeholder="{% trans 'Code, name, description...' %}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Regulator" %}</label>
+                    <select name="regulator" class="form-select form-select-sm">
+                        <option value="">{% trans "All Regulators" %}</option>
+                        {% for regulator in regulators %}
+                        <option value="{{ regulator.id }}" {% if regulator.id|stringformat:"s" == selected_regulator %}selected{% endif %}>
+                            {{ regulator.acronym|default:regulator.name }}{% if regulator.country %} ({{ regulator.country.code }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "Type" %}</label>
+                    <select name="type" class="form-select form-select-sm">
+                        <option value="">{% trans "All Types" %}</option>
+                        {% for option in requirement_types %}
+                        <option value="{{ option.code }}" {% if option.code == selected_type %}selected{% endif %}>
+                            {{ option.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "Status" %}</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">{% trans "All Statuses" %}</option>
+                        {% for option in status_choices %}
+                        <option value="{{ option.code }}" {% if option.code == selected_status %}selected{% endif %}>
+                            {{ option.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "Sort By" %}</label>
+                    <select name="sort" class="form-select form-select-sm">
+                        <option value="-created_date" {% if sort_by == '-created_date' %}selected{% endif %}>{% trans "Newest First" %}</option>
+                        <option value="created_date"  {% if sort_by == 'created_date'  %}selected{% endif %}>{% trans "Oldest First" %}</option>
+                        <option value="name"          {% if sort_by == 'name'          %}selected{% endif %}>{% trans "Name (A-Z)" %}</option>
+                        <option value="-name"         {% if sort_by == '-name'         %}selected{% endif %}>{% trans "Name (Z-A)" %}</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+    {% endwith %}
+
+    <!-- Requirements List -->
+    {% if view_mode == 'table' %}
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "Local Requirement Templates" %}</h4>
+                <div class="btn-toolbar justify-content-end flex-wrap" role="toolbar" style="gap: 0.25rem;">
+                    <a href="?{% if base_query %}{{ base_query }}&{% endif %}view=table" class="btn btn-sm btn-outline-primary {% if view_mode == 'table' %}active{% endif %}">
+                        <i class="fas fa-table"></i>
+                    </a>
+                    <a href="?{% if base_query %}{{ base_query }}&{% endif %}view=cards" class="btn btn-sm btn-outline-primary {% if view_mode == 'cards' %}active{% endif %}">
+                        <i class="fas fa-th-large"></i>
+                    </a>
+                    {% if permissions.can_view_requirements %}
+                    <a href="{% url 'compliance:local_requirements_export_excel' %}{% if current_query %}?{{ current_query }}{% endif %}"
+                       class="btn btn-sm btn-success">
+                        <i class="fas fa-file-excel"></i> {% trans "Export Excel" %}
+                    </a>
+                    {% endif %}
+                    {% if permissions.can_add_requirements %}
+                    <button type="button" class="btn btn-sm btn-outline-success"
+                            data-bs-toggle="modal" data-bs-target="#importRequirementsModal">
+                        <i class="fas fa-file-import"></i> {% trans "Import Excel" %}
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="card-body table-responsive full-width-table">
+            <table class="table table-hover table-sm table-sm-font sb-data-table align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">{% trans "Code" %}</th>
+                        <th scope="col">{% trans "Name" %}</th>
+                        <th scope="col">{% trans "Regulator" %}</th>
+                        <th scope="col">{% trans "Type" %}</th>
+                        <th scope="col">{% trans "Company Types" %}</th>
+                        <th scope="col">{% trans "Status" %}</th>
+                        <th scope="col" class="text-center">{% trans "Controls" %}</th>
+                        <th scope="col">{% trans "Applied to Companies" %}</th>
+                        <th scope="col">{% trans "Dates" %}</th>
+                        <th scope="col" class="text-end">{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requirements %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'compliance:local_requirement_template_detail' req.id %}" class="fw-semibold text-decoration-none">
+                                {{ req.code }}
+                            </a>
+                        </td>
+                        <td>
+                            <div class="fw-semibold">{{ req.name }}</div>
+                            {% if req.description %}
+                            <div class="text-muted small">{{ req.description|truncatewords:15 }}</div>
+                            {% endif %}
+                            {% if req.is_mandatory %}
+                            <span class="badge bg-danger mt-1"><i class="fas fa-exclamation-circle"></i> {% trans "Mandatory" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div><i class="fas fa-landmark"></i> {{ req.regulator.acronym|default:req.regulator.name }}</div>
+                            <div class="text-muted small">{{ req.regulator.country.name }}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-info text-white">{{ req.localized_requirement_type }}</span>
+                        </td>
+                        <td>
+                            {% if req.localized_company_types %}
+                                {% for ct in req.localized_company_types %}
+                                <span class="badge" style="background-color: {{ ct.color }}; color: #fff;">{{ ct.label }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if req.status == 'active' %}bg-success{% elif req.status == 'draft' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                {{ req.localized_status }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-primary">{{ req.controls_count }}</span>
+                        </td>
+                        <td>
+                            {% if req.instances_data %}
+                                {% for instance in req.instances_data %}
+                                <div class="mb-1">
+                                    <span class="text-primary fw-semibold">
+                                        <i class="fas fa-building"></i> {{ instance.company__name }}
+                                    </span>
+                                    {% if instance.is_mandatory %}
+                                    <span class="text-danger small ms-2">
+                                        <i class="fas fa-exclamation-circle"></i> {% trans "Mandatory" %}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted small ms-2">
+                                        <i class="fas fa-info-circle"></i> {% trans "Optional" %}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                            <span class="text-muted">
+                                <i class="fas fa-minus"></i> {% trans "Not applied" %}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if req.effective_date %}
+                            <div class="small text-muted"><i class="fas fa-calendar"></i> {% trans "Effective" %}: {{ req.effective_date|date:"d.m.Y" }}</div>
+                            {% endif %}
+                            {% if req.deadline_date %}
+                            <div class="small text-danger"><i class="fas fa-clock"></i> {% trans "Deadline" %}: {{ req.deadline_date|date:"d.m.Y" }}</div>
+                            {% endif %}
+                            {% if not req.effective_date and not req.deadline_date %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if permissions.can_edit_requirements %}
+                            <a href="{% url 'compliance:local_requirement_template_edit' req.id %}" class="btn btn-sm btn-outline-secondary me-1">
+                                <i class="fas fa-edit"></i> {% trans "Edit" %}
+                            </a>
+                            {% endif %}
+                            <a href="{% url 'compliance:local_requirement_template_detail' req.id %}" class="btn btn-sm btn-outline-primary me-1">
+                                {% trans "View" %} <i class="fas fa-arrow-right"></i>
+                            </a>
+                            {% if permissions.can_delete_requirements %}
+                            <form method="post" action="{% url 'compliance:local_requirement_template_delete' req.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('{% trans "Delete this requirement template? This action cannot be undone." %}');">
+                                    <i class="fas fa-trash"></i> {% trans "Delete" %}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-5">
+                            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                            <div class="h5 text-muted">{% trans "No requirement templates found" %}</div>
+                            {% if permissions.can_add_frameworks %}
+                            <a href="{% url 'compliance:local_requirement_template_create' %}" class="btn btn-primary mt-3">
+                                <i class="fas fa-plus"></i> {% trans "Create First Template" %}
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="row">
+        {% for req in requirements %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card requirement-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0">
+                            <a href="{% url 'compliance:local_requirement_template_detail' req.id %}"
+                               class="text-decoration-none">
+                                {{ req.code }}
+                            </a>
+                        </h5>
+                        <span class="badge {% if req.status == 'active' %}bg-success{% elif req.status == 'draft' %}bg-warning{% else %}bg-secondary{% endif %}">
+                            {{ req.localized_status }}
+                        </span>
+                    </div>
+
+                    <h6 class="text-muted mb-2" style="font-size: 0.9rem;">
+                        {{ req.name|truncatewords:10 }}
+                    </h6>
+
+                    <div class="mb-3">
+                        <span class="badge badge-regulator">
+                            <i class="fas fa-landmark"></i> {{ req.regulator.acronym|default:req.regulator.name }}
+                        </span>
+                        <span class="badge bg-info text-white ms-1">
+                            {{ req.localized_requirement_type }}
+                        </span>
+                        {% if req.localized_company_types %}
+                            {% for ct in req.localized_company_types %}
+                            <span class="badge ms-1" style="background-color: {{ ct.color }}; color: #fff;">{{ ct.label }}</span>
+                            {% endfor %}
+                        {% endif %}
+                        {% if req.is_mandatory %}
+                        <span class="badge bg-danger ms-1">
+                            <i class="fas fa-exclamation-circle"></i> {% trans "Mandatory" %}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    {% if req.description %}
+                    <p class="card-text small text-muted mb-3">
+                        {{ req.description|truncatewords:15 }}
+                    </p>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between align-items-center mt-auto">
+                        <div>
+                            <span class="stats-badge badge bg-primary">
+                                <i class="fas fa-tasks"></i> {{ req.controls_count }} {% trans "controls" %}
+                            </span>
+                            <span class="stats-badge badge bg-success ms-1">
+                                <i class="fas fa-building"></i> {{ req.instances_count }} {% trans "applied" %}
+                            </span>
+                        </div>
+                        <div class="btn-group" role="group">
+                            {% if permissions.can_edit_requirements %}
+                            <a href="{% url 'compliance:local_requirement_template_edit' req.id %}"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-edit"></i> {% trans "Edit" %}
+                            </a>
+                            {% endif %}
+                            <a href="{% url 'compliance:local_requirement_template_detail' req.id %}"
+                               class="btn btn-sm btn-outline-primary">
+                                {% trans "View" %} <i class="fas fa-arrow-right"></i>
+                            </a>
+                            {% if permissions.can_delete_requirements %}
+                            <form method="post" action="{% url 'compliance:local_requirement_template_delete' req.id %}"
+                                  onsubmit="return confirm('{% trans "Delete this requirement template? This action cannot be undone." %}');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if req.effective_date or req.deadline_date %}
+                    <div class="mt-3 pt-3 border-top">
+                        {% if req.effective_date %}
+                        <small class="text-muted">
+                            <i class="fas fa-calendar"></i> {% trans "Effective" %}: {{ req.effective_date|date:"d.m.Y" }}
+                        </small>
+                        {% endif %}
+                        {% if req.deadline_date %}
+                        <small class="text-danger ms-2">
+                            <i class="fas fa-clock"></i> {% trans "Deadline" %}: {{ req.deadline_date|date:"d.m.Y" }}
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">{% trans "No requirement templates found" %}</h5>
+                    {% if permissions.can_add_frameworks %}
+                    <a href="{% url 'compliance:local_requirement_template_create' %}" class="btn btn-primary mt-3">
+                        <i class="fas fa-plus"></i> {% trans "Create First Template" %}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% if requirements.has_other_pages %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if requirements.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ requirements.previous_page_number }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="fas fa-chevron-left"></i></span>
+                    </li>
+                    {% endif %}
+                    
+                    {% for num in requirements.paginator.page_range %}
+                        {% if requirements.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                        {% elif num > requirements.number|add:'-3' and num < requirements.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if requirements.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ requirements.next_page_number }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="fas fa-chevron-right"></i></span>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            <div class="text-center text-muted">
+                {% trans "Page" %} {{ requirements.number }} {% trans "of" %} {{ requirements.paginator.num_pages }}
+                ({% trans "Total" %}: {{ requirements.paginator.count }} {% trans "templates" %})
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+{% if permissions.can_add_requirements or permissions.can_add_frameworks %}
+    <div class="modal fade" id="importRequirementsModal" tabindex="-1" aria-labelledby="importRequirementsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importRequirementsModalLabel">
+                        <i class="fas fa-file-import"></i> {% trans "Import Local Requirement Templates" %}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info d-flex align-items-center" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <span>
+                            {% trans "Download the template, describe the requirement and its Template Controls & Categories, then upload the completed Excel file." %}
+                        </span>
+                    </div>
+                    <div class="mb-3">
+                        <a href="{% url 'compliance:local_requirements_excel_template' %}" class="btn btn-outline-success">
+                            <i class="fas fa-download"></i> {% trans "Download Template" %}
+                        </a>
+                    </div>
+                    <form method="post" action="{% url 'compliance:local_requirements_import_excel' %}" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "Excel file (.xlsx)" %}</label>
+                            <input type="file" name="file" accept=".xlsx" class="form-control" required>
+                        </div>
+                        <div class="border rounded p-3 mb-3 bg-light">
+                            <h6 class="mb-2"><i class="fas fa-calendar-alt"></i> {% trans "Optional dates for import" %}</h6>
+                            <p class="text-muted small mb-3">
+                                {% trans "You can specify dates here if they are not present in the Excel file. Leave empty if dates are already in the file." %}
+                            </p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">{% trans "Publication Date" %}</label>
+                                    <input type="text" name="override_publication_date" class="form-control"
+                                           placeholder="{% trans 'dd.mm.yyyy (optional)' %}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">{% trans "Effective Date" %}</label>
+                                    <input type="text" name="override_effective_date" class="form-control"
+                                           placeholder="{% trans 'dd.mm.yyyy (optional)' %}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">{% trans "Deadline Date" %}</label>
+                                    <input type="text" name="override_deadline_date" class="form-control"
+                                           placeholder="{% trans 'dd.mm.yyyy (optional)' %}">
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                {% trans "Format: DD.MM.YYYY. All dates are optional." %}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                                {% trans "Cancel" %}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-file-upload"></i> {% trans "Import" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Local Compliance Guide Modal -->
+    <div class="modal fade" id="localComplianceGuideModal" tabindex="-1" aria-labelledby="localComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:local_compliance_guide' %}">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="localComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Local Compliance Guide" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="localComplianceGuideModalBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add hover effects to requirement cards
+    document.querySelectorAll('.requirement-card').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.borderLeftColor = '#0056b3';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.borderLeftColor = '#007bff';
+        });
+    });
+});
+
+document.getElementById('localComplianceGuideModal').addEventListener('show.bs.modal', function() {
+    var body = document.getElementById('localComplianceGuideModalBody');
+    var url = this.getAttribute('data-guide-url');
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+    fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+        })
+        .catch(function() {
+            body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+        });
+});
+</script>
+{% endblock %}
+

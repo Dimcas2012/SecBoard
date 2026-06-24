@@ -1,0 +1,3369 @@
+<!-- SecBoard\SecBoard\templates\app_risk\modals\risk_treatment_modal.html -->
+{% load i18n %}
+{% csrf_token %}
+<!-- Nav tabs -->
+<ul class="nav nav-tabs" role="tablist">
+
+<div class="modal fade" id="riskTreatmentModal" tabindex="-1" aria-labelledby="riskTreatmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="riskTreatmentModalLabel">{% trans "Risk Treatment" %}</h5>
+                <div class="ms-auto me-3">
+                    <span class="fw-bold" id="treatmentAssetID"></span> - 
+                    <span id="treatmentAssetName"></span> 
+                    (<span id="treatmentCompanyName"></span>)
+                </div>
+                <button type="button" class="btn btn-light btn-sm mx-2" id="exportRiskTreatments">
+                    <i class="fas fa-file-export me-1"></i>{% trans "Export" %}
+                </button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Bulk Actions Panel -->
+                <div class="card mb-3" id="bulkActionsPanel" style="display: none;">
+                    <div class="card-header bg-light">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-tasks me-2"></i>
+                                    <span id="selectedCount">0</span> {% trans "treatments selected" %}
+                                </h6>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="selectAllBtn">
+                                    <i class="fas fa-check-square me-1"></i>{% trans "Select All" %}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="deselectAllBtn">
+                                    <i class="fas fa-square me-1"></i>{% trans "Deselect All" %}
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm me-2" id="bulkTreatmentTypeBtn">
+                                    <i class="fas fa-tag me-1"></i>{% trans "Bulk Treatment Type" %}
+                                </button>
+                                <button type="button" class="btn btn-outline-info btn-sm" id="bulkStatusBtn">
+                                    <i class="fas fa-flag me-1"></i>{% trans "Bulk Status" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table id="riskTreatmentTable" class="table table-bordered table-hover" style="font-size: 0.85rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;" class="text-center">
+                                    <input type="checkbox" id="selectAllCheckbox" class="form-check-input" title="{% trans 'Select/Deselect All' %}">
+                                </th>
+                                <th style="width: 15%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'Identified security weaknesses or gaps in the asset that could be exploited by threats' %}">
+                                    {% trans "Vulnerability" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 5%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'Current status of this vulnerability: Yes (confirmed), No (not present), or Undefined (needs assessment)' %}">
+                                    {% trans "Status" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 15%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'List of potential threats that could exploit this vulnerability and their associated risk levels' %}">
+                                    {% trans "Threats & Risk Levels" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 8%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'The most severe risk level among all threats associated with this vulnerability' %}">
+                                    {% trans "Risk Level" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 15%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'Existing security measures and controls that help reduce or mitigate the identified risks' %}">
+                                    {% trans "Risk Mitigation Controls" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 10%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'The approach chosen to address the risk: Accept, Avoid, Transfer, or Mitigate' %}">
+                                    {% trans "Treatment Type" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 180px; max-width: 180px;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'Detailed description of the specific actions and measures to be implemented for risk treatment, and person or team responsible for implementation' %}">
+                                    {% trans "Description & Responsible" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 8%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'Target date by which the risk treatment implementation should be completed' %}">
+                                    {% trans "Deadline" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 8%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'Current implementation status: Planned, In Progress, Completed, or Overdue' %}">
+                                    {% trans "Treatment Status" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                                <th style="width: 10%;" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="{% trans 'Access comprehensive treatment guidance including: residual risk assessment with examples, effectiveness evaluation with metrics, monitoring schedules with responsibilities, cost analysis with ROI calculations, and last modification information' %}">
+                                    {% trans "Treatment Details" %} <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="riskTreatmentTableBody">
+                            <!-- Treatment data will be loaded here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-danger" id="clearRiskTreatments">
+                        <i class="fas fa-trash-alt me-1"></i>{% trans "Clear All Treatments" %}
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>{% trans "Close" %}
+                    </button>
+                    <button type="button" class="btn btn-success" id="saveRiskTreatments">
+                        <i class="fas fa-save me-1"></i>{% trans "Save Changes" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Treatment Type Modal -->
+<div class="modal fade" id="bulkTreatmentTypeModal" tabindex="-1" aria-labelledby="bulkTreatmentTypeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="bulkTreatmentTypeModalLabel">
+                    <i class="fas fa-tag me-2"></i>{% trans "Bulk Change Treatment Type" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>{% trans "Selected treatments:" %}</strong> <span id="bulkTreatmentTypeCount">0</span>
+                </div>
+                <div class="mb-3">
+                    <label for="bulkTreatmentTypeSelect" class="form-label fw-bold">
+                        <i class="fas fa-tag me-1"></i>{% trans "New Treatment Type" %}
+                    </label>
+                    <select class="form-select" id="bulkTreatmentTypeSelect" required>
+                        <option value="">{% trans "Select Treatment Type" %}</option>
+                    </select>
+                    <div class="form-text">
+                        <i class="fas fa-info-circle me-1"></i>{% trans "Choose the treatment type to apply to all selected treatments." %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>{% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="applyBulkTreatmentType">
+                    <i class="fas fa-check me-1"></i>{% trans "Apply Changes" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Status Modal -->
+<div class="modal fade" id="bulkStatusModal" tabindex="-1" aria-labelledby="bulkStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="bulkStatusModalLabel">
+                    <i class="fas fa-flag me-2"></i>{% trans "Bulk Change Treatment Status" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>{% trans "Selected treatments:" %}</strong> <span id="bulkStatusCount">0</span>
+                </div>
+                <div class="mb-3">
+                    <label for="bulkStatusSelect" class="form-label fw-bold">
+                        <i class="fas fa-flag me-1"></i>{% trans "New Treatment Status" %}
+                    </label>
+                    <select class="form-select" id="bulkStatusSelect" required>
+                        <option value="">{% trans "Select Treatment Status" %}</option>
+                    </select>
+                    <div class="form-text">
+                        <i class="fas fa-info-circle me-1"></i>{% trans "Choose the treatment status to apply to all selected treatments." %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>{% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-info" id="applyBulkStatus">
+                    <i class="fas fa-check me-1"></i>{% trans "Apply Changes" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Description & Responsible Edit Modal -->
+<div class="modal fade" id="descriptionResponsibleModal" tabindex="-1" aria-labelledby="descriptionResponsibleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="descriptionResponsibleModalLabel">
+                    <i class="fas fa-edit me-2"></i>{% trans "Edit Description & Responsible" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <label for="treatmentDescription" class="form-label fw-bold">
+                                <i class="fas fa-file-alt me-1"></i>{% trans "Treatment Description" %}
+                            </label>
+                            <textarea class="form-control" id="treatmentDescription" rows="8" maxlength="2000"
+                                      placeholder="{% trans 'Enter detailed description of the specific actions and measures to be implemented for risk treatment...' %}"></textarea>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>{% trans "Describe the specific actions, measures, and procedures to be implemented for this risk treatment." %}
+                                </div>
+                                <small class="text-muted">
+                                    <span id="descriptionCharCount">0</span>/2000
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <label for="treatmentResponsible" class="form-label fw-bold">
+                                <i class="fas fa-users me-1"></i>{% trans "Responsible Person/Team" %}
+                            </label>
+                            <div class="mb-2 d-flex gap-2 flex-wrap">
+                                <div class="flex-grow-1" style="min-width: 140px;">
+                                    <label for="filter_responsible_department" class="form-label small text-muted mb-0">{% trans "Filter by Department" %}</label>
+                                    <select id="filter_responsible_department" class="form-select form-select-sm">
+                                        <option value="">{% trans "All" %}</option>
+                                    </select>
+                                </div>
+                                <div class="flex-grow-1" style="min-width: 140px;">
+                                    <label for="filter_responsible_position" class="form-label small text-muted mb-0">{% trans "Filter by Position" %}</label>
+                                    <select id="filter_responsible_position" class="form-select form-select-sm">
+                                        <option value="">{% trans "All" %}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <select class="form-select" id="treatmentResponsible" size="6" multiple>
+                            </select>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>{% trans "Specify the person, team, or department responsible for implementing this treatment." %} {% trans "Hold Ctrl (or Cmd) to select multiple." %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info" role="alert">
+                    <div class="d-flex">
+                        <i class="fas fa-lightbulb me-2 mt-1"></i>
+                        <div>
+                            <strong>{% trans "Tips for effective descriptions:" %}</strong>
+                            <ul class="mb-0 mt-1">
+                                <li>{% trans "Be specific about what needs to be done" %}</li>
+                                <li>{% trans "Include implementation steps and procedures" %}</li>
+                                <li>{% trans "Mention any tools, technologies, or resources needed" %}</li>
+                                <li>{% trans "Specify timelines and milestones if applicable" %}</li>
+                            </ul>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-keyboard me-1"></i>{% trans "Press Ctrl+Enter to save quickly" %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>{% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="saveDescriptionResponsible">
+                    <i class="fas fa-save me-1"></i>{% trans "Save Changes" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Treatment Type Selection Template -->
+<template id="treatmentTypeTemplate">
+    <select class="form-select treatment-type" required aria-label="{% trans 'Treatment Type' %}" style="font-size: 0.85rem;">
+    </select>
+</template>
+
+<!-- Status Selection Template -->
+<template id="statusTemplate">
+    <select class="form-select treatment-status" required aria-label="{% trans 'Status' %}" style="font-size: 0.85rem;">
+    </select>
+</template>
+
+<!-- Success/Error Alert Template -->
+<template id="alertTemplate">
+    <div class="alert alert-dismissible fade show" role="alert" style="font-size: 0.85rem;">
+        <span class="alert-message"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'Close' %}"></button>
+    </div>
+</template>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmClearModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">{% trans "Confirm Action" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Are you sure you want to clear all risk treatments for this asset? This action cannot be undone." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>{% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmClear">
+                    <i class="fas fa-trash-alt me-1"></i>{% trans "Clear All" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Data Modal -->
+<div class="modal fade" id="enhancedDataModal" tabindex="-1" aria-labelledby="enhancedDataModalLabel" aria-hidden="true">
+    {% csrf_token %}
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="enhancedDataModalLabel">{% trans "Treatment Details" %}</h5>
+                <button type="button" class="btn btn-light btn-sm me-2" id="showTreatmentHistoryBtn" title="{% trans 'Show History' %}">
+                    <i class="fas fa-history"></i> {% trans "History" %}
+                </button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Nav tabs -->
+                <ul class="nav nav-tabs nav-fill mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#residualRisk" type="button" role="tab"
+                                data-bs-toggle="tooltip" data-bs-placement="top" 
+                                title="{% trans 'Assess and document the remaining risk level after implementing controls' %}">
+                            <i class="fas fa-chart-line me-2"></i>{% trans "Residual Risk" %}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#effectiveness" type="button" role="tab"
+                                data-bs-toggle="tooltip" data-bs-placement="top" 
+                                title="{% trans 'Evaluate how well the treatment measures are working' %}">
+                            <i class="fas fa-check-circle me-2"></i>{% trans "Effectiveness" %}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#monitoring" type="button" role="tab"
+                                data-bs-toggle="tooltip" data-bs-placement="top" 
+                                title="{% trans 'Set up regular reviews and track treatment progress' %}">
+                            <i class="fas fa-eye me-2"></i>{% trans "Monitoring" %}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#costs" type="button" role="tab"
+                                data-bs-toggle="tooltip" data-bs-placement="top" 
+                                title="{% trans 'Track implementation costs and resource requirements' %}">
+                            <i class="fas fa-dollar-sign me-2"></i>{% trans "Costs & Resources" %}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#attachments" type="button" role="tab"
+                                data-bs-toggle="tooltip" data-bs-placement="top" 
+                                title="{% trans 'Upload and manage files related to this treatment' %}">
+                            <i class="fas fa-paperclip me-2"></i>{% trans "Attachments" %}
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab content -->
+                <div class="tab-content">
+                    <!-- Residual Risk Tab -->
+                    <div class="tab-pane fade show active" id="residualRisk" role="tabpanel">
+                        <div class="alert alert-info mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="alert-heading mb-0">
+                                    <i class="fas fa-chart-line me-2"></i>{% trans "Residual Risk Assessment Guide" %}
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-info toggle-guidance" data-target="residual-guidance">
+                                    <i class="fas fa-chevron-down me-1"></i>{% trans "Show Guide" %}
+                                </button>
+                            </div>
+                            <div id="residual-guidance" class="guidance-content mt-3" style="display: none;">
+                                <h6 class="mb-2">{% trans "Purpose of This Section:" %}</h6>
+                                <p class="mb-2">
+                                    {% trans "This section is intended to assess the residual risk—the level of risk that remains after risk mitigation measures or controls have been implemented. Even after applying security controls, some level of risk usually remains, and it's important to understand whether that remaining risk is acceptable or requires further action." %}
+                                </p>
+                                <h6 class="mb-2">{% trans "What to Do in This Section:" %}</h6>
+                                <ul class="mb-2">
+                                    <li><strong>{% trans "Evaluate Residual Risk Level:" %}</strong> {% trans "Consider the effectiveness of the controls that have been put in place. Determine whether they have significantly reduced the original risk or only partially addressed it. Based on this, assign a residual risk rating (e.g., Low, Medium, High, Critical)." %}</li>
+                                    <li><strong>{% trans "Provide Justification:" %}</strong> {% trans "Clearly explain why you assigned that particular residual risk level. Your justification should include: the types of controls implemented (e.g., technical, administrative, physical), their effectiveness in reducing the likelihood or impact of the threat, any limitations or gaps that still exist, and whether the residual risk is within the organization's risk tolerance." %}</li>
+                                    <li><strong>{% trans "Consider Further Actions:" %}</strong> {% trans "If the residual risk remains high or unacceptable, indicate whether additional controls are needed, or if the risk should be escalated to higher management for acceptance." %}</li>
+                                </ul>
+                                <div class="bg-light p-3 rounded">
+                                    <strong>{% trans "Example:" %}</strong><br>
+                                    <em>{% trans "Residual Risk Level: Medium" %}</em><br>
+                                    <em>{% trans "Justification: Although multi-factor authentication (MFA) and encryption have been implemented, the system still lacks regular patch management, which may leave it vulnerable to known exploits. Therefore, while the likelihood of unauthorized access has been reduced, the residual risk remains medium due to potential vulnerabilities from outdated software." %}</em>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Select the level of risk that remains after implementing the treatment measures' %}">
+                                        {% trans "Risk Level" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <select class="form-select" id="modal_residual_risk_level_select">
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                    <div id="residualRiskDescription" class="form-text mt-2"></div>
+                                    
+                                    <!-- Acceptable Risk Warning Alert -->
+                                    <div id="residualRiskWarningAlert" class="alert alert-warning mt-2" style="display: none;">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            <div>
+                                                <strong>{% trans "Warning:" %}</strong>
+                                                <span id="residualRiskWarningText"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Explain why you selected this risk level and provide supporting evidence' %}">
+                                        {% trans "Justification" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <textarea class="form-control" id="modal_residual_risk_justification" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Set the priority level for implementing this treatment and explain why' %}">
+                                        {% trans "Priority" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <select class="form-select mb-2" id="modal_priority_level_select">
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                    <div id="priorityDescription" class="form-text mt-2"></div>
+                                    <textarea class="form-control" id="modal_priority_justification" rows="3" 
+                                              placeholder="{% trans 'Explain why you assigned this priority level' %}"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Effectiveness Tab -->
+                    <div class="tab-pane fade" id="effectiveness" role="tabpanel">
+                        <div class="alert alert-info mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="alert-heading mb-0">
+                                    <i class="fas fa-check-circle me-2"></i>{% trans "Effectiveness Evaluation Guide" %}
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-info toggle-guidance" data-target="effectiveness-guidance">
+                                    <i class="fas fa-chevron-down me-1"></i>{% trans "Show Guide" %}
+                                </button>
+                            </div>
+                            <div id="effectiveness-guidance" class="guidance-content mt-3" style="display: none;">
+                                <h6 class="mb-2">{% trans "Purpose of This Section:" %}</h6>
+                                <p class="mb-2">
+                                    {% trans "This section is designed to evaluate how well your implemented risk treatment measures are performing in practice. It's not enough to just implement controls—you need to measure their actual effectiveness in reducing risk and achieving the desired security outcomes." %}
+                                </p>
+                                <h6 class="mb-2">{% trans "What to Do in This Section:" %}</h6>
+                                <ul class="mb-2">
+                                    <li><strong>{% trans "Rate Effectiveness Level:" %}</strong> {% trans "Assess how well the treatment is working based on measurable criteria. Consider factors like: reduction in security incidents, improved compliance scores, decreased vulnerability counts, or enhanced detection capabilities." %}</li>
+                                    <li><strong>{% trans "Define Metrics:" %}</strong> {% trans "Establish specific, measurable indicators that demonstrate effectiveness. Examples include: number of blocked attacks, time to detect incidents, compliance audit scores, user training completion rates, or system uptime improvements." %}</li>
+                                    <li><strong>{% trans "Set Evaluation Schedule:" %}</strong> {% trans "Determine when and how often you'll measure effectiveness. Regular evaluation helps identify if treatments are working as expected or need adjustment." %}</li>
+                                    <li><strong>{% trans "Document Evidence:" %}</strong> {% trans "Collect concrete evidence of effectiveness through logs, reports, assessments, or other documentation that supports your effectiveness rating." %}</li>
+                                </ul>
+                                <div class="bg-light p-3 rounded">
+                                    <strong>{% trans "Example:" %}</strong><br>
+                                    <em>{% trans "Effectiveness Level: High" %}</em><br>
+                                    <em>{% trans "Metrics: Since implementing the new firewall rules and intrusion detection system: (1) Blocked malicious traffic increased by 85%, (2) Mean time to detect threats decreased from 4 hours to 15 minutes, (3) Zero successful unauthorized access attempts in the last 6 months. These metrics demonstrate that the treatment is highly effective in reducing network-based risks." %}</em><br>
+                                    <em>{% trans "Evaluation Date: Reviewed monthly with quarterly comprehensive assessments." %}</em>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Rate how well the treatment measures are working to reduce the risk' %}">
+                                        {% trans "Effectiveness Level" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <select class="form-select" id="modal_effectiveness_level_select">
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                    <div id="effectivenessDescription" class="form-text mt-2"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'When was the effectiveness last evaluated?' %}">
+                                        {% trans "Evaluation Date" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <input type="date" class="form-control" id="modal_effectiveness_evaluation_date">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'What metrics or indicators are you using to measure effectiveness?' %}">
+                                        {% trans "Metrics" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <textarea class="form-control" id="modal_effectiveness_metrics" rows="3"
+                                              placeholder="{% trans 'Describe the metrics used to measure effectiveness' %}"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monitoring Tab -->
+                    <div class="tab-pane fade" id="monitoring" role="tabpanel">
+                        <div class="alert alert-info mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="alert-heading mb-0">
+                                    <i class="fas fa-eye me-2"></i>{% trans "Monitoring & Review Guide" %}
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-info toggle-guidance" data-target="monitoring-guidance">
+                                    <i class="fas fa-chevron-down me-1"></i>{% trans "Show Guide" %}
+                                </button>
+                            </div>
+                            <div id="monitoring-guidance" class="guidance-content mt-3" style="display: none;">
+                                <h6 class="mb-2">{% trans "Purpose of This Section:" %}</h6>
+                                <p class="mb-2">
+                                    {% trans "This section establishes a systematic approach to continuously monitor and review your risk treatments. Effective monitoring ensures that treatments remain effective over time, identifies when adjustments are needed, and provides accountability for ongoing risk management activities." %}
+                                </p>
+                                <h6 class="mb-2">{% trans "What to Do in This Section:" %}</h6>
+                                <ul class="mb-2">
+                                    <li><strong>{% trans "Set Review Frequency:" %}</strong> {% trans "Determine how often the treatment should be reviewed based on risk level, regulatory requirements, and business criticality. High-risk treatments may need monthly reviews, while lower-risk ones might be reviewed quarterly or annually." %}</li>
+                                    <li><strong>{% trans "Assign Responsibilities:" %}</strong> {% trans "Clearly identify who is responsible for conducting reviews, what they should examine, and what actions they can take. Include primary and backup reviewers to ensure continuity." %}</li>
+                                    <li><strong>{% trans "Schedule Reviews:" %}</strong> {% trans "Set specific dates for next and last reviews. Use calendar reminders and tracking systems to ensure reviews happen on schedule." %}</li>
+                                    <li><strong>{% trans "Document Findings:" %}</strong> {% trans "Record what was reviewed, what was found, any issues identified, and what actions were taken. This creates an audit trail and helps identify trends over time." %}</li>
+                                    <li><strong>{% trans "Define Review Scope:" %}</strong> {% trans "Specify what aspects should be reviewed: effectiveness metrics, compliance status, cost performance, user feedback, or technical performance indicators." %}</li>
+                                </ul>
+                                <div class="bg-light p-3 rounded">
+                                    <strong>{% trans "Example:" %}</strong><br>
+                                    <em>{% trans "Frequency: Monthly technical reviews, quarterly business impact assessments" %}</em><br>
+                                    <em>{% trans "Responsible: Primary - IT Security Manager (John Smith), Secondary - Network Administrator (Jane Doe)" %}</em><br>
+                                    <em>{% trans "Review Notes: Last review (March 2024) found firewall rules blocking 99.2% of malicious traffic with 0.1% false positives. Recommended updating signature database and adding two new rule sets for emerging threats. Next review scheduled for April 15, 2024." %}</em>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'How often should this treatment be reviewed?' %}">
+                                        {% trans "Frequency" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <select class="form-control" id="modal_monitoring_frequency_select">
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                </div>
+                                <div class="form-group mt-3">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'When is the next review scheduled?' %}">
+                                        {% trans "Next Review" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <input type="date" class="form-control" id="modal_next_review_date">
+                                </div>
+                                <div class="form-group mt-3">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'When was the last review conducted?' %}">
+                                        {% trans "Last Review" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <input type="date" class="form-control" id="modal_last_review_date">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Who is responsible for monitoring this treatment?' %}">
+                                        {% trans "Responsible" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <div class="mb-2 d-flex gap-2 flex-wrap">
+                                        <div class="flex-grow-1" style="min-width: 120px;">
+                                            <label for="filter_monitoring_department" class="form-label small text-muted mb-0">{% trans "Filter by Department" %}</label>
+                                            <select id="filter_monitoring_department" class="form-select form-select-sm">
+                                                <option value="">{% trans "All" %}</option>
+                                            </select>
+                                        </div>
+                                        <div class="flex-grow-1" style="min-width: 120px;">
+                                            <label for="filter_monitoring_position" class="form-label small text-muted mb-0">{% trans "Filter by Position" %}</label>
+                                            <select id="filter_monitoring_position" class="form-select form-select-sm">
+                                                <option value="">{% trans "All" %}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <select class="form-control" id="modal_monitoring_responsible_select" multiple size="6">
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                    <div class="form-text small">{% trans "Hold Ctrl (or Cmd) to select multiple." %}</div>
+                                </div>
+                                <div class="form-group mt-3">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Document findings and observations from reviews' %}">
+                                        {% trans "Review Notes" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <textarea class="form-control" id="modal_review_notes" rows="5"
+                                              placeholder="{% trans 'Document review findings and observations' %}"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Costs Tab -->
+                    <div class="tab-pane fade" id="costs" role="tabpanel">
+                        <div class="alert alert-info mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="alert-heading mb-0">
+                                    <i class="fas fa-dollar-sign me-2"></i>{% trans "Costs & Resources Guide" %}
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-info toggle-guidance" data-target="costs-guidance">
+                                    <i class="fas fa-chevron-down me-1"></i>{% trans "Show Guide" %}
+                                </button>
+                            </div>
+                            <div id="costs-guidance" class="guidance-content mt-3" style="display: none;">
+                                <h6 class="mb-2">{% trans "Purpose of This Section:" %}</h6>
+                                <p class="mb-2">
+                                    {% trans "This section helps you track the financial aspects of risk treatment implementation and ongoing maintenance. Understanding costs, resources, and return on investment (ROI) is crucial for making informed decisions about risk management investments and demonstrating value to stakeholders." %}
+                                </p>
+                                <h6 class="mb-2">{% trans "What to Do in This Section:" %}</h6>
+                                <ul class="mb-2">
+                                    <li><strong>{% trans "Calculate Implementation Costs:" %}</strong> {% trans "Include all one-time expenses: software licenses, hardware purchases, professional services, training, configuration, and testing. Don't forget indirect costs like staff time and potential downtime." %}</li>
+                                    <li><strong>{% trans "Estimate Annual Maintenance:" %}</strong> {% trans "Factor in ongoing expenses: license renewals, support contracts, regular maintenance, updates, monitoring tools, and dedicated staff time for management." %}</li>
+                                    <li><strong>{% trans "Assess ROI:" %}</strong> {% trans "Compare the total cost of the treatment against the potential cost of the risk if it materialized. Consider both quantitative benefits (avoided losses, compliance fines) and qualitative benefits (reputation protection, customer trust)." %}</li>
+                                    <li><strong>{% trans "Identify Dependencies:" %}</strong> {% trans "List other treatments or systems that this treatment relies on, as their costs and availability may impact this treatment's effectiveness." %}</li>
+                                    <li><strong>{% trans "Map Affected Assets:" %}</strong> {% trans "Identify all assets that benefit from this treatment to help justify costs and ensure comprehensive coverage." %}</li>
+                                    <li><strong>{% trans "Document Prerequisites:" %}</strong> {% trans "List requirements that must be met before implementation, as these may involve additional costs or delays." %}</li>
+                                </ul>
+                                <div class="bg-light p-3 rounded">
+                                    <strong>{% trans "Example:" %}</strong><br>
+                                    <em>{% trans "Implementation Cost: $25,000 (includes $15,000 for firewall hardware, $5,000 for professional installation, $3,000 for staff training, $2,000 for testing)" %}</em><br>
+                                    <em>{% trans "Annual Maintenance: $8,000 (includes $5,000 support contract, $2,000 for updates, $1,000 for monitoring tools)" %}</em><br>
+                                    <em>{% trans "ROI Assessment: Protects against potential data breach costs estimated at $500,000-$2M. Treatment pays for itself if it prevents just one major incident. Additional benefits include improved compliance posture and customer confidence." %}</em><br>
+                                    <em>{% trans "Dependencies: Requires network infrastructure upgrade (completed), staff security training (in progress)" %}</em>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'One-time cost to implement the treatment' %}">
+                                        {% trans "Implementation Cost" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control" id="modal_implementation_cost">
+                                    </div>
+                                </div>
+                                <div class="form-group mt-3">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Yearly cost to maintain the treatment' %}">
+                                        {% trans "Annual Maintenance" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control" id="modal_annual_maintenance_cost">
+                                    </div>
+                                </div>
+                                <div class="form-group mt-3">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Evaluate the return on investment for this treatment' %}">
+                                        {% trans "ROI Assessment" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <textarea class="form-control" id="modal_roi_assessment" rows="3"
+                                              placeholder="{% trans 'Describe the expected benefits versus costs' %}"></textarea>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Other treatments that this one depends on' %}">
+                                        {% trans "Dependencies" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <select class="form-control" id="modal_dependencies" multiple>
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                </div>
+                                <div class="form-group mt-3">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Assets impacted by this treatment' %}">
+                                        {% trans "Affected Assets" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <select class="form-control" id="modal_affected_assets" multiple>
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                </div>
+                                <div class="form-group mt-3">
+                                    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                           title="{% trans 'Requirements that must be met before implementing' %}">
+                                        {% trans "Prerequisites" %} <i class="fas fa-info-circle text-muted"></i>
+                                    </label>
+                                    <textarea class="form-control" id="modal_prerequisites" rows="3"
+                                              placeholder="{% trans 'List any prerequisites for implementation' %}"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attachments Tab -->
+                    <div class="tab-pane fade" id="attachments" role="tabpanel">
+                        <div class="alert alert-info mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="alert-heading mb-0">
+                                    <i class="fas fa-paperclip me-2"></i>{% trans "Attachments Guide" %}
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-info toggle-guidance" data-target="attachments-guidance">
+                                    <i class="fas fa-chevron-down me-1"></i>{% trans "Show Guide" %}
+                                </button>
+                            </div>
+                            <div id="attachments-guidance" class="guidance-content mt-3" style="display: none;">
+                                <h6 class="mb-2">{% trans "Purpose of This Section:" %}</h6>
+                                <p class="mb-2">
+                                    {% trans "This section allows you to upload and manage files related to this risk treatment. Attachments can include documentation, reports, policies, procedures, evidence of implementation, or any other relevant files that support the treatment process." %}
+                                </p>
+                                <h6 class="mb-2">{% trans "What You Can Upload:" %}</h6>
+                                <ul class="mb-2">
+                                    <li><strong>{% trans "Documentation:" %}</strong> {% trans "Policies, procedures, standards, guidelines, or technical specifications" %}</li>
+                                    <li><strong>{% trans "Reports:" %}</strong> {% trans "Assessment reports, audit findings, compliance reports, or incident reports" %}</li>
+                                    <li><strong>{% trans "Evidence:" %}</strong> {% trans "Screenshots, logs, test results, or proof of implementation" %}</li>
+                                    <li><strong>{% trans "Contracts:" %}</strong> {% trans "Vendor agreements, service contracts, or purchase orders" %}</li>
+                                    <li><strong>{% trans "Training Materials:" %}</strong> {% trans "User guides, training presentations, or awareness materials" %}</li>
+                                </ul>
+                                <div class="bg-light p-3 rounded">
+                                    <strong>{% trans "Supported File Types:" %}</strong> PDF, DOC, DOCX, XLS, XLSX, TXT, JPG, JPEG, PNG, GIF<br>
+                                    <strong>{% trans "Maximum File Size:" %}</strong> 10MB per file<br>
+                                    <strong>{% trans "Security:" %}</strong> {% trans "Files are stored securely and access is controlled based on user permissions" %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Upload Section -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-upload me-2"></i>{% trans "Upload New File" %}</h6>
+                            </div>
+                            <div class="card-body">
+                                <form id="uploadAttachmentForm" enctype="multipart/form-data">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="form-label">{% trans "Select File" %}</label>
+                                                <input type="file" class="form-control" id="attachmentFile" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,.gif">
+                                                <div class="form-text">{% trans "Maximum file size: 10MB" %}</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="form-label">{% trans "Description (Optional)" %}</label>
+                                                <textarea class="form-control" id="attachmentDescription" name="description" rows="3" placeholder="{% trans 'Brief description of the file content' %}"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <button type="submit" class="btn btn-primary" id="uploadAttachmentBtn">
+                                            <i class="fas fa-upload me-2"></i>{% trans "Upload File" %}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Existing Attachments -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-folder me-2"></i>{% trans "Existing Attachments" %}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="attachmentsList">
+                                    <!-- Attachments will be loaded here dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="saveDetailedTreatment">
+                    <i class="fas fa-save me-2"></i>{% trans "Save Changes" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.show-details-btn {
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+}
+
+.show-details-btn i {
+    font-size: 0.875rem;
+}
+
+#enhancedDataModal .modal-body {
+    max-height: calc(100vh - 210px);
+    overflow-y: auto;
+}
+
+.badge-info {
+    background-color: #17a2b8;
+    color: white;
+}
+
+/* Styles for the enhanced data modal */
+#enhancedDataModal .modal-body {
+    max-height: calc(100vh - 210px);
+    overflow-y: auto;
+}
+
+#enhancedDataModal h6 {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+#enhancedDataModal p {
+    color: #6c757d;
+    margin-bottom: 1rem;
+}
+
+#enhancedDataModal .nav-tabs {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+}
+
+#enhancedDataModal .nav-link {
+    color: #0d6efd !important;  /* Blue text for inactive tabs */
+    font-weight: 700;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease-in-out;
+    background-color: #bbc1c7;
+    margin: 0 0.35rem;
+    border: 1px solid #a5adb5;
+}
+
+#enhancedDataModal .nav-link:hover {
+    background-color: #a5adb5;
+    transform: translateY(-1px);
+    border-color: #8e969e;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#enhancedDataModal .nav-link.active {
+    color: #ffffff !important;  /* White text for active tab */
+    background-color: #0d6efd;
+    box-shadow: 0 2px 6px rgba(13, 110, 253, 0.4);
+    border-color: #0d6efd;
+    font-weight: 700;
+}
+
+#enhancedDataModal .tab-content {
+    padding: 1.5rem;
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    margin-top: 1rem;
+}
+
+#enhancedDataModal .form-label {
+    font-weight: 500;
+    color: #495057;
+}
+
+#enhancedDataModal .form-control:focus,
+#enhancedDataModal .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+#enhancedDataModal select[multiple] {
+    height: 150px;
+}
+
+.modal-dialog.modal-fullscreen {
+    max-width: 100% !important;
+    margin: 0;
+    padding: 0;
+}
+
+.modal-content {
+    min-height: 100vh;
+    border-radius: 0;
+}
+
+.modal-header {
+    padding: 1rem 1.5rem;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.table-responsive {
+    height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+
+#riskTreatmentTable {
+    table-layout: fixed;
+    width: 100%;
+}
+
+#riskTreatmentTable thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 1;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+#riskTreatmentTable td {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    vertical-align: top;
+    padding: 8px;
+}
+
+#riskTreatmentTable td .text-wrap {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+/* Ensure the enhanced data modal is also properly styled */
+#enhancedDataModal .modal-dialog {
+    max-width: 1000px !important;  /* Increased from 800px by 25% */
+    margin: 1.75rem auto;
+}
+
+#enhancedDataModal .modal-content {
+    min-height: auto;
+    border-radius: 0.3rem;
+}
+
+/* Add these styles for better select appearance */
+#enhancedDataModal select option {
+    padding: 8px;
+}
+
+#enhancedDataModal select[multiple] {
+    height: 150px;
+}
+
+#enhancedDataModal .form-select,
+#enhancedDataModal .form-control {
+    margin-bottom: 10px;
+}
+
+/* Style for colored select options */
+#modal_residual_risk_level_select option,
+#modal_priority_level_select option,
+#modal_effectiveness_level_select option {
+    padding: 8px;
+    margin: 2px;
+    border-radius: 4px;
+}
+
+/* Add styles for tooltips */
+.tooltip {
+    font-size: 0.875rem;
+}
+
+.tooltip-inner {
+    max-width: 300px;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.alert-info {
+    background-color: #e8f4f8;
+    border-color: #b8e7f3;
+    color: #0c5460;
+}
+
+/* Enhanced alert styling for detailed guidance */
+.alert-info .alert-heading {
+    color: #0c5460;
+    font-weight: 600;
+}
+
+.alert-info ul {
+    padding-left: 1.2rem;
+}
+
+.alert-info ul li {
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.alert-info .bg-light {
+    background-color: #f8f9fa !important;
+    border: 1px solid #dee2e6;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* Collapsible guidance styling */
+.toggle-guidance {
+    border: 1px solid #0c5460;
+    color: #0c5460;
+    background-color: transparent;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.toggle-guidance:hover {
+    background-color: #0c5460;
+    color: white;
+    border-color: #0c5460;
+}
+
+.toggle-guidance:focus {
+    box-shadow: 0 0 0 0.2rem rgba(12, 84, 96, 0.25);
+}
+
+.toggle-guidance i {
+    transition: transform 0.2s ease;
+}
+
+.toggle-guidance.expanded i {
+    transform: rotate(180deg);
+}
+
+.guidance-content {
+    border-top: 1px solid #b8e7f3;
+    padding-top: 1rem;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+        padding-top: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 1000px;
+        padding-top: 1rem;
+    }
+}
+
+.guidance-content.hiding {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 1;
+        max-height: 1000px;
+        padding-top: 1rem;
+    }
+    to {
+        opacity: 0;
+        max-height: 0;
+        padding-top: 0;
+    }
+}
+
+/* Add icon styling */
+.fa-info-circle {
+    font-size: 0.875rem;
+    opacity: 0.7;
+}
+
+/* Table header tooltips styling */
+#riskTreatmentTable thead th {
+    position: relative;
+}
+
+#riskTreatmentTable thead th .fa-info-circle {
+    font-size: 0.75rem;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+#riskTreatmentTable thead th:hover .fa-info-circle {
+    opacity: 1;
+    color: #0d6efd;
+}
+
+/* Description & Responsible Modal Styles */
+#descriptionResponsibleModal .modal-dialog {
+    max-width: 800px;
+    max-height: 90vh;
+}
+
+#descriptionResponsibleModal .modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+#descriptionResponsibleModal .form-label {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+#descriptionResponsibleModal .form-control,
+#descriptionResponsibleModal .form-select {
+    border-radius: 0.375rem;
+    border: 1px solid #ced4da;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    margin-bottom: 1rem;
+}
+
+#descriptionResponsibleModal .form-control:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+#descriptionResponsibleModal textarea {
+    resize: vertical;
+    min-height: 120px;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+#descriptionResponsibleModal .alert-info {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+    color: #0c5460;
+    margin-top: 1rem;
+}
+
+/* Description display styles */
+.description-responsible-display {
+    border: 1px solid #e9ecef;
+    border-radius: 0.375rem;
+    padding: 8px;
+    background-color: #f8f9fa;
+    transition: all 0.2s ease-in-out;
+    width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    min-height: 60px;
+    max-height: none;
+}
+
+.description-responsible-display:hover {
+    border-color: #86b7fe;
+    background-color: #ffffff;
+}
+
+.description-responsible-display .content-text {
+    padding-right: 30px;
+    line-height: 1.4;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    cursor: help;
+    max-height: none;
+    overflow: visible;
+}
+
+.edit-description-btn {
+    opacity: 0.7;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.description-responsible-display:hover .edit-description-btn {
+    opacity: 1;
+}
+
+.edit-description-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Enhanced tooltip styling */
+.tooltip {
+    font-size: 0.875rem;
+    z-index: 9999;
+}
+
+.tooltip-inner {
+    max-width: 350px;
+    padding: 10px 14px;
+    text-align: left;
+    background-color: #2c3e50;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.tooltip.bs-tooltip-top .tooltip-arrow::before {
+    border-top-color: #2c3e50;
+}
+
+.tooltip.bs-tooltip-bottom .tooltip-arrow::before {
+    border-bottom-color: #2c3e50;
+}
+
+.tooltip.bs-tooltip-start .tooltip-arrow::before {
+    border-left-color: #2c3e50;
+}
+
+.tooltip.bs-tooltip-end .tooltip-arrow::before {
+    border-right-color: #2c3e50;
+}
+
+/* Add focus styles for form controls */
+.form-control:focus, .form-select:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+/* Style the tab description alerts */
+.tab-pane .alert {
+    font-size: 0.9rem;
+    padding: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Add specific styling for the monitoring responsible select */
+#modal_monitoring_responsible_select {
+    height: 120px !important;
+    padding: 8px;
+}
+
+#modal_monitoring_responsible_select option {
+    padding: 6px 8px;
+    margin: 2px 0;
+    border-radius: 3px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+#modal_monitoring_responsible_select option:checked {
+    background-color: #007bff;
+    color: white;
+    font-weight: 500;
+}
+
+#modal_monitoring_responsible_select option:hover {
+    background-color: #e9ecef;
+}
+
+#modal_monitoring_responsible_select option:checked:hover {
+    background-color: #0056b3;
+}
+
+#enhancedDataModal .form-select,
+#enhancedDataModal .form-control {
+    margin-bottom: 10px;
+}
+
+/* Bulk Actions Panel Styles */
+#bulkActionsPanel {
+    border: 2px solid #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+}
+
+#bulkActionsPanel .card-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid #dee2e6;
+}
+
+#bulkActionsPanel h6 {
+    color: #495057;
+    font-weight: 600;
+}
+
+#bulkActionsPanel .btn {
+    transition: all 0.2s ease-in-out;
+}
+
+#bulkActionsPanel .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Checkbox styling */
+.treatment-checkbox {
+    cursor: pointer;
+    transform: scale(1.1);
+}
+
+.treatment-checkbox:checked {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+#selectAllCheckbox {
+    cursor: pointer;
+    transform: scale(1.1);
+}
+
+#selectAllCheckbox:checked {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+/* Selected row highlighting */
+tr.selected-for-bulk-action {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    border-left: 3px solid #007bff !important;
+}
+
+/* Bulk modal styles */
+#bulkTreatmentTypeModal .modal-header,
+#bulkStatusModal .modal-header {
+    border-bottom: 2px solid;
+}
+
+#bulkTreatmentTypeModal .modal-header {
+    border-bottom-color: #007bff;
+}
+
+#bulkStatusModal .modal-header {
+    border-bottom-color: #17a2b8;
+}
+
+/* Loading state styles */
+.btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.btn:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+</style>
+
+<script>
+$(document).ready(function() {
+    // ===== BULK SELECTION FUNCTIONALITY =====
+    
+    // Global variables for bulk selection
+    let selectedTreatments = new Set();
+    let treatmentTypes = {};
+    let treatmentStatuses = {};
+    
+    // Initialize bulk selection functionality
+    function initializeBulkSelection() {
+        // Select all checkbox functionality
+        $('#selectAllCheckbox').off('change').on('change', function() {
+            const isChecked = $(this).is(':checked');
+            $('.treatment-checkbox').prop('checked', isChecked);
+            
+            if (isChecked) {
+                $('.treatment-checkbox').each(function() {
+                    selectedTreatments.add($(this).val());
+                    $(this).closest('tr').addClass('selected-for-bulk-action');
+                });
+            } else {
+                selectedTreatments.clear();
+                $('tr').removeClass('selected-for-bulk-action');
+            }
+            
+            updateBulkActionsPanel();
+        });
+        
+        // Individual checkbox functionality
+        $(document).off('change', '.treatment-checkbox').on('change', '.treatment-checkbox', function() {
+            const treatmentId = $(this).val();
+            const isChecked = $(this).is(':checked');
+            const row = $(this).closest('tr');
+            
+            if (isChecked) {
+                selectedTreatments.add(treatmentId);
+                row.addClass('selected-for-bulk-action');
+            } else {
+                selectedTreatments.delete(treatmentId);
+                row.removeClass('selected-for-bulk-action');
+            }
+            
+            // Update select all checkbox state
+            const totalCheckboxes = $('.treatment-checkbox').length;
+            const checkedCheckboxes = $('.treatment-checkbox:checked').length;
+            
+            if (checkedCheckboxes === 0) {
+                $('#selectAllCheckbox').prop('indeterminate', false).prop('checked', false);
+            } else if (checkedCheckboxes === totalCheckboxes) {
+                $('#selectAllCheckbox').prop('indeterminate', false).prop('checked', true);
+            } else {
+                $('#selectAllCheckbox').prop('indeterminate', true);
+            }
+            
+            updateBulkActionsPanel();
+        });
+        
+        // Select All button
+        $('#selectAllBtn').off('click').on('click', function() {
+            $('.treatment-checkbox').prop('checked', true);
+            $('.treatment-checkbox').each(function() {
+                selectedTreatments.add($(this).val());
+                $(this).closest('tr').addClass('selected-for-bulk-action');
+            });
+            $('#selectAllCheckbox').prop('indeterminate', false).prop('checked', true);
+            updateBulkActionsPanel();
+        });
+        
+        // Deselect All button
+        $('#deselectAllBtn').off('click').on('click', function() {
+            $('.treatment-checkbox').prop('checked', false);
+            selectedTreatments.clear();
+            $('tr').removeClass('selected-for-bulk-action');
+            $('#selectAllCheckbox').prop('indeterminate', false).prop('checked', false);
+            updateBulkActionsPanel();
+        });
+        
+        // Bulk Treatment Type button
+        $('#bulkTreatmentTypeBtn').off('click').on('click', function() {
+            if (selectedTreatments.size === 0) {
+                showTreatmentAlert('warning', '{% trans "Please select at least one treatment." %}');
+                return;
+            }
+            showBulkTreatmentTypeModal();
+        });
+        
+        // Bulk Status button
+        $('#bulkStatusBtn').off('click').on('click', function() {
+            if (selectedTreatments.size === 0) {
+                showTreatmentAlert('warning', '{% trans "Please select at least one treatment." %}');
+                return;
+            }
+            showBulkStatusModal();
+        });
+        
+        // Apply Bulk Treatment Type
+        $('#applyBulkTreatmentType').off('click').on('click', function() {
+            const newTreatmentType = $('#bulkTreatmentTypeSelect').val();
+            if (!newTreatmentType) {
+                showTreatmentAlert('warning', '{% trans "Please select a treatment type." %}');
+                return;
+            }
+            applyBulkTreatmentType(newTreatmentType);
+        });
+        
+        // Apply Bulk Status
+        $('#applyBulkStatus').off('click').on('click', function() {
+            const newStatus = $('#bulkStatusSelect').val();
+            if (!newStatus) {
+                showTreatmentAlert('warning', '{% trans "Please select a status." %}');
+                return;
+            }
+            applyBulkStatus(newStatus);
+        });
+    }
+    
+    // Update bulk actions panel visibility and count
+    function updateBulkActionsPanel() {
+        const count = selectedTreatments.size;
+        $('#selectedCount').text(count);
+        
+        if (count > 0) {
+            $('#bulkActionsPanel').show();
+        } else {
+            $('#bulkActionsPanel').hide();
+        }
+    }
+    
+    // Show bulk treatment type modal
+    function showBulkTreatmentTypeModal() {
+        $('#bulkTreatmentTypeCount').text(selectedTreatments.size);
+        
+        // Populate treatment type options
+        const select = $('#bulkTreatmentTypeSelect');
+        select.empty().append('<option value="">{% trans "Select Treatment Type" %}</option>');
+        
+        Object.keys(treatmentTypes).forEach(code => {
+            select.append(
+                $('<option></option>')
+                    .val(code)
+                    .text(treatmentTypes[code].name)
+            );
+        });
+        
+        $('#bulkTreatmentTypeModal').modal('show');
+    }
+    
+    // Show bulk status modal
+    function showBulkStatusModal() {
+        $('#bulkStatusCount').text(selectedTreatments.size);
+        
+        // Populate status options
+        const select = $('#bulkStatusSelect');
+        select.empty().append('<option value="">{% trans "Select Treatment Status" %}</option>');
+        
+        Object.keys(treatmentStatuses).forEach(code => {
+            select.append(
+                $('<option></option>')
+                    .val(code)
+                    .text(treatmentStatuses[code].name)
+            );
+        });
+        
+        $('#bulkStatusModal').modal('show');
+    }
+    
+    // Apply bulk treatment type changes
+    function applyBulkTreatmentType(newTreatmentType) {
+        const treatmentIds = Array.from(selectedTreatments);
+        
+        // Show loading state
+        $('#applyBulkTreatmentType').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Applying..." %}');
+        
+        $.ajax({
+            url: "{% url 'bulk_update_risk_treatments' %}",
+            method: 'POST',
+            data: JSON.stringify({
+                treatment_ids: treatmentIds,
+                treatment_type: newTreatmentType
+            }),
+            contentType: 'application/json',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Update UI
+                    selectedTreatments.forEach(treatmentId => {
+                        const row = $(`tr[data-treatment-id="${treatmentId}"]`);
+                        const treatmentTypeSelect = row.find('.treatment-type');
+                        treatmentTypeSelect.val(newTreatmentType);
+                        updateTreatmentTypeColor(treatmentTypeSelect, treatmentTypes);
+                    });
+                    
+                    $('#bulkTreatmentTypeModal').modal('hide');
+                    showTreatmentAlert('success', response.message);
+                } else {
+                    showTreatmentAlert('danger', response.message || '{% trans "Error updating treatments." %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error in bulk treatment type update:", error);
+                let errorMessage = '{% trans "Error updating treatments. Please try again." %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                showTreatmentAlert('danger', errorMessage);
+            },
+            complete: function() {
+                // Reset button state
+                $('#applyBulkTreatmentType').prop('disabled', false).html('<i class="fas fa-check me-1"></i>{% trans "Apply Changes" %}');
+                
+                // Clear selection
+                $('.treatment-checkbox').prop('checked', false);
+                selectedTreatments.clear();
+                $('tr').removeClass('selected-for-bulk-action');
+                $('#selectAllCheckbox').prop('indeterminate', false).prop('checked', false);
+                updateBulkActionsPanel();
+            }
+        });
+    }
+    
+    // Apply bulk status changes
+    function applyBulkStatus(newStatus) {
+        const treatmentIds = Array.from(selectedTreatments);
+        
+        // Show loading state
+        $('#applyBulkStatus').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Applying..." %}');
+        
+        $.ajax({
+            url: "{% url 'bulk_update_risk_treatments' %}",
+            method: 'POST',
+            data: JSON.stringify({
+                treatment_ids: treatmentIds,
+                status: newStatus
+            }),
+            contentType: 'application/json',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Update UI
+                    selectedTreatments.forEach(treatmentId => {
+                        const row = $(`tr[data-treatment-id="${treatmentId}"]`);
+                        const statusSelect = row.find('.treatment-status');
+                        statusSelect.val(newStatus);
+                        updateStatusColor(statusSelect, treatmentStatuses);
+                    });
+                    
+                    $('#bulkStatusModal').modal('hide');
+                    showTreatmentAlert('success', response.message);
+                } else {
+                    showTreatmentAlert('danger', response.message || '{% trans "Error updating treatments." %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error in bulk status update:", error);
+                let errorMessage = '{% trans "Error updating treatments. Please try again." %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                showTreatmentAlert('danger', errorMessage);
+            },
+            complete: function() {
+                // Reset button state
+                $('#applyBulkStatus').prop('disabled', false).html('<i class="fas fa-check me-1"></i>{% trans "Apply Changes" %}');
+                
+                // Clear selection
+                $('.treatment-checkbox').prop('checked', false);
+                selectedTreatments.clear();
+                $('tr').removeClass('selected-for-bulk-action');
+                $('#selectAllCheckbox').prop('indeterminate', false).prop('checked', false);
+                updateBulkActionsPanel();
+            }
+        });
+    }
+
+    window.loadRiskTreatmentData = function(assetId) {
+        console.log("Loading risk treatment data for asset ID:", assetId);
+        $('#riskTreatmentModal').data('asset-id', assetId);
+        $('#riskTreatmentTableBody').empty();
+        
+        // Show loading indicator
+        $('#riskTreatmentTableBody').html('<tr><td colspan="11" class="text-center"><i class="fas fa-spinner fa-spin me-2"></i>' + 
+                                           '{% trans "Loading treatments..." %}</td></tr>');
+        
+        $.ajax({
+            url: "{% url 'get_risk_treatment_data' %}",
+            data: { asset_id: assetId },
+            success: function(response) {
+                console.log("Received risk treatment data:", response);
+                
+                if (response.error) {
+                    showTreatmentAlert('danger', response.error);
+                    return;
+                }
+                
+                $('#riskTreatmentTableBody').empty();
+                
+                const treatments = response.treatments || [];
+                treatmentTypes = response.treatment_types || {};
+                treatmentStatuses = response.treatment_statuses || {};
+                
+                if (treatments.length === 0) {
+                    $('#riskTreatmentTableBody').html('<tr><td colspan="11" class="text-center">' + 
+                                                     '{% trans "No risk treatments found for this asset." %}</td></tr>');
+                    return;
+                }
+                
+                // Update asset info in the modal header
+                $('#treatmentAssetID').text(treatments[0].asset_id);
+                $('#treatmentAssetName').text(treatments[0].asset_name);
+                $('#treatmentCompanyName').text(treatments[0].company);
+                
+                // Populate the table with data
+                for (let i = 0; i < treatments.length; i++) {
+                    const treatment = treatments[i];
+                    
+                    // Initialize description and responsible data
+                    descriptionResponsibleData[treatment.id] = {
+                        description: treatment.description || '',
+                        responsible: treatment.responsible || ''
+                    };
+                    
+                    // Create treatment type dropdown with current value selected
+                    const treatmentTypeTemplate = $('#treatmentTypeTemplate').html();
+                    const treatmentTypeSelect = $(treatmentTypeTemplate);
+                    
+                    // Create options for all available treatment types
+                    treatmentTypeSelect.empty();
+                    Object.keys(treatmentTypes).forEach(code => {
+                        treatmentTypeSelect.append(
+                            $('<option></option>')
+                                .val(code)
+                                .text(treatmentTypes[code].name)
+                        );
+                    });
+                    
+                    // Set the current value
+                    treatmentTypeSelect.val(treatment.treatment_type.code);
+                    
+                    // Create deadline input with current value
+                    const deadlineInput = $('<input>')
+                        .attr('type', 'date')
+                        .addClass('form-control treatment-deadline')
+                        .css('font-size', '0.85rem')
+                        .val(treatment.deadline)
+                        .attr('aria-label', '{% trans "Deadline" %}');
+                    
+                    // Create status dropdown with current value selected
+                    const statusTemplate = $('#statusTemplate').html();
+                    const statusSelect = $(statusTemplate);
+                    
+                    // Create options for all available statuses
+                    statusSelect.empty();
+                    Object.keys(treatmentStatuses).forEach(code => {
+                        statusSelect.append(
+                            $('<option></option>')
+                                .val(code)
+                                .text(treatmentStatuses[code].name)
+                        );
+                    });
+                    
+                    // Set the current value
+                    statusSelect.val(treatment.status.code);
+                    
+                    // Create description and responsible display with edit button
+                    const descriptionDisplay = $('<div>')
+                        .addClass('description-responsible-display')
+                        .css({
+                            'font-size': '0.85rem',
+                            'min-height': '60px',
+                            'max-height': 'none',
+                            'overflow': 'visible',
+                            'position': 'relative',
+                            'width': '100%'
+                        });
+                    
+                    // Create the content display
+                    const contentDiv = $('<div>')
+                        .addClass('content-text')
+                        .html(formatDescriptionResponsible(treatment.description, treatment.responsible))
+                        .attr('title', treatment.description ? `Description: ${treatment.description}${treatment.responsible ? '\n\nResponsible: ' + treatment.responsible : ''}` : 'No description');
+                    
+                    // Create edit button
+                    const editButton = $('<button>')
+                        .addClass('btn btn-outline-primary btn-sm edit-description-btn')
+                        .css({
+                            'position': 'absolute',
+                            'top': '2px',
+                            'right': '2px',
+                            'font-size': '0.7rem',
+                            'padding': '2px 6px',
+                            'z-index': '10'
+                        })
+                        .html('<i class="fas fa-edit"></i>')
+                        .attr('title', '{% trans "Edit Description & Responsible" %}')
+                        .on('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openDescriptionResponsibleModal(treatment.id, treatment.description, treatment.responsible);
+                        });
+                    
+                    descriptionDisplay.append(contentDiv, editButton);
+                    
+                    // Format last modified info for inclusion in Treatment Details
+                    let lastModifiedInfo = '';
+                    if (treatment.last_modified && treatment.last_modified.datetime) {
+                        lastModifiedInfo = `<div class="mt-1"><small class="text-muted" style="font-size: 0.7rem;">
+                                           <i class="far fa-clock me-1"></i>${treatment.last_modified.datetime}
+                                           <br><i class="far fa-user me-1"></i>${treatment.last_modified.user}</small></div>`;
+                    }
+                    
+                    // Format risk mitigation controls to show only first 50 words with a "Show more" link
+                    let riskMitigationControls = '';
+                    if (treatment.risk_mitigation_controls) {
+                        const words = treatment.risk_mitigation_controls.split(' ');
+                        if (words.length > 50) {
+                            const firstPart = words.slice(0, 50).join(' ');
+                            const remainingPart = words.slice(50).join(' ');
+                            riskMitigationControls = `
+                                <div class="text-wrap" style="font-size: 0.85rem; max-width: 100%; overflow: hidden;">
+                                    <div class="mitigationShort">${firstPart}... <a href="#" class="showMoreLink text-primary">{% trans "Show more" %}</a></div>
+                                    <div class="mitigationFull" style="display:none">
+                                        ${treatment.risk_mitigation_controls}
+                                        <a href="#" class="showLessLink text-primary">{% trans "Show less" %}</a>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            riskMitigationControls = `<div class="text-wrap" style="font-size: 0.85rem; max-width: 100%; overflow: hidden;">${treatment.risk_mitigation_controls}</div>`;
+                        }
+                    } else {
+                        riskMitigationControls = `<div class="text-wrap" style="font-size: 0.85rem;"></div>`;
+                    }
+                    
+                    // Create table row
+                    const row = $('<tr>')
+                        .attr('data-treatment-id', treatment.id)
+                        .data('treatment-types', treatmentTypes)
+                        .data('treatment-statuses', treatmentStatuses)
+                        .append(
+                            $('<td style="width: 40px;" class="text-center">').html(`<input type="checkbox" class="form-check-input treatment-checkbox" value="${treatment.id}" title="{% trans 'Select/Deselect' %}">`),
+                            $('<td style="width: 15%;">').html(`<div class="text-wrap" style="font-size: 0.85rem;">${treatment.vulnerability}</div>`),
+                            $('<td style="width: 5%;" class="text-center">').html(`<span class="badge ${getStatusBadgeClass(treatment.vulnerability_status)}" style="font-size: 0.75rem;">${treatment.vulnerability_status || 'N/A'}</span>`),
+                            $('<td style="width: 15%;">').html(`<div class="text-wrap" style="font-size: 0.85rem; max-width: 100%; overflow: hidden;">${treatment.threats_and_risk_levels}</div>`),
+                            $('<td style="width: 8%;">').html(createRiskLevelBadge(treatment.highest_risk_level)),
+                            $('<td style="width: 15%;">').html(riskMitigationControls),
+                            $('<td style="width: 10%;">').append(treatmentTypeSelect),
+                            $('<td style="width: 180px; max-width: 180px;">').append(descriptionDisplay),
+                            $('<td style="width: 8%;">').append(deadlineInput),
+                            $('<td style="width: 8%;">').append(statusSelect),
+                            $('<td style="width: 10%;">').html(`
+                                <div class="d-flex flex-column align-items-center">
+                                <button type="button" 
+                                        class="btn btn-info btn-sm show-details-btn" 
+                                        onclick="showTreatmentDetails(${treatment.id})"
+                                        title="{% trans 'Show Details' %}">
+                                    <i class="fas fa-info-circle"></i>
+                                        ${treatment.attachments_count > 0 ? `<span class="badge bg-warning text-dark ms-1">${treatment.attachments_count}</span>` : ''}
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-secondary btn-sm mt-1 show-history-btn" 
+                                        onclick="showTreatmentHistory(${treatment.id})"
+                                        title="{% trans 'Show History' %}">
+                                    <i class="fas fa-history"></i>
+                                </button>
+                                    ${lastModifiedInfo}
+                                </div>
+                            `)
+                        );
+                    
+                    $('#riskTreatmentTableBody').append(row);
+                    
+                    // Color the treatment type dropdown based on value
+                    updateTreatmentTypeColor(treatmentTypeSelect, treatmentTypes);
+                    
+                    // Color the status dropdown based on value
+                    updateStatusColor(statusSelect, treatmentStatuses);
+                }
+                
+                // Add event handlers for dynamic color updates
+                $('.treatment-type').on('change', function() {
+                    updateTreatmentTypeColor($(this), treatmentTypes);
+                });
+                
+                $('.treatment-status').on('change', function() {
+                    updateStatusColor($(this), treatmentStatuses);
+                });
+                
+                // Add event handlers for "Show more" and "Show less" links
+                $('.showMoreLink').on('click', function(e) {
+                    e.preventDefault();
+                    $(this).closest('td').find('.mitigationShort').hide();
+                    $(this).closest('td').find('.mitigationFull').show();
+                });
+                
+                $('.showLessLink').on('click', function(e) {
+                    e.preventDefault();
+                    $(this).closest('td').find('.mitigationFull').hide();
+                    $(this).closest('td').find('.mitigationShort').show();
+                });
+                
+                // Show the modal
+                $('#riskTreatmentModal').modal('show');
+                
+                // Initialize bulk selection functionality
+                initializeBulkSelection();
+                
+                // Re-initialize tooltips after modal content is loaded
+                setTimeout(function() {
+                    initializeTooltips();
+                }, 100);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading risk treatment data:", error);
+                showTreatmentAlert('danger', '{% trans "Error loading risk treatment data. Please try again." %}');
+            }
+        });
+    };
+    
+    function createRiskLevelBadge(riskLevel) {
+        if (!riskLevel) return '';
+        
+        const contrastColor = getContrastColor(riskLevel.color);
+        let badgeHtml = `<span class="badge fw-medium" style="background-color: ${riskLevel.color}; 
+                color: ${contrastColor}; padding: 4px 8px; font-size: 0.85rem; 
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);">${riskLevel.name}</span>`;
+        
+        // Add manual override indicator if applicable
+        if (riskLevel.is_manual_override) {
+            badgeHtml += ` <i class="fas fa-user-edit text-warning" title="{% trans 'Manual Override' %}" 
+                              style="font-size: 0.75rem; margin-left: 2px;"></i>`;
+        }
+        
+        return badgeHtml;
+    }
+    
+    function updateTreatmentTypeColor(selectElement, treatmentTypes) {
+        const treatmentType = selectElement.val();
+        let color = '#808080'; // Default gray
+        
+        if (treatmentTypes && treatmentTypes[treatmentType]) {
+            color = treatmentTypes[treatmentType].color;
+        }
+        
+        const contrastColor = getContrastColor(color);
+        
+        // Apply styling to the select
+        selectElement.css({
+            'background-color': color,
+            'color': contrastColor,
+            'border-color': 'rgba(0,0,0,0.2)',
+            'font-weight': '500'
+        });
+    }
+    
+    function updateStatusColor(selectElement, treatmentStatuses) {
+        const status = selectElement.val();
+        let color = '#808080'; // Default gray
+        
+        if (treatmentStatuses && treatmentStatuses[status]) {
+            color = treatmentStatuses[status].color;
+        }
+        
+        const contrastColor = getContrastColor(color);
+        
+        // Apply styling to the select
+        selectElement.css({
+            'background-color': color,
+            'color': contrastColor,
+            'border-color': 'rgba(0,0,0,0.2)',
+            'font-weight': '500'
+        });
+    }
+    
+    function getContrastColor(hexcolor) {
+        // If hexcolor is not provided or invalid, return black
+        if (!hexcolor || !/^#[0-9A-F]{6}$/i.test(hexcolor)) {
+            return '#000000';
+        }
+        
+        // Convert hex to RGB
+        var r = parseInt(hexcolor.slice(1, 3), 16);
+        var g = parseInt(hexcolor.slice(3, 5), 16);
+        var b = parseInt(hexcolor.slice(5, 7), 16);
+        
+        // Calculate luminance
+        var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        
+        // Return black for light colors, white for dark colors
+        return luminance > 0.5 ? '#000000' : '#FFFFFF';
+    }
+    
+    function getStatusBadgeClass(status) {
+        if (!status) return 'bg-secondary';
+        
+        switch(status.toLowerCase()) {
+            case 'yes':
+            case 'так':
+            case 'да':
+                return 'bg-danger';
+            case 'no':
+            case 'ні':
+            case 'нет':
+                return 'bg-success';
+            case 'undefined':
+            case 'невизначено':
+            case 'неопределено':
+                return 'bg-warning';
+            default:
+                return 'bg-secondary';
+        }
+    }
+    
+    function showTreatmentAlert(type, message) {
+        const alertTemplate = $('#alertTemplate').html();
+        const alert = $(alertTemplate);
+        
+        alert.addClass(`alert-${type}`);
+        alert.find('.alert-message').text(message);
+        
+        // Add alert before the table
+        $('#riskTreatmentTable').before(alert);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(function() {
+            alert.alert('close');
+        }, 5000);
+    }
+    
+    // Save all treatments
+    $('#saveRiskTreatments').on('click', function() {
+        const assetId = $('#riskTreatmentModal').data('asset-id');
+        if (!assetId) {
+            showTreatmentAlert('danger', '{% trans "No asset selected." %}');
+            return;
+        }
+        
+        // Validate required fields
+        let hasErrors = false;
+        $('.treatment-type, .treatment-status').each(function() {
+            if (!$(this).val()) {
+                $(this).addClass('is-invalid');
+                hasErrors = true;
+            } else {
+                $(this).removeClass('is-invalid');
+            }
+        });
+        
+        if (hasErrors) {
+            showTreatmentAlert('danger', '{% trans "Please fill in all required fields." %}');
+            return;
+        }
+        
+        // Collect treatment data
+        const treatments = [];
+        $('#riskTreatmentTableBody tr').each(function() {
+            const row = $(this);
+            const treatmentId = row.data('treatment-id');
+            
+            // Get description and responsible from stored data
+            const storedData = descriptionResponsibleData[treatmentId] || {};
+            const description = storedData.description || '';
+            const responsible = storedData.responsible || '';
+            
+            treatments.push({
+                id: treatmentId,
+                treatment_type: row.find('.treatment-type').val(),  // Now sends code directly
+                description: description,
+                responsible: responsible,
+                deadline: row.find('.treatment-deadline').val(),
+                status: row.find('.treatment-status').val()  // Now sends code directly
+            });
+        });
+        
+        // Save to server
+        $.ajax({
+            url: "{% url 'save_all_risk_treatments' %}",
+            method: 'POST',
+            data: JSON.stringify({
+                asset_id: assetId,
+                treatments: treatments
+            }),
+            contentType: 'application/json',
+            beforeSend: function() {
+                $('#saveRiskTreatments').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Saving..." %}');
+            },
+            success: function(response) {
+                $('#saveRiskTreatments').prop('disabled', false).html('<i class="fas fa-save me-1"></i>{% trans "Save Changes" %}');
+                
+                if (response.success) {
+                    showTreatmentAlert('success', response.message);
+                    
+                    // Update last modified information if available
+                    if (response.updated_treatments) {
+                        response.updated_treatments.forEach(function(treatment) {
+                            const row = $(`#riskTreatmentTableBody tr[data-treatment-id="${treatment.id}"]`);
+                            if (row.length > 0) {
+                                const lastModifiedCell = row.find('td:last-child');
+                                lastModifiedCell.html(`<div><small class="text-muted" style="font-size: 0.75rem;">
+                                                       <i class="far fa-clock me-1"></i>${treatment.last_modified}
+                                                       <br><i class="far fa-user me-1"></i>${treatment.last_modified_by}</small></div>`);
+                            }
+                        });
+                    }
+                    
+                    // Update the main asset vulnerabilities table if needed
+                    if (typeof window.updateMainTable === 'function') {
+                        window.updateMainTable();
+                    }
+                } else {
+                    showTreatmentAlert('danger', response.message || '{% trans "Error saving risk treatments." %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#saveRiskTreatments').prop('disabled', false).html('<i class="fas fa-save me-1"></i>{% trans "Save Changes" %}');
+                console.error("Error saving risk treatments:", error);
+                
+                let errorMessage = '{% trans "Error saving risk treatments. Please try again." %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                
+                showTreatmentAlert('danger', errorMessage);
+            }
+        });
+    });
+    
+    // Global variables to store description and responsible data
+    let descriptionResponsibleData = {};
+    
+    // Function to format description and responsible for display
+    window.formatDescriptionResponsible = function(description, responsible) {
+        let content = '';
+        if (description) {
+            // Truncate description if it's too long for display
+            const maxDisplayLength = 250;
+            const displayDescription = description.length > maxDisplayLength 
+                ? description.substring(0, maxDisplayLength) + '...' 
+                : description;
+            content += `<div class="mb-2"><strong>{% trans "Description:" %}</strong><br>${displayDescription}</div>`;
+        }
+        if (responsible) {
+            content += `<div><strong>{% trans "Responsible:" %}</strong> ${responsible}</div>`;
+        }
+        if (!description && !responsible) {
+            content = '<div class="text-muted"><em>{% trans "No description or responsible person specified" %}</em></div>';
+        }
+        return content;
+    }
+    
+    // Cabinet users data for Responsible Person filter (Filter by Department / Position)
+    let responsibleModalCabinetUsersFull = [];
+
+    function buildResponsibleUserOptionText(user) {
+        const parts = [user.full_name || user.display_name];
+        if (user.department || user.position) {
+            parts.push([user.department || '', user.position || ''].filter(Boolean).join(' / '));
+        }
+        return parts.join(' — ');
+    }
+
+    var RESPONSIBLE_DELIMITER = ' | ';
+
+    function applyResponsibleUserFilters() {
+        const usersSelect = $('#treatmentResponsible');
+        const filterDept = $('#filter_responsible_department');
+        const filterPos = $('#filter_responsible_position');
+        if (!usersSelect.length || !filterDept.length || !filterPos.length || responsibleModalCabinetUsersFull.length === 0) return;
+        const deptId = filterDept.val();
+        const posId = filterPos.val();
+        const selectedValues = usersSelect.val() || [];
+        const selectedSet = new Set(Array.isArray(selectedValues) ? selectedValues : [selectedValues]);
+        const filtered = responsibleModalCabinetUsersFull.filter(function(u) {
+            const matchDept = !deptId || (u.department_id && u.department_id.toString() === deptId);
+            const matchPos = !posId || (u.position_id && u.position_id.toString() === posId);
+            const displayVal = u.display_name || (buildResponsibleUserOptionText(u));
+            return (matchDept && matchPos) || selectedSet.has(displayVal);
+        });
+        const seen = {};
+        const ordered = [];
+        filtered.forEach(function(u) {
+            const key = u.id;
+            if (!seen[key]) { seen[key] = true; ordered.push(u); }
+        });
+        usersSelect.off('change').empty();
+        ordered.forEach(function(user) {
+            const displayVal = user.display_name || buildResponsibleUserOptionText(user);
+            const opt = $('<option></option>').val(displayVal).text(buildResponsibleUserOptionText(user));
+            if (selectedSet.has(displayVal)) opt.prop('selected', true);
+            usersSelect.append(opt);
+        });
+    }
+
+    // Function to open the description and responsible modal
+    window.openDescriptionResponsibleModal = function(treatmentId, description, responsible) {
+        // Store the current data
+        descriptionResponsibleData[treatmentId] = {
+            description: description || '',
+            responsible: responsible || ''
+        };
+        
+        // Populate the modal fields
+        $('#treatmentDescription').val(description || '');
+        
+        // Update character counter
+        const currentLength = (description || '').length;
+        $('#descriptionCharCount').text(currentLength);
+        if (currentLength > 1800) {
+            $('#descriptionCharCount').addClass('text-danger').removeClass('text-warning text-muted');
+        } else if (currentLength > 1400) {
+            $('#descriptionCharCount').addClass('text-warning').removeClass('text-danger text-muted');
+        } else {
+            $('#descriptionCharCount').addClass('text-muted').removeClass('text-danger text-warning');
+        }
+        
+        // Store the treatment ID for saving
+        $('#descriptionResponsibleModal').data('treatment-id', treatmentId);
+        
+        // Load cabinet users and populate Responsible Person select with Filter by Department/Position
+        const assetId = $('#riskTreatmentModal').data('asset-id');
+        const refUrl = "{% url 'get_treatment_reference_data' %}" + (assetId ? '?asset_id=' + assetId : '');
+        $.ajax({
+            url: refUrl,
+            method: 'GET'
+        }).done(function(refData) {
+            const users = refData.cabinet_users || refData.users || [];
+            const departments = refData.departments || [];
+            const positions = refData.positions || [];
+            responsibleModalCabinetUsersFull = users;
+
+            $('#filter_responsible_department').empty().append($('<option value="">{% trans "All" %}</option>'));
+            departments.forEach(function(d) {
+                $('#filter_responsible_department').append($('<option></option>').val(d.id).text(d.name));
+            });
+            $('#filter_responsible_position').empty().append($('<option value="">{% trans "All" %}</option>'));
+            positions.forEach(function(p) {
+                $('#filter_responsible_position').append($('<option></option>').val(p.id).text(p.name));
+            });
+
+            applyResponsibleUserFilters();
+            const toSelectStr = (responsible || '').toString().trim();
+            if (toSelectStr) {
+                const parts = toSelectStr.split(RESPONSIBLE_DELIMITER).map(function(s) { return s.trim(); }).filter(Boolean);
+                const valuesToSelect = [];
+                parts.forEach(function(part) {
+                    const found = users.find(function(u) {
+                        const d = u.display_name || buildResponsibleUserOptionText(u);
+                        return d === part || u.full_name === part;
+                    });
+                    if (found) {
+                        valuesToSelect.push(found.display_name || buildResponsibleUserOptionText(found));
+                    } else {
+                        valuesToSelect.push(part);
+                    }
+                });
+                if (valuesToSelect.length) {
+                    $('#treatmentResponsible').val(valuesToSelect);
+                }
+            }
+
+            $('#filter_responsible_department, #filter_responsible_position').off('change').on('change', applyResponsibleUserFilters);
+        }).fail(function() {
+            responsibleModalCabinetUsersFull = [];
+            $('#filter_responsible_department').empty().append($('<option value="">{% trans "All" %}</option>'));
+            $('#filter_responsible_position').empty().append($('<option value="">{% trans "All" %}</option>'));
+            $('#treatmentResponsible').empty();
+        });
+        
+        // Show the modal
+        $('#descriptionResponsibleModal').modal('show');
+    }
+    
+    // Handle modal close to reset form
+    $('#descriptionResponsibleModal').on('hidden.bs.modal', function() {
+        $('#treatmentDescription').val('');
+        $('#treatmentResponsible').val([]).empty();
+        $('#filter_responsible_department').empty().append($('<option value="">{% trans "All" %}</option>'));
+        $('#filter_responsible_position').empty().append($('<option value="">{% trans "All" %}</option>'));
+        $('#descriptionCharCount').text('0').removeClass('text-danger text-warning').addClass('text-muted');
+        $('#descriptionResponsibleModal').removeData('treatment-id');
+    });
+    
+    // Handle save button in description and responsible modal
+    $('#saveDescriptionResponsible').on('click', function() {
+        const treatmentId = $('#descriptionResponsibleModal').data('treatment-id');
+        const description = $('#treatmentDescription').val().trim();
+        const responsibleArr = $('#treatmentResponsible').val() || [];
+        const responsible = (Array.isArray(responsibleArr) ? responsibleArr : [responsibleArr]).filter(Boolean).join(RESPONSIBLE_DELIMITER);
+        
+        if (!treatmentId) {
+            showTreatmentAlert('danger', '{% trans "Error: Treatment ID not found." %}');
+            return;
+        }
+        
+        // Show loading state
+        $('#saveDescriptionResponsible').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Saving..." %}');
+        
+        // Update the stored data
+        descriptionResponsibleData[treatmentId] = {
+            description: description,
+            responsible: responsible
+        };
+        
+        // Update the display in the table
+        const row = $(`#riskTreatmentTableBody tr[data-treatment-id="${treatmentId}"]`);
+        if (row.length > 0) {
+            const contentDiv = row.find('.content-text');
+            contentDiv.html(formatDescriptionResponsible(description, responsible));
+        }
+        
+        // Close the modal
+        $('#descriptionResponsibleModal').modal('hide');
+        
+        // Reset button state
+        $('#saveDescriptionResponsible').prop('disabled', false).html('<i class="fas fa-save me-1"></i>{% trans "Save Changes" %}');
+        
+        // Show success message
+        showTreatmentAlert('success', '{% trans "Description and responsible person updated successfully." %}');
+    });
+    
+    // Handle Enter key in modal fields (Ctrl+Enter to save)
+    $('#descriptionResponsibleModal').on('keydown', '#treatmentDescription, #treatmentResponsible', function(e) {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            e.preventDefault();
+            $('#saveDescriptionResponsible').click();
+        }
+    });
+    
+    // Handle character counter for description
+    $('#treatmentDescription').on('input', function() {
+        const currentLength = $(this).val().length;
+        const maxLength = $(this).attr('maxlength');
+        $('#descriptionCharCount').text(currentLength);
+        
+        // Change color based on length
+        if (currentLength > maxLength * 0.9) {
+            $('#descriptionCharCount').addClass('text-danger').removeClass('text-warning text-muted');
+        } else if (currentLength > maxLength * 0.7) {
+            $('#descriptionCharCount').addClass('text-warning').removeClass('text-danger text-muted');
+        } else {
+            $('#descriptionCharCount').addClass('text-muted').removeClass('text-danger text-warning');
+        }
+    });
+    
+    // Export risk treatments
+    $('#exportRiskTreatments').on('click', function() {
+        const treatmentIds = [];
+        $('#riskTreatmentTableBody tr').each(function() {
+            const row = $(this);
+            if (row.data('treatment-id')) {
+                treatmentIds.push(row.data('treatment-id'));
+            }
+        });
+        
+        if (treatmentIds.length === 0) {
+            showTreatmentAlert('warning', '{% trans "No treatments to export." %}');
+            return;
+        }
+        
+        // Show loading state
+        $('#exportRiskTreatments').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Exporting..." %}');
+        
+        // First collect basic treatment data
+        const treatments = [];
+        $('#riskTreatmentTableBody tr').each(function() {
+            const row = $(this);
+            if (!row.data('treatment-id')) return;
+            
+            const riskLevelElement = row.find('td:eq(2) .badge');
+            const riskLevelName = riskLevelElement.text();
+            const riskLevelColor = riskLevelElement.css('background-color');
+            
+            treatments.push({
+                id: row.data('treatment-id'),
+                asset_id: $('#treatmentAssetID').text(),
+                asset_name: $('#treatmentAssetName').text(),
+                company: $('#treatmentCompanyName').text(),
+                criticality: {
+                    name: row.find('td:eq(2)').text(),
+                    color: riskLevelColor
+                },
+                vulnerability: row.find('td:eq(0)').text(),
+                threats_and_risk_levels: row.find('td:eq(1)').text(),
+                highest_risk_level: {
+                    name: riskLevelName,
+                    color: riskLevelColor
+                },
+                risk_mitigation_controls: row.find('td:eq(3) .mitigationFull').length > 0 ? 
+                                         row.find('td:eq(3) .mitigationFull').text().replace('{% trans "Show less" %}', '') : 
+                                         row.find('td:eq(3)').text(),
+                treatment_type: {
+                    name: row.find('.treatment-type option:selected').text(),
+                    code: row.find('.treatment-type').val(),
+                    color: row.find('.treatment-type').css('background-color')
+                },
+                description: row.find('.treatment-description').val(),
+                responsible: row.find('.treatment-responsible').val(),
+                deadline: row.find('.treatment-deadline').val(),
+                status: {
+                    name: row.find('.treatment-status option:selected').text(),
+                    code: row.find('.treatment-status').val(),
+                    color: row.find('.treatment-status').css('background-color')
+                },
+                last_modified: {
+                    datetime: row.find('td:eq(9) small').text().split('\n')[0].replace(/^\s*\S+\s*/, ''),
+                    user: row.find('td:eq(9) small').text().split('\n')[1]?.replace(/^\s*\S+\s*/, '') || ''
+                }
+            });
+        });
+        
+        // Use AJAX to trigger the export with treatment IDs for detailed data
+        $.ajax({
+            url: "{% url 'export_risk_treatments' %}",
+            method: 'POST',
+            data: JSON.stringify({ 
+                treatments: treatments,
+                treatment_ids: treatmentIds,
+                include_details: true
+            }),
+            contentType: 'application/json',
+            xhrFields: {
+                responseType: 'blob'
+            },
+            success: function(blob) {
+                $('#exportRiskTreatments').prop('disabled', false).html('<i class="fas fa-file-export me-1"></i>{% trans "Export" %}');
+                
+                // Create a download link and trigger it
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'risk_treatments_detailed.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            },
+            error: function(xhr, status, error) {
+                $('#exportRiskTreatments').prop('disabled', false).html('<i class="fas fa-file-export me-1"></i>{% trans "Export" %}');
+                console.error("Error exporting risk treatments:", error);
+                showTreatmentAlert('danger', '{% trans "Error exporting risk treatments. Please try again." %}');
+            }
+        });
+    });
+    
+    // Clear all risk treatments (with confirmation)
+    $('#clearRiskTreatments').on('click', function() {
+        $('#confirmClearModal').modal('show');
+    });
+    
+    $('#confirmClear').on('click', function() {
+        const assetId = $('#riskTreatmentModal').data('asset-id');
+        if (!assetId) {
+            showTreatmentAlert('danger', '{% trans "No asset selected." %}');
+            $('#confirmClearModal').modal('hide');
+            return;
+        }
+        
+        $.ajax({
+            url: "{% url 'clear_risk_treatments' %}",
+            method: 'POST',
+            data: JSON.stringify({ asset_id: assetId }),
+            contentType: 'application/json',
+            beforeSend: function() {
+                $('#confirmClear').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Clearing..." %}');
+            },
+            success: function(response) {
+                $('#confirmClear').prop('disabled', false).html('<i class="fas fa-trash-alt me-1"></i>{% trans "Clear All" %}');
+                $('#confirmClearModal').modal('hide');
+                
+                if (response.success) {
+                    // Reload the treatment data
+                    loadRiskTreatmentData(assetId);
+                    
+                    // Show success message
+                    showTreatmentAlert('success', response.message);
+                    
+                    // Update the main asset vulnerabilities table if needed
+                    if (typeof window.updateMainTable === 'function') {
+                        window.updateMainTable();
+                    }
+                } else {
+                    showTreatmentAlert('danger', response.message || '{% trans "Error clearing risk treatments." %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#confirmClear').prop('disabled', false).html('<i class="fas fa-trash-alt me-1"></i>{% trans "Clear All" %}');
+                $('#confirmClearModal').modal('hide');
+                console.error("Error clearing risk treatments:", error);
+                
+                let errorMessage = '{% trans "Error clearing risk treatments. Please try again." %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                
+                showTreatmentAlert('danger', errorMessage);
+            }
+        });
+    });
+    
+    // Add keyboard navigation for accessibility
+    $('#riskTreatmentModal').on('keydown', function(e) {
+        // Save on Ctrl+S
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            $('#saveRiskTreatments').click();
+        }
+        
+        // Close on Escape
+        if (e.key === 'Escape') {
+            $('#riskTreatmentModal').modal('hide');
+        }
+    });
+    
+    // Initialize custom styles for dropdowns when modal is shown
+    $('#riskTreatmentModal').on('shown.bs.modal', function() {
+        // Re-initialize tooltips when modal is fully shown
+        initializeTooltips();
+        // The treatment types and statuses might not be available here
+        // so we need to be more careful
+        $('.treatment-type').each(function() {
+            const select = $(this);
+            const typeCode = select.val();
+            if (typeCode) {
+                let color = '#808080';
+                // Get the color from the option's data attribute or parent data
+                const row = select.closest('tr');
+                if (row.data('treatment-types') && row.data('treatment-types')[typeCode]) {
+                    color = row.data('treatment-types')[typeCode].color;
+                }
+                updateTreatmentTypeColor(select, row.data('treatment-types'));
+            }
+        });
+        
+        $('.treatment-status').each(function() {
+            const select = $(this);
+            const statusCode = select.val();
+            if (statusCode) {
+                let color = '#808080';
+                // Get the color from the option's data attribute or parent data
+                const row = select.closest('tr');
+                if (row.data('treatment-statuses') && row.data('treatment-statuses')[statusCode]) {
+                    color = row.data('treatment-statuses')[statusCode].color;
+                }
+                updateStatusColor(select, row.data('treatment-statuses'));
+            }
+        });
+    });
+
+    // Add this function to load reference data
+    function loadReferenceData() {
+        const assetId = $('#riskTreatmentModal').data('asset-id');
+        const url = "{% url 'get_treatment_reference_data' %}" + (assetId ? `?asset_id=${assetId}` : '');
+        
+        return $.ajax({
+            url: url,
+            method: 'GET'
+        });
+    }
+
+    // Modified showTreatmentDetails function
+    window.showTreatmentDetails = function(treatmentId) {
+        $('#enhancedDataModal').data('treatment-id', treatmentId);
+        
+        // First load reference data, then treatment details
+        loadReferenceData().then(function(refData) {
+            console.log("Reference data loaded successfully:", refData);
+            
+            // Populate select options with reference data
+            populateSelectOptions(refData);
+            
+            // Now load treatment details
+            return $.ajax({
+                url: "{% url 'treatment_details' treatment_id=0 %}".replace('0', treatmentId),
+                method: 'GET'
+            });
+        }).then(function(treatmentData) {
+            console.log("Treatment data:", treatmentData);
+            
+            // Store asset ID in modal for acceptable risk checking
+            if (treatmentData.asset_id) {
+                $('#enhancedDataModal').data('asset-id', treatmentData.asset_id);
+            }
+            
+            // Set current values from treatment data
+            setTreatmentValues(treatmentData);
+            
+            // Show the modal
+            $('#enhancedDataModal').modal('show');
+            
+            // Re-initialize guidance toggle functionality
+            setTimeout(function() {
+                initializeGuidanceToggle();
+            }, 100);
+            
+            // Add event handler for history button
+            $('#showTreatmentHistoryBtn').off('click').on('click', function() {
+                const treatmentId = $('#enhancedDataModal').data('treatment-id');
+                if (treatmentId) {
+                    showTreatmentHistory(treatmentId);
+                }
+            });
+        }).catch(function(error) {
+            console.error("Error loading data:", error);
+            showTreatmentAlert('danger', '{% trans "Error loading treatment details. Please try again." %}');
+        });
+    };
+
+    function populateSelectOptions(refData) {
+        console.log("Populating select options with refData:", refData);
+        
+        if (!refData) {
+            console.error("refData is null or undefined");
+            return;
+        }
+        
+        // Add styles for colored selects
+        const selectStyles = `
+            .colored-select option {
+                padding: 8px;
+                margin: 4px;
+                border-radius: 4px;
+            }
+            .colored-select {
+                font-weight: 500;
+            }
+            .colored-select option:not(:first-child) {
+                color: white;
+            }
+            .colored-select option:first-child {
+                background-color: white !important;
+                color: #6c757d;
+            }
+        `;
+        if (!$('#coloredSelectStyles').length) {
+            $('<style id="coloredSelectStyles">').text(selectStyles).appendTo('head');
+        }
+
+        // Residual Risk Levels
+        if (refData.residual_risk_levels) {
+            const riskSelect = $('#modal_residual_risk_level_select');
+            riskSelect.addClass('colored-select');
+            riskSelect.empty().append($('<option value="">---</option>'));
+            refData.residual_risk_levels.forEach(level => {
+                riskSelect.append($('<option></option>')
+                    .val(level.id)
+                    .text(level.name)
+                    .data('color', level.color)
+                    .data('max-value', level.max_value)
+                    .data('description-uk', level.description_uk)
+                    .data('description-en', level.description_en)
+                    .data('description-ru', level.description_ru)
+                    .css({
+                        'background-color': level.color,
+                        'color': 'white'
+                    }));
+            });
+            
+            // Add change handler for description and color
+            riskSelect.off('change').on('change', function() {
+                const selectedOption = $(this).find('option:selected');
+                updateDescription(selectedOption, $('#residualRiskDescription'));
+                updateSelectColor($(this), selectedOption);
+                
+                // Check acceptable risk and show warning if needed
+                checkResidualRiskAgainstAcceptableRisk();
+            });
+        }
+
+        // Priority Levels
+        if (refData.priority_levels) {
+            const prioritySelect = $('#modal_priority_level_select');
+            prioritySelect.addClass('colored-select');
+            prioritySelect.empty().append($('<option value="">---</option>'));
+            refData.priority_levels.forEach(level => {
+                prioritySelect.append($('<option></option>')
+                    .val(level.id)
+                    .text(level.name)
+                    .data('color', level.color)
+                    .data('description-uk', level.description_uk)
+                    .data('description-en', level.description_en)
+                    .data('description-ru', level.description_ru)
+                    .css({
+                        'background-color': level.color,
+                        'color': 'white'
+                    }));
+            });
+            
+            // Add change handler for description and color
+            prioritySelect.off('change').on('change', function() {
+                const selectedOption = $(this).find('option:selected');
+                updateDescription(selectedOption, $('#priorityDescription'));
+                updateSelectColor($(this), selectedOption);
+            });
+        }
+
+        // Effectiveness Levels
+        if (refData.effectiveness_levels) {
+            const effectivenessSelect = $('#modal_effectiveness_level_select');
+            effectivenessSelect.addClass('colored-select');
+            effectivenessSelect.empty().append($('<option value="">---</option>'));
+            refData.effectiveness_levels.forEach(level => {
+                effectivenessSelect.append($('<option></option>')
+                    .val(level.id)
+                    .text(level.name)
+                    .data('color', level.color)
+                    .data('description-uk', level.description_uk)
+                    .data('description-en', level.description_en)
+                    .data('description-ru', level.description_ru)
+                    .css({
+                        'background-color': level.color,
+                        'color': 'white'
+                    }));
+            });
+            
+            // Add change handler for description and color
+            effectivenessSelect.off('change').on('change', function() {
+                const selectedOption = $(this).find('option:selected');
+                updateDescription(selectedOption, $('#effectivenessDescription'));
+                updateSelectColor($(this), selectedOption);
+            });
+        }
+        
+        // Monitoring Frequencies
+        if (refData.monitoring_frequencies) {
+            const freqSelect = $('#modal_monitoring_frequency_select');
+            freqSelect.empty().append($('<option value="">---</option>'));
+            refData.monitoring_frequencies.forEach(freq => {
+                freqSelect.append($('<option></option>')
+                    .val(freq.id)
+                    .text(freq.name));
+            });
+        }
+
+        // Users for Responsible (with Filter by Department / Position)
+        if (refData.users || refData.cabinet_users) {
+            const users = refData.cabinet_users || refData.users;
+            window.monitoringCabinetUsersFull = users;
+            const departments = refData.departments || [];
+            const positions = refData.positions || [];
+
+            $('#filter_monitoring_department').empty().append($('<option value="">{% trans "All" %}</option>'));
+            departments.forEach(d => {
+                $('#filter_monitoring_department').append($('<option></option>').val(d.id).text(d.name));
+            });
+            $('#filter_monitoring_position').empty().append($('<option value="">{% trans "All" %}</option>'));
+            positions.forEach(p => {
+                $('#filter_monitoring_position').append($('<option></option>').val(p.id).text(p.name));
+            });
+
+            function buildMonitoringUserOptionText(user) {
+                const parts = [user.full_name || user.display_name || user.username];
+                if (user.department || user.position) {
+                    parts.push([user.department || '', user.position || ''].filter(Boolean).join(' / '));
+                }
+                return parts.join(' — ');
+            }
+
+            function applyMonitoringResponsibleFilters() {
+                const userSelect = $('#modal_monitoring_responsible_select');
+                const filterDept = $('#filter_monitoring_department');
+                const filterPos = $('#filter_monitoring_position');
+                if (!userSelect.length || !monitoringCabinetUsersFull || monitoringCabinetUsersFull.length === 0) return;
+                const deptId = filterDept.val();
+                const posId = filterPos.val();
+                const selectedIds = (userSelect.val() || []).map(String);
+                const selectedSet = new Set(selectedIds);
+                const filtered = monitoringCabinetUsersFull.filter(u => {
+                    const matchDept = !deptId || (u.department_id != null && u.department_id.toString() === deptId);
+                    const matchPos = !posId || (u.position_id != null && u.position_id.toString() === posId);
+                    return (matchDept && matchPos) || selectedSet.has(String(u.id));
+                });
+                const seen = {};
+                const ordered = [];
+                filtered.forEach(u => {
+                    if (!seen[u.id]) { seen[u.id] = true; ordered.push(u); }
+                });
+                userSelect.empty();
+                ordered.forEach(user => {
+                    const opt = $('<option></option>')
+                        .val(user.id)
+                        .text(buildMonitoringUserOptionText(user))
+                        .attr('title', `${user.department || ''} / ${user.position || ''} - ${user.company || ''}`.replace(/^\s*\/\s*/, '').replace(/\s*-\s*$/, ''));
+                    if (selectedSet.has(String(user.id))) opt.prop('selected', true);
+                    userSelect.append(opt);
+                });
+            }
+
+            applyMonitoringResponsibleFilters();
+            $('#filter_monitoring_department, #filter_monitoring_position').off('change').on('change', applyMonitoringResponsibleFilters);
+        }
+
+        // Available Treatments for Dependencies
+        if (refData.available_treatments) {
+            const depSelect = $('#modal_dependencies');
+            depSelect.empty();
+            refData.available_treatments.forEach(treatment => {
+                depSelect.append($('<option></option>')
+                    .val(treatment.id)
+                    .text(treatment.name));
+            });
+        }
+
+        // Available Assets
+        if (refData.available_assets) {
+            const assetSelect = $('#modal_affected_assets');
+            assetSelect.empty();
+            refData.available_assets.forEach(asset => {
+                assetSelect.append($('<option></option>')
+                    .val(asset.id)
+                    .text(asset.name));
+            });
+        }
+    }
+
+    function setTreatmentValues(data) {
+        // Set values and trigger change for colored selects
+        if (data.residual_risk_level) {
+            const riskSelect = $('#modal_residual_risk_level_select');
+            riskSelect.val(data.residual_risk_level.id).trigger('change');
+            updateSelectColor(riskSelect, riskSelect.find('option:selected'));
+            
+            // Check acceptable risk after setting the value
+            setTimeout(() => {
+                checkResidualRiskAgainstAcceptableRisk();
+            }, 100);
+        }
+        
+        if (data.priority) {
+            const prioritySelect = $('#modal_priority_level_select');
+            prioritySelect.val(data.priority.id).trigger('change');
+            updateSelectColor(prioritySelect, prioritySelect.find('option:selected'));
+        }
+        
+        if (data.effectiveness) {
+            const effectivenessSelect = $('#modal_effectiveness_level_select');
+            effectivenessSelect.val(data.effectiveness.id).trigger('change');
+            updateSelectColor(effectivenessSelect, effectivenessSelect.find('option:selected'));
+        }
+        
+        // Set other values
+        $('#modal_residual_risk_justification').val(data.residual_risk_justification || '');
+        $('#modal_priority_justification').val(data.priority_justification || '');
+        $('#modal_effectiveness_metrics').val(data.effectiveness_metrics || '');
+        $('#modal_effectiveness_evaluation_date').val(data.effectiveness_evaluation_date || '');
+        $('#modal_monitoring_frequency_select').val(data.monitoring_frequency?.id || '');
+        $('#modal_next_review_date').val(data.next_review_date || '');
+        $('#modal_last_review_date').val(data.last_review_date || '');
+        
+        // Handle multiple responsible users
+        if (data.monitoring_responsible && Array.isArray(data.monitoring_responsible)) {
+            const responsibleIds = data.monitoring_responsible.map(u => u.id);
+            $('#modal_monitoring_responsible_select').val(responsibleIds);
+            
+            // Update the option text to show display names if available
+            data.monitoring_responsible.forEach(user => {
+                const option = $(`#modal_monitoring_responsible_select option[value="${user.id}"]`);
+                if (option.length && user.display_name) {
+                    option.text(user.display_name);
+                }
+            });
+        } else {
+            $('#modal_monitoring_responsible_select').val([]);
+        }
+        
+        $('#modal_review_notes').val(data.review_notes || '');
+        $('#modal_implementation_cost').val(data.implementation_cost || '');
+        $('#modal_annual_maintenance_cost').val(data.annual_maintenance_cost || '');
+        $('#modal_roi_assessment').val(data.roi_assessment || '');
+        $('#modal_prerequisites').val(data.prerequisites || '');
+        
+        // Set multiple selects
+        if (data.dependencies) {
+            $('#modal_dependencies').val(data.dependencies.map(d => d.id));
+        }
+        if (data.affected_assets) {
+            $('#modal_affected_assets').val(data.affected_assets.map(a => a.id));
+        }
+
+        // Handle attachments
+        if (data.attachments) {
+            displayAttachments(data.attachments);
+        } else {
+            displayAttachments([]);
+        }
+    }
+
+    // Function to update select color based on selected option
+    function updateSelectColor(select, selectedOption) {
+        if (selectedOption.val()) {
+            const color = selectedOption.data('color');
+            select.css({
+                'background-color': color,
+                'color': 'white'
+            });
+        } else {
+            select.css({
+                'background-color': '',
+                'color': ''
+            });
+        }
+    }
+
+    // Add save handler for detailed treatment
+    $('#saveDetailedTreatment').on('click', function() {
+        const treatmentId = $('#enhancedDataModal').data('treatment-id');
+        
+        // Helper function to format date or return null
+        function formatDate(dateStr) {
+            if (!dateStr) return null;
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return null;
+            return date.toISOString().split('T')[0];
+        }
+
+        // Helper function to parse number or return null
+        function parseNumber(value) {
+            if (!value) return null;
+            const num = parseFloat(value);
+            return isNaN(num) ? null : num;
+        }
+        
+        // Collect all form data
+        const formData = {
+            residual_risk_level: $('#modal_residual_risk_level_select').val() || null,
+            residual_risk_justification: $('#modal_residual_risk_justification').val() || '',
+            effectiveness: $('#modal_effectiveness_level_select').val() || null,
+            effectiveness_metrics: $('#modal_effectiveness_metrics').val() || '',
+            effectiveness_evaluation_date: formatDate($('#modal_effectiveness_evaluation_date').val()),
+            priority: $('#modal_priority_level_select').val() || null,
+            priority_justification: $('#modal_priority_justification').val() || '',
+            monitoring_frequency: $('#modal_monitoring_frequency_select').val() || null,
+            next_review_date: formatDate($('#modal_next_review_date').val()),
+            last_review_date: formatDate($('#modal_last_review_date').val()),
+            monitoring_responsible: $('#modal_monitoring_responsible_select').val() || [],
+            review_notes: $('#modal_review_notes').val() || '',
+            implementation_cost: parseNumber($('#modal_implementation_cost').val()),
+            annual_maintenance_cost: parseNumber($('#modal_annual_maintenance_cost').val()),
+            roi_assessment: $('#modal_roi_assessment').val() || '',
+            prerequisites: $('#modal_prerequisites').val() || '',
+            dependencies: $('#modal_dependencies').val() || [],
+            affected_assets: $('#modal_affected_assets').val() || []
+        };
+
+        console.log('Sending data:', formData);
+
+        // Save the data
+        $.ajax({
+            url: "{% url 'treatment_details' treatment_id=0 %}".replace('0', treatmentId),
+            method: 'POST',
+            data: JSON.stringify(formData),
+            contentType: 'application/json',
+            beforeSend: function(xhr) {
+                // Add CSRF token
+                xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                $('#saveDetailedTreatment').prop('disabled', true)
+                    .html('<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Saving..." %}');
+            },
+            success: function(response) {
+                $('#saveDetailedTreatment').prop('disabled', false)
+                    .html('<i class="fas fa-save me-2"></i>{% trans "Save Changes" %}');
+                
+                if (response.success) {
+                    // Show success message
+                    showTreatmentAlert('success', '{% trans "Treatment details saved successfully." %}');
+                    
+                    // Close the modal
+                    $('#enhancedDataModal').modal('hide');
+                    
+                    // Refresh the main treatment table
+                    const assetId = $('#riskTreatmentModal').data('asset-id');
+                    if (assetId) {
+                        loadRiskTreatmentData(assetId);
+                    }
+                } else {
+                    showTreatmentAlert('danger', response.message || '{% trans "Error saving treatment details." %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#saveDetailedTreatment').prop('disabled', false)
+                    .html('<i class="fas fa-save me-2"></i>{% trans "Save Changes" %}');
+                
+                console.error("Error saving treatment details:", error);
+                console.error("Server response:", xhr.responseText);
+                
+                let errorMessage = '{% trans "Error saving treatment details. Please try again." %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                showTreatmentAlert('danger', errorMessage);
+            }
+        });
+    });
+
+    // Initialize all tooltips
+    function initializeTooltips() {
+        // Dispose of existing tooltips first
+        var existingTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        existingTooltips.forEach(function(element) {
+            var tooltip = bootstrap.Tooltip.getInstance(element);
+            if (tooltip) {
+                tooltip.dispose();
+            }
+        });
+        
+        // Initialize new tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl, {
+                delay: { show: 500, hide: 100 },
+                trigger: 'hover focus'
+            });
+        });
+        
+        return tooltipList;
+    }
+    
+    // Initialize tooltips on page load
+    initializeTooltips();
+
+    // Initialize collapsible guidance functionality
+    function initializeGuidanceToggle() {
+        $('.toggle-guidance').off('click').on('click', function(e) {
+            e.preventDefault();
+            const button = $(this);
+            const targetId = button.data('target');
+            const content = $('#' + targetId);
+            const icon = button.find('i');
+            
+            if (content.is(':visible')) {
+                // Hide content
+                content.addClass('hiding');
+                setTimeout(function() {
+                    content.hide().removeClass('hiding');
+                }, 300);
+                
+                button.removeClass('expanded');
+                icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+                button.html('<i class="fas fa-chevron-down me-1"></i>{% trans "Show Guide" %}');
+            } else {
+                // Show content
+                content.show();
+                button.addClass('expanded');
+                icon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+                button.html('<i class="fas fa-chevron-up me-1"></i>{% trans "Hide Guide" %}');
+            }
+        });
+    }
+    
+    // Initialize guidance toggle on page load
+    initializeGuidanceToggle();
+
+    // Function to get current language with fallback
+    function getCurrentLanguage() {
+        // Try to get from window.currentLanguage
+        if (window.currentLanguage) {
+            return window.currentLanguage.substring(0, 2);
+        }
+        
+        // Try to get from html lang attribute
+        const htmlLang = document.documentElement.lang;
+        if (htmlLang) {
+            return htmlLang.substring(0, 2);
+        }
+        
+        // Try to get from URL path
+        const pathLang = window.location.pathname.split('/')[1];
+        if (['uk', 'en', 'ru'].includes(pathLang)) {
+            return pathLang;
+        }
+        
+        // Default fallback
+        return 'en';
+    }
+
+    // Function to update description based on selected option
+    function updateDescription(selectedOption, descriptionContainer) {
+        if (selectedOption.val()) {
+            const currentLanguage = getCurrentLanguage();
+            const description = selectedOption.data(`description-${currentLanguage}`) ||
+                              selectedOption.data('description-en') ||
+                              selectedOption.data('description-uk');
+
+            if (description) {
+                descriptionContainer
+                    .text(description)
+                    .css('color', '#000000')  // Always use black color for description text
+                    .show();
+            } else {
+                descriptionContainer.empty().hide();
+            }
+        } else {
+            descriptionContainer.empty().hide();
+        }
+    }
+
+    // Function to check residual risk against acceptable risk
+    function checkResidualRiskAgainstAcceptableRisk() {
+        const selectedRiskLevelId = $('#modal_residual_risk_level_select').val();
+        const currentAssetId = $('#enhancedDataModal').data('asset-id');
+        
+        if (!selectedRiskLevelId || !currentAssetId) {
+            $('#residualRiskWarningAlert').hide();
+            return;
+        }
+
+        // Get the selected risk level data
+        const selectedOption = $('#modal_residual_risk_level_select option:selected');
+        const selectedRiskLevelName = selectedOption.text();
+        const selectedRiskLevelMaxValue = selectedOption.data('max-value');
+
+        // Get acceptable risk data for this asset
+        $.ajax({
+            url: '/en/app_risk/get-asset-risks/',
+            method: 'GET',
+            data: { 
+                asset_id: currentAssetId,
+                language: getCurrentLanguage()
+            },
+            success: function(response) {
+                if (response.risks && response.risks.length > 0) {
+                    // Get acceptable risk info from the first risk (they all have the same asset)
+                    const firstRisk = response.risks[0];
+                    if (firstRisk.risk_level && firstRisk.risk_level.acceptable_risk_info) {
+                        const acceptableRisk = firstRisk.risk_level.acceptable_risk_info;
+                        const acceptableRiskMaxValue = acceptableRisk.max_value;
+                        const acceptableRiskName = acceptableRisk.name;
+
+                        // Compare risk levels
+                        if (selectedRiskLevelMaxValue && selectedRiskLevelMaxValue > acceptableRiskMaxValue) {
+                            // Show warning
+                            const warningText = `{% trans "Selected Residual Risk Level" %} "${selectedRiskLevelName}" {% trans "exceeds the Acceptable Risk Level" %} "${acceptableRiskName}" {% trans "defined for this Asset Group and Asset Type." %}`;
+                            $('#residualRiskWarningText').text(warningText);
+                            $('#residualRiskWarningAlert').show();
+                        } else {
+                            // Hide warning
+                            $('#residualRiskWarningAlert').hide();
+                        }
+                    } else {
+                        // No acceptable risk defined, hide warning
+                        $('#residualRiskWarningAlert').hide();
+                    }
+                } else {
+                    // No risks found, hide warning
+                    $('#residualRiskWarningAlert').hide();
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error checking acceptable risk:', error);
+                // Hide warning on error
+                $('#residualRiskWarningAlert').hide();
+            }
+        });
+    }
+
+    // Attachment management functions
+    function loadAttachments(treatmentId) {
+        // This will be populated when treatment details are loaded
+        // The attachments data comes from the treatment details API
+    }
+
+    function displayAttachments(attachments) {
+        const attachmentsList = $('#attachmentsList');
+        attachmentsList.empty();
+
+        if (!attachments || attachments.length === 0) {
+            attachmentsList.html('<div class="text-muted text-center py-4"><i class="fas fa-folder-open me-2"></i>{% trans "No attachments found" %}</div>');
+            return;
+        }
+
+        attachments.forEach(attachment => {
+            const attachmentHtml = `
+                <div class="attachment-item border rounded p-3 mb-3" data-attachment-id="${attachment.id}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-file me-2 text-primary"></i>
+                                <a href="${attachment.file_url}" target="_blank" class="text-decoration-none fw-bold">
+                                    ${attachment.filename}
+                                </a>
+                            </div>
+                            <div class="row text-muted small">
+                                <div class="col-md-3">
+                                    <i class="fas fa-hdd me-1"></i>${attachment.file_size}
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="fas fa-calendar me-1"></i>${attachment.uploaded_at}
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="fas fa-user me-1"></i>${attachment.uploaded_by}
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="fas fa-tag me-1"></i>${attachment.file_type}
+                                </div>
+                            </div>
+                            ${attachment.description ? `<div class="mt-2 text-muted"><i class="fas fa-comment me-1"></i>${attachment.description}</div>` : ''}
+                        </div>
+                        <div class="ms-3">
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-attachment" data-attachment-id="${attachment.id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            attachmentsList.append(attachmentHtml);
+        });
+
+        // Add event handlers for delete buttons
+        $('.delete-attachment').off('click').on('click', function() {
+            const attachmentId = $(this).data('attachment-id');
+            deleteAttachment(attachmentId);
+        });
+    }
+
+    function deleteAttachment(attachmentId) {
+        if (!confirm('{% trans "Are you sure you want to delete this file?" %}')) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('attachment_id', attachmentId);
+
+        $.ajax({
+            url: "{% url 'delete_treatment_attachment' %}",
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            },
+            success: function(response) {
+                if (response.status === 'success') {
+                    // Remove the attachment from the list
+                    $(`.attachment-item[data-attachment-id="${attachmentId}"]`).remove();
+                    
+                    // Show success message
+                    showEnhancedTreatmentAlert('success', '{% trans "File deleted successfully." %}');
+                    
+                    // Refresh the main treatment table to update attachment count
+                    const assetId = $('#riskTreatmentModal').data('asset-id');
+                    if (assetId) {
+                        loadRiskTreatmentData(assetId);
+                    }
+                } else {
+                    showEnhancedTreatmentAlert('danger', response.message || '{% trans "Error deleting file." %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error deleting attachment:", error);
+                let errorMessage = '{% trans "Error deleting file. Please try again." %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                showEnhancedTreatmentAlert('danger', errorMessage);
+            }
+        });
+    }
+
+    // Function to show alerts in the enhanced data modal
+    function showEnhancedTreatmentAlert(type, message) {
+        // Remove any existing alerts
+        $('#enhancedDataModal .alert').remove();
+        
+        const alertHtml = `
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                <span>${message}</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        
+        // Add alert at the top of the modal body
+        $('#enhancedDataModal .modal-body').prepend(alertHtml);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(function() {
+            $('#enhancedDataModal .alert').alert('close');
+        }, 5000);
+    }
+
+    // Handle file upload
+    $('#uploadAttachmentForm').off('submit').on('submit', function(e) {
+        e.preventDefault();
+        
+        const treatmentId = $('#enhancedDataModal').data('treatment-id');
+        const fileInput = $('#attachmentFile')[0];
+        const description = $('#attachmentDescription').val();
+
+        if (!treatmentId) {
+            showEnhancedTreatmentAlert('danger', '{% trans "No treatment selected." %}');
+            return;
+        }
+
+        if (!fileInput.files[0]) {
+            showEnhancedTreatmentAlert('danger', '{% trans "Please select a file to upload." %}');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('treatment_id', treatmentId);
+        formData.append('file', fileInput.files[0]);
+        formData.append('description', description);
+
+        $('#uploadAttachmentBtn').prop('disabled', true)
+            .html('<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Uploading..." %}');
+
+        $.ajax({
+            url: "{% url 'upload_treatment_attachment' %}",
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            },
+            success: function(response) {
+                $('#uploadAttachmentBtn').prop('disabled', false)
+                    .html('<i class="fas fa-upload me-2"></i>{% trans "Upload File" %}');
+
+                if (response.status === 'success') {
+                    // Clear the form
+                    $('#attachmentFile').val('');
+                    $('#attachmentDescription').val('');
+
+                    // Add the new attachment to the list
+                    const newAttachment = response.attachment;
+                    const attachmentHtml = `
+                        <div class="attachment-item border rounded p-3 mb-3" data-attachment-id="${newAttachment.id}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-file me-2 text-primary"></i>
+                                        <a href="${newAttachment.file_url}" target="_blank" class="text-decoration-none fw-bold">
+                                            ${newAttachment.filename}
+                                        </a>
+                                    </div>
+                                    <div class="row text-muted small">
+                                        <div class="col-md-3">
+                                            <i class="fas fa-hdd me-1"></i>${newAttachment.file_size}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <i class="fas fa-calendar me-1"></i>${newAttachment.uploaded_at}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <i class="fas fa-user me-1"></i>${newAttachment.uploaded_by}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <i class="fas fa-tag me-1"></i>${newAttachment.file_type}
+                                        </div>
+                                    </div>
+                                    ${newAttachment.description ? `<div class="mt-2 text-muted"><i class="fas fa-comment me-1"></i>${newAttachment.description}</div>` : ''}
+                                </div>
+                                <div class="ms-3">
+                                    <button type="button" class="btn btn-sm btn-outline-danger delete-attachment" data-attachment-id="${newAttachment.id}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    $('#attachmentsList').prepend(attachmentHtml);
+
+                    // Add event handler for the new delete button
+                    $(`.attachment-item[data-attachment-id="${newAttachment.id}"] .delete-attachment`).on('click', function() {
+                        deleteAttachment(newAttachment.id);
+                    });
+
+                    // Show success message
+                    showEnhancedTreatmentAlert('success', '{% trans "File uploaded successfully." %}');
+
+                    // Refresh the main treatment table to update attachment count
+                    const assetId = $('#riskTreatmentModal').data('asset-id');
+                    if (assetId) {
+                        loadRiskTreatmentData(assetId);
+                    }
+                } else {
+                    showEnhancedTreatmentAlert('danger', response.message || '{% trans "Error uploading file." %}');
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#uploadAttachmentBtn').prop('disabled', false)
+                    .html('<i class="fas fa-upload me-2"></i>{% trans "Upload File" %}');
+
+                console.error("Error uploading attachment:", error);
+                let errorMessage = '{% trans "Error uploading file. Please try again." %}';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                showEnhancedTreatmentAlert('danger', errorMessage);
+            }
+        });
+    });
+
+});
+</script>
+
+ 

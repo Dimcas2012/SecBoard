@@ -1,0 +1,3378 @@
+<!-- \SanchoSec\templates\suib_docs\reg_docs.html-->
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Document Registry" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_doc/includes/doc_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_doc/css/reg_docs-page.css' %}">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap5.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.dataTables.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid mt-3 doc-page">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="mb-1">
+                <i class="bi bi-folder2-open me-2"></i>{% trans "Document Registry" %}
+            </h1>
+            <p class="text-muted mb-0">{% trans "Manage and track all regulatory documents" %}</p>
+        </div>
+    </div>
+
+
+    <!-- Filters Section (collapsed by default) -->
+    <div class="card mb-2 filter-section access-request-filters">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="regDocsFiltersCollapse" toggle_id="toggleRegDocsFilters" icon_id="regDocsFiltersToggleIcon" %}
+        <div class="collapse" id="regDocsFiltersCollapse">
+        <div class="card-body py-2">
+            <div class="row g-1">
+                <div class="col-md-4">
+                    <label class="form-label" for="globalSearch">{% trans "Search" %}</label>
+                    <input type="text" id="globalSearch" class="form-control form-control-sm" placeholder="{% trans 'Search in all columns...' %}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterCompany">{% trans "Company" %}</label>
+                    <select id="filterCompany" class="form-select form-select-sm">
+                        <option value="">{% trans "All" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterType">{% trans "Type" %}</label>
+                    <select id="filterType" class="form-select form-select-sm">
+                        <option value="">{% trans "All" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterDateFrom">{% trans "Date From" %}</label>
+                    <input type="date" id="filterDateFrom" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterDateTo">{% trans "Date To" %}</label>
+                    <input type="date" id="filterDateTo" class="form-control form-control-sm">
+                </div>
+            </div>
+            <div class="row g-1 mt-1">
+                <div class="col-md-2">
+                    <label class="form-label" for="filterApproval">{% trans "Approval" %}</label>
+                    <select id="filterApproval" class="form-select form-select-sm">
+                        <option value="">{% trans "All" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                    <select id="filterStatus" class="form-select form-select-sm">
+                        <option value="">{% trans "All" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="filterAccess">{% trans "Level" %}</label>
+                    <select id="filterAccess" class="form-select form-select-sm">
+                        <option value="">{% trans "All" %}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Main Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="export-controls mb-2">
+                <div class="row align-items-center g-1">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if user_access.can_edit %}
+                            <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" data-bs-toggle="modal" data-bs-target="#addRegDocModal"
+                                    title="{% trans 'Add Document' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            <a href="{% url 'related_docs' %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                               title="{% trans 'View Related Documents' %}">
+                                <i class="bi bi-link-45deg"></i>
+                            </a>
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" id="guideBtn" data-bs-toggle="modal" data-bs-target="#regDocsGuideModal"
+                                    title="{% trans 'Guide' %}">
+                                <i class="bi bi-book"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="small text-muted mb-2">
+                <i class="bi bi-info-circle me-1"></i><span id="recordsCount">{% trans "Loading..." %}</span>
+            </p>
+            <div class="table-responsive full-width-table"><table id="mainDocsTable" class="table table-hover table-sm table-sm-font sb-data-table w-100 mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Document name' %}">
+                            {% trans "Name" %}
+                        </th>
+                        <th data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Company that owns the asset' %}">
+                            {% trans "Company" %}
+                        </th>
+                        <th data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Type of document' %}">
+                            {% trans "Type" %}
+                        </th>
+                        <th class="vers-date-cell"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Version number and document date' %}">
+                            {% trans "Vers" %}<span class="vers-date-col-sep">/</span>{% trans "Date" %}
+                        </th>
+                        <th data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{% trans 'Document description' %}">
+                            {% trans "Description" %}
+                        </th>
+                        <th class="html-file-cell"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'HTML version and attached file' %}">
+                            <span class="html-file-col-header" aria-label="{% trans 'HTML/File' %}">
+                                <i class="fas fa-code"></i><span class="html-file-col-sep">/</span><i class="fas fa-paperclip"></i>
+                            </span>
+                        </th>
+                        <th class="related-doc-cell"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Related documents' %}">
+                            <span class="doc-col-icon-header" aria-label="{% trans 'Related documents' %}">
+                                <i class="bi bi-link-45deg"></i>
+                            </span>
+                        </th>
+                        <th class="previous-doc-cell"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Previous Document' %}">
+                            <span class="doc-col-icon-header" aria-label="{% trans 'Previous Document' %}">
+                                <i class="bi bi-skip-backward"></i>
+                            </span>
+                        </th>
+                        <th data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Document approval status' %}">
+                            {% trans "Approval" %}
+                        </th>
+                        <th data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Document familiarization / acknowledgment' %}">
+                            {% trans "Familiarization" %}
+                        </th>
+                        <th data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Document status' %}">
+                            {% trans "Status" %}
+                        </th>
+                        <th data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Level / access restriction' %}">
+                            {% trans "Level" %}
+                        </th>
+                        {% if user_access.can_edit %}
+                        <th data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Groups and Cabinet users with access to this document' %}">
+                            {% trans "Access" %}
+                        </th>
+                        <th data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% trans 'Available actions for this document' %}">
+                            {% trans "Actions" %}
+                        </th>
+                        {% endif %}
+                    </tr>
+                </thead>
+            </table>
+            </div>
+            {% include "app_doc/includes/doc_table_pagination_client.html" with pagination_id="mainDocsTablePagination" %}
+        </div>
+    </div>
+</div>
+
+<!-- HTML Version Modal -->
+<div class="modal fade" id="htmlVersionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "HTML" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="htmlContent" class="html-content"></div>
+                <button class="btn btn-secondary mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#sourceCode">
+                    {% trans "Show/hide source code" %}
+                </button>
+                <div class="collapse" id="sourceCode">
+                    <div class="source-code"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay d-none">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">{% trans "Loading..." %}</span>
+    </div>
+</div>
+
+<!-- Include modals -->
+{% include 'app_doc/modals/rel_reg_docs_modal.html' %}
+{% include 'app_doc/modals/del_reg_docs_modal.html' %}
+{% include 'app_doc/modals/add_reg_docs_modal.html' %}
+{% include 'app_doc/modals/edit_reg_docs_modal.html' %}
+{% include 'app_doc/modals/approve_doc_modal.html' %}
+
+<!-- Acknowledge document confirmation modal -->
+<div class="modal fade" id="acknowledgeConfirmModal" tabindex="-1" aria-labelledby="acknowledgeConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="acknowledgeConfirmModalLabel">
+                    <i class="fas fa-signature me-2"></i>{% trans "Confirm acknowledgment" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="acknowledgeConfirmDocName" class="mb-0"></p>
+                <p class="mt-2 mb-0 text-muted small">{% trans "Do you confirm that you have read and acknowledge this document?" %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="confirmAcknowledgeBtn"><i class="fas fa-check me-1"></i>{% trans "Confirm" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Familiarization list modal -->
+<div class="modal fade" id="familiarizationListModal" tabindex="-1" aria-labelledby="familiarizationListModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="familiarizationListModalLabel">
+                    <i class="fas fa-eye me-2"></i>{% trans "Familiarized with document" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2"><strong id="famModalDocName"></strong></p>
+                <p class="mb-3 small text-muted"><strong>{% trans "Document hash" %}:</strong> <code id="famModalDocHash" class="user-select-all"></code></p>
+                <h6 class="mb-2 mt-3"><i class="fas fa-check-circle text-success me-1"></i>{% trans "Familiarized" %}</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Position" %}</th>
+                                <th>{% trans "Acknowledgment date" %}</th>
+                                <th>{% trans "Document hash" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="famModalTbody">
+                        </tbody>
+                    </table>
+                </div>
+                <p id="famModalEmpty" class="text-muted small mb-0 d-none">{% trans "No one has acknowledged yet." %}</p>
+                <h6 class="mb-2 mt-4"><i class="fas fa-clock text-warning me-1"></i>{% trans "Must familiarize" %}</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "Name" %}</th>
+                                <th>{% trans "Position" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="famModalPendingTbody">
+                        </tbody>
+                    </table>
+                </div>
+                <p id="famModalPendingEmpty" class="text-muted small mb-0 d-none">{% trans "No users pending familiarization." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Select Cabinet users (document access) modal -->
+<div class="modal fade" id="docSelectCabinetUsersModal" tabindex="-1" aria-labelledby="docSelectCabinetUsersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="docSelectCabinetUsersModalLabel"><i class="fas fa-user-friends me-2"></i>{% trans "Select Cabinet users (access)" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">{% trans "Use search and filters to find users. Selected users will have access to the document." %}</p>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label small">{% trans "Quick search" %}</label>
+                        <input type="text" class="form-control form-control-sm" id="docCabinetUserSearch" placeholder="{% trans 'Name, email...' %}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">{% trans "Department" %}</label>
+                        <select class="form-select form-select-sm" id="docCabinetUserDepartment">
+                            <option value="">{% trans "All departments" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">{% trans "Position" %}</label>
+                        <select class="form-select form-select-sm" id="docCabinetUserPosition">
+                            <option value="">{% trans "All positions" %}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small mb-1">{% trans "Cabinet users" %}</label>
+                    <div id="docCabinetUserList" class="border rounded p-2" style="max-height: 320px; overflow-y: auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="docCabinetUserSelectBtn"><i class="fas fa-check me-1"></i>{% trans "Select" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reg Docs (Document Registry) Guide Modal -->
+<div class="modal fade" id="regDocsGuideModal" tabindex="-1" aria-labelledby="regDocsGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'reg_docs_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="regDocsGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Document Registry Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="regDocsGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- JavaScript dependencies -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.10.2/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+
+<script>
+// Global variables
+
+window.currentLanguage = '{{ current_language }}';
+window.docTypesData = {% if doc_types_data %}{{ doc_types_data|safe }}{% else %}[]{% endif %};
+window.docStatusesData = {% if doc_statuses_data %}{{ doc_statuses_data|safe }}{% else %}[]{% endif %};
+window.companiesData = {% if companies_data %}{{ companies_data|safe }}{% else %}[]{% endif %};
+window.approvalStatuses = {% if approval_statuses %}{{ approval_statuses|safe }}{% else %}[]{% endif %};
+window.accessClassificationsData = {% if access_classifications_data %}{{ access_classifications_data|safe }}{% else %}[]{% endif %};
+
+window.userAccess = {
+    canEdit: {{ user_access.can_edit|yesno:"true,false" }},
+    hasAccess: {{ user_access.has_access|yesno:"true,false" }}
+};
+
+// Reg Docs Guide modal: load content when shown
+document.addEventListener('DOMContentLoaded', function() {
+    var el = document.getElementById('regDocsGuideModal');
+    if (!el) return;
+    el.addEventListener('show.bs.modal', function() {
+        var url = this.getAttribute('data-guide-url');
+        var body = document.getElementById('regDocsGuideModalBody');
+        if (!body || !url) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.content) {
+                    body.innerHTML = data.content;
+                } else {
+                    body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                }
+            })
+            .catch(function() {
+                body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+            });
+    });
+});
+
+// User Data Management
+const UserData = {
+    _cachedUserId: null,
+    
+    getCurrentUserId: function() {
+        if (this._cachedUserId !== null) {
+            return this._cachedUserId;
+        }
+        const userIdMeta = document.querySelector('meta[name="user-id"]');
+        this._cachedUserId = userIdMeta ? parseInt(userIdMeta.getAttribute('content')) : null;
+        return this._cachedUserId;
+    },
+
+    getCurrentUsername: function() {
+        const usernameMeta = document.querySelector('meta[name="username"]');
+        return usernameMeta ? usernameMeta.getAttribute('content') : null;
+    },
+
+    getUserGroups: function() {
+        const groupMetas = document.querySelectorAll('meta[name^="user-group-"]');
+        const groups = Array.from(groupMetas).map(meta => meta.getAttribute('content'));
+        console.log('User groups:', groups);
+        return groups;
+    },
+
+    checkApprovalPermission: function(docData) {
+        if (!docData || !docData.approvals) {
+            console.log('No approval data available');
+            return false;
+        }
+
+        const currentUserId = this.getCurrentUserId();
+        if (!currentUserId) {
+            console.log('No current user ID found');
+            return false;
+        }
+
+        // Перевіряємо по ID
+        const isApprover = docData.approvals.some(approval =>
+            parseInt(approval.approver_id) === currentUserId
+        );
+
+        console.log('Approval permission check:', {
+            currentUserId,
+            approvals: docData.approvals,
+            isApprover
+        });
+
+        return isApprover;
+    }
+};
+window.setRelatedDocs = function(relatedDocs) {
+    // Спочатку скидаємо всі чекбокси
+    $('.edit-related-doc-checkbox').prop('checked', false);
+
+    // Встановлюємо чекбокси для вибраних документів
+    if (Array.isArray(relatedDocs)) {
+        relatedDocs.forEach(docId => {
+            $(`#editRelDoc${docId}`).prop('checked', true);
+        });
+    }
+
+    // Оновлюємо лічильники
+    if (window.updateSelectedCounts) {
+        window.updateSelectedCounts();
+    }
+};
+window.updateSelectedCounts = function() {
+    const groupCount = $('.edit-group-checkbox:checked').length;
+    const relatedCount = $('.edit-related-doc-checkbox:checked').length;
+
+    $('.groups-counter').remove();
+    if (groupCount > 0) {
+        $('.groups-container').prev('.form-label')
+            .append(`<span class="badge bg-primary ms-2 groups-counter">${groupCount}</span>`);
+    }
+
+    $('.related-docs-counter').remove();
+    if (relatedCount > 0) {
+        $('.related-docs-container').prev('.form-label')
+            .append(`<span class="badge bg-primary ms-2 related-docs-counter">${relatedCount}</span>`);
+    }
+};
+
+// Global text utilities
+window.getLocalizedText = function(key) {
+    const translations = {
+        'Document updated successfully': {
+            'en': 'Document updated successfully',
+            'uk': 'Документ успішно оновлено',
+            'ru': 'Документ успешно обновлен'
+        },
+        'Document successfully deleted': {
+            'en': 'Document successfully deleted',
+            'uk': 'Документ успішно видалено',
+            'ru': 'Документ успешно удален'
+        },
+        'Error': {
+            'en': 'Error',
+            'uk': 'Помилка',
+            'ru': 'Ошибка'
+        },
+        'Permission denied': {
+            'en': 'Permission denied',
+            'uk': 'Доступ заборонено',
+            'ru': 'Доступ запрещен'
+        },
+        'No file currently uploaded': {
+            'en': 'No file currently uploaded',
+            'uk': 'Файл не завантажено',
+            'ru': 'Файл не загружен'
+        },
+        'Approved': {
+            'en': 'Approved',
+            'uk': 'Погоджено',
+            'ru': 'Согласовано'
+        },
+        'Needs reapproval': {
+            'en': 'Needs reapproval',
+            'uk': 'Потребує повторного погодження',
+            'ru': 'Требует повторного согласования'
+        },
+        'Pending': {
+            'en': 'Pending',
+            'uk': 'Очікує',
+            'ru': 'Ожидает'
+        },
+        'Familiarization': {
+            'en': 'Familiarization',
+            'uk': 'Ознайомлення',
+            'ru': 'Ознакомление'
+        },
+        'familiarized': {
+            'en': 'familiarized',
+            'uk': 'ознайомились',
+            'ru': 'ознакомились'
+        },
+        'I have read': {
+            'en': 'I have read',
+            'uk': 'Ознайомився',
+            'ru': 'Ознакомился'
+        },
+        'I have read this document': {
+            'en': 'I have read this document',
+            'uk': 'Я ознайомився з цим документом',
+            'ru': 'Я ознакомился с этим документом'
+        },
+        'Document must be fully approved before you can acknowledge it': {
+            'en': 'Document must be fully approved before you can acknowledge it.',
+            'uk': 'Документ має бути повністю погоджений усіма перед ознайомленням.',
+            'ru': 'Документ должен быть полностью согласован всеми перед ознакомлением.'
+        },
+        'Approve first': {
+            'en': 'Approve first',
+            'uk': 'Спочатку погодьте',
+            'ru': 'Сначала согласуйте'
+        },
+        'Acknowledged': {
+            'en': 'Acknowledged',
+            'uk': 'Ознайомлений',
+            'ru': 'Ознакомлен'
+        },
+        'View list of familiarized': {
+            'en': 'View list of familiarized',
+            'uk': 'Список ознайомлених',
+            'ru': 'Список ознакомившихся'
+        },
+        'Familiarized with document': {
+            'en': 'Familiarized with document',
+            'uk': 'Ознайомлені з документом',
+            'ru': 'Ознакомившиеся с документом'
+        },
+        'Document hash': {
+            'en': 'Document hash',
+            'uk': 'Хеш документу',
+            'ru': 'Хеш документа'
+        },
+        'Acknowledgment date': {
+            'en': 'Acknowledgment date',
+            'uk': 'Дата ознайомлення',
+            'ru': 'Дата ознакомления'
+        },
+        'No one has acknowledged yet.': {
+            'en': 'No one has acknowledged yet.',
+            'uk': 'Ніхто ще не ознайомився.',
+            'ru': 'Пока никто не ознакомился.'
+        },
+        'Confirm acknowledgment': {
+            'en': 'Confirm acknowledgment',
+            'uk': 'Підтвердження ознайомлення',
+            'ru': 'Подтверждение ознакомления'
+        },
+        'Do you confirm that you have read and acknowledge this document?': {
+            'en': 'Do you confirm that you have read and acknowledge this document?',
+            'uk': 'Ви підтверджуєте, що ознайомились з цим документом?',
+            'ru': 'Вы подтверждаете, что ознакомились с этим документом?'
+        },
+        'Confirm': {
+            'en': 'Confirm',
+            'uk': 'Підтвердити',
+            'ru': 'Подтвердить'
+        },
+        'Document': {
+            'en': 'Document',
+            'uk': 'Документ',
+            'ru': 'Документ'
+        },
+        'Download': {
+            'en': 'Download',
+            'uk': 'Завантажити',
+            'ru': 'Скачать'
+        },
+        'HTML': {
+            'en': 'HTML',
+            'uk': 'HTML',
+            'ru': 'HTML'
+        },
+        'Details': {
+            'en': 'Details',
+            'uk': 'Деталі',
+            'ru': 'Детали'
+        },
+        'No HTML': {
+            'en': 'No HTML',
+            'uk': 'Немає HTML',
+            'ru': 'Нет HTML'
+        },
+         'No related': {
+             'en': 'No related',
+             'uk': 'Немає пов\'язаних',
+             'ru': 'Нет связанных'
+         },
+        'Document modified - Reapproval needed': {
+            'en': 'Document modified - Reapproval needed',
+            'uk': 'Документ змінено - потрібне повторне погодження',
+            'ru': 'Документ изменен - требуется повторное согласование'
+        },
+        'You': {
+            'en': 'You',
+            'uk': 'Ви',
+            'ru': 'Вы'
+        },
+        'Approval': {
+            'en': 'Approval',
+            'uk': 'Погодження',
+            'ru': 'Согласование'
+        },
+        'Approve Document': {
+            'en': 'Approve Document',
+            'uk': 'Погодити документ',
+            'ru': 'Согласовать документ'
+        },
+        'Export to Excel': {
+        'en': 'Export to Excel',
+        'uk': 'Експорт в Excel',
+        'ru': 'Экспорт в Excel'
+        },
+        'Excel file generated successfully': {
+            'en': 'Excel file generated successfully',
+            'uk': 'Excel файл успішно створено',
+            'ru': 'Excel файл успешно создан'
+        },
+        'Error generating Excel file': {
+            'en': 'Error generating Excel file',
+            'uk': 'Помилка створення Excel файлу',
+            'ru': 'Ошибка создания Excel файла'
+        },
+        'Documents': {
+            'en': 'Documents',
+            'uk': 'Документи',
+            'ru': 'Документы'
+        },
+        'of': {
+            'en': 'of',
+            'uk': 'з',
+            'ru': 'из'
+        },
+        'approvals received': {
+            'en': 'approvals received',
+            'uk': 'отримано погоджень',
+            'ru': 'получено согласований'
+        },
+        'complete': {
+            'en': 'complete',
+            'uk': 'завершено',
+            'ru': 'завершено'
+        },
+        'Error loading approval status': {
+            'en': 'Error loading approval status',
+            'uk': 'Помилка завантаження статусу погодження',
+            'ru': 'Ошибка загрузки статуса согласования'
+        },
+        'Status': {
+            'en': 'Status',
+            'uk': 'Статус',
+            'ru': 'Статус'
+        },
+        'Not Set': {
+            'en': 'Not Set',
+            'uk': 'Не встановлено',
+            'ru': 'Не установлен'
+        },
+        'Unknown Status': {
+            'en': 'Unknown Status',
+            'uk': 'Невідомий статус',
+            'ru': 'Неизвестный статус'
+        },
+        'Manage and track all regulatory documents': {
+            'en': 'Manage and track all regulatory documents',
+            'uk': 'Керуйте та відстежуйте всі регуляторні документи',
+            'ru': 'Управляйте и отслеживайте все регуляторные документы'
+        },
+        'All Statuses': {
+            'en': 'All Statuses',
+            'uk': 'Всі статуси',
+            'ru': 'Все статусы'
+        },
+        'Show _MENU_ entries': {
+            'en': 'Show _MENU_ entries',
+            'uk': 'Показати _MENU_ записів',
+            'ru': 'Показать _MENU_ записей'
+        },
+        'Showing _START_ to _END_ of _TOTAL_ entries': {
+            'en': 'Showing _START_ to _END_ of _TOTAL_ entries',
+            'uk': 'Показано від _START_ до _END_ з _TOTAL_ записів',
+            'ru': 'Показано от _START_ до _END_ из _TOTAL_ записей'
+        },
+        'Showing 0 to 0 of 0 entries': {
+            'en': 'Showing 0 to 0 of 0 entries',
+            'uk': 'Показано 0 записів',
+            'ru': 'Показано 0 записей'
+        },
+        '(filtered from _MAX_ total entries)': {
+            'en': '(filtered from _MAX_ total entries)',
+            'uk': '(відфільтровано з _MAX_ записів)',
+            'ru': '(отфильтровано из _MAX_ записей)'
+        },
+        'Loading...': {
+            'en': 'Loading...',
+            'uk': 'Завантаження...',
+            'ru': 'Загрузка...'
+        },
+        'No matching records found': {
+            'en': 'No matching records found',
+            'uk': 'Відповідних записів не знайдено',
+            'ru': 'Соответствующих записей не найдено'
+        },
+        'No data available in table': {
+            'en': 'No data available in table',
+            'uk': 'Немає даних у таблиці',
+            'ru': 'Нет данных в таблице'
+        },
+        'First': {
+            'en': 'First',
+            'uk': 'Перша',
+            'ru': 'Первая'
+        },
+        'Previous': {
+            'en': 'Previous',
+            'uk': 'Попередня',
+            'ru': 'Предыдущая'
+        },
+        'Next': {
+            'en': 'Next',
+            'uk': 'Наступна',
+            'ru': 'Следующая'
+        },
+        'Last': {
+            'en': 'Last',
+            'uk': 'Остання',
+            'ru': 'Последняя'
+        },
+        'Warning': {
+            'en': 'Warning',
+            'uk': 'Попередження',
+            'ru': 'Предупреждение'
+        },
+        'The document has been modified since it was last approved.': {
+            'en': 'The document has been modified since it was last approved.',
+            'uk': 'Документ було змінено після останнього погодження.',
+            'ru': 'Документ был изменен после последнего согласования.'
+        },
+        'Some approvals may be invalidated.': {
+            'en': 'Some approvals may be invalidated.',
+            'uk': 'Деякі погодження можуть бути анульовані.',
+            'ru': 'Некоторые согласования могут быть аннулированы.'
+        },
+        'Do you want to download this version?': {
+            'en': 'Do you want to download this version?',
+            'uk': 'Бажаєте завантажити цю версію?',
+            'ru': 'Хотите загрузить эту версию?'
+        },
+        'Cancel': {
+            'en': 'Cancel',
+            'uk': 'Скасувати',
+            'ru': 'Отменить'
+        },
+        'Download Anyway': {
+            'en': 'Download Anyway',
+            'uk': 'Завантажити все одно',
+            'ru': 'Загрузить в любом случае'
+        },
+        'Downloading file...': {
+            'en': 'Downloading file...',
+            'uk': 'Завантаження файлу...',
+            'ru': 'Загрузка файла...'
+        },
+        'No related documents found': {
+            'en': 'No related documents found',
+            'uk': 'Пов\'язаних документів не знайдено',
+            'ru': 'Связанных документов не найдено'
+        },
+        'No file': {
+            'en': 'No file',
+            'uk': 'Немає файлу',
+            'ru': 'Нет файла'
+        },
+        'Remove': {
+            'en': 'Remove',
+            'uk': 'Видалити',
+            'ru': 'Удалить'
+        },
+        'Drag and drop a file here or click to select': {
+            'en': 'Drag and drop a file here or click to select',
+            'uk': 'Перетягніть файл сюди або клацніть для вибору',
+            'ru': 'Перетащите файл сюда или нажмите для выбора'
+        },
+        'Error loading data': {
+            'en': 'Error loading data',
+            'uk': 'Помилка завантаження даних',
+            'ru': 'Ошибка загрузки данных'
+        },
+        'Error loading related documents': {
+            'en': 'Error loading related documents',
+            'uk': 'Помилка завантаження пов\'язаних документів',
+            'ru': 'Ошибка загрузки связанных документов'
+        },
+        'Error deleting document': {
+            'en': 'Error deleting document',
+            'uk': 'Помилка видалення документу',
+            'ru': 'Ошибка удаления документа'
+        },
+        'Error loading HTML content': {
+            'en': 'Error loading HTML content',
+            'uk': 'Помилка завантаження HTML контенту',
+            'ru': 'Ошибка загрузки HTML контента'
+        },
+        'Edit document': {
+            'en': 'Edit document',
+            'uk': 'Редагувати документ',
+            'ru': 'Редактировать документ'
+        },
+        'Delete document': {
+            'en': 'Delete document',
+            'uk': 'Видалити документ',
+            'ru': 'Удалить документ'
+        },
+         'Error loading approvers': {
+             'en': 'Error loading approvers',
+             'uk': 'Помилка завантаження погоджувачів',
+             'ru': 'Ошибка загрузки согласующих'
+         },
+         'All': {
+             'en': 'All',
+             'uk': 'Всі',
+             'ru': 'Все'
+         },
+         'Date From': {
+             'en': 'Date From',
+             'uk': 'Дата від',
+             'ru': 'Дата от'
+         },
+         'Date To': {
+             'en': 'Date To',
+             'uk': 'Дата до',
+             'ru': 'Дата до'
+         },
+         'Apply Filters': {
+             'en': 'Apply Filters',
+             'uk': 'Застосувати фільтри',
+             'ru': 'Применить фильтры'
+         },
+         'Clear Filters': {
+             'en': 'Clear Filters',
+             'uk': 'Очистити фільтри',
+             'ru': 'Очистить фильтры'
+         },
+        'Needs Reapproval': {
+            'en': 'Needs Reapproval',
+            'uk': 'Потребує повторного погодження',
+            'ru': 'Требует повторного согласования'
+        },
+        'Total documents': {
+            'en': 'Total documents',
+            'uk': 'Всього документів',
+            'ru': 'Всего документов'
+        },
+        'Filtered': {
+            'en': 'Filtered',
+            'uk': 'Відфільтровано',
+            'ru': 'Отфильтровано'
+        },
+        'from': {
+            'en': 'from',
+            'uk': 'з',
+            'ru': 'из'
+        },
+        'Search': {
+            'en': 'Search',
+            'uk': 'Пошук',
+            'ru': 'Поиск'
+        },
+        'Search in all columns...': {
+            'en': 'Search in all columns...',
+            'uk': 'Пошук у всіх колонках...',
+            'ru': 'Поиск во всех колонках...'
+        },
+        'Level': {
+            'en': 'Level',
+            'uk': 'Рівень',
+            'ru': 'Уровень'
+        },
+        'Cabinet users': {
+            'en': 'Cabinet users',
+            'uk': 'Користувачі кабінету',
+            'ru': 'Пользователи кабинета'
+        },
+        'No access assigned': {
+            'en': 'No access assigned',
+            'uk': 'Доступ не надано',
+            'ru': 'Доступ не предоставлен'
+        },
+        'Name Document': {
+            'en': 'Name Document',
+            'uk': 'Назва документа',
+            'ru': 'Название документа'
+        },
+        'Document Type': {
+            'en': 'Document Type',
+            'uk': 'Тип документа',
+            'ru': 'Тип документа'
+        },
+        'Document Status': {
+            'en': 'Document Status',
+            'uk': 'Статус документа',
+            'ru': 'Статус документа'
+        },
+        'Document Date': {
+            'en': 'Document Date',
+            'uk': 'Дата документа',
+            'ru': 'Дата документа'
+        },
+        'Document Version': {
+            'en': 'Document Version',
+            'uk': 'Версія документа',
+            'ru': 'Версия документа'
+        },
+        'Version history': {
+            'en': 'Version history',
+            'uk': 'Історія версій',
+            'ru': 'История версий'
+        },
+        'Go to previous document': {
+            'en': 'Go to previous document',
+            'uk': 'Перейти до попереднього документа',
+            'ru': 'Перейти к предыдущему документу'
+        }
+     };
+
+
+    return translations[key]?.[window.currentLanguage] ||
+           translations[key]?.['en'] ||
+           translations[key]?.['uk'] ||
+           key;
+};
+
+// Перевірка на погоджувача
+window.isUserApprover = function(approval, currentUserId) {
+    if (!approval || !currentUserId) {
+        console.log('Invalid approval data:', { approval, currentUserId });
+        return false;
+    }
+
+    const approverId = parseInt(approval.approver_id);
+    const isMatch = approverId === currentUserId;
+
+    console.log('Approval match check:', {
+        approval,
+        currentUserId,
+        approverId,
+        isMatch
+    });
+
+    return isMatch;
+};
+
+// Global notification utility
+window.showNotification = function(type, message) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
+
+    $('.notification-alert').remove();
+
+    const alert = $(`
+        <div class="alert ${alertClass} alert-dismissible fade show notification-alert position-fixed top-0 end-0 m-3"
+             role="alert" style="z-index: 9999">
+            <i class="fas fa-${icon} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `);
+
+    $('body').append(alert);
+    setTimeout(() => alert.alert('close'), 5000);
+};
+
+
+ // Global file utilities
+window.fileUtils = {
+    getFileIcon: function(fileName) {
+        if (!fileName) return 'file';
+        const extension = fileName.split('.').pop().toLowerCase();
+        const iconMap = {
+            'pdf': 'file-pdf',
+            'doc': 'file-word',
+            'docx': 'file-word',
+            'xls': 'file-excel',
+            'xlsx': 'file-excel',
+            'txt': 'file-alt',
+            'rtf': 'file-alt'
+        };
+        return iconMap[extension] || 'file';
+    },
+
+    formatFileSize: function(bytes) {
+        if (!bytes || bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+
+    displayFileInfo: function(fileData) {
+        if (!fileData) {
+            return `
+                <div class="file-drop-zone">
+                    <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i>
+                    <p class="mb-0">${window.getLocalizedText('Drag and drop a file here or click to select')}</p>
+                </div>
+            `;
+        }
+
+        let fileUrl, fileName, fileSize;
+
+        if (typeof fileData === 'string') {
+            fileUrl = fileData;
+            fileName = fileUrl.split('/').pop();
+        } else if (typeof fileData === 'object') {
+            fileUrl = fileData.url;
+            fileName = fileData.name || fileUrl?.split('/').pop();
+            fileSize = fileData.size;
+        }
+
+        if (!fileName) {
+            return `
+                <div class="p-3 border rounded bg-light">
+                    <div class="d-flex align-items-center text-muted">
+                        <i class="fas fa-file-upload fa-2x me-3"></i>
+                        <span>${window.getLocalizedText('No file currently uploaded')}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        const fileIcon = this.getFileIcon(fileName);
+        const fileSizeText = fileSize ? `(${this.formatFileSize(fileSize)})` : '';
+
+        return `
+            <div class="current-file-container">
+                <div class="d-flex align-items-center">
+                    <div class="file-icon me-3">
+                        <i class="fas fa-${fileIcon} fa-2x text-primary"></i>
+                    </div>
+                    <div class="file-info flex-grow-1">
+                        <div class="file-name font-weight-bold text-break mb-2">
+                            ${fileName} ${fileSizeText}
+                        </div>
+                        <div class="file-actions">
+                            ${fileUrl ? `
+                                <a href="${fileUrl}"
+                                   class="btn btn-sm btn-primary me-2"
+                                   download="${fileName}">
+                                    <i class="fas fa-download me-1"></i>
+                                    ${window.getLocalizedText('Download')}
+                                </a>
+                            ` : ''}
+                            <button type="button"
+                                    class="btn btn-sm btn-danger remove-file-btn">
+                                <i class="fas fa-trash-alt me-1"></i>
+                                ${window.getLocalizedText('Remove')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+};
+
+
+// Function to update descriptions
+function updateDescription(selectElementId, descriptionElementId, dataCollection) {
+    const selectedOption = $(`#${selectElementId} option:selected`);
+    const selectedValue = selectedOption.val();
+
+    if (!selectedValue) {
+        $(`#${descriptionElementId}`).empty();
+        return;
+    }
+
+    const item = dataCollection.find(dt => dt.id === parseInt(selectedValue));
+
+    if (!item) {
+        $(`#${descriptionElementId}`).empty();
+        return;
+    }
+
+    const currentLang = window.currentLanguage.substring(0, 2);
+
+    let description;
+    // Check different description structure variants
+    if (typeof item.description === 'object') {
+        description = item.description[currentLang] ||
+                    item.description[currentLang === 'uk' ? 'ua' : currentLang] ||
+                    item.description.en ||
+                    item.description.uk ||
+                    item.description.ua;
+    } else {
+        // If description is not an object, use as is
+        description = item.description;
+    }
+
+    if (description) {
+        $(`#${descriptionElementId}`)
+            .text(description)
+            .css('color', item.color || '#6c757d')
+            .show();
+    } else {
+        $(`#${descriptionElementId}`).empty();
+    }
+}
+
+
+// Assign update functions to window object
+window.updateEditTypeDescription = function() {
+    updateDescription('edit_type_doc', 'editTypeDescription', window.docTypesData);
+};
+
+window.updateEditStatusDescription = function() {
+    updateDescription('edit_status_doc', 'editStatusDescription', window.docStatusesData);
+};
+
+window.updateEditAccessClassificationDescription = function() {
+    updateDescription('edit_access_classification', 'editAccessDescription', window.accessClassificationsData);
+};
+
+// Global related documents utilities
+window.relatedDocsUtils = {
+    displayRelatedDocs: function(relatedDocs) {
+        const tbody = $('#relatedDocsTableBody');
+        tbody.empty();
+
+        if (!Array.isArray(relatedDocs) || relatedDocs.length === 0) {
+            tbody.html(`
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="py-4 text-muted">
+                            ${window.getLocalizedText('No related documents found')}
+                        </div>
+                    </td>
+                </tr>
+            `);
+            return;
+        }
+
+        relatedDocs.forEach(doc => {
+            const fileButton = doc.file_rel_doc
+                ? `<a href="${doc.file_rel_doc}" class="btn btn-primary btn-sm" download>
+                       <i class="fas fa-download me-1"></i>${window.getLocalizedText('Download')}
+                   </a>`
+                : `<span class="badge bg-secondary">${window.getLocalizedText('No file')}</span>`;
+
+            const row = `
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-file-alt text-primary me-2"></i>
+                            <span class="text-break">${doc.name_rel_doc}</span>
+                        </div>
+                    </td>
+                    <td>${doc.company || '-'}</td>
+                    <td>${doc.vers_rel_doc}</td>
+                    <td>${new Date(doc.date_rel_doc).toLocaleDateString(window.currentLanguage)}</td>
+                    <td>${fileButton}</td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+    }
+};
+
+
+
+
+
+$(document).ready(function() {
+
+    let loadingDocData = false;
+
+
+    function getLocalizedFieldValue(data, fieldPrefix, currentLanguage) {
+        if (!data) return '';
+
+        // Direct match for uk/ua variation
+        const value = data[`${fieldPrefix}_${currentLanguage}`] ||
+                     data[`${fieldPrefix}_${currentLanguage === 'uk' ? 'ua' : currentLanguage}`];
+        if (value) return value;
+
+        // Fallback chain
+        const fallbacks = currentLanguage === 'uk' ? ['ua', 'en', 'ru'] :
+                         currentLanguage === 'ru' ? ['ru', 'uk', 'ua', 'en'] :
+                         ['en', 'uk', 'ua', 'ru'];
+
+        for (const lang of fallbacks) {
+            const key = `${fieldPrefix}_${lang}`;
+            if (data[key]) return data[key];
+        }
+
+        return '';
+    }
+    // Initialize DataTables with conditional columns
+    const baseColumns = [
+        {
+            data: "name_doc",
+            render: function(data, type, row) {
+                if (type === 'display') {
+                    return `<span class="text-primary fw-bold document-name-cell"
+                              data-bs-toggle="tooltip"
+                              data-bs-placement="top"
+                              title="${data}">${data}</span>`;
+                }
+                return data;
+            }
+        },
+        {
+            data: "company",
+            render: function(data, type, row) {
+                if (type === 'display' && data) {
+                    const companyName = data.name || data;
+                    return `<span class="company-name"
+                              data-bs-toggle="tooltip"
+                              data-bs-placement="top"
+                              title="${companyName}">${companyName}</span>`;
+                }
+                return data ? (data.name || data) : '';
+            }
+        },
+        {
+            data: "type_doc",
+            render: function(data, type, row) {
+                if (type === 'display' && data) {
+                    return `<span class="status-badge"
+                              data-bs-toggle="tooltip"
+                              data-bs-placement="top"
+                              title="${data.text}"
+                              style="background-color: ${data.color}20; color: ${data.color}">
+                        ${data.text}
+                       </span>`;
+                }
+                return data?.text || '';
+            }
+        },
+        {
+            data: "date_doc",
+            render: function(data, type, row) {
+                const version = row.vers_doc || '';
+                const dateRaw = data || row.date_doc || '';
+                if (type === 'sort' || type === 'type') {
+                    return dateRaw || '';
+                }
+                if (type === 'export' || type === 'filter') {
+                    const formattedDate = dateRaw ? new Date(dateRaw).toLocaleDateString(window.currentLanguage) : '';
+                    return [version, formattedDate].filter(Boolean).join(' / ');
+                }
+                if (type === 'display') {
+                    const formattedDate = dateRaw ? new Date(dateRaw).toLocaleDateString(window.currentLanguage) : '';
+                    const tooltipParts = [
+                        version ? ((window.getLocalizedText('Document Version') || 'Version') + ': ' + version) : '',
+                        formattedDate ? ((window.getLocalizedText('Document Date') || 'Date') + ': ' + formattedDate) : ''
+                    ].filter(Boolean).join(' · ');
+                    return `<div class="vers-date-cell-inner d-flex flex-column align-items-center text-center"
+                             data-bs-toggle="tooltip"
+                             data-bs-placement="top"
+                             title="${tooltipParts.replace(/"/g, '&quot;')}">
+                        ${version ? `<span class="vers-date-ver">${version}</span>` : '<span class="vers-date-ver text-muted">—</span>'}
+                        ${formattedDate ? `<span class="vers-date-date text-muted">${formattedDate}</span>` : '<span class="vers-date-date text-muted">—</span>'}
+                    </div>`;
+                }
+                return dateRaw ? new Date(dateRaw).toLocaleDateString(window.currentLanguage) : '';
+            }
+        },
+        {
+            data: "description",
+            render: function(data, type, row) {
+                if (!data) return '';
+                if (type === 'display') {
+                    return `<span class="description-text"
+                              data-bs-toggle="tooltip"
+                              data-bs-placement="top"
+                              data-bs-html="true"
+                              title="${data.replace(/"/g, '&quot;')}">${data.substring(0, 50)}${data.length > 50 ? '...' : ''}</span>`;
+                }
+                return data;
+            }
+        },
+        {
+            data: null,
+            render: function(data, type, row) {
+                if (type === 'display') {
+                    let htmlContent = '';
+                    let fileContent = '';
+                    
+                    // HTML version
+                    if (row.html_version) {
+                        htmlContent = `<button type="button" class="btn btn-info btn-sm html-file-btn view-html"
+                                   data-id="${row.id}"
+                                   data-bs-toggle="tooltip"
+                                   data-bs-placement="top"
+                                   title="{% trans 'View HTML' %}">
+                            <i class="fas fa-code"></i>
+                           </button>`;
+                    } else {
+                        htmlContent = `<span class="html-file-missing"
+                             data-bs-toggle="tooltip"
+                             data-bs-placement="top"
+                             title="{% trans 'No HTML version available' %}">
+                            <i class="fas fa-code"></i>
+                       </span>`;
+                    }
+                    
+                    // File
+                    const fileExists = row.file?.exists || row.file?.url || row.file?.name;
+                    const fileName = row.file?.name || (row.file?.url ? decodeURIComponent(row.file.url.split('/').pop()) : '');
+
+                    if (fileExists) {
+                        fileContent = `<a href="{% url 'protected_file_download' 0 %}".replace('0', row.id)
+                                  class="btn btn-primary btn-sm html-file-btn file-download-btn"
+                                  data-doc-id="${row.id}"
+                                  data-filename="${fileName}"
+                                  data-bs-toggle="tooltip"
+                                  data-bs-placement="top"
+                                  title="${fileName}">
+                                <i class="fas fa-download"></i>
+                               </a>`;
+                    } else {
+                        fileContent = `<span class="html-file-missing"
+                             data-bs-toggle="tooltip"
+                             data-bs-placement="top"
+                             title="{% trans 'No file attached' %}">
+                            <i class="fas fa-paperclip"></i>
+                       </span>`;
+                    }
+                    
+                    return `<div class="html-file-cell-inner d-flex flex-column align-items-center">${htmlContent}${fileContent}</div>`;
+                }
+                return '';
+            }
+        },
+         {
+             data: "related_docs_count",
+             render: function(data, type, row) {
+                 if (type === 'display') {
+                     if (data > 0) {
+                         return `<div class="text-center">
+                             <button class="btn btn-info btn-sm view-related"
+                                    data-id="${row.id}"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="top"
+                                    title="{% trans 'View related documents' %} (${data})">
+                                 <i class="fas fa-link"></i>
+                            </button>
+                         </div>`;
+                     }
+                     return `<div class="text-center">
+                         <span class="text-secondary"
+                              data-bs-toggle="tooltip"
+                              data-bs-placement="top"
+                              title="{% trans 'No related documents' %}">
+                             <i class="fas fa-unlink"></i>
+                        </span>
+                     </div>`;
+                 }
+                 return data;
+             }
+         },
+         {
+             data: "previous_version_id",
+             render: function(data, type, row) {
+                 if (type === 'display') {
+                     if (data) {
+                         const prevId = data;
+                         const info = row.previous_version_info || {};
+                         const L = window.getLocalizedText || function(k) { return k; };
+                         const esc = function(s) {
+                             if (s == null || s === '') return '—';
+                             return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                         };
+                         const parts = [
+                             (L('Name Document') || 'Name Document') + ': ' + esc(info.name_doc),
+                             (L('Document Type') || 'Document Type') + ': ' + esc(info.document_type),
+                             (L('Document Status') || 'Document Status') + ': ' + esc(info.document_status),
+                             (L('Level') || 'Level') + ': ' + esc(info.level),
+                             (L('Document Date') || 'Document Date') + ': ' + esc(info.document_date),
+                             (L('Document Version') || 'Document Version') + ': ' + esc(info.document_version),
+                             (L('Version history') || 'Version history') + ': ' + esc(row.version_history || '')
+                         ];
+                         const tooltipHtml = parts.join('<br/>');
+                         const fallbackTitle = (L('Go to previous document') || 'Go to previous document');
+                         const title = tooltipHtml ? tooltipHtml.replace(/"/g, '&quot;') : fallbackTitle;
+                         return `<div class="text-center">
+                             <button type="button" class="btn btn-outline-secondary btn-sm btn-goto-previous" data-doc-id="${prevId}" data-bs-toggle="tooltip" data-bs-placement="left" data-bs-html="true" data-bs-title="${title}">
+                                 <i class="fas fa-arrow-up"></i>
+                             </button>
+                         </div>`;
+                     }
+                     return `<div class="text-center"><span class="text-muted">—</span></div>`;
+                 }
+                 return data || '';
+             }
+         },
+        {
+            data: "approval",
+            render: function(data, type, row) {
+                if (type === 'display') {
+                    const approvals = (data && data.approvals) || [];
+                    const currentUserId = UserData.getCurrentUserId();
+                    const currentLanguage = window.currentLanguage.substring(0, 2);
+
+                    const validApprovals = approvals.filter(a => {
+                        const isStatusApproved = (a.status_key === 'approved') ||
+                                               (a.status === 'approved') ||
+                                               (a.status === window.getLocalizedText('Approved'));
+                        const docHash = (row.document_hash != null && row.document_hash !== '') ? String(row.document_hash) : '';
+                        const approvalHash = (a.document_hash != null && a.document_hash !== '') ? String(a.document_hash) : '';
+                        return isStatusApproved && docHash === approvalHash;
+                    }).length;
+
+                    const badgeFullText = `${validApprovals} ${window.getLocalizedText('of')} ${approvals.length} ${window.getLocalizedText('approvals received')}`;
+                    const badgeClass = validApprovals > 0
+                        ? (validApprovals < approvals.length ? 'bg-warning' : 'bg-success')
+                        : 'bg-secondary';
+                    const badgeIcon = validApprovals > 0
+                        ? (validApprovals < approvals.length ? 'clock' : 'check-double')
+                        : 'clock';
+
+                    let html = `<div class="approval-cell">`;
+                    html += `<div class="d-flex flex-column align-items-center gap-1">`;
+                    html += `<span class="badge ${badgeClass} text-nowrap approval-summary-badge" data-bs-toggle="tooltip" title="${badgeFullText.replace(/"/g, '&quot;')}">`;
+                    html += `<i class="fas fa-${badgeIcon} me-1"></i>${validApprovals}/${approvals.length}</span>`;
+                    html += `<div class="approvers-list w-100">`;
+
+                    approvals.forEach(approval => {
+                        const isCurrentUser = parseInt(approval.approver_id) === currentUserId;
+                        const isApproved = (approval.status_key === 'approved') ||
+                                         (approval.status === 'approved') ||
+                                         (approval.status === window.getLocalizedText('Approved'));
+                        const docHash = (row.document_hash != null && row.document_hash !== '') ? String(row.document_hash) : '';
+                        const approvalHash = (approval.document_hash != null && approval.document_hash !== '') ? String(approval.document_hash) : '';
+                        const hashValid = docHash === approvalHash;
+                        const needsApproval = isCurrentUser && (!isApproved || !hashValid);
+
+                        const formattedDate = approval.approval_date ?
+                            new Date(approval.approval_date).toLocaleString(window.currentLanguage, {
+                                year: '2-digit',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: false
+                            }) : '';
+
+                        let positionText = approval.position_name || '';
+                        if (!positionText && approval.position) {
+                            positionText = currentLanguage === 'uk' ?
+                                approval.position.ua || approval.position.en :
+                                approval.position[currentLanguage] || approval.position.en || approval.position.ua;
+                        }
+
+                        let departmentText = approval.department_name || '';
+                        if (!departmentText && approval.department) {
+                            departmentText = currentLanguage === 'uk' ?
+                                approval.department.ua || approval.department.en :
+                                approval.department[currentLanguage] || approval.department.en || approval.department.ua;
+                        }
+
+                        const userInfo = [positionText, departmentText].filter(Boolean).join(' | ');
+                        const statusText = isApproved ?
+                            (hashValid ? window.getLocalizedText('Approved') : window.getLocalizedText('Needs reapproval')) :
+                            window.getLocalizedText('Pending');
+                        const tooltipParts = [
+                            approval.approver_name + (isCurrentUser ? ` (${window.getLocalizedText('You')})` : ''),
+                            userInfo,
+                            statusText,
+                            formattedDate
+                        ].filter(Boolean).join(' · ');
+                        const statusIcon = isApproved
+                            ? (hashValid ? 'check-circle text-success' : 'exclamation-circle text-warning')
+                            : 'clock text-warning';
+
+                        html += `<div class="approval-item ${isApproved ? 'approved' : 'pending'} ${hashValid ? '' : 'stale'}" data-bs-toggle="tooltip" title="${tooltipParts.replace(/"/g, '&quot;')}">`;
+                        html += `<i class="fas fa-${statusIcon} approval-item-icon"></i>`;
+                        html += `<span class="approval-item-name${isCurrentUser ? ' approval-item-you' : ''}">${approval.approver_name}</span>`;
+                        if (needsApproval) {
+                            html += `<button type="button" class="btn btn-${hashValid ? 'success' : 'warning'} btn-sm approval-btn"
+                                    onclick="showApproveModal(${row.id})"
+                                    data-bs-toggle="tooltip"
+                                    title="${(hashValid ?
+                                        window.getLocalizedText('Approve Document') :
+                                        window.getLocalizedText('Document modified - Reapproval needed')).replace(/"/g, '&quot;')}">
+                                <i class="fas fa-${hashValid ? 'check' : 'sync-alt'}"></i>
+                            </button>`;
+                        }
+                        html += `</div>`;
+                    });
+
+                    html += '</div></div></div>';
+                    return html;
+                }
+                return data?.status || window.getLocalizedText('Pending');
+            }
+        },
+        {
+            data: "familiarization",
+            render: function(data, type, row) {
+                if (type === 'display') {
+                    const fam = data || {};
+                    const acks = (fam.acknowledgments || []);
+                    const docHash = (row.document_hash != null && row.document_hash !== '') ? String(row.document_hash) : '';
+                    const validAcks = acks.filter(a => (a.document_hash || '') === docHash);
+                    const totalWithAccess = (fam.access_user_count != null && fam.access_user_count !== '') ? parseInt(fam.access_user_count, 10) : 0;
+                    const displayTotal = totalWithAccess >= 0 ? totalWithAccess : acks.length;
+                    const currentUserId = UserData.getCurrentUserId();
+                    const currentUserAck = acks.find(a => String(a.user_id) === String(currentUserId));
+                    const currentUserValid = currentUserAck && (currentUserAck.document_hash || '') === docHash;
+                    const needsAcknowledge = !currentUserValid;
+                    const isFullyApproved = !!(row.approval && row.approval.is_approved);
+                    const badgeFullText = `${validAcks.length} ${window.getLocalizedText('of')} ${displayTotal} ${window.getLocalizedText('familiarized')}`;
+                    const currentUserDateStr = currentUserAck && currentUserAck.acknowledged_at ? new Date(currentUserAck.acknowledged_at).toLocaleString(window.currentLanguage, { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '';
+
+                    let html = `<div class="familiarization-cell">`;
+                    html += `<div class="d-flex flex-column align-items-center gap-1" style="min-width:0;max-width:100%;">`;
+                    html += `<span class="badge ${validAcks.length > 0 ? 'bg-info' : 'bg-secondary'} text-nowrap show-familiarization-modal cursor-pointer" style="font-size:0.7rem;" data-bs-toggle="tooltip" title="${(badgeFullText + ' — ' + (window.getLocalizedText('View list of familiarized') || '')).replace(/"/g, '&quot;')}">`;
+                    html += `<i class="fas fa-eye me-1"></i>${validAcks.length}/${displayTotal}</span>`;
+
+                    if (currentUserValid && currentUserAck) {
+                        html += `<div class="d-flex flex-column align-items-center gap-0 text-success w-100" style="font-size:0.7rem;" title="${(window.getLocalizedText('Acknowledged') + (currentUserDateStr ? ': ' + currentUserDateStr : '')).replace(/"/g, '&quot;')}">`;
+                        html += `<span class="d-flex align-items-center gap-1"><i class="fas fa-check-circle"></i><span>${window.getLocalizedText('Acknowledged')}</span></span>`;
+                        if (currentUserDateStr) html += `<small class="text-muted">${currentUserDateStr}</small>`;
+                        html += `</div>`;
+                    }
+
+                    if (needsAcknowledge) {
+                        if (isFullyApproved) {
+                            html += `<button type="button" class="btn btn-outline-primary btn-sm acknowledge-doc-btn text-nowrap" style="font-size:0.7rem;padding:0.2rem 0.4rem;"
+                                    data-doc-id="${row.id}"
+                                    data-bs-toggle="tooltip" title="${window.getLocalizedText('I have read this document')}">
+                                <i class="fas fa-signature me-1"></i>${window.getLocalizedText('I have read')}
+                            </button>`;
+                        } else {
+                            html += `<span class="badge bg-secondary text-wrap" style="font-size:0.65rem;" data-bs-toggle="tooltip" title="${(window.getLocalizedText('Document must be fully approved before you can acknowledge it') || '').replace(/"/g, '&quot;')}">
+                                <i class="fas fa-lock me-1"></i>${window.getLocalizedText('Approve first')}
+                            </span>`;
+                        }
+                    }
+                    html += '</div></div>';
+                    return html;
+                }
+                if (type === 'export' || type === 'filter' || type === 'sort') {
+                    const fam = (data || {});
+                    const acks = (fam.acknowledgments || []);
+                    const docHash = (row.document_hash != null && row.document_hash !== '') ? String(row.document_hash) : '';
+                    const validAcks = acks.filter(function(a) { return (a.document_hash || '') === docHash; });
+                    const totalWithAccess = (fam.access_user_count != null && fam.access_user_count !== '') ? parseInt(fam.access_user_count, 10) : 0;
+                    const displayTotal = totalWithAccess >= 0 ? totalWithAccess : acks.length;
+                    return validAcks.length + '/' + displayTotal + ' ' + (window.getLocalizedText('familiarized') || 'familiarized');
+                }
+                return '';
+            }
+        },
+         {
+             data: "status_doc",
+             render: function(data, type, row) {
+                 if (type === 'display' && data) {
+                     return `<span class="status-badge"
+                               data-bs-toggle="tooltip"
+                               data-bs-placement="top"
+                               title="${data.text}"
+                               style="background-color: ${data.color}20; color: ${data.color}">
+                         ${data.text}
+                        </span>`;
+                 }
+                 return data?.text || '';
+             }
+         },
+         {
+             data: "access_classification",
+             render: function(data, type, row) {
+                 if (type === 'display') {
+                     if (data) {
+                         return `<div class="text-center">
+                                   <i class="fas ${data.icon}"
+                                      data-bs-toggle="tooltip"
+                                      data-bs-placement="top"
+                                      title="${data.text}"
+                                      style="color: ${data.color}; font-size: 1.1rem;"></i>
+                                </div>`;
+                     }
+                     return '<span class="text-muted small">-</span>';
+                 }
+                 return data?.text || '';
+             }
+         }
+    ];
+    if (window.userAccess.canEdit) {
+        baseColumns.push({
+            data: "groups_info",
+            render: function(data, type, row) {
+                if (type === 'display') {
+                    const groups = Array.isArray(row.groups_info) ? row.groups_info : [];
+                    const users = Array.isArray(row.allowed_users_info) ? row.allowed_users_info : [];
+                    let html = '';
+                    if (groups.length > 0) {
+                        groups.forEach(group => {
+                            const tooltipContent = group.description ?
+                                group.description.replace(/"/g, '&quot;').replace(/\n/g, '<br>') :
+                                group.name;
+                            html += `
+                                <div class="group-badge mb-1">
+                                    <span class="badge bg-info"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-placement="top"
+                                          data-bs-html="true"
+                                          title="${tooltipContent}">
+                                        <i class="fas fa-users me-1"></i> ${(group.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                                    </span>
+                                </div>`;
+                        });
+                    }
+                    if (users.length > 0) {
+                        const userLabel = (typeof window.getLocalizedText === 'function' && window.getLocalizedText('Cabinet users')) || 'Cabinet users';
+                        html += `<div class="small text-muted mb-1">${userLabel}:</div>`;
+                        users.forEach(u => {
+                            const name = (u.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            html += `
+                                <div class="group-badge mb-1">
+                                    <span class="badge bg-secondary" title="${name}">
+                                        <i class="fas fa-user me-1"></i> ${name}
+                                    </span>
+                                </div>`;
+                        });
+                    }
+                    if (!html) {
+                        const noAccess = (typeof window.getLocalizedText === 'function' && window.getLocalizedText('No access assigned')) || 'No access assigned';
+                        return '<span class="badge bg-secondary">' + noAccess + '</span>';
+                    }
+                    return html;
+                }
+                return data || '';
+            }
+        });
+        baseColumns.push({
+            data: null,
+            orderable: false,
+            render: function(data, type, row) {
+                if (type === 'display') {
+                    return `
+                        <div class="btn-group">
+                            <button class="btn btn-info btn-sm edit-doc"
+                                    data-doc-id="${row.id}"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="top"
+                                    title="${window.getLocalizedText('Edit document')}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm delete-doc"
+                                    data-doc-id="${row.id}"
+                                    data-doc-name="${row.name_doc}"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="top"
+                                    title="${window.getLocalizedText('Delete document')}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>`;
+                }
+                return '';
+            }
+        });
+    }
+
+    // Initialize DataTable
+    window.mainDocsTable = $('#mainDocsTable').DataTable({
+        processing: true,
+        serverSide: true,
+        responsive: false,
+        dom: '<"row"<"col-sm-12"B>>' +
+             '<"row"<"col-sm-12"tr>>',
+        orderCellsTop: false,
+        fixedHeader: false,
+        autoWidth: false,
+        scrollX: true,
+        scrollCollapse: true,
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+        lengthChange: false,
+        buttons: [
+            {
+                extend: 'excel',
+                text: `<i class="fas fa-file-excel me-2"></i>${window.getLocalizedText('Export to Excel')}`,
+                className: 'btn btn-success action-btn ms-2',
+                title: window.getLocalizedText('Documents'),
+                filename: function() {
+                    return 'Documents_' + new Date().toISOString().split('T')[0];
+                },
+                exportOptions: {
+                    // Виключаємо колонки: HTML/File (5), Related (6), Previous (7), Access (12), Actions (13)
+                    columns: [0, 1, 2, 3, 4, 8, 9, 10, 11]
+                },
+                customize: function(xlsx) {
+                    const sheet = xlsx.xl.worksheets['sheet1.xml'];
+
+                    $('row c[t="s"]', sheet).each(function() {
+                        const text = $('is t', this).text();
+                        try {
+                            $('is t', this).text(decodeURIComponent(escape(text)));
+                        } catch (e) {
+                            console.warn('Encoding conversion failed for:', text);
+                        }
+                    });
+
+                    // Налаштування ширини колонок для нового набору колонок
+                    const columnWidths = [
+                        40,  // Name
+                        15,  // Company
+                        15,  // Type
+                        14,  // Vers/Date
+                        30,  // Description
+                        30,  // Approval Status
+                        22,  // Familiarization
+                        15,  // Status
+                        15   // Access Classification
+                    ];
+                    columnWidths.forEach((width, i) => {
+                        $(`col:eq(${i})`, sheet).attr('width', width);
+                    });
+
+                    $('row:first-child c', sheet).attr('s', '2');
+                }
+            }
+        ],
+        ajax: {
+            url: window.location.pathname,
+            type: 'GET',
+            data: function(d) {
+                d.ajax = true;
+                // Add filter parameters
+                d.filter_company = $('#filterCompany').val();
+                d.filter_type = $('#filterType').val();
+                d.filter_date_from = $('#filterDateFrom').val();
+                d.filter_date_to = $('#filterDateTo').val();
+                d.filter_approval = $('#filterApproval').val();
+                d.filter_status = $('#filterStatus').val();
+                d.filter_access = $('#filterAccess').val();
+                d.filter_doc_id = window.gotoDocId || '';
+                // Add global search parameter
+                d.search = { value: $('#globalSearch').val() || '' };
+                return d;
+            },
+            beforeSend: function(xhr) {
+                $('.loading-overlay').removeClass('d-none');
+                xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            },
+            complete: function() {
+                $('.loading-overlay').addClass('d-none');
+                if (window.gotoDocId) {
+                    const tableCard = document.querySelector('#mainDocsTable');
+                    if (tableCard) {
+                        tableCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                    window.gotoDocId = '';
+                }
+            },
+            error: function(xhr, error, thrown) {
+                console.error('DataTables error:', error, thrown);
+                window.showNotification('error', window.getLocalizedText('Error loading data'));
+                $('.loading-overlay').addClass('d-none');
+            }
+        },
+        columns: baseColumns,
+        columnDefs: (function() {
+            const defs = [
+                {
+                    targets: 5, // HTML/File
+                    searchable: false,
+                    orderable: false,
+                    width: "40px",
+                    className: "html-file-cell text-center"
+                },
+                {
+                    targets: 6, // Related documents
+                    searchable: false,
+                    orderable: false,
+                    width: "60px",
+                    className: "related-doc-cell text-center"
+                },
+                {
+                    targets: 7, // Previous document
+                    searchable: false,
+                    orderable: false,
+                    width: "60px",
+                    className: "previous-doc-cell text-center"
+                },
+                {
+                    targets: 0, // Name column
+                    width: "220px",
+                    className: "document-name-cell",
+                    orderable: true
+                },
+                {
+                    targets: 1, // Company column
+                    width: "100px",
+                    className: "text-truncate",
+                    orderable: true
+                },
+                {
+                    targets: 2, // Type column
+                    width: "68px",
+                    className: "text-center",
+                    orderable: true
+                },
+                {
+                    targets: 3, // Vers/Date column
+                    width: "72px",
+                    className: "vers-date-cell text-center",
+                    orderable: true
+                },
+                {
+                    targets: 4, // Description column
+                    width: "90px",
+                    className: "text-truncate",
+                    orderable: true
+                },
+                {
+                    targets: 8, // Approval Status column
+                    width: "120px",
+                    className: "approval-cell text-center",
+                    orderable: false
+                },
+                {
+                    targets: 9, // Familiarization column
+                    width: "155px",
+                    className: "text-center",
+                    orderable: false,
+                    searchable: false
+                },
+                {
+                    targets: 10, // Status column
+                    width: "40px",
+                    className: "text-center",
+                    orderable: true
+                },
+                {
+                    targets: 11, // Access Classification column
+                    width: "50px",
+                    className: "text-center",
+                    orderable: true
+                }
+            ];
+            if (window.userAccess.canEdit) {
+                defs.push({
+                    targets: 12, // Access column (Groups + Cabinet users)
+                    width: "150px",
+                    className: "text-start",
+                    orderable: false,
+                    searchable: false
+                });
+                defs.push({
+                    targets: 13, // Actions column
+                    width: "100px",
+                    className: "text-center",
+                    orderable: false,
+                    searchable: false
+                });
+            }
+            return defs;
+        })(),
+        order: [[3, 'desc']],
+        language: {
+            lengthMenu: window.getLocalizedText('Show _MENU_ entries'),
+            info: window.getLocalizedText('Showing _START_ to _END_ of _TOTAL_ entries'),
+            infoEmpty: window.getLocalizedText('Showing 0 to 0 of 0 entries'),
+            infoFiltered: window.getLocalizedText('(filtered from _MAX_ total entries)'),
+            loadingRecords: window.getLocalizedText('Loading...'),
+            zeroRecords: window.getLocalizedText('No matching records found'),
+            emptyTable: window.getLocalizedText('No data available in table'),
+            paginate: {
+                first: window.getLocalizedText('First'),
+                previous: window.getLocalizedText('Previous'),
+                next: window.getLocalizedText('Next'),
+                last: window.getLocalizedText('Last')
+            },
+            infoPostFix: '',
+            decimal: '',
+            thousands: ','
+        },
+        initComplete: function(settings) {
+            var api = this.api();
+            api.columns.adjust();
+            syncHeaderScroll();
+            updateRecordsCount(settings.json);
+            if (window.initDocDataTablePagination) {
+                window.initDocDataTablePagination({
+                    api: api,
+                    containerId: 'mainDocsTablePagination',
+                    paginationAriaLabel: '{% trans "Document register pagination" %}',
+                    labels: {
+                        showing: '{% trans "Showing" %}',
+                        of: '{% trans "of" %}',
+                        items: '{% trans "documents" %}',
+                        perPage: '{% trans "Per page" %}'
+                    }
+                });
+            }
+        },
+        drawCallback: function(settings) {
+            $('[data-bs-toggle="tooltip"]').tooltip('dispose').tooltip({
+                trigger: 'hover'
+            });
+            
+            // Adjust columns after draw
+            this.api().columns.adjust();
+            
+            // Sync header scroll with body scroll
+            syncHeaderScroll();
+            
+            // Update records count
+            updateRecordsCount(settings.json);
+        }
+    });
+    
+    // Function to update records count display
+    function updateRecordsCount(json) {
+        if (!json) return;
+        
+        const recordsFiltered = json.recordsFiltered || 0;
+        const recordsTotal = json.recordsTotal || 0;
+        
+        let countText = '';
+        
+        if (recordsFiltered < recordsTotal) {
+            // Filters are applied
+            countText = `${window.getLocalizedText('Filtered')}: <strong>${recordsFiltered}</strong> ${window.getLocalizedText('from')} <strong>${recordsTotal}</strong>`;
+        } else {
+            // No filters or all records shown
+            countText = `${window.getLocalizedText('Total documents')}: <strong>${recordsTotal}</strong>`;
+        }
+        
+        $('#recordsCount').html(countText);
+    }
+    
+    // Populate filter dropdowns
+    function populateFilters() {
+        const currentLang = window.currentLanguage.substring(0, 2);
+        
+        // Populate Company filter (only companies with documents)
+        if (window.companiesData && window.companiesData.length > 0) {
+            window.companiesData.forEach(function(company) {
+                $('#filterCompany').append(
+                    $('<option></option>').val(company.id).text(company.name)
+                );
+            });
+        }
+        
+        // Populate Type filter (only types used in documents)
+        if (window.docTypesData && window.docTypesData.length > 0) {
+            window.docTypesData.forEach(function(type) {
+                let typeText = '';
+                if (type.name && typeof type.name === 'object') {
+                    // If name is an object with language keys
+                    typeText = type.name[currentLang] || type.name.uk || type.name.en || type.name.ru;
+                } else if (type.text) {
+                    // If text is directly available
+                    typeText = type.text;
+                } else {
+                    typeText = (type.name && (type.name.en || type.name.uk || type.name.ru)) || type.name || '';
+                }
+                
+                if (type.id && typeText) {
+                    $('#filterType').append(
+                        $('<option></option>').val(type.id).text(typeText)
+                    );
+                }
+            });
+        }
+
+        // Populate Approval Status filter (only statuses present in documents)
+        if (window.approvalStatuses && window.approvalStatuses.length > 0) {
+            // Remove static options except "All"
+            $('#filterApproval option:not([value=""])').remove();
+            
+            window.approvalStatuses.forEach(function(status) {
+                const statusValue = status.toLowerCase();
+                const statusLabel = window.getLocalizedText(status.charAt(0).toUpperCase() + status.slice(1));
+                $('#filterApproval').append(
+                    $('<option></option>').val(statusValue).text(statusLabel)
+                );
+            });
+        }
+
+        // Populate Status filter (only statuses used in documents)
+        if (window.docStatusesData && window.docStatusesData.length > 0) {
+            window.docStatusesData.forEach(function(status) {
+                let statusText = '';
+                if (status.name && typeof status.name === 'object') {
+                    // If name is an object with language keys
+                    statusText = status.name[currentLang] || status.name.uk || status.name.en || status.name.ru;
+                } else if (status.text) {
+                    // If text is directly available
+                    statusText = status.text;
+                } else {
+                    statusText = (status.name && (status.name.en || status.name.uk || status.name.ru)) || status.name || '';
+                }
+                
+                if (status.id && statusText) {
+                    $('#filterStatus').append(
+                        $('<option></option>').val(status.id).text(statusText)
+                    );
+                }
+            });
+        }
+
+        // Populate Access Classification filter (only classifications used in documents)
+        if (window.accessClassificationsData && window.accessClassificationsData.length > 0) {
+            window.accessClassificationsData.forEach(function(access) {
+                let accessText = '';
+                if (access.name && typeof access.name === 'object') {
+                    // If name is an object with language keys
+                    accessText = access.name[currentLang] || access.name.uk || access.name.en || access.name.ru;
+                } else if (access.text) {
+                    // If text is directly available
+                    accessText = access.text;
+                } else {
+                    // Fallback to direct language fields
+                    accessText = access.name_uk || access.name_en || access.name;
+                }
+                
+                if (access.id && accessText) {
+                    $('#filterAccess').append(
+                        $('<option></option>').val(access.id).text(accessText)
+                    );
+                }
+            });
+        }
+    }
+
+    // Call populate filters on page load
+    populateFilters();
+
+    function reloadRegDocsTable() {
+        if (window.mainDocsTable) {
+            window.mainDocsTable.ajax.reload();
+        }
+    }
+
+    // Global search with debounce
+    let searchTimeout;
+    $('#globalSearch').on('keyup', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(reloadRegDocsTable, 500);
+    });
+
+    $('#clearAllFilters').on('click', function() {
+        $('#filterCompany').val('');
+        $('#filterType').val('');
+        $('#filterDateFrom').val('');
+        $('#filterDateTo').val('');
+        $('#filterApproval').val('');
+        $('#filterStatus').val('');
+        $('#filterAccess').val('');
+        $('#globalSearch').val('');
+        reloadRegDocsTable();
+    });
+
+    $('#filterCompany, #filterType, #filterDateFrom, #filterDateTo, #filterApproval, #filterStatus, #filterAccess').on('change', reloadRegDocsTable);
+
+    // Allow Enter key for global search
+    $('#globalSearch').on('keypress', function(e) {
+        if (e.which === 13) {
+            clearTimeout(searchTimeout);
+            window.mainDocsTable.ajax.reload();
+        }
+    });
+
+    // Function to sync header scroll with body scroll
+    function syncHeaderScroll() {
+        setTimeout(function() {
+            const scrollBody = $('.dataTables_scrollBody');
+            const scrollHead = $('.dataTables_scrollHead');
+            
+            if (scrollBody.length && scrollHead.length) {
+                // Remove previous event handlers to avoid duplicates
+                scrollBody.off('scroll.DT_sync');
+                
+                // Add scroll synchronization - directly sync scrollLeft
+                scrollBody.on('scroll.DT_sync', function() {
+                    const scrollLeft = $(this).scrollLeft();
+                    scrollHead.scrollLeft(scrollLeft);
+                    updateScrollHint();
+                });
+                
+                // Initial sync
+                const scrollLeft = scrollBody.scrollLeft();
+                if (scrollLeft > 0) {
+                    scrollHead.scrollLeft(scrollLeft);
+                }
+                
+                // Check if scroll hint is needed
+                updateScrollHint();
+            }
+        }, 150);
+    }
+    
+    // Function to show/hide scroll hint
+    function updateScrollHint() {
+        const scrollBody = $('.dataTables_scrollBody');
+        if (!scrollBody.length) return;
+        
+        const scrollWidth = scrollBody[0].scrollWidth;
+        const clientWidth = scrollBody[0].clientWidth;
+        const scrollLeft = scrollBody.scrollLeft();
+        
+        // Remove existing hint
+        $('.scroll-hint').remove();
+        
+        // Show hint only if table is scrollable and not scrolled to the end
+        if (scrollWidth > clientWidth && scrollLeft < (scrollWidth - clientWidth - 50)) {
+            const hint = $('<div class="scroll-hint"><i class="fas fa-chevron-right"></i></div>');
+            scrollBody.parent().css('position', 'relative').append(hint);
+            
+            // Hide hint after 3 seconds or on scroll
+            setTimeout(function() {
+                hint.addClass('hidden');
+            }, 3000);
+        }
+    }
+    
+    // Recalculate column widths on window resize
+    let resizeTimer;
+    $(window).on('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            if (window.mainDocsTable) {
+                window.mainDocsTable.columns.adjust().draw(false);
+                syncHeaderScroll();
+                updateScrollHint();
+            }
+        }, 250);
+    });
+
+
+
+
+    // File download handler
+    $(document).on('click', '.file-download-btn', async function(e) {
+        e.preventDefault();
+        const btn = $(this);
+        const docId = btn.data('doc-id');
+        const originalFilename = btn.data('filename');
+
+        try {
+            // Створюємо і показуємо лоадер
+            btn.prop('disabled', true);
+
+            // Отримуємо дані про файл та погодження
+            const [hashData, approvalsData] = await Promise.all([
+                // Отримуємо хеш файлу
+                fetch(`{% url 'get_file_content' '0' %}`.replace('0', docId), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                }).then(r => r.json()),
+                // Отримуємо дані про погодження
+                fetch(`{% url 'document_approvals' '0' %}`.replace('0', docId)).then(r => r.json())
+            ]);
+
+            if (!hashData.success) {
+                throw new Error(hashData.error || 'Failed to verify file');
+            }
+
+            // Перевіряємо статус погоджень
+            const hasApprovals = approvalsData.approvals?.some(a => a.status === 'approved');
+            const hashChanged = hasApprovals && approvalsData.approvals.some(a =>
+                a.status === 'approved' && a.document_hash !== hashData.hash
+            );
+
+            if (hashChanged) {
+                // Якщо хеш змінився, показуємо діалог підтвердження
+                const proceed = await new Promise(resolve => {
+                    // Видаляємо попередні модальні вікна
+                    $('.hash-warning-modal').remove();
+
+                    const modal = $(`
+                        <div class="modal hash-warning-modal fade" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-warning">
+                                        <h5 class="modal-title">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            ${window.getLocalizedText('Warning')}
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>${window.getLocalizedText('The document has been modified since it was last approved.')}</p>
+                                        <p>${window.getLocalizedText('Some approvals may be invalidated.')}</p>
+                                        <p>${window.getLocalizedText('Do you want to download this version?')}</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                            ${window.getLocalizedText('Cancel')}
+                                        </button>
+                                        <button type="button" class="btn btn-warning confirm-download">
+                                            <i class="fas fa-download me-2"></i>
+                                            ${window.getLocalizedText('Download Anyway')}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).appendTo('body');
+
+                    const bsModal = new bootstrap.Modal(modal[0], {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+
+                    modal.find('.confirm-download').on('click', () => {
+                        resolve(true);
+                        bsModal.hide();
+                    });
+
+                    modal.on('hidden.bs.modal', () => {
+                        resolve(false);
+                        modal.remove();
+                    });
+
+                    bsModal.show();
+                });
+
+                if (!proceed) {
+                    return;
+                }
+            }
+
+            // Завантажуємо файл
+            const downloadUrl = `{% url 'protected_file_download' '0' %}`.replace('0', docId);
+            const finalUrl = `${downloadUrl}?filename=${encodeURIComponent(originalFilename)}&hash=${hashData.hash}`;
+
+            const response = await fetch(finalUrl);
+            if (!response.ok) throw new Error('Download failed');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = originalFilename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+            console.error('Download error:', error);
+            window.showNotification('error', error.message || 'Error downloading file');
+        } finally {
+            btn.prop('disabled', false);
+            $('.hash-warning-modal').remove();
+        }
+    });
+
+    $(document).ajaxError(function(event, jqXHR, ajaxSettings, thrownError) {
+        if (ajaxSettings.url === window.location.pathname) {
+            console.error('AJAX error:', thrownError);
+            window.showNotification('error', window.getLocalizedText('Error loading data'));
+        }
+    });
+    // Додаємо індикатор прогресу завантаження
+    function showDownloadProgress(show) {
+        if (show) {
+            if (!$('#downloadProgress').length) {
+                $('body').append(`
+                    <div id="downloadProgress" class="position-fixed bottom-0 end-0 m-3 p-3 bg-white rounded shadow">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                            <span>${window.getLocalizedText('Downloading file...')}</span>
+                        </div>
+                    </div>
+                `);
+            }
+        } else {
+            $('#downloadProgress').remove();
+        }
+    }
+    // Handle related documents view
+    $(document).on('click', '.view-related', function() {
+        const docId = $(this).data('id');
+
+        $('.loading-overlay').removeClass('d-none');
+
+        $.ajax({
+            url: `{% url 'get_related_docs' '0' %}`.replace('0', docId),
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    window.relatedDocsUtils.displayRelatedDocs(response.data);
+                    const relatedModal = new bootstrap.Modal(document.getElementById('relatedDocsModal'));
+                    relatedModal.show();
+                } else {
+                    window.showNotification('error', response.error);
+                }
+            },
+            error: function(xhr) {
+                console.error('Error loading related documents:', xhr.responseText);
+                window.showNotification('error', window.getLocalizedText('Error loading related documents'));
+            },
+            complete: function() {
+                $('.loading-overlay').addClass('d-none');
+            }
+        });
+    });
+
+    // Go to previous document (filter table and scroll to row)
+    $(document).on('click', '.btn-goto-previous', function() {
+        const prevDocId = $(this).data('doc-id');
+        if (!prevDocId || !window.mainDocsTable) return;
+        window.gotoDocId = prevDocId;
+        window.mainDocsTable.ajax.reload(null, false);
+    });
+
+    // Delete document handler
+    let docToDelete = null;
+
+    $(document).on('click', '.delete-doc', function(e) {
+        e.preventDefault();
+        if (!window.userAccess.canEdit) return;
+
+        docToDelete = $(this).data('doc-id');
+        const docName = $(this).data('doc-name');
+        $('#deleteDocName').text(docName);
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        deleteModal.show();
+    });
+
+    $('#confirmDelete').on('click', function() {
+        if (!docToDelete || !window.userAccess.canEdit) return;
+
+        $('.loading-overlay').removeClass('d-none');
+
+        $.ajax({
+            url: `{% url 'delete_register_doc' 0 %}`.replace('0', docToDelete),
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            success: function(response) {
+                if (response.success) {
+                    window.mainDocsTable.ajax.reload();
+                    window.showNotification('success', window.getLocalizedText('Document successfully deleted'));
+                } else {
+                    window.showNotification('error', response.error);
+                }
+            },
+            error: function(xhr) {
+                console.error('Delete error:', xhr.responseText);
+                window.showNotification('error', window.getLocalizedText('Error deleting document'));
+            },
+            complete: function() {
+                const deleteModal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+                if (deleteModal) {
+                    deleteModal.hide();
+                }
+                $('.loading-overlay').addClass('d-none');
+                docToDelete = null;
+            }
+        });
+    });
+
+    // --- Select Cabinet users modal (document access) ---
+    window.docCabinetUserOptions = { users: [] };
+    window.docCabinetUserTarget = null;
+    window.selectedAddDocAllowedUsers = new Map();
+    window.selectedEditDocAllowedUsers = new Map();
+
+    function escapeDocUserHtml(text) {
+        if (text == null) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    function getDocCabinetUserLabel(u) {
+        const name = (u.full_name || u.username || '').trim();
+        const parts = [];
+        if (u.department_name) parts.push(u.department_name);
+        if (u.position_name) parts.push(u.position_name);
+        if (parts.length) return name + ' — ' + parts.join(', ');
+        return name;
+    }
+    function buildDocCabinetUserFilters() {
+        const deptMap = {}, posMap = {};
+        (window.docCabinetUserOptions.users || []).forEach(function(u) {
+            if (u.department_id != null && u.department_name) deptMap[u.department_id] = u.department_name;
+            if (u.position_id != null && u.position_name) posMap[u.position_id] = u.position_name;
+        });
+        const $dept = $('#docCabinetUserDepartment');
+        $dept.find('option:not(:first)').remove();
+        Object.keys(deptMap).sort().forEach(function(id) {
+            $dept.append('<option value="' + id + '">' + escapeDocUserHtml(deptMap[id]) + '</option>');
+        });
+        const $pos = $('#docCabinetUserPosition');
+        $pos.find('option:not(:first)').remove();
+        Object.keys(posMap).sort().forEach(function(id) {
+            $pos.append('<option value="' + id + '">' + escapeDocUserHtml(posMap[id]) + '</option>');
+        });
+    }
+    function filterDocCabinetUserList() {
+        const q = ($('#docCabinetUserSearch').val() || '').toLowerCase().trim();
+        const deptId = $('#docCabinetUserDepartment').val();
+        const posId = $('#docCabinetUserPosition').val();
+        const target = window.docCabinetUserTarget;
+        const selected = target && target.context === 'edit' ? window.selectedEditDocAllowedUsers : window.selectedAddDocAllowedUsers;
+        const users = (window.docCabinetUserOptions.users || []).filter(function(u) {
+            if (deptId && u.department_id != deptId) return false;
+            if (posId && u.position_id != posId) return false;
+            if (q) {
+                const name = (u.full_name || '').toLowerCase();
+                const uname = (u.username || '').toLowerCase();
+                const email = (u.email || '').toLowerCase();
+                if (name.indexOf(q) === -1 && uname.indexOf(q) === -1 && email.indexOf(q) === -1) return false;
+            }
+            return true;
+        });
+        const $list = $('#docCabinetUserList');
+        $list.empty();
+        if (!users.length) {
+            $list.html('<div class="text-muted small">{% trans "No persons match the filters." %}</div>');
+            return;
+        }
+        users.forEach(function(u) {
+            const uid = String(u.id);
+            const checked = selected.has(uid) ? ' checked' : '';
+            const label = getDocCabinetUserLabel(u);
+            $list.append(
+                '<div class="form-check border-bottom py-2">' +
+                '<input class="form-check-input doc-cabinet-user-check" type="checkbox" value="' + escapeDocUserHtml(uid) + '" id="doc_cu_' + escapeDocUserHtml(uid) + '"' + checked + '>' +
+                '<label class="form-check-label w-100 ms-2" for="doc_cu_' + escapeDocUserHtml(uid) + '">' + escapeDocUserHtml(label) + '</label></div>'
+            );
+        });
+    }
+    function renderDocAllowedUsersBadges(context) {
+        const selected = context === 'edit' ? window.selectedEditDocAllowedUsers : window.selectedAddDocAllowedUsers;
+        const containerId = context === 'edit' ? 'editAllowedUsersBadges' : 'addAllowedUsersBadges';
+        let html = '';
+        selected.forEach(function(u, id) {
+            const label = getDocCabinetUserLabel(u);
+            html += '<span class="badge bg-secondary me-1 mb-1 d-inline-flex align-items-center">' +
+                escapeDocUserHtml(label) +
+                ' <button type="button" class="btn-close btn-close-white ms-1" style="font-size:0.6rem;" data-doc-allowed-user-id="' + escapeDocUserHtml(id) + '" data-doc-allowed-context="' + context + '" aria-label="Remove"></button></span>';
+        });
+        $('#' + containerId).html(html || '');
+    }
+    window.renderDocAllowedUsersBadges = renderDocAllowedUsersBadges;
+    function openDocSelectCabinetUsersModal(context) {
+        window.docCabinetUserTarget = context === 'edit'
+            ? { context: 'edit', badgeContainerId: 'editAllowedUsersBadges' }
+            : { context: 'add', badgeContainerId: 'addAllowedUsersBadges' };
+        const companyId = context === 'edit' ? $('#edit_company').val() : $('#add_company').val();
+        if (!companyId) {
+            window.showNotification('warning', '{% trans "Select a company first." %}');
+            return;
+        }
+        $.get("{% url 'get_company_cabinet_users' %}", { company_id: companyId }, function(response) {
+            if (!response.success) {
+                window.showNotification('error', response.error || '{% trans "Error loading users." %}');
+                return;
+            }
+            window.docCabinetUserOptions = { users: response.users || [] };
+            buildDocCabinetUserFilters();
+            $('#docCabinetUserSearch').val('');
+            $('#docCabinetUserDepartment').val('');
+            $('#docCabinetUserPosition').val('');
+            filterDocCabinetUserList();
+            const modalEl = document.getElementById('docSelectCabinetUsersModal');
+            if (modalEl) {
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+        }).fail(function() {
+            window.showNotification('error', '{% trans "Error loading users." %}');
+        });
+    }
+    function applyDocCabinetUserSelection() {
+        const t = window.docCabinetUserTarget;
+        if (!t) return;
+        const selected = t.context === 'edit' ? window.selectedEditDocAllowedUsers : window.selectedAddDocAllowedUsers;
+        selected.clear();
+        $('.doc-cabinet-user-check:checked').each(function() {
+            const id = $(this).val();
+            const u = (window.docCabinetUserOptions.users || []).find(function(x) { return String(x.id) === id; });
+            if (u) selected.set(String(u.id), u);
+        });
+        renderDocAllowedUsersBadges(t.context);
+        if (t.context === 'edit') {
+            $('#editAccessSection').removeClass('is-invalid');
+            $('#groupsContent').removeClass('is-invalid');
+            $('#editAllowedUsersContent').removeClass('is-invalid');
+            $('#editAccessInvalidFeedback').removeClass('d-block');
+        } else {
+            $('#addAccessSection').removeClass('is-invalid');
+            $('#addGroupsContent').removeClass('is-invalid');
+            $('#addAllowedUsersContent').removeClass('is-invalid');
+            $('#addAccessInvalidFeedback').removeClass('d-block');
+        }
+        const modalEl = document.getElementById('docSelectCabinetUsersModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+    }
+    $(document).on('click', '#addSelectCabinetUsersBtn', function() { openDocSelectCabinetUsersModal('add'); });
+    $(document).on('click', '#editSelectCabinetUsersBtn', function() { openDocSelectCabinetUsersModal('edit'); });
+    $('#docCabinetUserSearch').on('input', function() { filterDocCabinetUserList(); });
+    $('#docCabinetUserDepartment, #docCabinetUserPosition').on('change', function() { filterDocCabinetUserList(); });
+    $('#docCabinetUserSelectBtn').on('click', function() { applyDocCabinetUserSelection(); });
+    $(document).on('click', '[data-doc-allowed-user-id]', function() {
+        const id = $(this).data('doc-allowed-user-id');
+        const context = $(this).data('doc-allowed-context');
+        if (context === 'edit') window.selectedEditDocAllowedUsers.delete(id);
+        else window.selectedAddDocAllowedUsers.delete(id);
+        renderDocAllowedUsersBadges(context);
+    });
+
+    // Open familiarization list modal (click on N/M badge)
+    function escapeFamHtml(text) {
+        if (text == null || text === '') return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    $(document).on('click', '.show-familiarization-modal', function(e) {
+        e.preventDefault();
+        if (!window.mainDocsTable) return;
+        const tr = $(this).closest('tr');
+        const row = window.mainDocsTable.row(tr).data();
+        if (!row) return;
+        const docName = row.name_doc || '';
+        const docHash = (row.document_hash != null && row.document_hash !== '') ? String(row.document_hash) : '—';
+        const fam = row.familiarization || {};
+        const acks = fam.acknowledgments || [];
+        const accessUsersList = fam.access_users_list || [];
+        const validAckUserIds = new Set(
+            acks
+                .filter(function(a) { return (a.document_hash || '') === docHash; })
+                .map(function(a) { return String(a.user_id); })
+        );
+        $('#famModalDocName').text(docName);
+        $('#famModalDocHash').text(docHash);
+        const tbody = $('#famModalTbody');
+        tbody.empty();
+        const validAcks = acks.filter(function(a) { return (a.document_hash || '') === docHash; });
+        if (validAcks.length === 0) {
+            $('#famModalEmpty').removeClass('d-none');
+            tbody.closest('.table-responsive').addClass('d-none');
+        } else {
+            $('#famModalEmpty').addClass('d-none');
+            tbody.closest('.table-responsive').removeClass('d-none');
+            const currentUserId = UserData.getCurrentUserId();
+            validAcks.forEach(function(a) {
+                const isYou = String(a.user_id) === String(currentUserId);
+                const dateStr = a.acknowledged_at ? new Date(a.acknowledged_at).toLocaleString(window.currentLanguage, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '—';
+                const positionText = [a.position_name, a.department_name].filter(Boolean).join(' | ') || '—';
+                const hashVal = (a.document_hash || '').trim() || '—';
+                const nameCell = isYou ? (escapeFamHtml(a.user_name) + ' <em>(' + escapeFamHtml(window.getLocalizedText('You')) + ')</em>') : escapeFamHtml(a.user_name);
+                tbody.append('<tr><td>' + nameCell + '</td><td>' + escapeFamHtml(positionText) + '</td><td>' + escapeFamHtml(dateStr) + '</td><td><code class="user-select-all small">' + escapeFamHtml(hashVal) + '</code></td></tr>');
+            });
+        }
+        const pendingTbody = $('#famModalPendingTbody');
+        pendingTbody.empty();
+        const pendingUsers = accessUsersList.filter(function(u) { return !validAckUserIds.has(String(u.user_id)); });
+        if (pendingUsers.length === 0) {
+            $('#famModalPendingEmpty').removeClass('d-none');
+            pendingTbody.closest('.table-responsive').addClass('d-none');
+        } else {
+            $('#famModalPendingEmpty').addClass('d-none');
+            pendingTbody.closest('.table-responsive').removeClass('d-none');
+            const currentUserId = UserData.getCurrentUserId();
+            pendingUsers.forEach(function(u) {
+                const isYou = String(u.user_id) === String(currentUserId);
+                const nameCell = isYou ? (escapeFamHtml(u.user_name) + ' <em>(' + escapeFamHtml(window.getLocalizedText('You')) + ')</em>') : escapeFamHtml(u.user_name);
+                const positionText = [u.department_name, u.position_name].filter(Boolean).join(' | ') || '—';
+                pendingTbody.append('<tr><td>' + nameCell + '</td><td>' + escapeFamHtml(positionText) + '</td></tr>');
+            });
+        }
+        const modal = new bootstrap.Modal(document.getElementById('familiarizationListModal'));
+        modal.show();
+    });
+
+    // Acknowledge / familiarization: show confirmation first
+    let acknowledgePending = { docId: null, btn: null };
+    $(document).on('click', '.acknowledge-doc-btn', function(e) {
+        e.preventDefault();
+        const docId = $(this).data('doc-id');
+        const btn = $(this);
+        let docName = '';
+        if (window.mainDocsTable) {
+            const tr = btn.closest('tr');
+            const row = window.mainDocsTable.row(tr).data();
+            if (row && row.name_doc) docName = row.name_doc;
+        }
+        acknowledgePending = { docId: docId, btn: btn };
+        $('#acknowledgeConfirmDocName').text(docName ? (window.getLocalizedText('Document') + ': ' + docName) : '');
+        const confirmModal = new bootstrap.Modal(document.getElementById('acknowledgeConfirmModal'));
+        confirmModal.show();
+    });
+
+    $('#confirmAcknowledgeBtn').on('click', function() {
+        const { docId, btn } = acknowledgePending;
+        if (!docId) return;
+        const confirmModal = bootstrap.Modal.getInstance(document.getElementById('acknowledgeConfirmModal'));
+        if (confirmModal) confirmModal.hide();
+        acknowledgePending = { docId: null, btn: null };
+        const button = btn && btn.length ? btn : $('.acknowledge-doc-btn[data-doc-id="' + docId + '"]');
+        if (button.length) button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>...');
+        $.ajax({
+            url: `{% url 'acknowledge_document' 0 %}`.replace('0', docId),
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            },
+            data: JSON.stringify({}),
+            success: function(response) {
+                if (response.success) {
+                    window.showNotification('success', response.message || window.getLocalizedText('Your familiarization has been recorded'));
+                    if (window.mainDocsTable) window.mainDocsTable.ajax.reload(null, false);
+                } else {
+                    window.showNotification('error', response.error || 'Error');
+                }
+            },
+            error: function(xhr) {
+                const data = xhr.responseJSON || {};
+                window.showNotification('error', data.error || window.getLocalizedText('Error recording familiarization'));
+            },
+            complete: function() {
+                if (button.length) button.prop('disabled', false).html('<i class="fas fa-signature me-1"></i>' + window.getLocalizedText('I have read'));
+            }
+        });
+    });
+
+    // View HTML Version handler
+    $(document).on('click', '.view-html', function() {
+        const docId = $(this).data('id');
+
+        $.ajax({
+            url: `{% url 'get_reg_doc_html' '0' %}`.replace('0', docId),
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    $('#htmlContent').html(response.data.html);
+                    $('.source-code').text(response.data.html);
+                    const htmlModal = new bootstrap.Modal(document.getElementById('htmlVersionModal'));
+                    htmlModal.show();
+                } else {
+                    window.showNotification('error', response.error);
+                }
+            },
+            error: function(xhr) {
+                console.error('Error loading HTML:', xhr.responseText);
+                window.showNotification('error', window.getLocalizedText('Error loading HTML content'));
+            }
+        });
+    });
+
+
+    // Modal cleanup
+    $('.modal').on('hidden.bs.modal', function() {
+        const visibleModalsCount = $('.modal:visible').length;
+
+        if (visibleModalsCount > 0) {
+            $('body').addClass('modal-open');
+        } else {
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open').css('overflow', '');
+            $('body').css('padding-right', '');
+            $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+        }
+    });
+
+
+
+
+    $(document).on('click', '.edit-doc', async function(e) {
+       e.preventDefault();
+       if (!window.userAccess.canEdit) return;
+
+       const docId = $(this).data('doc-id');
+       console.log('Editing document:', docId);
+
+       try {
+            $('.loading-overlay').removeClass('d-none');
+
+            const [docResponse, approvalResponse] = await Promise.all([
+                fetch(`{% url 'get_register_doc' '0' %}`.replace('0', docId)),
+                fetch(`{% url 'document_approvals' '0' %}`.replace('0', docId))
+            ]);
+
+            const docResult = await docResponse.json();
+            const approvalData = await approvalResponse?.json();
+
+            if (!docResult.success) {
+                throw new Error(docResult.error || 'Failed to load document data');
+            }
+
+            const data = docResult.data;
+            console.log('Document data loaded:', data);
+
+            // Fill form fields
+            $('#edit_doc_id').val(data.id);
+            $('#edit_name_doc').val(data.name_doc);
+            $('#edit_vers_doc').val(data.vers_doc);
+            $('#edit_date_doc').val(data.date_doc);
+            $('#edit_description').val(data.description);
+            $('#edit_version_history').val(data.version_history || '');
+
+            // Store selected groups
+            $('#editRegDocForm').data('selectedGroups', data.groups);
+
+            // Populate allowed users (Cabinet users with access)
+            if (window.selectedEditDocAllowedUsers) window.selectedEditDocAllowedUsers.clear();
+            if (data.allowed_users && Array.isArray(data.allowed_users)) {
+                data.allowed_users.forEach(function(u) {
+                    window.selectedEditDocAllowedUsers.set(String(u.id), u);
+                });
+            }
+            if (typeof window.renderDocAllowedUsersBadges === 'function') window.renderDocAllowedUsersBadges('edit');
+
+            // Set related docs
+            if (data.related_docs) {
+                setRelatedDocs(data.related_docs);
+            }
+
+           // Set company and type
+           if (data.company) {
+               if (typeof data.company === 'object') {
+                   $('#edit_company').val(data.company.id);
+               } else {
+                   $('#edit_company').val(data.company);
+               }
+           }
+
+           if (data.type_doc) {
+               $('#edit_type_doc').val(data.type_doc.id);
+               if (window.updateEditTypeDescription) {
+                   window.updateEditTypeDescription();
+               }
+           }
+
+            if (data.status_doc) {
+               $('#edit_status_doc').val(data.status_doc.id);
+               if (window.updateEditStatusDescription) {
+                   window.updateEditStatusDescription();
+               }
+            }
+
+            // Set access classification
+            if (data.access_classification) {
+                if (typeof data.access_classification === 'object') {
+                    $('#edit_access_classification').val(data.access_classification.id);
+                } else {
+                    $('#edit_access_classification').val(data.access_classification);
+                }
+            } else {
+                $('#edit_access_classification').val('');
+            }
+
+           // HTML version
+           if (typeof CKEDITOR !== 'undefined' && CKEDITOR.instances.edit_vers_doc_html) {
+               CKEDITOR.instances.edit_vers_doc_html.setData(data.vers_doc_html || '');
+           } else {
+               $('#edit_vers_doc_html').val(data.vers_doc_html || '');
+           }
+
+           // Handle file info
+           if (data.file_doc) {
+               $('#currentFileInfo').html(window.fileUtils.displayFileInfo(data.file_doc));
+           } else {
+               $('#currentFileInfo').html(window.fileUtils.displayFileInfo(null));
+           }
+
+           // Trigger company change to load approvers and groups
+           if (data.company) {
+               await new Promise(resolve => {
+                   $('#edit_company').trigger('change');
+                   setTimeout(resolve, 1000);
+               });
+           }
+
+           // Handle approvers after company change
+           if (approvalData.success) {
+               await handleApprovers(data.company?.id || data.company, approvalData);
+           }
+
+           // Load related documents for the company
+           const companyId = data.company?.id || data.company;
+           if (companyId) {
+               await loadEditCompanyRelatedDocs(companyId);
+               
+               // After loading, set selected related docs
+               setTimeout(() => {
+                   $('.edit-related-doc-checkbox').prop('checked', false);
+                   if (data.related_docs && Array.isArray(data.related_docs)) {
+                       data.related_docs.forEach(docId => {
+                           $(`#editRelDoc${docId}`).prop('checked', true);
+                       });
+                   }
+               }, 500);
+               // Load previous version options (Document Registry list, exclude current doc)
+               await loadEditPreviousVersionOptions(companyId, data.id, data.previous_version);
+           } else {
+               $('#edit_previous_version').find('option:not(:first)').remove();
+               $('#edit_previous_version').val('');
+           }
+
+           updateSelectedCounts();
+
+           const editModal = new bootstrap.Modal(document.getElementById('editRegDocModal'));
+           editModal.show();
+           
+           // Handle modal shown event to ensure proper value setting
+           $('#editRegDocModal').off('shown.bs.modal').on('shown.bs.modal', function() {
+               // Re-set the access classification value after modal is fully shown
+               if (data.access_classification) {
+                   if (typeof data.access_classification === 'object') {
+                       $('#edit_access_classification').val(data.access_classification.id);
+                   } else {
+                       $('#edit_access_classification').val(data.access_classification);
+                   }
+               } else {
+                   $('#edit_access_classification').val('');
+               }
+               
+               // Update access classification description
+               if (window.updateEditAccessClassificationDescription) {
+                   window.updateEditAccessClassificationDescription();
+               }
+               
+               // Check if the value is properly set and re-set if needed
+               const currentValue = $('#edit_access_classification').val();
+               const expectedValue = data.access_classification ? 
+                   (typeof data.access_classification === 'object' ? data.access_classification.id : data.access_classification) : 
+                   '';
+               
+               if (currentValue != expectedValue) {
+                   // Force set the value again
+                   if (data.access_classification) {
+                       if (typeof data.access_classification === 'object') {
+                           $('#edit_access_classification').val(data.access_classification.id).trigger('change');
+                       } else {
+                           $('#edit_access_classification').val(data.access_classification).trigger('change');
+                       }
+                   } else {
+                       $('#edit_access_classification').val('').trigger('change');
+                   }
+               }
+           });
+
+       } catch (error) {
+            console.error('Error loading document:', error);
+            window.showNotification('error', error.message || 'Error loading document data');
+        } finally {
+            $('.loading-overlay').addClass('d-none');
+        }
+    });
+    async function handleApprovers(companyId, approvalData) {
+       try {
+           const usersResponse = await fetch(`{% url 'get_company_cabinet_users' %}?company_id=${companyId}`, {
+               headers: {
+                   'X-Requested-With': 'XMLHttpRequest',
+                   'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+               }
+           });
+
+           const usersData = await usersResponse.json();
+
+           if (usersData.success && Array.isArray(usersData.users)) {
+               $('#approversSelect').empty();
+
+               const existingApprovers = new Map(
+                   approvalData.total_approvers.map(approver => [
+                       approver.approver_id,
+                       {
+                           status: approver.status,
+                           position: approver.position,
+                           position_name: approver.position_name,
+                           department: approver.department,
+                           department_name: approver.department_name
+                       }
+                   ])
+               );
+
+               usersData.users.forEach(user => {
+                   const existingApprover = existingApprovers.get(parseInt(user.id));
+                   const isExisting = !!existingApprover;
+
+                   const option = new Option(
+                       user.full_name || user.username,
+                       user.id,
+                       isExisting,
+                       isExisting
+                   );
+
+                   $(option).data({
+                       'username': user.username,
+                       'full-name': user.full_name,
+                       'position': existingApprover?.position || user.position,
+                       'position_name': existingApprover?.position_name ?? user.position_name,
+                       'department': existingApprover?.department || user.department,
+                       'department_name': existingApprover?.department_name ?? user.department_name,
+                       'email': user.email,
+                       'status': existingApprover ? existingApprover.status : 'not_assigned',
+                       'is-existing': isExisting
+                   });
+
+                   $('#approversSelect').append(option);
+               });
+
+               $('#approversSelect').trigger('change');
+           }
+       } catch (error) {
+           console.error('Error handling approvers:', error);
+       }
+    }
+
+    // Function to load related documents for edit form
+    async function loadEditCompanyRelatedDocs(companyId) {
+        console.log('=== loadEditCompanyRelatedDocs START ===');
+        const relatedDocsContainer = $('#editRelatedDocsContent');
+
+        if (!relatedDocsContainer.length) {
+            console.log('Related docs container not found');
+            return;
+        }
+
+        if (!companyId) {
+            relatedDocsContainer.html(`
+                <div class="text-center text-muted">
+                    <i class="fas fa-info-circle me-2"></i>${window.getLocalizedText('Select a company to see available related documents')}
+                </div>
+            `);
+            return;
+        }
+
+        // Show loading state
+        relatedDocsContainer.html(`
+            <div class="text-center">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span class="ms-2">${window.getLocalizedText('Loading related documents...')}</span>
+            </div>
+        `);
+
+        try {
+            const response = await fetch(`{% url 'get_company_related_docs' %}?company_id=${companyId}`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load related documents');
+            }
+
+            const data = await response.json();
+            console.log('Received related docs data:', data);
+
+            // Get currently selected related documents from the form
+            const selectedRelatedDocs = new Set(
+                $('.edit-related-doc-checkbox:checked').map(function() {
+                    return $(this).val();
+                }).get()
+            );
+
+            if (data.success && Array.isArray(data.related_docs)) {
+                if (data.related_docs.length === 0) {
+                    relatedDocsContainer.html(`
+                        <div class="text-center text-muted">
+                            <i class="fas fa-info-circle me-2"></i>${window.getLocalizedText('No related documents available for this company')}
+                        </div>
+                    `);
+                    return;
+                }
+
+                let html = '';
+                data.related_docs.forEach(doc => {
+                    const dateFormatted = doc.date_rel_doc ? new Date(doc.date_rel_doc).toLocaleDateString('uk-UA') : '';
+                    const isChecked = selectedRelatedDocs.has(doc.id.toString()) ? 'checked' : '';
+                    html += `
+                        <div class="form-check mb-2">
+                            <input class="form-check-input edit-related-doc-checkbox"
+                                   type="checkbox"
+                                   name="related_docs[]"
+                                   value="${doc.id}"
+                                   id="editRelDoc${doc.id}"
+                                   ${isChecked}>
+                            <label class="form-check-label" for="editRelDoc${doc.id}">
+                                <div class="d-flex flex-column">
+                                    <div class="fw-bold">${doc.name_rel_doc || ''}</div>
+                                    <div class="small text-muted">
+                                        ${doc.company ? `<span class="me-2"><i class="fas fa-building"></i> ${doc.company}</span>` : ''}
+                                        ${doc.vers_rel_doc ? `<span class="me-2"><i class="fas fa-code-branch"></i> ${doc.vers_rel_doc}</span>` : ''}
+                                        ${dateFormatted ? `<span><i class="fas fa-calendar-alt"></i> ${dateFormatted}</span>` : ''}
+                                    </div>
+                                    ${doc.description_rel_doc ? `<small class="text-muted mt-1">${doc.description_rel_doc.length > 100 ? doc.description_rel_doc.substring(0, 100) + '...' : doc.description_rel_doc}</small>` : ''}
+                                </div>
+                            </label>
+                        </div>
+                    `;
+                });
+                relatedDocsContainer.html(html);
+            } else {
+                relatedDocsContainer.html(`
+                    <div class="text-center text-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>${window.getLocalizedText('Error loading related documents')}
+                    </div>
+                `);
+            }
+        } catch (error) {
+            console.error('Error loading related documents:', error);
+            relatedDocsContainer.html(`
+                <div class="text-center text-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>${window.getLocalizedText('Error loading related documents')}
+                </div>
+            `);
+        } finally {
+            console.log('=== loadEditCompanyRelatedDocs END ===');
+        }
+    }
+
+    async function loadEditPreviousVersionOptions(companyId, excludeDocId, selectedId) {
+        const sel = $('#edit_previous_version');
+        if (!sel.length) return;
+        sel.find('option:not(:first)').remove();
+        if (!companyId) {
+            sel.val('');
+            return;
+        }
+        const url = `{% url 'get_company_register_docs' %}?company_id=${companyId}${excludeDocId ? '&exclude_doc_id=' + excludeDocId : ''}`;
+        try {
+            const response = await fetch(url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
+            });
+            const data = await response.json();
+            if (data.success && Array.isArray(data.documents)) {
+                data.documents.forEach(doc => {
+                    sel.append($('<option></option>').val(doc.id).text(`${doc.name_doc || ''} — ${doc.status_doc || ''} — ${doc.date_doc || ''} — ${doc.vers_doc || ''}`));
+                });
+            }
+            sel.val(selectedId || '');
+        } catch (err) {
+            console.error('Error loading previous version options:', err);
+            sel.val('');
+        }
+    }
+
+    // Helper function to get approver name with details (prefer localized position_name/department_name from backend)
+    function getApproverDisplayName(approver) {
+        const parts = [];
+        parts.push(approver.name);
+
+        const details = [];
+        if (approver.position_name) details.push(approver.position_name);
+        else if (approver.position && typeof approver.position === 'string') details.push(approver.position);
+        if (approver.department_name) details.push(approver.department_name);
+        else if (approver.department && typeof approver.department === 'string') details.push(approver.department);
+
+        if (details.length > 0) {
+            parts.push(`(${details.join(' - ')})`);
+        }
+
+        if (approver.status) {
+            parts.push(`[${approver.status}]`);
+        }
+
+        return parts.join(' ');
+    }
+
+    // Update company change handler
+    $('#edit_company, #add_company').on('change', async function() {
+        const selectId = $(this).attr('id');
+        const formPrefix = selectId.startsWith('edit_') ? 'edit_' : 'add_';
+        const approversSelect = $(`#${formPrefix}approversSelect`);
+        const companyId = $(this).val();
+
+        // Clear and disable approvers select
+        approversSelect.empty().prop('disabled', true);
+
+        // Load related documents for the selected company
+        if (formPrefix === 'edit_') {
+            loadEditCompanyRelatedDocs(companyId);
+            const editDocId = $('#edit_doc_id').val();
+            if (companyId && editDocId) {
+                loadEditPreviousVersionOptions(companyId, editDocId);
+            } else {
+                $('#edit_previous_version').find('option:not(:first)').remove();
+                $('#edit_previous_version').val('');
+            }
+        } else {
+            // For add form, the function is already in add_reg_docs_modal.html
+            if (typeof loadCompanyRelatedDocs === 'function') {
+                loadCompanyRelatedDocs(companyId);
+            }
+        }
+
+        if (!companyId) {
+            approversSelect.trigger('change');
+            return;
+        }
+
+        try {
+            // Get current document ID if in edit mode
+            const docId = $('#edit_doc_id').val();
+
+            // Get both cabinet users and current approvers (if in edit mode)
+            const requests = [
+                fetch(`{% url 'get_company_cabinet_users' %}?company_id=${companyId}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                })
+            ];
+
+            if (docId) {
+                requests.push(
+                    fetch(`{% url 'document_approvals' '0' %}`.replace('0', docId))
+                );
+            }
+
+            const responses = await Promise.all(requests);
+            const data = await Promise.all(responses.map(r => r.json()));
+
+            const usersData = data[0];
+            const approvalsData = data.length > 1 ? data[1] : null;
+
+            if (usersData.success && Array.isArray(usersData.users)) {
+                // Create a map of existing approvers if available
+                const existingApprovers = new Map();
+                if (approvalsData && approvalsData.success) {
+                    approvalsData.total_approvers.forEach(approver => {
+                        existingApprovers.set(parseInt(approver.approver_id), approver);
+                    });
+                }
+
+                // Add all company users as options
+                usersData.users.forEach(user => {
+                    const existingApprover = existingApprovers.get(parseInt(user.id));
+                    const isExistingApprover = !!existingApprover;
+
+                    const option = new Option(
+                        getApproverDisplayName({
+                            name: user.full_name,
+                            position: user.position,
+                            position_name: existingApprover?.position_name ?? user.position_name,
+                            department: user.department,
+                            department_name: existingApprover?.department_name ?? user.department_name,
+                            status: existingApprover?.status || 'not assigned'
+                        }),
+                        user.id,
+                        isExistingApprover,
+                        isExistingApprover
+                    );
+
+                    // Add data attributes
+                    $(option).data({
+                        'username': user.username,
+                        'full-name': user.full_name,
+                        'position': user.position,
+                        'position_name': existingApprover?.position_name ?? user.position_name,
+                        'department': user.department,
+                        'department_name': existingApprover?.department_name ?? user.department_name,
+                        'email': user.email,
+                        'status': existingApprover?.status || 'not assigned',
+                        'is-existing': isExistingApprover
+                    });
+
+                    approversSelect.append(option);
+                });
+
+                // Refresh Select2
+                approversSelect.trigger('change');
+            } else {
+                throw new Error(usersData.error || 'Failed to load approvers');
+            }
+        } catch (error) {
+            console.error('Error loading approvers:', error);
+            window.showNotification('error', window.getLocalizedText('Error loading approvers'));
+        } finally {
+            approversSelect.prop('disabled', false);
+        }
+    });
+
+    $('#editRegDocModal, #addRegDocModal').on('hidden.bs.modal', function() {
+        const modalId = $(this).attr('id');
+        const formPrefix = modalId.startsWith('edit') ? 'edit_' : 'add_';
+        $(`#${formPrefix}approversSelect`).empty().trigger('change');
+    });
+    $('#edit_approversSelect, #add_approversSelect').on('change', function() {
+        if ($(this).val()?.length > 0) {
+            $(this).next('.select2-container').find('.select2-selection').removeClass('is-invalid');
+        }
+    });
+    // Оновимо також очищення select2 при закритті модального вікна
+    $('#editRegDocModal').on('hidden.bs.modal', function() {
+
+
+        // Очищаємо select2
+        $('#approversSelect').val(null).trigger('change');
+
+        // Скидаємо стан форми
+        const form = $('#editRegDocForm')[0];
+        form.reset();
+        $(form).removeClass('was-validated');
+        $('#editTypeDescription').text('');
+        $('#currentFileInfo').html(window.fileUtils.displayFileInfo(null));
+        $('.groups-counter, .related-docs-counter').remove();
+
+        // Очищаємо CKEditor якщо він є
+        $('#edit_version_history').val('');
+        if (typeof CKEDITOR !== 'undefined' && CKEDITOR.instances.edit_vers_doc_html) {
+            CKEDITOR.instances.edit_vers_doc_html.setData('');
+        }
+        $('#editRegDocForm').removeData('selectedGroups');
+        if (window.selectedEditDocAllowedUsers) window.selectedEditDocAllowedUsers.clear();
+        if (typeof window.renderDocAllowedUsersBadges === 'function') window.renderDocAllowedUsersBadges('edit');
+        formChanged = false;
+        $('#groupsContent').html('');
+    });
+
+
+    window.loadCompanyGroups = loadCompanyGroups;
+
+
+
+
+    function loadCompanyGroups(companyId) {
+        // Get selected groups directly from data attribute
+        const selectedGroups = $('#editRegDocForm').data('selectedGroups') || [];
+
+        if (!companyId) return;
+
+        $.ajax({
+            url: '{% url "get_company_groups" %}',
+            data: { company_id: companyId },
+            method: 'GET',
+            success: function(response) {
+                if (response.success && response.groups.length > 0) {
+                    const html = response.groups.map(group => `
+                        <div class="form-check mb-2">
+                            <input class="form-check-input edit-group-checkbox"
+                                   type="checkbox"
+                                   name="groups[]"
+                                   value="${group.id}"
+                                   id="editGroup${group.id}"
+                                   ${selectedGroups.includes(group.id) ? 'checked' : ''}>
+                            <label class="form-check-label" for="editGroup${group.id}">
+                                <div class="d-flex flex-column">
+                                    <span class="fw-bold" style="color: ${group.color || '#000'}">${group.name}</span>
+                                    ${group.description ? `<small class="text-muted mt-1">${group.description}</small>` : ''}
+                                </div>
+                            </label>
+                        </div>
+                    `).join('');
+
+                    $('#groupsContent').html(html);
+                    updateSelectedCounts();
+                }
+            }
+        });
+    }
+
+    function getApproverDisplayName(approver) {
+       const parts = [approver.name];
+
+       const details = [];
+       if (approver.position) details.push(approver.position);
+       if (approver.department) details.push(approver.department);
+
+       if (details.length > 0) {
+           parts.push(`(${details.join(' - ')})`);
+       }
+
+       if (approver.status) {
+           const status = window.getLocalizedText(approver.status.charAt(0).toUpperCase() + approver.status.slice(1));
+           parts.push(`[${status}]`);
+       }
+
+       return parts.join(' ');
+    }
+
+    // Initialize tooltips
+    function initTooltips() {
+        $('[data-bs-toggle="tooltip"]').tooltip({
+            trigger: 'hover'
+        });
+    }
+
+    // Initialize tooltips
+    initTooltips();
+
+    // Handle Access Classification change
+    $('#edit_access_classification').on('change', function() {
+        if (window.updateEditAccessClassificationDescription) {
+            window.updateEditAccessClassificationDescription();
+        }
+    });
+
+});
+</script>
+{% endblock %}

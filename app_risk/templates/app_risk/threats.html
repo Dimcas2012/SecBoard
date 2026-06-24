@@ -1,0 +1,194 @@
+<!-- \SecBoard\SecBoard\templates\app_suib\threats.html-->
+{% load static %}
+{% load risk_custom_filters %}
+{% load i18n %}
+
+<div class="tab-pane fade show active" id="threatsTab" role="tabpanel" aria-labelledby="threats-tab">
+    <!-- Header Section -->
+    <div class="mb-3">
+        <h3 class="m-0"><i class="bi bi-shield me-2"></i>{% trans "Threats" %}</h3>
+    </div>
+
+    <!-- Filters (user-access-request pattern) -->
+    <div class="card mb-2 filter-section access-request-filters" id="threatsConfigFiltersCard">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="threatsConfigFiltersCollapse" toggle_id="toggleThreatsConfigFilters" icon_id="threatsConfigFiltersToggleIcon" clear_btn_id="clearThreatsConfigFilters" filters_expanded=True %}
+        <div class="collapse show" id="threatsConfigFiltersCollapse">
+            <div class="card-body py-2" id="threatsConfigFiltersContent">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label for="searchThreats" class="form-label">{% trans "Search Threats" %}</label>
+                        <input type="text" class="form-control form-control-sm" id="searchThreats" placeholder="{% trans 'Search by name, description, risks...' %}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="filterThreatScenario" class="form-label">{% trans "Probability Scenario" %}</label>
+                        <select id="filterThreatScenario" class="form-select form-select-sm">
+                            <option value="">{% trans "All scenarios" %}</option>
+                            <option value="manual">{% trans "Manual input" %}</option>
+                            <option value="daily">{% trans "Daily" %}</option>
+                            <option value="m_in_n_days">{% trans "M times in N days" %}</option>
+                            <option value="once_in_n_years">{% trans "Once in N years" %}</option>
+                            <option value="m_in_n_years">{% trans "M times in N years" %}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Section -->
+    <div class="card mb-4">
+        <div class="card-body p-0">
+            <div class="export-controls px-3 pt-2 pb-0">
+                <div class="row align-items-center g-1">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group sb-toolbar" role="group">
+                            {% if user_permissions.can_add_config %}
+                            <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="addThreatBtn"
+                                    title="{% trans 'Add New Threat' %}">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            {% endif %}
+                            {% if user_permissions.can_edit_config %}
+                            <button type="button" class="btn btn-outline-primary btn-sm btn-icon-action" id="translateThreatsBtn"
+                                    title="{% trans 'Translate' %}">
+                                <i class="bi bi-translate"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive full-width-table"><table id="threatsTable" class="table table-hover table-sm table-sm-font sb-data-table w-100 mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center" style="width: 60px;">{% trans "ID" %}</th>
+                    <th style="width: 15%;">{% trans "Threat" %}</th>
+                    <th style="width: 20%;">{% trans "Description" %}</th>
+                    <th style="width: 15%;">{% trans "Risks" %}</th>
+                    <th style="width: 10%;">{% trans "Scenario" %}</th>
+                    <th style="width: 100px;">{% trans "Probability" %}</th>
+                    <th style="width: 100px;">{% trans "Impact" %}</th>
+                    <th style="width: 100px;">{% trans "Overall Impact" %}</th>
+                    <th style="width: 80px;">{% trans "Financial" %}</th>
+                    <th style="width: 80px;">{% trans "Operational" %}</th>
+                    <th style="width: 80px;">{% trans "Reputational" %}</th>
+                    <th style="width: 8%;">{% trans "Translations" %}</th>
+                    <th class="text-center" style="width: 100px;">{% trans "Actions" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for threat in threats %}
+                <tr data-id="{{ threat.id }}" class="align-middle">
+                    <td class="text-center">{{ threat.id }}</td>
+                    <td>
+                        <div class="text-wrap">{{ threat.localized_name }}</div>
+                    </td>
+                    <td>
+                        <div class="text-wrap">{{ threat.localized_description }}</div>
+                    </td>
+                    <td>
+                        <div class="text-wrap">{{ threat.localized_risks }}</div>
+                    </td>
+                    <td>
+                        <div class="text-wrap">{{ threat.get_formatted_probability_scenario }}</div>
+                    </td>
+                    <td>
+                        <div class="probability-wrapper">
+                            <input type="text" 
+                                   class="form-control form-control-sm probability-input text-center mb-1" 
+                                   value="{{ threat.probability|floatformat:2 }}" 
+                                   readonly>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-info" 
+                                     role="progressbar" 
+                                     style="width: {{ threat.probability|multiply:100 }}%;"
+                                     aria-valuenow="{{ threat.probability|multiply:100 }}"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge {% if threat.impact >= 70 %}bg-danger{% elif threat.impact >= 40 %}bg-warning{% else %}bg-success{% endif %}">
+                            {{ threat.impact|floatformat:2 }}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        {% if threat.financial_impact or threat.operational_impact or threat.reputational_impact %}
+                            {% with overall_impact=threat.calculate_overall_impact %}
+                                <span class="badge {% if overall_impact >= 0.7 %}bg-danger{% elif overall_impact >= 0.4 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ overall_impact|floatformat:3 }}
+                                </span>
+                            {% endwith %}
+                        {% else %}
+                            <span class="badge bg-secondary">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if threat.financial_impact %}
+                            <span class="badge" style="background-color: {{ threat.financial_impact.color }}; color: white;">
+                                {{ threat.get_financial_impact_display_name|slice:":10" }}
+                            </span>
+                        {% else %}
+                            <span class="badge bg-secondary">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if threat.operational_impact %}
+                            <span class="badge" style="background-color: {{ threat.operational_impact.color }}; color: white;">
+                                {{ threat.get_operational_impact_display_name|slice:":10" }}
+                            </span>
+                        {% else %}
+                            <span class="badge bg-secondary">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if threat.reputational_impact %}
+                            <span class="badge" style="background-color: {{ threat.reputational_impact.color }}; color: white;">
+                                {{ threat.get_reputational_impact_display_name|slice:":10" }}
+                            </span>
+                        {% else %}
+                            <span class="badge bg-secondary">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center table-actions">
+                        <div class="btn-group btn-group-sm">
+                            {% if user_permissions.can_edit_config %}
+                            <button class="btn btn-outline-primary btn-sm btn-icon-action edit-threat"
+                                    data-id="{{ threat.id }}"
+                                    data-bs-toggle="tooltip"
+                                    title="{% trans 'Edit' %}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            {% endif %}
+                            {% if user_permissions.can_delete_config %}
+                            <button class="btn btn-outline-danger btn-sm btn-icon-action delete-threat"
+                                    data-id="{{ threat.id }}"
+                                    data-bs-toggle="tooltip"
+                                    title="{% trans 'Delete' %}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+            </div>
+            {% include "app_risk/includes/risk_table_pagination_client.html" with pagination_id="threatsTablePagination" %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // Initialize tooltips when the document is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>

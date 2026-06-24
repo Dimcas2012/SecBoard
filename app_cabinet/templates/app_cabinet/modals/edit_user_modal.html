@@ -1,0 +1,1219 @@
+<!--app_cabinet/modals/edit_user_modal.html-->
+
+{% load i18n %}
+{% load static %}
+
+<style>
+    /* Styles for group indicators */
+    .group-indicator {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        margin-right: 5px;
+        vertical-align: middle;
+    }
+    
+    /* Form check with colored group indicator */
+    .form-check-label {
+        display: flex !important;
+        align-items: center !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.9rem;
+    }
+    
+    /* Group containers */
+    #editCabinetGroupsContainer,
+    #editOtherGroupsContainer,
+    #editAvailableQuizzesContainer {
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 0.75rem;
+    }
+    
+    /* Make checkboxes more compact */
+    .form-check {
+        margin-bottom: 0.25rem !important;
+        padding-left: 1.5rem;
+    }
+    
+    /* Platform Roles: avoid overlapping, allow multi-line labels */
+    #editPlatformRolesContainer .platform-role-item {
+        margin-bottom: 0.75rem !important;
+        display: block !important;
+    }
+    #editPlatformRolesContainer .platform-role-item .form-check-label {
+        display: block !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+    
+    /* Optimize space in edit modal */
+    #editUserModal .modal-body {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    #editUserModal .mb-3 {
+        margin-bottom: 0.75rem !important;
+    }
+    
+    /* Enhanced tooltips for groups */
+    .tooltip-inner {
+        max-width: 300px;
+        text-align: left;
+        padding: 8px 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        line-height: 1.4;
+    }
+    
+    /* Quiz items styling - compact, no test content */
+    .quiz-item {
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 0.35rem 0.5rem;
+        margin-bottom: 0.25rem;
+        background-color: #f8f9fa;
+        transition: all 0.2s ease;
+    }
+    .quiz-item:hover {
+        background-color: #e9ecef;
+        border-color: #17a2b8;
+    }
+    .quiz-item .quiz-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #495057;
+        margin-bottom: 0;
+    }
+    .quiz-item .quiz-meta { margin-top: 0.15rem; }
+    .quiz-item .quiz-meta .badge { font-size: 0.7rem; }
+    
+    .quiz-meta {
+        display: flex;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .quiz-meta .badge {
+        font-size: 0.7rem;
+    }
+    
+    /* Assigned quiz styling */
+    .quiz-assigned {
+        background-color: #e8f5e8 !important;
+        border-color: #28a745 !important;
+    }
+    
+    .quiz-assigned:hover {
+        background-color: #d4edda !important;
+        border-color: #1e7e34 !important;
+    }
+    /* AD profile blocks: 4 per row */
+    #editUserADBlocksRow .ad-block-card {
+        height: 100%;
+        font-size: 0.8rem;
+    }
+    #editUserADBlocksRow .ad-block-card .card-header {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.5rem;
+        background: rgba(0,0,0,0.05);
+    }
+    #editUserADBlocksRow .ad-block-card .card-body {
+        padding: 0.4rem 0.5rem;
+        line-height: 1.35;
+    }
+    /* AD profile: collapsed by default, clickable header */
+    #editUserADProfileToggle { cursor: pointer; }
+    #editUserADProfileToggle:not(.collapsed) .editUserADProfileChevron { transform: rotate(90deg); }
+</style>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+   <div class="modal-dialog modal-xl">
+       <div class="modal-content">
+           <div class="modal-header">
+               <h5 class="modal-title" id="editUserModalLabel">{% trans "Edit User" %}</h5>
+               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+           </div>
+
+           <!-- Alert Container -->
+           <div id="editUserAlert" class="alert alert-danger alert-dismissible fade" role="alert" style="display: none;">
+               <span class="alert-message"></span>
+               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+           </div>
+
+           <!-- User Info Panel -->
+           <div class="alert alert-info alert-dismissible mb-3" id="editUserInfoPanel" style="display: none;">
+               <i class="fas fa-user-edit me-2"></i>
+               <strong>{% trans "Editing user:" %}</strong> 
+               <span id="editingUserName"></span>
+               <small class="text-muted ms-2">
+                   (ID: <span id="editingUserId"></span>)
+               </small>
+           </div>
+
+           <!-- Active Directory profile (shown when user is AD-synced, collapsed by default) -->
+           <div class="alert alert-secondary mb-3" id="editUserADProfilePanel" style="display: none;">
+               <h6 class="alert-heading mb-0">
+                   <a class="text-dark text-decoration-none d-flex align-items-center collapsed" id="editUserADProfileToggle" data-bs-toggle="collapse" href="#editUserADProfileCollapse" aria-expanded="false" aria-controls="editUserADProfileCollapse">
+                       <i class="fas fa-chevron-right me-2 editUserADProfileChevron" style="transition: transform 0.2s;"></i>
+                       <i class="fas fa-network-wired me-2"></i>{% trans "Active Directory profile" %}
+                   </a>
+               </h6>
+               <div class="collapse" id="editUserADProfileCollapse">
+                   <p class="mb-2 small mt-2">{% trans "User is synced from Active Directory. On each login, the following are updated from AD:" %}</p>
+                   <ul class="small mb-2 ps-3">
+                       <li>{% trans "User: email, first name, last name" %}</li>
+                       <li>{% trans "Cabinet: phone, start date, end date" %}</li>
+                       <li>{% trans "Currently active (from start/end date range)" %}</li>
+                   </ul>
+                   <p class="mb-2">
+                       <button type="button" class="btn btn-sm btn-outline-secondary" id="editUserRefreshADBtn" title="{% trans 'Reload groups and other AD data from Active Directory' %}">
+                           <i class="fas fa-sync-alt me-1"></i>{% trans "Refresh from AD" %}
+                       </button>
+                   </p>
+                   <div class="row g-2" id="editUserADBlocksRow"></div>
+               </div>
+           </div>
+
+           <form id="editUserForm" method="POST">
+               {% csrf_token %}
+               <div class="modal-body">
+                   <!-- Personal Information: First Name, Last Name, Profile Photo, User Color in one row -->
+                   <div class="row mb-3 g-2 align-items-end">
+                       <div class="col-6 col-lg-3">
+                           <div class="form-group mb-0">
+                               <label for="edit_first_name" class="required">{% trans "First Name" %}</label>
+                               <input type="text" class="form-control field-required" id="edit_first_name" name="first_name" required>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                       <div class="col-6 col-lg-3">
+                           <div class="form-group mb-0">
+                               <label for="edit_last_name" class="required">{% trans "Last Name" %}</label>
+                               <input type="text" class="form-control field-required" id="edit_last_name" name="last_name" required>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                       <div class="col-6 col-lg-3">
+                           <div class="form-group mb-0">
+                               <label for="edit_avatar">{% trans "Profile Photo" %}</label>
+                               <div class="d-flex flex-column gap-1">
+                                   <div class="avatar-preview mx-auto" style="width: 70px; height: 70px;">
+                                       <img src="{% static 'images/default-avatar.png' %}"
+                                            class="img-fluid rounded-circle border w-100 h-100"
+                                            id="editAvatarPreview"
+                                            alt="Avatar preview"
+                                            style="object-fit: cover;">
+                                   </div>
+                                   <input type="file" class="form-control form-control-sm" id="edit_avatar" name="avatar" accept="image/*">
+                                   <div class="invalid-feedback"></div>
+                               </div>
+                           </div>
+                       </div>
+                       <div class="col-6 col-lg-3">
+                           <div class="form-group mb-0">
+                               <label for="edit_color">{% trans "User Color" %}</label>
+                               <div class="d-flex align-items-center gap-2">
+                                   <input type="color" class="form-control form-control-color" id="edit_color" name="color" value="#2e6da4" title="{% trans 'Choose user color' %}">
+                                   <span id="editColorHexValue" class="text-monospace small">#2e6da4</span>
+                               </div>
+                               <div class="form-text small">{% trans "User identity color" %}</div>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                   </div>
+                   <!-- Contact Information -->
+                   <div class="row mb-3">
+                       <div class="col-md-4">
+                           <div class="form-group">
+                               <label for="edit_email" class="required">{% trans "Email" %}</label>
+                               <input type="email" class="form-control field-required" id="edit_email" name="email" required>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                       <div class="col-md-4">
+                           <div class="form-group">
+                               <label for="edit_phone">{% trans "Phone" %}</label>
+                               <input type="tel" class="form-control" id="edit_phone" name="phone" placeholder="+380501234567">
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                       <div class="col-md-4">
+                           <div class="form-group">
+                               <label for="edit_telegram_chat_id">{% trans "Telegram Chat ID" %}</label>
+                               <input type="text" class="form-control" id="edit_telegram_chat_id" name="telegram_chat_id" placeholder="{% trans 'e.g. 123456789' %}" inputmode="numeric" pattern="-?[0-9]*">
+                               <div class="form-text small">{% trans "From the SecBoard bot (tap Help to see your Chat ID)." %}</div>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                   </div>
+
+                   <!-- Password Change Section -->
+                   <div class="row mb-3">
+                       <div class="col-12">
+                           <div class="card border-light">
+                               <div class="card-header bg-light">
+                                   <div class="form-check">
+                                       <input class="form-check-input" type="checkbox" id="change_password_toggle">
+                                       <label class="form-check-label fw-bold" for="change_password_toggle">
+                                           {% trans "Change Password" %}
+                                       </label>
+                                   </div>
+                               </div>
+                               <div class="card-body password-fields" style="display: none;">
+                                   <div class="row">
+                                       <div class="col-md-6">
+                                           <div class="form-group">
+                                               <label for="edit_password1">{% trans "New Password" %}</label>
+                                               <input type="password" class="form-control" id="edit_password1" name="password1">
+                                               <div class="form-text">{% trans "Password must be at least 8 characters long and different from current password." %}</div>
+                                               <div class="invalid-feedback"></div>
+                                           </div>
+                                       </div>
+                                       <div class="col-md-6">
+                                           <div class="form-group">
+                                               <label for="edit_password2">{% trans "Confirm New Password" %}</label>
+                                               <input type="password" class="form-control" id="edit_password2" name="password2">
+                                               <div class="form-text">{% trans "Enter the same password to confirm." %}</div>
+                                               <div class="invalid-feedback"></div>
+                                           </div>
+                                       </div>
+                                   </div>
+                                   <div class="row mt-3">
+                                       <div class="col-12">
+                                           <div class="form-check">
+                                               <input type="checkbox" class="form-check-input" id="force_password_change" name="force_password_change">
+                                               <label class="form-check-label" for="force_password_change">
+                                                   {% trans "Force user to change password at next login" %}
+                                               </label>
+                                           </div>
+                                       </div>
+                                   </div>
+                               </div>
+                           </div>
+                       </div>
+                   </div>
+
+                   <!-- Company, Department, Parent Position and Position -->
+                   <div class="row mb-3">
+                       <div class="col-md-3">
+                           <div class="form-group">
+                               <label for="edit_company" class="required">{% trans "Company" %}</label>
+                               <select class="form-control field-required" id="edit_company" name="company" required>
+                                   <option value="">{% trans "Select Company" %}</option>
+                                   {% for company in companies %}
+                                       <option value="{{ company.id }}">{{ company.name }}</option>
+                                   {% endfor %}
+                               </select>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                       <div class="col-md-3">
+                           <div class="form-group">
+                               <label for="edit_department">{% trans "Department" %}</label>
+                               <select class="form-control" id="edit_department" name="department" disabled>
+                                   <option value="">{% trans "Select Department" %}</option>
+                               </select>
+                               <div class="form-text small">{% trans "Or select Parent Position below" %}</div>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                       <div class="col-md-3">
+                           <div class="form-group">
+                               <label for="edit_parent_position">{% trans "Parent Position" %}</label>
+                               <select class="form-control" id="edit_parent_position" name="parent_position" disabled>
+                                   <option value="">{% trans "Select Parent Position" %}</option>
+                               </select>
+                               <div class="form-text small">{% trans "Filter positions by parent" %}</div>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                       <div class="col-md-3">
+                           <div class="form-group">
+                               <label for="edit_position">{% trans "Position" %}</label>
+                               <select class="form-control" id="edit_position" name="position" disabled>
+                                   <option value="">{% trans "Select Position" %}</option>
+                               </select>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                   </div>
+
+                   <!-- Employment Period -->
+                   <div class="row mb-3">
+                       <div class="col-md-6">
+                           <div class="form-group">
+                               <label for="edit_start_date">{% trans "Start Date" %}</label>
+                               <div class="row">
+                                   <div class="col-8">
+                                       <input type="date" class="form-control" id="edit_start_date" name="start_date">
+                                   </div>
+                                   <div class="col-4">
+                                       <input type="time" class="form-control" id="edit_start_time" name="start_time" value="09:00">
+                                   </div>
+                               </div>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                       <div class="col-md-6">
+                           <div class="form-group">
+                               <label for="edit_end_date">{% trans "End Date" %}</label>
+                               <div class="row">
+                                   <div class="col-8">
+                                       <input type="date" class="form-control" id="edit_end_date" name="end_date">
+                                   </div>
+                                   <div class="col-4">
+                                       <input type="time" class="form-control" id="edit_end_time" name="end_time" value="18:00">
+                                   </div>
+                               </div>
+                               <div class="invalid-feedback"></div>
+                           </div>
+                       </div>
+                   </div>
+
+                    <!-- Platform Roles and Groups applied from selected roles (one row) -->
+                    <div class="row mb-3 g-2" id="editPlatformRolesRow">
+                        <div class="col-md-6">
+                            <label class="mb-1"><i class="fas fa-user-tag me-1 text-info"></i>{% trans "Platform Roles" %}</label>
+                            <div id="editPlatformRolesContainer" class="border rounded p-2" style="max-height: 220px; overflow-y: auto;">
+                                <span class="text-muted">{% trans "Load user to see roles" %}</span>
+                            </div>
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" name="apply_groups_from_roles" id="edit_apply_groups_from_roles" value="on" checked>
+                                <label class="form-check-label" for="edit_apply_groups_from_roles">{% trans "Apply access groups from selected roles" %}</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div id="editUserGroupsFromRolesWrap" class="small" style="display: none;">
+                                <label class="mb-1 text-muted">{% trans "Groups applied from selected roles:" %}</label>
+                                <span id="editUserGroupsFromRolesCount" class="badge bg-info rounded-pill ms-1">0</span>
+                                <div id="editUserGroupsFromRolesContainer" class="border rounded p-2 mt-1 bg-light" style="max-height: 200px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div id="editUserGroupsTotalWrap" class="mt-2 small fw-bold" style="display: none;">
+                                {% trans "Total groups:" %} <span id="editUserGroupsTotalCount">0</span>
+                            </div>
+                            <div class="row mt-2 g-2">
+                                <div class="col-md-6">
+                                    <div id="editUserAdditionalGroupsWrap" style="display: none;">
+                                        <div class="d-flex align-items-center flex-wrap gap-1 mb-1">
+                                            <label class="form-label small mb-0">{% trans "Additional Cabinet Groups" %}</label>
+                                            <span id="editUserAdditionalGroupsCount" class="badge bg-primary rounded-pill">0</span>
+                                        </div>
+                                        <p class="small text-muted mb-1">{% trans "Extra groups from the same companies as selected roles (not from roles)." %}</p>
+                                        <div id="editUserAdditionalGroupsContainer" class="border rounded p-2 bg-light" style="max-height: 140px; overflow-y: auto;"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label class="mb-0"><i class="fas fa-layer-group me-1 text-secondary"></i>{% trans "Other Groups" %} ({% trans "View Only" %})</label>
+                                        <span id="editUserOtherGroupsCount" class="badge bg-secondary rounded-pill">0</span>
+                                    </div>
+                                    <div id="editOtherGroupsContainer" class="border rounded" style="max-height: 140px; overflow-y: auto;">
+                                        <!-- Other groups will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Available Quizzes -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="mb-0"><i class="fas fa-question-circle me-1 text-info"></i>{% trans "Available Quizzes/Tests" %}</label>
+                                <span class="badge bg-info rounded-pill quiz-count">0</span>
+                            </div>
+                            <div id="editAvailableQuizzesContainer" class="border rounded">
+                                <!-- Available quizzes will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                   <!-- Status Settings -->
+                   <div class="row mb-3">
+                       <div class="col-md-3">
+                           <div class="form-check">
+                               <input type="checkbox" class="form-check-input" id="edit_is_active" name="is_active">
+                               <label class="form-check-label" for="edit_is_active">{% trans "Account Active" %}</label>
+                           </div>
+                       </div>
+                       <div class="col-md-3">
+                           <div class="form-check">
+                               <input type="checkbox" class="form-check-input" id="edit_is_staff" name="is_staff">
+                               <label class="form-check-label" for="edit_is_staff">{% trans "Staff Status" %}</label>
+                           </div>
+                       </div>
+                       <div class="col-md-6 col-lg-4">
+                           <div class="form-check">
+                               <input type="checkbox" class="form-check-input" id="edit_force_two_factor" name="force_two_factor">
+                               <label class="form-check-label" for="edit_force_two_factor">{% trans "Require Two-Factor Authentication" %}</label>
+                               <div class="form-text">{% trans "User must enable 2FA at next login and cannot disable it." %}</div>
+                           </div>
+                       </div>
+                   </div>
+               </div>
+               <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">
+                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        {% trans "Save Changes" %}
+                    </button>
+                </div>
+           </form>
+       </div>
+   </div>
+</div>
+
+<script>
+function updateEditActiveStatus() {
+    const startDateInput = $('#edit_start_date');
+    const endDateInput = $('#edit_end_date');
+    const startTimeInput = $('#edit_start_time');
+    const endTimeInput = $('#edit_end_time');
+    const isActiveCheckbox = $('#edit_is_active');
+
+    function getDateTime(dateInput, timeInput) {
+        if (!dateInput.val()) return null;
+
+        // Handle YYYY-MM-DD format from native date input
+        const dateValue = dateInput.val();
+        const timeParts = timeInput.val().split(':');
+
+        if (!dateValue || timeParts.length !== 2) return null;
+
+        return new Date(
+            dateValue + 'T' + timeInput.val()
+        );
+    }
+
+    function updateCheckboxState() {
+        const now = new Date();
+        const startDateTime = getDateTime(startDateInput, startTimeInput);
+        const endDateTime = getDateTime(endDateInput, endTimeInput);
+
+        // Determine active status
+        let shouldBeActive = true;
+
+        if (startDateTime && endDateTime) {
+            shouldBeActive = now >= startDateTime && now <= endDateTime;
+        } else if (startDateTime) {
+            shouldBeActive = now >= startDateTime;
+        } else if (endDateTime) {
+            shouldBeActive = now <= endDateTime;
+        }
+
+        // Update checkbox
+        isActiveCheckbox.prop('checked', shouldBeActive);
+
+        // Disable checkbox if dates are set
+        if (startDateTime || endDateTime) {
+            isActiveCheckbox.prop('disabled', true);
+        } else {
+            isActiveCheckbox.prop('disabled', false);
+        }
+    }
+
+    // Add event listeners
+    startDateInput.add(endDateInput).add(startTimeInput).add(endTimeInput)
+        .on('change', updateCheckboxState);
+
+    // Initial state
+    updateCheckboxState();
+}
+
+$(document).ready(function() {
+    // Color picker event handler
+    $('#edit_color').on('input change', function() {
+        const hexValue = $(this).val().toUpperCase();
+        $('#editColorHexValue').text(hexValue);
+    });
+
+    // Password change toggle
+    $('#change_password_toggle').change(function() {
+        if($(this).is(':checked')) {
+            $('.password-fields').slideDown(200);
+            $('#edit_password1, #edit_password2').attr('required', true);
+        } else {
+            $('.password-fields').slideUp(200);
+            $('#edit_password1, #edit_password2').attr('required', false).val('');
+            // Reset force password change checkbox
+            $('#force_password_change').prop('checked', false);
+            // Remove any validation errors
+            $('#edit_password1, #edit_password2').removeClass('is-invalid');
+            $('#edit_password1, #edit_password2').siblings('.invalid-feedback').empty();
+        }
+    });
+
+    $('#editUserModal').on('shown.bs.modal', function() {
+        updateEditActiveStatus();
+    });
+
+    // Company change handler
+    $('#editUserModal #edit_company').change(function() {
+        const companyId = $(this).val();
+        loadEditDepartments(companyId);
+        loadEditParentPositions(companyId);
+        resetEditPositions();
+        
+        // Handle company change for groups
+        if (companyId) {
+            const $cabinetContainer = $('#editCabinetGroupsContainer');
+            if ($cabinetContainer.length) {
+                $cabinetContainer.html('<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> <span class="ms-2">{% trans "Loading groups..." %}</span></div>');
+            }
+            // Get user ID from form
+            const userId = $('#editUserForm').data('user-id');
+            if (!userId) {
+                return;
+            }
+            
+            // Fetch updated user data with company-specific groups
+            const currentLang = document.documentElement.lang || '{{ request.LANGUAGE_CODE }}' || 'uk';
+            $.ajax({
+                url: `/${currentLang}/users/${userId}/get/`,
+                method: 'GET',
+                data: { company_id: companyId }, // Pass company ID as parameter
+                success: function(response) {
+                    if (response.status === 'success' && response.data) {
+                            if ($cabinetContainer.length) {
+                                if (response.data.cabinet_groups && Array.isArray(response.data.cabinet_groups)) {
+                                    populateCabinetGroups(response.data.cabinet_groups);
+                                } else {
+                                    $cabinetContainer.html('<div class="text-muted p-3">{% trans "No cabinet groups available for this company" %}</div>');
+                                }
+                            }
+                            // Load available quizzes for this user and company
+                            if (response.data.user_id) {
+                                loadEditAvailableQuizzes(response.data.user_id, companyId);
+                            } else {
+                                loadEditAvailableQuizzes(userId, companyId);
+                            }
+                    } else {
+                        showAlert('{% trans "Error loading groups for company" %}', 'warning');
+                    }
+                },
+                error: function() {
+                    showAlert('{% trans "Error loading groups" %}', 'danger');
+                    if ($cabinetContainer.length) $cabinetContainer.html('<div class="text-danger p-3">{% trans "Error loading groups" %}</div>');
+                }
+            });
+        } else {
+            // No company selected
+            resetEditGroups();
+        }
+    });
+
+    // Department change handler - mutual exclusivity with Parent Position
+    $('#editUserModal #edit_department').change(function() {
+        const departmentId = $(this).val();
+        const companyId = $('#editUserModal #edit_company').val();
+        if (departmentId) {
+            $('#editUserModal #edit_parent_position').val('');
+        }
+        loadEditPositions(companyId, departmentId, null);
+    });
+
+    // Parent Position change handler - mutual exclusivity with Department
+    $('#editUserModal #edit_parent_position').change(function() {
+        const parentPositionId = $(this).val();
+        const companyId = $('#editUserModal #edit_company').val();
+        if (parentPositionId) {
+            $('#editUserModal #edit_department').val('');
+        }
+        loadEditPositions(companyId, null, parentPositionId);
+    });
+
+    // Form submission handler
+    $('#editUserForm').submit(function(e) {
+        e.preventDefault();
+        submitEditUserForm($(this));
+    });
+
+    // Reset modal when hidden
+    $('#editUserModal').on('hidden.bs.modal', function() {
+        $('.modal-backdrop').remove();
+        $('body').removeClass('modal-open');
+        const form = $(this).find('form');
+        form[0].reset();
+        form.find('.is-invalid').removeClass('is-invalid');
+        form.find('.invalid-feedback').empty();
+        $('#edit_color').val('#2e6da4');
+        $('#editColorHexValue').text('#2e6da4');
+        updateAvatarPreview();
+        resetDependentFields();
+        
+        // Reset password fields
+        $('#change_password_toggle').prop('checked', false);
+        $('.password-fields').hide();
+        $('#edit_password1, #edit_password2').attr('required', false).val('');
+        
+        // Hide user info panel and AD profile panel
+        $('#editUserInfoPanel').hide();
+        $('#editUserADProfilePanel').hide();
+        $('#editingUserName').text('');
+        $('#editingUserId').text('');
+    });
+
+    // Avatar preview stylings
+    $('#editUserModal').on('shown.bs.modal', function() {
+        const avatarPreview = $('.avatar-preview');
+        avatarPreview.css({
+            'position': 'relative',
+            'overflow': 'hidden',
+            'border-radius': '50%',
+            'background-color': '#f8f9fa',
+            'border': '2px solid #dee2e6',
+            'transition': 'all 0.2s ease-in-out'
+        });
+
+        avatarPreview.find('img').css({
+            'width': '100%',
+            'height': '100%',
+            'object-fit': 'cover',
+            'transition': 'transform 0.3s ease'
+        });
+    });
+
+    // Handle avatar load errors
+    $('#editAvatarPreview').on('error', function() {
+        const defaultAvatarUrl = '{% static "images/default-avatar.png" %}';
+        $(this)
+            .attr('src', defaultAvatarUrl)
+            .removeClass('has-image');
+    });
+
+    // Handle avatar file input change
+    $('#edit_avatar').change(function(e) {
+        const file = e.target.files[0];
+        const maxSize = 2 * 1024 * 1024; // 2MB
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+
+        $(this).removeClass('is-invalid');
+        $(this).siblings('.invalid-feedback').empty();
+
+        if (file) {
+            if (file.size > maxSize) {
+                $(this).addClass('is-invalid');
+                $(this).siblings('.invalid-feedback').text('{% trans "Image size should not exceed 2MB" %}');
+                this.value = '';
+                updateAvatarPreview();
+                return;
+            }
+
+            if (!allowedTypes.includes(file.type)) {
+                $(this).addClass('is-invalid');
+                $(this).siblings('.invalid-feedback').text('{% trans "Please select a JPEG or PNG image" %}');
+                this.value = '';
+                updateAvatarPreview();
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const minSize = 200;
+                    if (this.width < minSize || this.height < minSize) {
+                        $('#edit_avatar').addClass('is-invalid');
+                        $('#edit_avatar').siblings('.invalid-feedback')
+                            .text(`{% trans "Image should be at least" %} ${minSize}x${minSize} {% trans "pixels" %}`);
+                        updateAvatarPreview();
+                        return;
+                    }
+                    updateAvatarPreview(e.target.result);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            updateAvatarPreview();
+        }
+    });
+});
+
+// Load departments for company - with Parent Department and Parent Position hierarchy
+function loadEditDepartments(companyId) {
+    if (!companyId) {
+        $('#editUserModal #edit_department')
+            .html('<option value="">{% trans "Select Department" %}</option>')
+            .prop('disabled', true);
+        return Promise.resolve();
+    }
+
+    const currentLanguage = document.documentElement.lang || 'en';
+
+    return $.get(`/${currentLanguage}/companies/${companyId}/departments/`)
+        .then(departments => {
+            const select = $('#editUserModal #edit_department');
+            select.html('<option value="">{% trans "Select Department" %}</option>');
+            buildDepartmentOptions(departments, null, '', select);
+            select.prop('disabled', false);
+        })
+        .catch(error => {
+            console.error('Error loading departments:', error);
+            showAlert('{% trans "Error loading departments" %}');
+        });
+}
+
+// Load Parent Position dropdown for company
+function loadEditParentPositions(companyId) {
+    if (!companyId) {
+        $('#editUserModal #edit_parent_position')
+            .html('<option value="">{% trans "Select Parent Position" %}</option>')
+            .prop('disabled', true);
+        return Promise.resolve();
+    }
+    const currentLanguage = document.documentElement.lang || 'en';
+    return $.get(`/${currentLanguage}/companies/${companyId}/positions/`)
+        .then(positions => {
+            const select = $('#editUserModal #edit_parent_position');
+            select.html('<option value="">{% trans "Select Parent Position" %}</option>');
+            if (positions && positions.length > 0) {
+                positions.forEach(pos => {
+                    select.append(`<option value="${pos.id}">${pos.name}</option>`);
+                });
+                select.prop('disabled', false);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading parent positions:', error);
+        });
+}
+
+// Load positions for department OR by parent position
+function loadEditPositions(companyId, departmentId, parentPositionId) {
+    const select = $('#editUserModal #edit_position');
+    select.html('<option value="">{% trans "Select Position" %}</option>').prop('disabled', true);
+
+    if (!companyId || (!departmentId && !parentPositionId)) {
+        return Promise.resolve();
+    }
+
+    const currentLanguage = document.documentElement.lang || 'en';
+    const url = `/${currentLanguage}/companies/${companyId}/positions/`;
+    const data = departmentId ? { department: departmentId } : { parent_position: parentPositionId };
+
+    return $.ajax({ url: url, method: 'GET', data: data })
+        .done(positions => {
+            if (positions && positions.length > 0) {
+                positions.forEach(pos => select.append(`<option value="${pos.id}">${pos.name}</option>`));
+                select.prop('disabled', false);
+            } else {
+                select.html('<option value="">{% trans "No positions available" %}</option>');
+            }
+        })
+        .fail(() => {
+            showAlert('{% trans "Error loading positions" %}');
+            select.html('<option value="">{% trans "Error loading positions" %}</option>');
+        });
+}
+
+// Legacy - for backward compatibility when loading user with department
+function loadPositionsForDepartment(companyId, departmentId) {
+    return loadEditPositions(companyId, departmentId, null);
+}
+
+// Reset functions
+function resetEditPositions() {
+    $('#editUserModal #edit_position')
+        .html('<option value="">{% trans "Select Position" %}</option>')
+        .prop('disabled', true);
+}
+
+function resetEditGroups() {
+    var $cabinet = $('#editCabinetGroupsContainer');
+    if ($cabinet.length) $cabinet.html('<div class="text-muted">{% trans "Select a company to view available groups" %}</div>');
+    $('#editOtherGroupsContainer')
+        .html('<div class="text-muted">{% trans "Select a company to view other groups" %}</div>');
+}
+
+function resetDependentFields() {
+    $('#editUserModal #edit_department')
+        .html('<option value="">{% trans "Select Department" %}</option>')
+        .prop('disabled', true);
+    $('#editUserModal #edit_parent_position')
+        .html('<option value="">{% trans "Select Parent Position" %}</option>')
+        .prop('disabled', true);
+    resetEditPositions();
+    resetEditGroups();
+    $('#edit_color').val('#2e6da4');
+    $('#editColorHexValue').text('#2e6da4');
+}
+
+// Avatar preview update
+function updateAvatarPreview(avatarUrl) {
+    const previewImg = $('#editAvatarPreview');
+    const defaultAvatarUrl = '{% static "images/default-avatar.png" %}';
+
+    if (avatarUrl) {
+        previewImg
+            .off('error')
+            .on('error', function() {
+                $(this)
+                    .attr('src', defaultAvatarUrl)
+                    .removeClass('has-image');
+            })
+            .on('load', function() {
+                $(this).addClass('has-image');
+            })
+            .attr('src', avatarUrl);
+    } else {
+        previewImg
+            .attr('src', defaultAvatarUrl)
+            .removeClass('has-image');
+    }
+}
+
+// Handle form submission
+function submitEditUserForm(form) {
+    const userId = form.data('user-id');
+    if (!userId) {
+        showAlert('{% trans "No user ID found" %}');
+        return;
+    }
+
+    const submitButton = form.find('button[type="submit"]');
+    const spinner = submitButton.find('.spinner-border');
+    submitButton.prop('disabled', true);
+    spinner.removeClass('d-none');
+
+    form.find('.is-invalid').removeClass('is-invalid');
+    form.find('.invalid-feedback').empty();
+
+    const formData = new FormData(form[0]);
+
+    // Format dates from native date input (YYYY-MM-DD) to the expected format (DD.MM.YY)
+    const startDate = form.find('#edit_start_date').val();
+    if (startDate) {
+        const dateParts = startDate.split('-');
+        if (dateParts.length === 3) {
+            const formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0].substr(2, 2)}`;
+            formData.set('start_date', formattedDate);
+        }
+    }
+
+    const endDate = form.find('#edit_end_date').val();
+    if (endDate) {
+        const dateParts = endDate.split('-');
+        if (dateParts.length === 3) {
+            const formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0].substr(2, 2)}`;
+            formData.set('end_date', formattedDate);
+        }
+    }
+
+    // Password validation
+    const changePassword = $('#change_password_toggle').is(':checked');
+    if (changePassword) {
+        const password1 = $('#edit_password1').val();
+        const password2 = $('#edit_password2').val();
+        
+        if (password1 !== password2) {
+            $('#edit_password2').addClass('is-invalid');
+            $('#edit_password2').siblings('.invalid-feedback').text('{% trans "Passwords do not match" %}');
+            submitButton.prop('disabled', false);
+            spinner.addClass('d-none');
+            return;
+        }
+        
+        if (password1.length < 8) {
+            $('#edit_password1').addClass('is-invalid');
+            $('#edit_password1').siblings('.invalid-feedback').text('{% trans "Password must be at least 8 characters long" %}');
+            submitButton.prop('disabled', false);
+            spinner.addClass('d-none');
+            return;
+        }
+    } else {
+        // Remove password fields from formData if not changing password
+        formData.delete('password1');
+        formData.delete('password2');
+    }
+
+    // Get selected cabinet groups (or use initial list when Cabinet Groups section is not shown)
+    let cabinetGroups = [];
+    $('input[name="cabinet_groups[]"]:checked').each(function() {
+        cabinetGroups.push($(this).val());
+    });
+    // When Platform Roles (apply groups) or Additional Cabinet Groups are set, overwrite old cabinet groups – do not keep initial
+    const applyGroupsFromRoles = $('#edit_apply_groups_from_roles').is(':checked');
+    const hasAdditionalGroups = $('input[name="additional_cabinet_groups[]"]:checked').length > 0;
+    if (cabinetGroups.length === 0 && form.data('initialCabinetGroupIds') && form.data('initialCabinetGroupIds').length && !applyGroupsFromRoles && !hasAdditionalGroups) {
+        cabinetGroups = form.data('initialCabinetGroupIds').map(String);
+    }
+
+    // Get selected other groups
+    const otherGroups = [];
+    $('input[name="other_groups[]"]:checked').each(function() {
+        otherGroups.push($(this).val());
+    });
+
+    // Add groups to formData
+    cabinetGroups.forEach(groupId => {
+        formData.append('cabinet_groups[]', groupId);
+    });
+
+    otherGroups.forEach(groupId => {
+        formData.append('other_groups[]', groupId);
+    });
+
+    // Get selected platform roles
+    $('input[name="roles[]"]:checked').each(function() {
+        formData.append('roles[]', $(this).val());
+    });
+    if ($('#edit_apply_groups_from_roles').is(':checked')) {
+        formData.append('apply_groups_from_roles', 'on');
+    }
+    $('input[name="additional_cabinet_groups[]"]:checked').each(function() {
+        formData.append('additional_cabinet_groups[]', $(this).val());
+    });
+
+    // Get selected quizzes
+    const assignedQuizzes = [];
+    $('input[name="assigned_quizzes[]"]:checked').each(function() {
+        assignedQuizzes.push($(this).val());
+    });
+
+    // Debug logging for quiz assignments
+    console.log('Selected quizzes for submission:', assignedQuizzes);
+
+    // Add quizzes to formData
+    assignedQuizzes.forEach(quizId => {
+        formData.append('assigned_quizzes[]', quizId);
+    });
+
+    // Ensure color is included
+    if (!formData.get('color')) {
+        formData.set('color', $('#edit_color').val() || '#2e6da4');
+    }
+
+    const currentLanguage = document.documentElement.lang || 'en';
+
+    // Debug logging before sending
+    console.log('Submitting form data for user:', userId);
+    console.log('FormData entries:');
+    for (const [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
+    }
+
+    $.ajax({
+        url: `/${currentLanguage}/users/${userId}/update/`,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+        }
+    })
+    .done(function(response) {
+        if (response.status === 'success') {
+            showAlert(response.message, 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
+            modal.hide();
+            window.location.reload();
+        } else {
+            handleFormErrors(form, response.errors);
+        }
+    })
+    .fail(function(xhr) {
+        console.error('Error:', xhr.responseText);
+        
+        // Try to parse the error response
+        try {
+            const errorResponse = JSON.parse(xhr.responseText);
+            if (errorResponse.errors) {
+                handleFormErrors(form, errorResponse.errors);
+            } else if (errorResponse.message) {
+                showAlert(errorResponse.message, 'danger');
+            } else {
+                showAlert('{% trans "Error updating user" %}', 'danger');
+            }
+        } catch (e) {
+            // If parsing fails, show generic error
+            if (xhr.status === 400) {
+                showAlert('Помилка валідації даних. Перевірте введені дані.', 'warning');
+            } else {
+                showAlert('{% trans "Error updating user" %}', 'danger');
+            }
+        }
+    })
+    .always(function() {
+        submitButton.prop('disabled', false);
+        spinner.addClass('d-none');
+    });
+}
+
+// Show alert message
+function showAlert(message, type = 'danger') {
+    const alertElement = $('#editUserAlert');
+    const alertTypes = ['alert-success', 'alert-danger', 'alert-warning', 'alert-info'];
+    const icons = {
+        'success': 'fas fa-check-circle',
+        'danger': 'fas fa-exclamation-circle',
+        'warning': 'fas fa-exclamation-triangle',
+        'info': 'fas fa-info-circle'
+    };
+    
+    alertElement
+        .removeClass(alertTypes.join(' '))
+        .addClass('alert-' + type)
+        .find('.alert-message')
+        .html('<i class="' + icons[type] + ' me-2"></i>' + message);
+
+    alertElement
+        .show()
+        .removeClass('fade')
+        .addClass('show');
+
+    // Auto-hide after 7 seconds for warnings, 5 seconds for others
+    const hideDelay = type === 'warning' ? 7000 : 5000;
+    setTimeout(() => {
+        alertElement
+            .removeClass('show')
+            .addClass('fade');
+        setTimeout(() => alertElement.hide(), 150);
+    }, hideDelay);
+}
+
+// Build department options recursively - with Parent Department and Parent Position
+function buildDepartmentOptions(departments, parentId = null, prefix = '', select) {
+    const normalizedParent = parentId === null ? null : parentId;
+    departments
+        .filter(dept => String(dept.parent_id || '') === String(normalizedParent || ''))
+        .forEach(dept => {
+            const suffix = dept.parent_position_name ? ` (${dept.parent_position_name})` : '';
+            select.append(`<option value="${dept.id}">${prefix} ${dept.name}${suffix}</option>`);
+            buildDepartmentOptions(departments, dept.id, prefix + '--', select);
+        });
+}
+
+// Handle form errors
+function handleFormErrors(form, errors) {
+    if (typeof errors === 'string') {
+        showAlert(errors);
+        return;
+    }
+
+    Object.keys(errors).forEach(key => {
+        const field = form.find(`[name="${key}"]`);
+        const errorMessages = Array.isArray(errors[key]) ? errors[key] : [errors[key]];
+        
+        if (field.length) {
+            field.addClass('is-invalid');
+            
+            // Special handling for password errors with Ukrainian translation
+            if (key === 'password1') {
+                let translatedMessage = errorMessages.join(' ');
+                if (translatedMessage.includes('The new password must be different from the current password')) {
+                    translatedMessage = 'Новий пароль повинен відрізнятися від поточного пароля';
+                }
+                field.siblings('.invalid-feedback').text(translatedMessage);
+                showAlert(translatedMessage, 'warning');
+            } else {
+                field.siblings('.invalid-feedback').text(errorMessages.join(' '));
+            }
+
+            if (key === 'start_date' || key === 'end_date') {
+                showAlert(errorMessages.join(' '));
+            }
+        } else if (key === '__all__') {
+            showAlert(errorMessages.join(' '));
+        }
+    });
+}
+
+// Load available quizzes for user
+function loadEditAvailableQuizzes(userId, companyId) {
+    const container = $('#editAvailableQuizzesContainer');
+    
+    // Show loading state
+    container.html(`
+        <div class="text-center p-3">
+            <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+            <span class="ms-2">{% trans "Loading available quizzes..." %}</span>
+        </div>
+    `);
+    
+    const currentLang = document.documentElement.lang || '{{ request.LANGUAGE_CODE }}' || 'uk';
+    
+    $.ajax({
+                        url: `/${currentLang}/app_study/quiz/available/`,
+        method: 'GET',
+        data: { 
+            user_id: userId,
+            company_id: companyId 
+        },
+        success: function(response) {
+            if (response.status === 'success' && response.data) {
+                populateEditAvailableQuizzes(response.data);
+            } else {
+                container.html('<div class="text-muted p-3">{% trans "No quizzes available" %}</div>');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading quizzes:', xhr.responseText);
+            container.html('<div class="text-danger p-3">{% trans "Error loading quizzes" %}</div>');
+        }
+    });
+}
+
+// Populate available quizzes
+function populateEditAvailableQuizzes(quizzes) {
+    const container = $('#editAvailableQuizzesContainer');
+    
+    if (!quizzes || quizzes.length === 0) {
+        container.html('<div class="text-muted p-3">{% trans "No quizzes available for this user" %}</div>');
+        $('.quiz-count').text('0');
+        return;
+    }
+    
+    let html = '';
+    let assignedCount = 0;
+    quizzes.forEach(quiz => {
+        const hasAttempt = quiz.user_attempts && quiz.user_attempts.length > 0;
+        const lastAttempt = hasAttempt ? quiz.user_attempts[quiz.user_attempts.length - 1] : null;
+        const isPassed = lastAttempt && lastAttempt.score >= quiz.passing_score;
+        const isAssigned = quiz.is_assigned || false;
+        if (isAssigned) assignedCount++;
+        const checkboxId = 'edit_quiz_' + quiz.id;
+        const safeTitle = (quiz.title || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        let badges = ['<span class="badge bg-secondary me-1">' + (quiz.passing_score || 0) + '%</span>'];
+        if (hasAttempt) badges.push('<span class="badge me-1 ' + (isPassed ? 'bg-success' : 'bg-warning') + '">' + lastAttempt.score + '%</span>');
+        else badges.push('<span class="badge bg-light text-dark me-1">{% trans "Not attempted" %}</span>');
+        if (quiz.youtube_video_id) badges.push('<span class="badge bg-danger me-1">Video</span>');
+        if (quiz.pdf_material) badges.push('<span class="badge bg-primary me-1">PDF</span>');
+        if (isAssigned) badges.push('<span class="badge bg-success me-1">{% trans "Assigned" %}</span>');
+        html += '<div class="quiz-item' + (isAssigned ? ' quiz-assigned' : '') + '"><div class="d-flex align-items-center">' +
+            '<div class="form-check me-2 mb-0"><input class="form-check-input quiz-checkbox" type="checkbox" id="' + checkboxId + '" name="assigned_quizzes[]" value="' + quiz.id + '"' + (isAssigned ? ' checked' : '') + '><label class="form-check-label" for="' + checkboxId + '"></label></div>' +
+            '<div class="flex-grow-1 min-width-0"><div class="quiz-title text-truncate" title="' + safeTitle + '"><i class="fas fa-question-circle me-1 text-info small"></i>' + safeTitle + '</div>' +
+            '<div class="quiz-meta">' + badges.join('') + '</div></div></div></div>';
+    });
+    container.html(html);
+    $('.quiz-count').text(assignedCount + '/' + quizzes.length);
+    
+    // Add change event to update counter when checkboxes are clicked
+    $('.quiz-checkbox').on('change', function() {
+        const checkedCount = $('.quiz-checkbox:checked').length;
+        $('.quiz-count').text(`${checkedCount}/${quizzes.length}`);
+        
+        // Update visual state
+        const quizItem = $(this).closest('.quiz-item');
+        if ($(this).is(':checked')) {
+            quizItem.addClass('quiz-assigned');
+        } else {
+            quizItem.removeClass('quiz-assigned');
+        }
+    });
+    
+    // Initialize tooltips for quiz elements
+    initializeTooltips();
+}
+</script>

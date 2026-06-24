@@ -1,0 +1,135 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page.name }} - Preview</title>
+    <link rel="stylesheet" href="{% static 'css/secboard-tokens.css' %}">
+    <link rel="stylesheet" href="{% static 'app_gophish/css/gophish-landing-preview-page.css' %}">
+</head>
+<body class="gophish-landing-preview">
+    <div class="preview-header">
+        <div>
+            <div class="preview-title">{{ page.name }}</div>
+            <div class="preview-info">Server: {{ page.server.name }}</div>
+        </div>
+        <div>
+            <button class="btn btn-sm btn-outline-primary me-2" onclick="toggleView('preview')">
+                <i class="fas fa-eye"></i> Preview
+            </button>
+            <button class="btn btn-sm btn-outline-secondary me-2" onclick="toggleView('source')">
+                <i class="fas fa-code"></i> Source
+            </button>
+            <button class="btn btn-sm btn-success me-2" onclick="copyHtmlContent()">
+                <i class="fas fa-copy"></i> Copy HTML
+            </button>
+            <a href="javascript:window.close();" class="close-btn">Close Preview</a>
+        </div>
+    </div>
+    
+    <!-- Preview Mode -->
+    <div id="preview-mode" class="preview-content">
+        {{ page.html_content|safe }}
+    </div>
+    
+    <!-- Source Mode -->
+    <div id="source-mode" class="preview-content is-hidden">
+        <div class="preview-source-wrap">
+            <h6>HTML Source Code:</h6>
+            <pre id="html-source">{{ page.html_content }}</pre>
+        </div>
+    </div>
+    
+    <script>
+    function toggleView(mode) {
+        const previewMode = document.getElementById('preview-mode');
+        const sourceMode = document.getElementById('source-mode');
+        const previewBtn = document.querySelector('button[onclick="toggleView(\'preview\')"]');
+        const sourceBtn = document.querySelector('button[onclick="toggleView(\'source\')"]');
+        
+        if (mode === 'preview') {
+            previewMode.classList.remove('is-hidden');
+            sourceMode.classList.add('is-hidden');
+            previewBtn.classList.remove('btn-outline-primary');
+            previewBtn.classList.add('btn-primary');
+            sourceBtn.classList.remove('btn-secondary');
+            sourceBtn.classList.add('btn-outline-secondary');
+        } else {
+            previewMode.classList.add('is-hidden');
+            sourceMode.classList.remove('is-hidden');
+            sourceBtn.classList.remove('btn-outline-secondary');
+            sourceBtn.classList.add('btn-secondary');
+            previewBtn.classList.remove('btn-primary');
+            previewBtn.classList.add('btn-outline-primary');
+        }
+    }
+
+    function copyHtmlContent() {
+        const htmlContent = `{{ page.html_content|escapejs }}`;
+        const btn = document.querySelector('button[onclick="copyHtmlContent()"]');
+        const originalText = btn.innerHTML;
+        
+        // Try modern clipboard API first
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(htmlContent).then(function() {
+                // Show success message
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+                
+                setTimeout(function() {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Clipboard API failed: ', err);
+                fallbackCopyHtmlContent(htmlContent, btn, originalText);
+            });
+        } else {
+            fallbackCopyHtmlContent(htmlContent, btn, originalText);
+        }
+    }
+
+    function fallbackCopyHtmlContent(text, btn, originalText) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        
+        try {
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            if (successful) {
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+                
+                setTimeout(function() {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                }, 2000);
+            } else {
+                throw new Error('execCommand failed');
+            }
+        } catch (err) {
+            console.error('Fallback copy failed: ', err);
+            document.body.removeChild(textarea);
+            alert('Failed to copy HTML content');
+        }
+    }
+
+    // Initialize with preview mode
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleView('preview');
+    });
+    </script>
+</body>
+</html>
+

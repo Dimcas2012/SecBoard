@@ -1,0 +1,177 @@
+{% load i18n %}
+{% load widget_tweaks %}
+
+<div class="alert alert-info py-2 mb-3 small">
+    <i class="bi bi-shield-check me-1"></i>
+    {% trans "For your security, all input is validated and sanitized. You can only modify your own profile. Company, department, and position changes require administrator approval." %}
+</div>
+
+{% if profile_form.errors %}
+<div class="alert alert-danger py-2 mb-3 small">
+    <strong><i class="bi bi-exclamation-triangle"></i> {% trans "Please correct the following errors:" %}</strong>
+    <ul class="mb-0 mt-1">
+        {% for field, errors in profile_form.errors.items %}
+            {% for error in errors %}
+                <li>{{ field }}: {{ error }}</li>
+            {% endfor %}
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<form method="post" action="{% url 'personal_cabinet' %}#user-info" novalidate enctype="multipart/form-data" class="profile-page">
+    {% csrf_token %}
+    <input type="hidden" name="profile_update" value="1">
+
+    <div class="row g-3 mb-2 small text-muted">
+        <div class="col-md-4"><i class="bi bi-envelope me-1"></i>{{ user.email }}</div>
+        <div class="col-md-4"><i class="bi bi-diagram-3 me-1"></i>{{ cabinet_user.department|default:_("Not assigned") }}</div>
+        <div class="col-md-4"><i class="bi bi-person-badge me-1"></i>{{ cabinet_user.position|default:_("Not assigned") }}</div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-person me-1"></i> {% trans "Personal information" %}</div>
+                <div class="card-body">
+                    <div class="mb-2 input-icon-wrap">
+                        <i class="bi bi-person input-icon"></i>
+                        <label for="{{ profile_form.first_name.id_for_label }}" class="form-label">{% trans "First Name" %}</label>
+                        {{ profile_form.first_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter your first name"|attr:"maxlength:30"|attr:"pattern:[a-zA-ZА-Яа-яІіЇїЄєґҐ\\s\\-'\\.]+"|attr:"title:Only letters, spaces, hyphens, apostrophes, and periods are allowed" }}
+                        {% if profile_form.first_name.errors %}<div class="text-danger small">{% for error in profile_form.first_name.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="mb-2 input-icon-wrap">
+                        <i class="bi bi-person input-icon"></i>
+                        <label for="{{ profile_form.last_name.id_for_label }}" class="form-label">{% trans "Last Name" %}</label>
+                        {{ profile_form.last_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter your last name"|attr:"maxlength:30"|attr:"pattern:[a-zA-ZА-Яа-яІіЇїЄєґҐ\\s\\-'\\.]+"|attr:"title:Only letters, spaces, hyphens, apostrophes, and periods are allowed" }}
+                        {% if profile_form.last_name.errors %}<div class="text-danger small">{% for error in profile_form.last_name.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="mb-0 input-icon-wrap">
+                        <i class="bi bi-building input-icon"></i>
+                        <label class="form-label">{% trans "Company" %}</label>
+                        <input type="text" class="form-control form-control-sm" value="{{ profile_form.instance.company.name|default:_('Not assigned') }}" disabled>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-sliders me-1"></i> {% trans "Preferences" %}</div>
+                <div class="card-body">
+                    <div class="mb-2 input-icon-wrap">
+                        <i class="bi bi-telephone input-icon"></i>
+                        <label for="{{ profile_form.phone.id_for_label }}" class="form-label">{% trans "Phone" %}</label>
+                        {{ profile_form.phone|add_class:"form-control form-control-sm"|attr:"placeholder:Enter your phone number"|attr:"pattern:[\\+]?[\\d\\s\\-\\(\\)]+"|attr:"title:Please enter a valid phone number" }}
+                        {% if profile_form.phone.errors %}<div class="text-danger small">{% for error in profile_form.phone.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="mb-0">
+                        <label for="{{ profile_form.preferred_language.id_for_label }}" class="form-label">
+                            <i class="bi bi-translate"></i> {% trans "Default language" %}
+                        </label>
+                        {{ profile_form.preferred_language|add_class:"form-select form-select-sm" }}
+                        {% if profile_form.preferred_language.errors %}<div class="text-danger small">{% for error in profile_form.preferred_language.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        {% if profile_form.preferred_language.help_text %}
+                        <div class="form-text">{{ profile_form.preferred_language.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-person-circle me-1"></i> {% trans "Avatar" %}</div>
+                <div class="card-body">
+                    <div class="d-flex align-items-start gap-3 mb-2">
+                        {% if profile_form.instance.avatar_url %}
+                            <img src="{{ profile_form.instance.avatar_url }}" alt="{% trans 'Current avatar' %}" class="rounded-circle avatar-preview flex-shrink-0">
+                        {% else %}
+                            <div class="rounded-circle avatar-placeholder d-flex align-items-center justify-content-center flex-shrink-0">
+                                <i class="bi bi-person"></i>
+                            </div>
+                        {% endif %}
+                        <div class="flex-grow-1">
+                            <label for="{{ profile_form.avatar.id_for_label }}" class="form-label">{% trans "Upload image" %}</label>
+                            {{ profile_form.avatar|add_class:"form-control form-control-sm"|attr:"accept:image/jpeg,image/png,image/gif" }}
+                            {% if profile_form.instance.avatar and not profile_form.instance.avatar_url %}
+                            <div class="text-warning small mt-1">{% trans "Avatar file is missing. Please upload a new image." %}</div>
+                            {% endif %}
+                            {% if profile_form.avatar.errors %}<div class="text-danger small">{% for error in profile_form.avatar.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="form-text mb-0">{% trans "JPEG, PNG, GIF. Max 2MB." %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-telegram me-1"></i> {% trans "Telegram" %}</div>
+                <div class="card-body">
+                    {% if telegram_link.is_linked %}
+                    <div class="alert alert-success py-2 mb-2 small">
+                        <i class="bi bi-check-circle"></i> {% trans "Telegram is linked." %}
+                        {% if telegram_link.telegram_chat_id %}
+                        <span class="ms-1">{% trans "Chat ID:" %} <code>{{ telegram_link.telegram_chat_id }}</code></span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if telegram_link.available %}
+                    <p class="text-muted small mb-2">
+                        {% blocktrans with bot_name=telegram_link.bot_name bot_username=telegram_link.bot_username %}
+                        Link your SecBoard account to {{ bot_name }} ({{ bot_username }}).
+                        {% endblocktrans %}
+                    </p>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <a href="{{ telegram_link.deep_link }}" target="_blank" rel="noopener noreferrer" class="btn btn-info btn-sm">
+                            <i class="bi bi-telegram"></i> {% trans "Link Telegram" %}
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary btn-sm profile-copy-telegram-link" data-link="{{ telegram_link.deep_link }}">
+                            <i class="bi bi-clipboard"></i> {% trans "Copy link" %}
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning py-2 mb-2 small">{{ telegram_link.reason }}</div>
+                    {% endif %}
+
+                    <label for="{{ profile_form.telegram_chat_id.id_for_label }}" class="form-label">{% trans "Telegram Chat ID" %}</label>
+                    {{ profile_form.telegram_chat_id|add_class:"form-control form-control-sm"|attr:"placeholder:e.g. 123456789" }}
+                    {% if profile_form.telegram_chat_id.errors %}<div class="text-danger small">{% for error in profile_form.telegram_chat_id.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                    <div class="form-text mb-0">{% trans "Filled automatically after linking, or copy from the bot Help menu." %}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-lock me-1"></i> {% trans "Change password" %}</div>
+                <div class="card-body">
+                    <div class="mb-2 input-icon-wrap">
+                        <i class="bi bi-lock input-icon"></i>
+                        <label for="{{ profile_form.new_password1.id_for_label }}" class="form-label">{% trans "New Password" %}</label>
+                        {{ profile_form.new_password1|add_class:"form-control form-control-sm"|attr:"placeholder:Enter new password" }}
+                        <div class="progress mt-2 profile-password-progress">
+                            <div class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                    <div class="mb-0 input-icon-wrap">
+                        <i class="bi bi-lock-fill input-icon"></i>
+                        <label for="{{ profile_form.new_password2.id_for_label }}" class="form-label">{% trans "Confirm New Password" %}</label>
+                        {{ profile_form.new_password2|add_class:"form-control form-control-sm"|attr:"placeholder:Confirm new password" }}
+                    </div>
+                    <div class="form-text mt-2 mb-0">{% trans "Leave empty to keep the current password. At least 8 characters with upper, lower case and numbers." %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> {% trans "Save profile" %}
+        </button>
+    </div>
+</form>

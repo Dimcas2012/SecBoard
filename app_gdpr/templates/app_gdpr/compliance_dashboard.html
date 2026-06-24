@@ -1,0 +1,454 @@
+{% extends 'app_gdpr/base_gdpr.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "GDPR Compliance Dashboard" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-row {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        margin-bottom: 1rem !important;
+        width: 100% !important;
+    }
+    
+    .dashboard-row .col {
+        flex: 1 !important;
+        max-width: none !important;
+        padding: 0 7.5px !important;
+    }
+    
+    .dashboard-card {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+    }
+    
+    .dashboard-card .card {
+        height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    .dashboard-card .card-body {
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        padding: 1rem !important;
+        min-height: 140px !important;
+    }
+    
+    .dashboard-card .card-title {
+        font-size: 0.9rem !important;
+        margin-bottom: 0.5rem !important;
+        text-align: center !important;
+        font-weight: 600 !important;
+    }
+    
+    .dashboard-card h2 {
+        font-size: 1.5rem !important;
+        margin-bottom: 0.5rem !important;
+        text-align: center !important;
+        font-weight: bold !important;
+    }
+    
+    .dashboard-card .btn {
+        font-size: 0.75rem !important;
+        padding: 0.25rem 0.5rem !important;
+        width: 100% !important;
+        margin-top: auto !important;
+    }
+    
+    .dashboard-card small {
+        font-size: 0.7rem !important;
+        line-height: 1.2 !important;
+        text-align: center !important;
+        margin-bottom: 0.5rem !important;
+        min-height: 1.4rem !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    /* Адаптивні стилі для різних розмірів екрану */
+    @media (min-width: 1200px) {
+        .dashboard-card .card-body {
+            min-height: 140px !important;
+        }
+        .dashboard-card .card-title {
+            font-size: 1rem !important;
+        }
+        .dashboard-card h2 {
+            font-size: 1.8rem !important;
+        }
+    }
+    
+    @media (max-width: 1199px) and (min-width: 992px) {
+        .dashboard-card .card-body {
+            min-height: 120px !important;
+        }
+        .dashboard-card .card-title {
+            font-size: 0.85rem !important;
+        }
+        .dashboard-card h2 {
+            font-size: 1.4rem !important;
+        }
+    }
+    
+    @media (max-width: 991px) and (min-width: 768px) {
+        .dashboard-row {
+            flex-wrap: wrap !important;
+        }
+        .dashboard-row .col {
+            flex: 0 0 calc(50% - 15px) !important;
+        }
+        .dashboard-card .card-body {
+            min-height: 100px !important;
+        }
+        .dashboard-card .card-title {
+            font-size: 0.8rem !important;
+        }
+        .dashboard-card h2 {
+            font-size: 1.2rem !important;
+        }
+    }
+    
+    @media (max-width: 767px) {
+        .dashboard-row {
+            flex-wrap: wrap !important;
+        }
+        .dashboard-row .col {
+            flex: 0 0 calc(50% - 15px) !important;
+        }
+        .dashboard-card .card-body {
+            min-height: 90px !important;
+        }
+        .dashboard-card .card-title {
+            font-size: 0.75rem !important;
+        }
+        .dashboard-card h2 {
+            font-size: 1rem !important;
+        }
+        .dashboard-card .btn {
+            font-size: 0.7rem !important;
+            padding: 0.2rem 0.4rem !important;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .dashboard-row .col {
+            flex: 0 0 100% !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block gdpr_content %}
+<div class="container-fluid">
+    <h1 class="mb-4">{% trans "GDPR Compliance Dashboard" %}</h1>
+    
+    <!-- Всі 7 блоків в одному ряді -->
+    <div class="row dashboard-row">
+        <div class="col dashboard-card">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Data Subjects" %}</h5>
+                    <h2>{{ data_subjects_count }}</h2>
+                    <small class="d-block">&nbsp;</small>
+                    <a href="{% url 'app_gdpr:data_subject_list' %}" class="btn btn-light btn-sm">{% trans "View All" %}</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col dashboard-card">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Active Consents" %}</h5>
+                    <h2>{{ active_consents }}</h2>
+                    <small class="d-block">&nbsp;</small>
+                    <a href="{% url 'app_gdpr:consent_list' %}" class="btn btn-light btn-sm">{% trans "View All" %}</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col dashboard-card">
+            <div class="card text-white bg-warning mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "DSR Requests" %}</h5>
+                    <h2>{{ total_dsr }}</h2>
+                    <small class="d-block">{% trans "Pending" %}: {{ pending_dsr }} | {% trans "Overdue" %}: {{ overdue_dsr_count }}</small>
+                    <a href="{% url 'app_gdpr:dsr_dashboard' %}" class="btn btn-light btn-sm">{% trans "View All" %}</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col dashboard-card">
+            <div class="card text-white bg-danger mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Data Breaches" %}</h5>
+                    <h2>{{ total_breaches }}</h2>
+                    <small class="d-block">{% trans "Open" %}: {{ open_breaches }} | {% trans "Critical" %}: {{ critical_breaches }}</small>
+                    <a href="{% url 'app_gdpr:breach_list' %}" class="btn btn-light btn-sm">{% trans "View All" %}</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col dashboard-card">
+            <div class="card text-white bg-info mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "DPIA Assessments" %}</h5>
+                    <h2>{{ dpia_assessments }}</h2>
+                    <small class="d-block">&nbsp;</small>
+                    <a href="{% url 'app_gdpr:dpia_list' %}" class="btn btn-light btn-sm">{% trans "View All" %}</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col dashboard-card">
+            <div class="card text-white bg-secondary mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Data Activities" %}</h5>
+                    <h2>{{ data_activities }}</h2>
+                    <small class="d-block">&nbsp;</small>
+                    <a href="{% url 'app_gdpr:activity_list' %}" class="btn btn-light btn-sm">{% trans "View All" %}</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col dashboard-card">
+            <div class="card text-white bg-dark mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Retention Policies" %}</h5>
+                    <h2>{{ retention_policies }}</h2>
+                    <small class="d-block">&nbsp;</small>
+                    <a href="{% url 'app_gdpr:policy_list' %}" class="btn btn-light btn-sm">{% trans "View All" %}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Critical Alerts Section -->
+    {% if critical_alerts %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> {% trans "Critical Alerts" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for alert in critical_alerts %}
+                        <div class="col-md-4 mb-3">
+                            <div class="alert alert-{{ alert.severity }} mb-0">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>{{ alert.title }}</strong><br>
+                                        <span class="badge bg-{{ alert.severity }}">{{ alert.count }}</span>
+                                    </div>
+                                    <a href="{% url alert.url %}" class="btn btn-{{ alert.severity }} btn-sm">
+                                        <i class="fas fa-eye"></i> {% trans "View" %}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Additional Dashboard Sections -->
+    <div class="row mt-4">
+        <!-- Upcoming Deadlines -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> {% trans "Upcoming Deadlines" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_deadlines %}
+                        {% for deadline in upcoming_deadlines %}
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                            <div>
+                                <strong>{{ deadline.title }}</strong><br>
+                                <small class="text-muted">{{ deadline.deadline|date:"M d, Y" }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-{{ deadline.severity }}">
+                                    {% if deadline.days_left == 0 %}
+                                        {% trans "Due Today" %}
+                                    {% elif deadline.days_left == 1 %}
+                                        {% trans "1 Day Left" %}
+                                    {% else %}
+                                        {{ deadline.days_left }} {% trans "Days Left" %}
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0"><i class="fas fa-check-circle text-success"></i> {% trans "No upcoming deadlines" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-clock"></i> {% trans "Recent Activity" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_activities %}
+                        {% for activity in recent_activities %}
+                        <div class="d-flex align-items-start mb-3">
+                            <div class="flex-shrink-0 me-3">
+                                {% if activity.type == 'dsr' %}
+                                    <i class="fas fa-file-alt text-warning"></i>
+                                {% elif activity.type == 'breach' %}
+                                    <i class="fas fa-exclamation-triangle text-danger"></i>
+                                {% elif activity.type == 'consent' %}
+                                    <i class="fas fa-check-circle text-success"></i>
+                                {% else %}
+                                    <i class="fas fa-circle text-primary"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <strong>{{ activity.title }}</strong><br>
+                                <small class="text-muted">{{ activity.description }}</small><br>
+                                <small class="text-muted">{{ activity.timestamp|timesince }} {% trans "ago" %}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0"><i class="fas fa-info-circle"></i> {% trans "No recent activity" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Compliance Status Overview -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-shield-check"></i> {% trans "Compliance Status Overview" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6>{% trans "Data Subject Coverage" %}</h6>
+                                <div class="progress mb-2" style="height: 20px;">
+                                    <div class="progress-bar bg-primary" role="progressbar" 
+                                         style="width: {{ compliance_status.data_subject_coverage.percentage }}%">
+                                        {{ compliance_status.data_subject_coverage.percentage|floatformat:0 }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ compliance_status.data_subject_coverage.current }}/{{ compliance_status.data_subject_coverage.target }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6>{% trans "Consent Management" %}</h6>
+                                <div class="progress mb-2" style="height: 20px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ compliance_status.consent_management.percentage }}%">
+                                        {{ compliance_status.consent_management.percentage|floatformat:0 }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ compliance_status.consent_management.current }}/{{ compliance_status.consent_management.target }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6>{% trans "DSR Response Time" %}</h6>
+                                <div class="progress mb-2" style="height: 20px;">
+                                    <div class="progress-bar bg-info" role="progressbar" 
+                                         style="width: {{ compliance_status.dsr_response_time.percentage }}%">
+                                        {{ compliance_status.dsr_response_time.percentage|floatformat:0 }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ compliance_status.dsr_response_time.current }} {% trans "days avg" %}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6>{% trans "Breach Response" %}</h6>
+                                <div class="progress mb-2" style="height: 20px;">
+                                    <div class="progress-bar bg-warning" role="progressbar" 
+                                         style="width: {{ compliance_status.breach_response.percentage }}%">
+                                        {{ compliance_status.breach_response.percentage|floatformat:0 }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ compliance_status.breach_response.current }} {% trans "hours avg" %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Quick Actions" %}</h5>
+                    <a href="{% url 'app_gdpr:gdpr_guide' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-book"></i> {% trans "Guide" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>{% trans "Data Management" %}</h6>
+                            {% if can_edit_data_subjects %}
+                            <a href="{% url 'app_gdpr:data_subject_create' %}" class="btn btn-primary btn-sm mr-2 mb-2">{% trans "New Data Subject" %}</a>
+                            {% endif %}
+                            {% if can_manage_consents %}
+                            <a href="{% url 'app_gdpr:consent_create' %}" class="btn btn-success btn-sm mr-2 mb-2">{% trans "New Consent" %}</a>
+                            {% endif %}
+                            {% if can_edit_activities %}
+                            <a href="{% url 'app_gdpr:activity_create' %}" class="btn btn-secondary btn-sm mr-2 mb-2">{% trans "New Activity" %}</a>
+                            {% endif %}
+                            {% if can_edit_policies %}
+                            <a href="{% url 'app_gdpr:policy_create' %}" class="btn btn-dark btn-sm mr-2 mb-2">{% trans "New Policy" %}</a>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <h6>{% trans "Compliance Actions" %}</h6>
+                            {% if can_process_dsr %}
+                            <a href="{% url 'app_gdpr:dsr_create' %}" class="btn btn-warning btn-sm mr-2 mb-2">{% trans "New DSR" %}</a>
+                            {% endif %}
+                            {% if can_edit_breaches %}
+                            <a href="{% url 'app_gdpr:breach_create' %}" class="btn btn-danger btn-sm mr-2 mb-2">{% trans "Report Breach" %}</a>
+                            {% endif %}
+                            {% if can_conduct_dpia %}
+                            <a href="{% url 'app_gdpr:dpia_create' %}" class="btn btn-info btn-sm mr-2 mb-2">{% trans "New DPIA" %}</a>
+                            {% endif %}
+                            {% if can_generate_reports %}
+                            <a href="{% url 'app_gdpr:compliance_report' %}" class="btn btn-secondary btn-sm mr-2 mb-2">{% trans "Compliance Report" %}</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

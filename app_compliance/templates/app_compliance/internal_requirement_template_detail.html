@@ -1,0 +1,1253 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ requirement.code }} - {% trans "Internal Requirement" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sidebar-link {
+        padding: 6px 8px;
+        border-radius: 4px;
+        color: #495057;
+        text-decoration: none;
+        font-size: 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .sidebar-link:hover {
+        background-color: #e9ecef;
+        color: #0d6efd;
+    }
+    .sidebar-link.active {
+        background-color: #0d6efd;
+        color: #fff;
+    }
+    .sidebar-link.active .badge {
+        background-color: rgba(255,255,255,0.3) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>
+                <i class="fas fa-file-contract"></i> {{ requirement.code }}
+            </h1>
+            <h4 class="text-muted">{{ requirement.name }}</h4>
+            {% if requirement.name_local %}
+            <p class="text-muted">{{ requirement.name_local }}</p>
+            {% endif %}
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-toolbar justify-content-end flex-nowrap" role="toolbar" style="gap: 0.25rem;">
+                <a href="{% url 'compliance:internal_requirements_library' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> {% trans "Back to Internal Company Requirements" %}
+                </a>
+                {% if permissions.can_edit_requirements %}
+                <a href="{% url 'compliance:internal_requirement_template_edit' requirement.id %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-edit"></i> {% trans "Edit" %}
+                </a>
+                {% endif %}
+                <a href="{% url 'compliance:control_mapping' %}" class="btn btn-sm btn-outline-info">
+                    <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#internalComplianceGuideModal">
+                    <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "Type" %}</h6>
+                    <p class="mb-0">
+                        <span class="badge bg-info">{{ requirement.get_requirement_type_display }}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "Status" %}</h6>
+                    <p class="mb-0">
+                        <span class="badge {% if requirement.status == 'active' %}bg-success{% elif requirement.status == 'draft' %}bg-warning{% else %}bg-secondary{% endif %}">
+                            {{ requirement.get_status_display }}
+                        </span>
+                        {% if requirement.is_mandatory %}
+                        <span class="badge bg-danger ms-1">{% trans "Mandatory" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">{% trans "Controls & Categories" %}</h6>
+                    <p class="mb-1">
+                        <i class="fas fa-layer-group text-primary"></i>
+                        <strong>{{ categories|length }}</strong> {% trans "categories" %}
+                    </p>
+                    <p class="mb-0">
+                        <i class="fas fa-tasks text-success"></i>
+                        <strong>{{ template_controls.count }}</strong> {% trans "controls" %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Description & Dates -->
+    {% if requirement.description or requirement.effective_date or requirement.deadline_date %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    {% if requirement.description %}
+                    <h6><i class="fas fa-align-left"></i> {% trans "Description" %}</h6>
+                    <p>{{ requirement.description }}</p>
+                    {% endif %}
+                    
+                    {% if requirement.effective_date or requirement.deadline_date %}
+                    <hr>
+                    <div class="row">
+                        {% if requirement.publication_date %}
+                        <div class="col-md-4">
+                            <strong>{% trans "Publication Date" %}:</strong> {{ requirement.publication_date|date:"d.m.Y" }}
+                        </div>
+                        {% endif %}
+                        {% if requirement.effective_date %}
+                        <div class="col-md-4">
+                            <strong>{% trans "Effective Date" %}:</strong> {{ requirement.effective_date|date:"d.m.Y" }}
+                        </div>
+                        {% endif %}
+                        {% if requirement.deadline_date %}
+                        <div class="col-md-4">
+                            <strong class="text-danger">{% trans "Deadline" %}:</strong> 
+                            <span class="text-danger">{{ requirement.deadline_date|date:"d.m.Y" }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    {% if requirement.official_link %}
+                    <hr>
+                    <p>
+                        <i class="fas fa-external-link-alt"></i> 
+                        <a href="{{ requirement.official_link }}" target="_blank">{% trans "Official Document" %}</a>
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Completion Progress & Controls Status (Compact) -->
+    <div class="row mb-2">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body" style="padding: 0.75rem;">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <h6 class="mb-2" style="font-size: 0.875rem;">
+                                <i class="fas fa-chart-line"></i> {% trans "Completion Progress" %}
+                            </h6>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar bg-success" role="progressbar" 
+                                     style="width: {{ completion }}%; font-size: 0.875rem; font-weight: bold;" 
+                                     aria-valuenow="{{ completion }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    {{ completion }}%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <h6 class="mb-2" style="font-size: 0.875rem;">
+                                <i class="fas fa-tasks"></i> {% trans "Controls Status" %}
+                            </h6>
+                            <div class="d-flex flex-wrap" style="gap: 0.75rem; font-size: 0.875rem;">
+                                <span style="color: #28a745; font-weight: bold; white-space: nowrap;">
+                                    <i class="fas fa-check-circle"></i> {{ stats.completed }}
+                                </span>
+                                <span style="color: #17a2b8; font-weight: bold; white-space: nowrap;">
+                                    <i class="fas fa-spinner"></i> {{ stats.in_progress }}
+                                </span>
+                                <span style="color: #ffc107; font-weight: bold; white-space: nowrap;">
+                                    <i class="fas fa-clock"></i> {{ stats.ready_for_review }}
+                                </span>
+                                <span style="color: #6c757d; font-weight: bold; white-space: nowrap;">
+                                    <i class="fas fa-circle"></i> {{ stats.not_started }}
+                                </span>
+                                <span style="color: #dc3545; font-weight: bold; white-space: nowrap;">
+                                    <i class="fas fa-times-circle"></i> {{ stats.failed }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lifecycle Management & Notes -->
+    <div class="row mb-3">
+        <!-- Lifecycle (8 columns) -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header py-2" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h6 class="mb-0" style="font-size: 0.85rem;">
+                        <i class="fas fa-sync-alt"></i> {% trans "Lifecycle" %}
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="row align-items-center">
+                        <!-- Lifecycle Stages -->
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center" style="gap: 0.5rem;">
+                                <!-- Draft -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if requirement.status == 'draft' %}#ffc107{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-edit" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <div style="width: 30px; height: 2px; background-color: {% if requirement.status == 'active' or requirement.status == 'archived' %}#28a745{% else %}#e0e0e0{% endif %};"></div>
+                                <!-- Active -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if requirement.status == 'active' %}#28a745{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-check-circle" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <div style="width: 30px; height: 2px; background-color: {% if requirement.status == 'archived' %}#6c757d{% else %}#e0e0e0{% endif %};"></div>
+                                <!-- Archived -->
+                                <div class="text-center">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; 
+                                         background-color: {% if requirement.status == 'archived' %}#6c757d{% else %}#e0e0e0{% endif %}; 
+                                         display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-archive" style="color: white; font-size: 0.7rem;"></i>
+                                    </div>
+                                </div>
+                                <span class="ms-2" style="font-size: 0.75rem; font-weight: bold; 
+                                      color: {% if requirement.status == 'draft' %}#ffc107{% elif requirement.status == 'active' %}#28a745{% else %}#6c757d{% endif %};">
+                                    {{ requirement.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Dates Info -->
+                        <div class="col-md-8">
+                            <div class="row" style="font-size: 0.75rem;">
+                                {% if requirement.effective_date %}
+                                <div class="col-md-4">
+                                    <strong>{% trans "Effective" %}:</strong><br>
+                                    <span class="text-primary">{{ requirement.effective_date|date:"d.m.Y" }}</span>
+                                </div>
+                                {% endif %}
+                                {% if requirement.review_date %}
+                                <div class="col-md-4">
+                                    <strong>{% trans "Review" %}:</strong><br>
+                                    <span class="text-info">{{ requirement.review_date|date:"d.m.Y" }}</span>
+                                </div>
+                                {% endif %}
+                                {% if requirement.deadline_date %}
+                                <div class="col-md-4">
+                                    <strong>{% trans "Deadline" %}:</strong><br>
+                                    <span class="text-danger">{{ requirement.deadline_date|date:"d.m.Y" }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes (4 columns) -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <h6 class="mb-0" style="font-size: 0.85rem;">
+                        <i class="fas fa-sticky-note"></i> {% trans "Notes" %}{% if requirement_notes %} ({{ requirement_notes|length }}){% endif %}
+                    </h6>
+                    {% if permissions.can_edit_requirements %}
+                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#requirementAddNoteModal" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body p-2" style="max-height: 300px; overflow-y: auto;">
+                    {% if requirement_notes %}
+                    <div class="notes-list">
+                        {% for note in requirement_notes %}
+                        <div class="note-item border rounded p-2 mb-2" style="background: #f8f9fa;">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong style="font-size: 0.75rem;">
+                                        {{ note.created_by.get_full_name|default:note.created_by.username }}
+                                    </strong>
+                                    <small class="text-muted ms-2" style="font-size: 0.65rem;">
+                                        {{ note.created_date|date:"Y-m-d H:i" }}
+                                    </small>
+                                </div>
+                                {% if permissions.can_edit_requirements %}
+                                <form method="post" action="{% url 'compliance:internal_requirement_note_delete' note.id %}" onsubmit="return confirm('{% trans "Delete this note?" %}')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size: 0.6rem; padding: 0.1rem 0.3rem;">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+
+                            {% if permissions.can_edit_requirements %}
+                            <form method="post" action="{% url 'compliance:internal_requirement_note_update' note.id %}" enctype="multipart/form-data" class="mt-2">
+                                {% csrf_token %}
+                                <div class="mb-2">
+                                    <textarea name="note" class="form-control form-control-sm" rows="2" style="font-size: 0.75rem;">{{ note.note }}</textarea>
+                                </div>
+                                <div class="mb-2">
+                                    {% if note.attachment %}
+                                    <div class="mb-1 d-flex align-items-center justify-content-between">
+                                        <small class="text-muted me-2" style="font-size: 0.7rem;">
+                                            {% trans "Existing file" %}:
+                                            <a href="{{ note.attachment.url }}" target="_blank">{{ note.attachment_filename }}</a>
+                                        </small>
+                                        <label class="form-check-label" style="font-size: 0.7rem;">
+                                            <input type="checkbox" name="clear_attachment" class="form-check-input form-check-input-sm">
+                                            {% trans "Remove" %}
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                    {% for att in note.attachments.all %}
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <small style="font-size: 0.7rem;">
+                                            <a href="{{ att.file.url }}" target="_blank">{{ att.filename }}</a>
+                                        </small>
+                                        <form method="post" action="{% url 'compliance:internal_requirement_note_attachment_delete' att.id %}" class="d-inline" onsubmit="return confirm('{% trans "Delete this attachment?" %}')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size: 0.6rem; padding: 0.1rem 0.3rem;">×</button>
+                                        </form>
+                                    </div>
+                                    {% endfor %}
+                                    <input type="file" name="attachments" class="form-control form-control-sm mt-1" multiple style="font-size: 0.7rem;">
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm w-100" style="font-size: 0.7rem; padding: 0.2rem;">
+                                    <i class="fas fa-save"></i> {% trans "Save" %}
+                                </button>
+                            </form>
+                            {% else %}
+                            <p class="mb-1" style="font-size: 0.75rem;">{{ note.note }}</p>
+                            {% if note.attachment %}
+                            <small><a href="{{ note.attachment.url }}" target="_blank">{{ note.attachment_filename }}</a></small>
+                            {% endif %}
+                            {% for att in note.attachments.all %}
+                            <div><small><a href="{{ att.file.url }}" target="_blank">{{ att.filename }}</a></small></div>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0" style="font-size: 0.75rem;">{% trans "No notes yet" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters (Hidden by default) -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse">
+                    <i class="fas fa-filter"></i> {% trans "Show/Hide Filters" %}
+                </button>
+            </div>
+            <div class="collapse" id="filtersCollapse">
+                <div class="card">
+                    <div class="card-body" style="padding: 0.75rem;">
+                        <form method="get" class="row g-2">
+                            <div class="col-md-4">
+                                <input type="text" name="search" class="form-control form-control-sm" 
+                                       placeholder="{% trans 'Search controls...' %}"
+                                       value="{{ search }}">
+                            </div>
+                            <div class="col-md-3">
+                                <select name="control_status" class="form-control form-control-sm">
+                                    <option value="">{% trans "All Statuses" %}</option>
+                                    {% for value, label in status_choices %}
+                                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select name="priority" class="form-control form-control-sm">
+                                    <option value="">{% trans "All Priorities" %}</option>
+                                    {% for value, label in priority_choices %}
+                                    <option value="{{ value }}" {% if priority_filter == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="d-flex gap-1">
+                                    <button type="submit" class="btn btn-primary btn-sm flex-fill">
+                                        <i class="fas fa-search"></i> {% trans "Filter" %}
+                                    </button>
+                                    <a href="{% url 'compliance:internal_requirement_template_detail' requirement.id %}" class="btn btn-secondary btn-sm flex-fill">
+                                        <i class="fas fa-times"></i> {% trans "Clear" %}
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls & Categories: CSS Grid Layout (sidebar + content) -->
+    <div style="display: grid; grid-template-columns: 250px 1fr; grid-gap: 20px; height: 80vh; width: 100%;">
+
+        <!-- Sidebar: Category Navigation -->
+        <div style="grid-column: 1; width: 250px; height: 80vh; overflow-y: scroll; overflow-x: hidden; background: #f8f9fa; border-radius: 8px; padding: 15px; border: 1px solid #dee2e6; position: relative;">
+            <h5><i class="fas fa-list"></i> {% trans "Requirements" %}</h5>
+            {% if permissions.can_add_controls %}
+            <div class="mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                    <i class="fas fa-layer-group"></i> {% trans "Add Category" %}
+                </button>
+            </div>
+            {% endif %}
+            <nav class="nav flex-column">
+                {% for category in categories %}
+                <a class="nav-link sidebar-link" href="#category_{{ category.id }}" title="{{ category.description|default:category.name }}">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div style="flex: 1; min-width: 0;">
+                            <div>
+                                <i class="fas fa-folder"></i>
+                                <strong>{{ category.code }}</strong>
+                            </div>
+                            <div style="font-size: 0.65rem; color: #6c757d; margin-top: 2px; line-height: 1.2; white-space: normal;">
+                                {{ category.name|truncatewords:8 }}
+                            </div>
+                        </div>
+                        <span class="badge bg-secondary" style="font-size: 0.55rem; margin-left: 5px;">{{ category.template_controls|length }}</span>
+                    </div>
+                </a>
+                {% empty %}
+                <div class="text-muted text-center py-3" style="font-size: 0.75rem;">
+                    <i class="fas fa-layer-group"></i> {% trans "No categories yet" %}
+                </div>
+                {% endfor %}
+                {% if uncategorized_controls %}
+                <a class="nav-link sidebar-link" href="#uncategorized-controls">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div style="flex: 1; min-width: 0;">
+                            <div>
+                                <i class="fas fa-folder-open"></i>
+                                <strong>—</strong>
+                            </div>
+                            <div style="font-size: 0.65rem; color: #6c757d; margin-top: 2px; line-height: 1.2; white-space: normal;">
+                                {% trans "Uncategorized" %}
+                            </div>
+                        </div>
+                        <span class="badge bg-secondary" style="font-size: 0.55rem; margin-left: 5px;">{{ uncategorized_controls|length }}</span>
+                    </div>
+                </a>
+                {% endif %}
+            </nav>
+        </div>
+
+        <!-- Content Area: Categories and Controls -->
+        <div style="grid-column: 2; width: 100%; height: 80vh; overflow-y: scroll; overflow-x: hidden; padding-right: 10px; position: relative;">
+            {% if categories|length or uncategorized_controls %}
+                            {% for category in categories %}
+                            <div id="category_{{ category.id }}" class="card mb-4 shadow-sm category-section">
+                                <div class="card-header d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="fw-bold">{{ category.name }}</div>
+                                        <small class="text-muted">{{ category.code }}</small>
+                                        {% if category.description %}
+                                        <div class="text-muted small">{{ category.description }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-flex align-items-center" style="gap: .5rem;">
+                                        <span class="badge bg-primary"><i class="fas fa-tasks"></i> {{ category.template_controls|length }}</span>
+                                        {% if permissions.can_add_controls %}
+                                        <button type="button" class="btn btn-sm btn-primary add-control-btn"
+                                                data-category-id="{{ category.id }}"
+                                                data-category-name="{{ category.name|escapejs }}"
+                                                data-bs-toggle="modal" data-bs-target="#addControlModal"
+                                                title="{% trans 'Add Control' %}">
+                                            <i class="fas fa-plus"></i> {% trans "Add Control" %}
+                                        </button>
+                                        {% endif %}
+                                        {% if permissions.can_edit_controls %}
+                                        <button type="button" class="btn btn-sm btn-outline-warning edit-category-btn" 
+                                                data-id="{{ category.id }}"
+                                                data-code="{{ category.code }}"
+                                                data-name="{{ category.name }}"
+                                                data-description="{{ category.description }}"
+                                                data-order="{{ category.order }}"
+                                                title="{% trans 'Edit category' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if permissions.can_delete_controls %}
+                                        <form method="post" action="{% url 'compliance:internal_requirement_category_delete' category.id %}" 
+                                              onsubmit="return confirm('{% trans 'Delete this category? All controls will become uncategorized.' %}');"
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="{% trans 'Delete category' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    {% if category.template_controls %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0 control-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% trans "Code" %}</th>
+                                                    <th>{% trans "Name" %}</th>
+                                                    <th>{% trans "Status" %}</th>
+                                                    <th>{% trans "Priority" %}</th>
+                                                    <th>{% trans "Responsible" %}</th>
+                                                    <th>{% trans "Evidence" %}</th>
+                                                    <th>{% trans "Target Date" %}</th>
+                                                    <th>{% trans "Periodicity (days)" %}</th>
+                                                    <th>{% trans "Actions" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for control in category.template_controls %}
+                                                <tr>
+                                                    <td>
+                                                        <a href="{% url 'compliance:internal_control_detail' control.id %}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-eye"></i> {{ control.code }}
+                                                        </a>
+                                                    </td>
+                                                    <td>{{ control.name }}</td>
+                                                    <td>
+                                                        <span style="{% if control.status == 'completed' %}color: #28a745;
+                                                            {% elif control.status == 'in_progress' %}color: #17a2b8;
+                                                            {% elif control.status == 'ready_for_review' %}color: #ffc107;
+                                                            {% elif control.status == 'failed' %}color: #dc3545;
+                                                            {% elif control.status == 'not_applicable' %}color: #6c757d;
+                                                            {% else %}color: #6c757d;{% endif %} font-weight: bold; white-space: nowrap;">
+                                                            {% if control.status == 'completed' %}<i class="fas fa-check-circle"></i>
+                                                            {% elif control.status == 'in_progress' %}<i class="fas fa-spinner"></i>
+                                                            {% elif control.status == 'ready_for_review' %}<i class="fas fa-clock"></i>
+                                                            {% elif control.status == 'failed' %}<i class="fas fa-times-circle"></i>
+                                                            {% elif control.status == 'not_applicable' %}<i class="fas fa-ban"></i>
+                                                            {% else %}<i class="fas fa-circle"></i>{% endif %}
+                                                            {{ control.get_status_display }}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {% if control.priority == 'critical' %}
+                                                        <span class="badge bg-danger">{{ control.get_priority_display }}</span>
+                                                        {% elif control.priority == 'high' %}
+                                                        <span class="badge bg-warning text-dark">{{ control.get_priority_display }}</span>
+                                                        {% elif control.priority == 'medium' %}
+                                                        <span class="badge bg-info text-white">{{ control.get_priority_display }}</span>
+                                                        {% else %}
+                                                        <span class="badge bg-secondary">{{ control.get_priority_display }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.responsible %}
+                                                        <span>{{ control.responsible.get_full_name|default:control.responsible.username }}</span>
+                                                        {% else %}
+                                                        <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span style="{% if control.has_sufficient_evidence %}color: #28a745;{% else %}color: #ffc107;{% endif %} font-weight: bold;">
+                                                            {% if control.has_sufficient_evidence %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-exclamation-circle"></i>{% endif %}
+                                                            {{ control.get_evidence_count }}/{{ control.required_evidence_count }}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {% if control.target_completion_date %}
+                                                        <span><i class="fas fa-calendar-alt me-1"></i>{{ control.target_completion_date|date:"d.m.Y" }}</span>
+                                                        {% else %}
+                                                        <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.periodicity %}
+                                                        <span>{{ control.periodicity }}</span>
+                                                        {% else %}
+                                                        <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <a href="{% url 'compliance:internal_control_detail' control.id %}" class="btn btn-outline-primary">
+                                                                <i class="fas fa-eye"></i>
+                                                            </a>
+                                                            {% if permissions.can_edit_controls %}
+                                                            <button type="button" class="btn btn-outline-warning edit-control-btn" 
+                                                                    data-id="{{ control.id }}"
+                                                                    data-code="{{ control.code }}"
+                                                                    data-name="{{ control.name }}"
+                                                                    data-description="{{ control.description }}"
+                                                                    data-priority="{{ control.priority }}"
+                                                                    data-category="{{ control.category.id|default:'' }}"
+                                                                    data-target-date="{{ control.target_completion_date|date:'Y-m-d'|default:'' }}"
+                                                                    data-periodicity="{{ control.periodicity|default:'' }}"
+                                                                    data-implementation-notes="{{ control.implementation_notes }}"
+                                                                    data-evidence-notes="{{ control.evidence_notes }}"
+                                                                    data-evidence-count="{{ control.required_evidence_count|default:1 }}"
+                                                                    title="{% trans 'Edit control' %}">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                            {% endif %}
+                                                            {% if permissions.can_delete_controls %}
+                                                            <form method="post" action="{% url 'compliance:internal_requirement_control_delete' control.id %}" 
+                                                                  onsubmit="return confirm('{% trans 'Delete this control?' %}');"
+                                                                  style="display: inline;">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-outline-danger" title="{% trans 'Delete control' %}">
+                                                                    <i class="fas fa-trash"></i>
+                                                                </button>
+                                                            </form>
+                                                            {% endif %}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% else %}
+                                    <div class="alert alert-info mb-0">
+                                        <i class="fas fa-info-circle"></i> {% trans "No controls in this category." %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                            
+                            {% if uncategorized_controls %}
+                            <div id="uncategorized-controls" class="card mb-4 shadow-sm category-section">
+                                <div class="card-header d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="fw-bold">{% trans "Uncategorized" %}</div>
+                                        <small class="text-muted">{% trans "Controls without category" %}</small>
+                                    </div>
+                                    <span class="badge bg-secondary"><i class="fas fa-tasks"></i> {{ uncategorized_controls|length }}</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0 control-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% trans "Code" %}</th>
+                                                    <th>{% trans "Name" %}</th>
+                                                    <th>{% trans "Status" %}</th>
+                                                    <th>{% trans "Priority" %}</th>
+                                                    <th>{% trans "Responsible" %}</th>
+                                                    <th>{% trans "Evidence" %}</th>
+                                                    <th>{% trans "Target Date" %}</th>
+                                                    <th>{% trans "Periodicity (days)" %}</th>
+                                                    <th>{% trans "Actions" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for control in uncategorized_controls %}
+                                                <tr>
+                                                    <td>
+                                                        <a href="{% url 'compliance:internal_control_detail' control.id %}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-eye"></i> {{ control.code }}
+                                                        </a>
+                                                    </td>
+                                                    <td>{{ control.name }}</td>
+                                                    <td>
+                                                        <span style="{% if control.status == 'completed' %}color: #28a745;
+                                                            {% elif control.status == 'in_progress' %}color: #17a2b8;
+                                                            {% elif control.status == 'ready_for_review' %}color: #ffc107;
+                                                            {% elif control.status == 'failed' %}color: #dc3545;
+                                                            {% elif control.status == 'not_applicable' %}color: #6c757d;
+                                                            {% else %}color: #6c757d;{% endif %} font-weight: bold; white-space: nowrap;">
+                                                            {% if control.status == 'completed' %}<i class="fas fa-check-circle"></i>
+                                                            {% elif control.status == 'in_progress' %}<i class="fas fa-spinner"></i>
+                                                            {% elif control.status == 'ready_for_review' %}<i class="fas fa-clock"></i>
+                                                            {% elif control.status == 'failed' %}<i class="fas fa-times-circle"></i>
+                                                            {% elif control.status == 'not_applicable' %}<i class="fas fa-ban"></i>
+                                                            {% else %}<i class="fas fa-circle"></i>{% endif %}
+                                                            {{ control.get_status_display }}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {% if control.priority == 'critical' %}
+                                                        <span class="badge bg-danger">{{ control.get_priority_display }}</span>
+                                                        {% elif control.priority == 'high' %}
+                                                        <span class="badge bg-warning text-dark">{{ control.get_priority_display }}</span>
+                                                        {% elif control.priority == 'medium' %}
+                                                        <span class="badge bg-info text-white">{{ control.get_priority_display }}</span>
+                                                        {% else %}
+                                                        <span class="badge bg-secondary">{{ control.get_priority_display }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.responsible %}
+                                                        <span>{{ control.responsible.get_full_name|default:control.responsible.username }}</span>
+                                                        {% else %}
+                                                        <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span style="{% if control.has_sufficient_evidence %}color: #28a745;{% else %}color: #ffc107;{% endif %} font-weight: bold;">
+                                                            {% if control.has_sufficient_evidence %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-exclamation-circle"></i>{% endif %}
+                                                            {{ control.get_evidence_count }}/{{ control.required_evidence_count }}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {% if control.target_completion_date %}
+                                                        <span><i class="fas fa-calendar-alt me-1"></i>{{ control.target_completion_date|date:"d.m.Y" }}</span>
+                                                        {% else %}
+                                                        <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if control.periodicity %}
+                                                        <span>{{ control.periodicity }}</span>
+                                                        {% else %}
+                                                        <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <a href="{% url 'compliance:internal_control_detail' control.id %}" class="btn btn-outline-primary">
+                                                                <i class="fas fa-eye"></i>
+                                                            </a>
+                                                            {% if permissions.can_edit_controls %}
+                                                            <button type="button" class="btn btn-outline-warning edit-control-btn" 
+                                                                    data-id="{{ control.id }}"
+                                                                    data-code="{{ control.code }}"
+                                                                    data-name="{{ control.name }}"
+                                                                    data-description="{{ control.description }}"
+                                                                    data-priority="{{ control.priority }}"
+                                                                    data-category="{{ control.category.id|default:'' }}"
+                                                                    data-target-date="{{ control.target_completion_date|date:'Y-m-d'|default:'' }}"
+                                                                    data-periodicity="{{ control.periodicity|default:'' }}"
+                                                                    data-implementation-notes="{{ control.implementation_notes }}"
+                                                                    data-evidence-notes="{{ control.evidence_notes }}"
+                                                                    data-evidence-count="{{ control.required_evidence_count|default:1 }}"
+                                                                    title="{% trans 'Edit control' %}">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                            {% endif %}
+                                                            {% if permissions.can_delete_controls %}
+                                                            <form method="post" action="{% url 'compliance:internal_requirement_control_delete' control.id %}" 
+                                                                  onsubmit="return confirm('{% trans 'Delete this control?' %}');"
+                                                                  style="display: inline;">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-outline-danger" title="{% trans 'Delete control' %}">
+                                                                    <i class="fas fa-trash"></i>
+                                                                </button>
+                                                            </form>
+                                                            {% endif %}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+            {% endif %}
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> {% trans "No controls defined for this requirement." %}
+            </div>
+            {% endif %}
+        </div><!-- end content area -->
+
+    </div><!-- end grid container -->
+
+    <!-- Instances -->
+    {% if instances %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-building"></i> {% trans "Applied to Companies" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap" style="gap: .5rem;">
+                        {% for instance in instances %}
+                            {% if instance.company %}
+                            <span class="badge bg-light text-dark border">
+                                <i class="fas fa-building text-primary"></i> {{ instance.company.name }}
+                                {% if instance.is_mandatory %}
+                                <span class="badge bg-danger ms-2">{% trans "Mandatory" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary ms-2">{% trans "Optional" %}</span>
+                                {% endif %}
+                            </span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-layer-group"></i> {% trans "Add Category" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'compliance:internal_requirement_category_create' requirement.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category Code" %} *</label>
+                        <input type="text" name="code" class="form-control" required placeholder="{% trans 'e.g., CAT-1' %}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category Name" %} *</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Display Order" %}</label>
+                        <input type="number" name="order" class="form-control" value="0">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {% trans "Add Category" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> {% trans "Edit Category" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" id="editCategoryForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category Code" %} *</label>
+                        <input type="text" name="code" id="edit_category_code" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category Name" %} *</label>
+                        <input type="text" name="name" id="edit_category_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" id="edit_category_description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Display Order" %}</label>
+                        <input type="number" name="order" id="edit_category_order" class="form-control" value="0">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> {% trans "Update Category" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Control Modal -->
+<div class="modal fade" id="addControlModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus"></i> {% trans "Add Control" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'compliance:internal_requirement_control_create' requirement.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div id="addControlCategoryInfo" class="alert alert-primary py-1 mb-3" style="display:none; font-size: 0.85rem;">
+                        <i class="fas fa-folder"></i> <strong id="addControlCategoryName"></strong>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label form-label-sm">{% trans "Control Code" %} *</label>
+                            <input type="text" name="code" class="form-control form-control-sm" required
+                                   placeholder="{% trans 'e.g., IC-001' %}">
+                        </div>
+                        <div class="col-md-8 mb-2">
+                            <label class="form-label form-label-sm">{% trans "Control Name" %} *</label>
+                            <input type="text" name="name" class="form-control form-control-sm" required>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">{% trans "Category" %}</label>
+                        <select name="category" id="addControlCategorySelect" class="form-control form-control-sm">
+                            <option value="">{% trans "No Category" %}</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label form-label-sm">{% trans "Priority" %}</label>
+                            <select name="priority" class="form-control form-control-sm">
+                                <option value="low">{% trans "Low" %}</option>
+                                <option value="medium" selected>{% trans "Medium" %}</option>
+                                <option value="high">{% trans "High" %}</option>
+                                <option value="critical">{% trans "Critical" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label form-label-sm">{% trans "Target Date" %}</label>
+                            <input type="date" name="target_completion_date" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label form-label-sm">{% trans "Periodicity (days)" %}</label>
+                            <input type="number" name="periodicity" class="form-control form-control-sm" min="1" placeholder="{% trans 'e.g., 90' %}">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label form-label-sm">{% trans "Evidence Count" %}</label>
+                            <input type="number" name="required_evidence_count" class="form-control form-control-sm" value="1" min="0">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">{% trans "Implementation Notes" %}</label>
+                        <textarea name="implementation_notes" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">{% trans "Evidence Notes" %}</label>
+                        <textarea name="evidence_notes" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {% trans "Add Control" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Control Modal -->
+<div class="modal fade" id="editControlModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> {% trans "Edit Control" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" id="editControlForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Control Code" %} *</label>
+                        <input type="text" name="code" id="edit_control_code" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Control Name" %} *</label>
+                        <input type="text" name="name" id="edit_control_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea name="description" id="edit_control_description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Category" %}</label>
+                        <select name="category" id="edit_control_category" class="form-control">
+                            <option value="">{% trans "No Category" %}</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{% trans "Priority" %}</label>
+                            <select name="priority" id="edit_control_priority" class="form-control">
+                                <option value="low">{% trans "Low" %}</option>
+                                <option value="medium">{% trans "Medium" %}</option>
+                                <option value="high">{% trans "High" %}</option>
+                                <option value="critical">{% trans "Critical" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{% trans "Target Date" %}</label>
+                            <input type="date" name="target_completion_date" id="edit_control_target_date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{% trans "Periodicity (days)" %}</label>
+                            <input type="number" name="periodicity" id="edit_control_periodicity" class="form-control" min="1" placeholder="{% trans 'e.g., 90' %}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{% trans "Required Evidence Count" %}</label>
+                            <input type="number" name="required_evidence_count" id="edit_control_evidence_count" class="form-control" value="1" min="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Implementation Notes" %}</label>
+                        <textarea name="implementation_notes" id="edit_control_implementation_notes" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Evidence Notes" %}</label>
+                        <textarea name="evidence_notes" id="edit_control_evidence_notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> {% trans "Update Control" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add Control modal: pre-select category when opened from a per-category button
+    var addControlModal = document.getElementById('addControlModal');
+    if (addControlModal) {
+        addControlModal.addEventListener('show.bs.modal', function(event) {
+            var trigger = event.relatedTarget;
+            var categorySelect = document.getElementById('addControlCategorySelect');
+            var categoryInfo = document.getElementById('addControlCategoryInfo');
+            var categoryNameEl = document.getElementById('addControlCategoryName');
+
+            // Reset form fields
+            addControlModal.querySelectorAll('input[type=text], input[type=number], input[type=date], textarea').forEach(function(el) {
+                if (el.name === 'required_evidence_count') { el.value = '1'; }
+                else { el.value = ''; }
+            });
+            var prioritySelect = addControlModal.querySelector('select[name=priority]');
+            if (prioritySelect) prioritySelect.value = 'medium';
+
+            if (trigger && trigger.classList.contains('add-control-btn')) {
+                var categoryId = trigger.dataset.categoryId;
+                var categoryName = trigger.dataset.categoryName;
+                if (categorySelect) categorySelect.value = categoryId;
+                if (categoryInfo) categoryInfo.style.display = '';
+                if (categoryNameEl) categoryNameEl.textContent = categoryName;
+            } else {
+                if (categorySelect) categorySelect.value = '';
+                if (categoryInfo) categoryInfo.style.display = 'none';
+            }
+        });
+    }
+
+    // Edit Category buttons
+    document.querySelectorAll('.edit-category-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const categoryId = this.dataset.id;
+            const code = this.dataset.code;
+            const name = this.dataset.name;
+            const description = this.dataset.description;
+            const order = this.dataset.order;
+            
+            document.getElementById('edit_category_code').value = code;
+            document.getElementById('edit_category_name').value = name;
+            document.getElementById('edit_category_description').value = description;
+            document.getElementById('edit_category_order').value = order;
+            
+            const form = document.getElementById('editCategoryForm');
+            form.action = "{% url 'compliance:internal_requirement_category_update' 0 %}".replace('0', categoryId);
+            
+            const modal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+            modal.show();
+        });
+    });
+    
+    // Edit Control buttons
+    document.querySelectorAll('.edit-control-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const controlId = this.dataset.id;
+            const code = this.dataset.code;
+            const name = this.dataset.name;
+            const description = this.dataset.description;
+            const priority = this.dataset.priority;
+            const categoryId = this.dataset.category;
+            const targetDate = this.dataset.targetDate;
+            const periodicity = this.dataset.periodicity;
+            const implementationNotes = this.dataset.implementationNotes;
+            const evidenceNotes = this.dataset.evidenceNotes;
+            const evidenceCount = this.dataset.evidenceCount;
+            
+            document.getElementById('edit_control_code').value = code;
+            document.getElementById('edit_control_name').value = name;
+            document.getElementById('edit_control_description').value = description;
+            document.getElementById('edit_control_priority').value = priority;
+            document.getElementById('edit_control_category').value = categoryId || '';
+            document.getElementById('edit_control_target_date').value = targetDate || '';
+            document.getElementById('edit_control_periodicity').value = periodicity || '';
+            document.getElementById('edit_control_implementation_notes').value = implementationNotes || '';
+            document.getElementById('edit_control_evidence_notes').value = evidenceNotes || '';
+            document.getElementById('edit_control_evidence_count').value = evidenceCount || 1;
+            
+            const form = document.getElementById('editControlForm');
+            form.action = "{% url 'compliance:internal_requirement_control_update' 0 %}".replace('0', controlId);
+            
+            const modal = new bootstrap.Modal(document.getElementById('editControlModal'));
+            modal.show();
+        });
+    });
+});
+</script>
+
+<!-- Add Note Modal -->
+<div class="modal fade" id="requirementAddNoteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:internal_requirement_note_create' requirement.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Add Note" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Note" %} *</label>
+                        <textarea name="note" class="form-control" rows="4" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Attachments" %}</label>
+                        <input type="file" name="attachments" class="form-control" multiple>
+                        <small class="form-text text-muted">{% trans "You can upload multiple files" %}</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> {% trans "Add Note" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Internal Compliance Guide Modal -->
+<div class="modal fade" id="internalComplianceGuideModal" tabindex="-1" aria-labelledby="internalComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:internal_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="internalComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Internal Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="internalComplianceGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('internalComplianceGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('internalComplianceGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+
+{% endblock %}
+

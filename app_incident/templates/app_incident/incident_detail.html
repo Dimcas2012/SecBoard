@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load risk_custom_filters %}
+
+{% block title %}{% trans "Incident Detail" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_incident/includes/incident_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_incident/css/incident_detail-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid incident-page mt-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h2 class="mb-0">{% trans "Incident Detail" %} #{{ incident.id }}</h2>
+        <div class="btn-group sb-toolbar" role="group">
+            <a href="{% url 'incident_register' %}" class="btn btn-outline-secondary btn-sm btn-icon-action"
+               title="{% trans 'Back to List' %}">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            {% if can_edit %}
+            <a href="{% url 'incident_edit' incident.id %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+               title="{% trans 'Edit' %}">
+                <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+            {% if can_delete %}
+            <a href="{% url 'incident_delete' incident.id %}" class="btn btn-outline-danger btn-sm btn-icon-action"
+               title="{% trans 'Delete' %}">
+                <i class="bi bi-trash"></i>
+            </a>
+            {% endif %}
+            {% if can_mail %}
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-icon-action send-email-btn" data-bs-toggle="modal" data-bs-target="#emailModal" data-incident-id="{{ incident.id }}"
+                    title="{% trans 'Send Email' %}">
+                <i class="bi bi-envelope"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Incident Information" %}</h6>
+                    {% if incident.current_state %}
+                    <span class="badge text-white" style="background-color: {{ incident.current_state.color }};">{{ incident.current_state.get_name }}</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th>{% trans "Company" %}:</th>
+                                    <td>{{ incident.company.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Date and Time of Occurrence" %}:</th>
+                                    <td>{{ incident.occurrence_datetime|date:"d.m.Y H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Place of Occurrence" %}:</th>
+                                    <td>{{ incident.place }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Classification" %}:</th>
+                                    <td>
+                                        {% if incident.classification %}
+                                        <span class="badge text-white" style="background-color: {{ incident.classification.color }};">{{ incident.classification.get_name }}</span>
+                                        {% if incident.classification.get_description %}
+                                            <div class="small mt-1 text-muted font-italic">{{ incident.classification.get_description }}</div>
+                                        {% endif %}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Incident Type" %}:</th>
+                                    <td>
+                                        {% if incident.incident_type %}
+                                        <span class="badge text-white" style="background-color: {{ incident.incident_type.color }};">{{ incident.incident_type.get_name }}</span>
+                                        {% if incident.incident_type.get_description %}
+                                            <div class="small mt-1 text-muted font-italic">{{ incident.incident_type.get_description }}</div>
+                                        {% endif %}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th>{% trans "Reported By" %}:</th>
+                                    <td>{{ incident.reported_by }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Reported Date and Time" %}:</th>
+                                    <td>{{ incident.reported_datetime|date:"d.m.Y H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Registered By" %}:</th>
+                                    <td>{{ incident.registered_by }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Registered Date and Time" %}:</th>
+                                    <td>{{ incident.registered_datetime|date:"d.m.Y H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Responsible for Resolution" %}:</th>
+                                    <td>{{ incident.responsible }}</td>
+                                </tr>
+                                <tr>
+                                    <th>{% trans "Current State" %}:</th>
+                                    <td>
+                                        {% if incident.current_state %}
+                                        <span class="badge text-white" style="background-color: {{ incident.current_state.color }};">{{ incident.current_state.get_name }}</span>
+                                        {% if incident.current_state.get_description %}
+                                            <div class="small mt-1 text-muted font-italic">{{ incident.current_state.get_description }}</div>
+                                        {% endif %}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Description" %}</h5>
+                            <p class="text-justify">{{ incident.description|linebreaks }}</p>
+                        </div>
+                    </div>
+
+                    {% if incident.features %}
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Features and Signs" %}</h5>
+                            <p class="text-justify">{{ incident.features|linebreaks }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if incident.impact %}
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Impact" %}</h5>
+                            <p class="text-justify">{{ incident.impact|linebreaks }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if incident.measures_taken %}
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Measures Taken" %}</h5>
+                            <p class="text-justify">{{ incident.measures_taken|linebreaks }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if incident.additional_measures %}
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Additional Measures to Prevent Recurrence" %}</h5>
+                            <p class="text-justify">{{ incident.additional_measures|linebreaks }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if incident.reports_and_records %}
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Reports and Records" %}</h5>
+                            <p class="text-justify">{{ incident.reports_and_records|linebreaks }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if incident.file_incident %}
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Main Incident Report File" %}</h5>
+                            <p>
+                                <a href="{{ incident.file_incident.url }}" class="btn btn-sm btn-primary" target="_blank">
+                                    <i class="fas fa-download"></i> {% trans "Download File" %}
+                                </a>
+                                <span class="ml-2">{{ incident.file_incident.name|split:"/"|last }}</span>
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if incident.files.all %}
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Additional Files" %}</h5>
+                            <div class="table-responsive full-width-table">
+                                <table class="table table-hover table-sm table-sm-font sb-data-table table-striped w-100">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "Filename" %}</th>
+                                            <th>{% trans "Uploaded" %}</th>
+                                            <th>{% trans "Actions" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for file in incident.files.all %}
+                                        <tr>
+                                            <td>{{ file.filename }}</td>
+                                            <td>{{ file.uploaded_at|date:"d.m.Y H:i" }}</td>
+                                            <td>
+                                                <a href="{{ file.file.url }}" class="btn btn-sm btn-primary" target="_blank">
+                                                    <i class="fas fa-download"></i> {% trans "Download" %}
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if incident.comment %}
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h5 class="font-weight-bold">{% trans "Comment" %}</h5>
+                            <p class="text-justify">{{ incident.comment|linebreaks }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    // Direct delete functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        var confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        if (confirmDeleteBtn) {
+            confirmDeleteBtn.addEventListener('click', function() {
+                console.log('Delete button clicked, submitting form');
+                document.getElementById('direct-delete-form').submit();
+            });
+        }
+        
+        // Add email button click handler
+        $('.send-email-btn').on('click', function() {
+            const incidentId = $(this).data('incident-id');
+            if (typeof openEmailModal === 'function') {
+                openEmailModal(incidentId);
+            } else {
+                console.error('openEmailModal function is not defined');
+                // Fallback to redirect to the incident register page where the email modal exists
+                window.location.href = "{% url 'incident_register' %}";
+            }
+        });
+    });
+</script>
+{% endblock %} 

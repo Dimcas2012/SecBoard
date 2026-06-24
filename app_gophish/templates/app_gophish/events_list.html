@@ -1,0 +1,371 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n static %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Gophish Events" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="bi bi-lightning me-2"></i>{% trans "Gophish Events" %}</h2>
+    </div>
+</div>
+
+{% url 'app_gophish:events_list' as events_list_clear_url %}
+{% filters_expanded 'search' 'event_type' 'campaign' 'server' 'campaign_id' 'server_id' as filters_expanded %}
+<div class="card mb-2 filter-section access-request-filters">
+    {% include "includes/sb_access_request_filters_header.html" with collapse_id="eventsFiltersCollapse" toggle_id="toggleEventsFilters" icon_id="eventsFiltersToggleIcon" filter_clear_url=events_list_clear_url filters_expanded=filters_expanded %}
+    <div class="collapse{% if filters_expanded %} show{% endif %}" id="eventsFiltersCollapse">
+    <div class="card-body py-2">
+        <form method="get" class="row g-1 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label" for="filterSearch">{% trans "Search" %}</label>
+                <input type="text" class="form-control form-control-sm" id="filterSearch" name="search"
+                       value="{{ search }}" placeholder="{% trans 'Target email, name, campaign...' %}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterEventType">{% trans "Event Type" %}</label>
+                <select class="form-select form-select-sm" id="filterEventType" name="event_type">
+                    <option value="">{% trans "All Events" %}</option>
+                    {% for value, label in event_type_choices %}
+                    <option value="{{ value }}" {% if event_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filterCampaign">{% trans "Campaign" %}</label>
+                <select class="form-select form-select-sm" id="filterCampaign" name="campaign">
+                    <option value="">{% trans "All Campaigns" %}</option>
+                    {% for campaign in campaigns %}
+                    <option value="{{ campaign.id }}" {% if campaign_id == campaign.id|stringformat:"s" %}selected{% endif %}>{{ campaign.name|truncatechars:40 }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="filterServer">{% trans "Server" %}</label>
+                <select class="form-select form-select-sm" id="filterServer" name="server">
+                    <option value="">{% trans "All Servers" %}</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}" {% if server_id == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+
+<!-- Events Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="export-controls px-3 pt-2 pb-0">
+                    <div class="row align-items-center g-1">
+                        <div class="col-md-6"></div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group sb-toolbar" role="group">
+                                <a href="{% url 'app_gophish:events_export_excel' %}{% if search %}?search={{ search }}{% endif %}{% if campaign_id %}{% if search %}&{% else %}?{% endif %}campaign={{ campaign_id }}{% endif %}{% if event_type %}{% if search or campaign_id %}&{% else %}?{% endif %}event_type={{ event_type }}{% endif %}{% if server_id %}{% if search or campaign_id or event_type %}&{% else %}?{% endif %}server={{ server_id }}{% endif %}"
+                                   class="btn btn-success btn-sm btn-icon-action" title="{% trans 'Export to Excel' %}">
+                                    <i class="bi bi-file-earmark-excel"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table sb-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Event Type" %}</th>
+                                <th>{% trans "Campaign" %}</th>
+                                <th>{% trans "Server" %}</th>
+                                <th>{% trans "Target Email" %}</th>
+                                <th>{% trans "Target Name" %}</th>
+                                <th>{% trans "Timestamp" %}</th>
+                                <th>{% trans "IP Address" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in page_obj %}
+                            <tr>
+                                <td>
+                                    <span class="event-type-badge event-type-{{ event.event_type }}" 
+                                          style="{% if event.event_type == 'email_sent' %}background-color: #4472C4; color: white;{% elif event.event_type == 'email_opened' %}background-color: #70AD47; color: white;{% elif event.event_type == 'link_clicked' %}background-color: #FFC000; color: black;{% elif event.event_type == 'credentials_submitted' %}background-color: #C00000; color: white;{% elif event.event_type == 'data_submitted' %}background-color: #ED7D31; color: white;{% else %}background-color: #A5A5A5; color: white;{% endif %} padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; display: inline-block; min-width: 80px; text-align: center;">
+                                        {{ event.get_event_type_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if event.campaign %}
+                                    <a href="{% url 'app_gophish:campaign_detail' event.campaign.id %}">
+                                        {{ event.campaign.name|truncatechars:25 }}
+                                    </a>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if event.campaign and event.campaign.server %}
+                                    {{ event.campaign.server.name|truncatechars:20 }}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>{{ event.target_email|truncatechars:30 }}</td>
+                                <td>{{ event.target_name|truncatechars:25|default:"-" }}</td>
+                                <td>{{ event.timestamp|date:"M d, Y H:i:s" }}</td>
+                                <td>{{ event.ip_address|default:"-" }}</td>
+                                <td>
+                                    {% if event.details %}
+                                    <button class="btn btn-outline-info btn-sm" 
+                                            onclick="showEventDetails({{ event.id }}, '{{ event.details|escapejs }}')"
+                                            data-toggle="tooltip" 
+                                            title="{% trans 'Show additional details' %}">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if page_obj|length == 0 %}
+                <div class="text-center text-muted py-4">
+                    {% trans "No events found" %}
+                    {% if search or campaign_id or event_type or server_id %}
+                    <br>
+                    <a href="{% url 'app_gophish:events_list' %}" class="btn btn-sm btn-outline-primary mt-2">
+                        {% trans "Clear filters" %}
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'app_gophish/includes/gophish_table_pagination.html' with pagination_item_label=_("events") pagination_aria_label=_("Events pagination") %}
+
+<!-- Statistics Summary -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h5>{% trans "Total Events" %}</h5>
+                        <h3 class="text-primary">{{ page_obj.paginator.count }}</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h5>{% trans "Current Page" %}</h5>
+                        <h3 class="text-info">{{ page_obj.object_list|length }}</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h5>{% trans "Total Pages" %}</h5>
+                        <h3 class="text-success">{{ page_obj.paginator.num_pages }}</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h5>{% trans "Page" %}</h5>
+                        <h3 class="text-secondary">{{ page_obj.number }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1" role="dialog" aria-labelledby="eventDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventDetailsModalLabel">
+                    <i class="fas fa-info-circle"></i> {% trans "Event Details" %}
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close" onclick="closeEventDetailsModal()">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="eventDetailsContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeEventDetailsModal()">
+                    <i class="fas fa-times"></i> {% trans "Close" %}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="copyEventDetails()">
+                    <i class="fas fa-copy"></i> {% trans "Copy Details" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'app_gophish/css/gophish-events-page.css' %}">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentEventDetails = '';
+
+function showEventDetails(eventId, details) {
+    currentEventDetails = details;
+    
+    // Parse JSON details
+    let detailsHtml = '<div class="event-details">';
+    detailsHtml += '<h6><i class="fas fa-calendar-alt"></i> Event ID: ' + eventId + '</h6>';
+    detailsHtml += '<hr>';
+    
+    try {
+        const detailsObj = JSON.parse(details);
+        detailsHtml += '<div class="details-json">';
+        
+        for (const [key, value] of Object.entries(detailsObj)) {
+            detailsHtml += '<div class="detail-item mb-3">';
+            detailsHtml += '<strong class="text-primary">' + key.replace(/_/g, ' ').toUpperCase() + ':</strong><br>';
+            
+            if (typeof value === 'object' && value !== null) {
+                detailsHtml += '<pre class="mt-1 p-2 bg-light border rounded" style="font-size: 0.9rem;">' + JSON.stringify(value, null, 2) + '</pre>';
+            } else {
+                detailsHtml += '<span class="text-dark">' + value + '</span>';
+            }
+            detailsHtml += '</div>';
+        }
+        
+        detailsHtml += '</div>';
+    } catch (e) {
+        // If not JSON, display as plain text
+        detailsHtml += '<div class="details-text">';
+        detailsHtml += '<pre class="p-3 bg-light border rounded" style="white-space: pre-wrap; font-size: 0.9rem;">' + details + '</pre>';
+        detailsHtml += '</div>';
+    }
+    
+    detailsHtml += '</div>';
+    
+    // Update modal content
+    document.getElementById('eventDetailsContent').innerHTML = detailsHtml;
+    
+    // Show modal
+    $('#eventDetailsModal').modal('show');
+}
+
+function copyEventDetails() {
+    if (!currentEventDetails) return;
+    
+    const btn = document.querySelector('button[onclick="copyEventDetails()"]');
+    const originalText = btn.innerHTML;
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(currentEventDetails).then(function() {
+            // Show success message
+            btn.innerHTML = '<i class="fas fa-check"></i> {% trans "Copied!" %}';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-primary');
+            }, 2000);
+        }).catch(function(err) {
+            console.error('Clipboard API failed: ', err);
+            // Fallback to legacy method
+            fallbackCopyText(currentEventDetails, btn, originalText);
+        });
+    } else {
+        // Use fallback method directly
+        fallbackCopyText(currentEventDetails, btn, originalText);
+    }
+}
+
+function fallbackCopyText(text, btn, originalText) {
+    // Create temporary textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.top = '0';
+    textarea.style.left = '0';
+    document.body.appendChild(textarea);
+    
+    try {
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // For mobile devices
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (successful) {
+            // Show success message
+            btn.innerHTML = '<i class="fas fa-check"></i> {% trans "Copied!" %}';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-primary');
+            }, 2000);
+        } else {
+            throw new Error('execCommand failed');
+        }
+    } catch (err) {
+        console.error('Fallback copy failed: ', err);
+        document.body.removeChild(textarea);
+        alert('{% trans "Failed to copy event details" %}');
+    }
+}
+
+// Close modal function
+function closeEventDetailsModal() {
+    // Try Bootstrap 5 method
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modalElement = document.getElementById('eventDetailsModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+    } 
+    // Try Bootstrap 4/jQuery method
+    else if (typeof $ !== 'undefined' && $.fn.modal) {
+        $('#eventDetailsModal').modal('hide');
+    }
+    // Fallback: remove modal manually
+    else {
+        const modalElement = document.getElementById('eventDetailsModal');
+        modalElement.classList.remove('show');
+        modalElement.style.display = 'none';
+        modalElement.setAttribute('aria-hidden', 'true');
+        modalElement.removeAttribute('aria-modal');
+        
+        // Remove backdrop
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }
+}
+
+// Initialize tooltips
+$(document).ready(function() {
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,127 @@
+<!--SecBoard/templates/app_cabinet/modals/edit_company_modal.html-->
+{% load i18n %}
+
+<!-- Modal -->
+<div class="modal fade" id="editCompanyModal" tabindex="-1" aria-labelledby="editCompanyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editCompanyModalLabel">{% trans "Edit Company" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCompanyForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" id="editCompanyId" name="id">
+
+                    <!-- Company Name -->
+                    <div class="mb-3">
+                        <label for="editCompanyName" class="form-label">{% trans "Company Name" %} *</label>
+                        <input type="text" class="form-control" id="editCompanyName" name="name" required>
+                        <div class="invalid-feedback">
+                            {% trans "Please enter company name" %}
+                        </div>
+                    </div>
+
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="button" class="btn btn-primary" id="editCompanySubmit">{% trans "Update Company" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% block edit_company_modal_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const editCompanyForm = document.getElementById('editCompanyForm');
+    const editCompanySubmit = document.getElementById('editCompanySubmit');
+
+    // Listen for load company data event
+    document.addEventListener('loadCompanyData', function(event) {
+        const company = event.detail.company;
+        document.getElementById('editCompanyId').value = company.id;
+        document.getElementById('editCompanyName').value = company.name;
+    });
+
+    // Submit form for editing company
+    editCompanySubmit.addEventListener('click', async function () {
+        if (!editCompanyForm.checkValidity()) {
+            editCompanyForm.classList.add('was-validated');
+            return;
+        }
+
+        const formData = new FormData(editCompanyForm);
+        const companyId = document.getElementById('editCompanyId').value;
+
+        try {
+            const response = await fetch(`/companies/${companyId}/edit/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // Hide the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editCompanyModal'));
+                modal.hide();
+
+                // Reset the form
+                editCompanyForm.reset();
+                editCompanyForm.classList.remove('was-validated');
+
+                // Clean up modal artifacts
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+
+                // Show success message
+                alert(result.message);
+
+                // Refresh the organization structure
+                const currentCompanyId = document.getElementById('companySelect').value;
+                if (currentCompanyId && window.location.pathname.includes('org-structure')) {
+                    // Trigger a custom event to refresh the organization structure
+                    const refreshEvent = new CustomEvent('refreshOrgStructure', {
+                        detail: { companyId: currentCompanyId }
+                    });
+                    document.dispatchEvent(refreshEvent);
+                }
+
+                // Refresh company list in dropdown
+                if (typeof loadCompanies === 'function') {
+                    loadCompanies();
+                }
+
+            } else {
+                alert(result.error || "{% trans 'Error updating company. Please try again.' %}");
+            }
+        } catch (error) {
+            console.error('Error updating company:', error);
+            alert("{% trans 'Error updating company. Please try again.' %}");
+        }
+    });
+
+    // Clean up modal on hide
+    document.getElementById('editCompanyModal').addEventListener('hidden.bs.modal', function () {
+        // Clean up any remaining modal artifacts
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+    });
+});
+</script>
+{% endblock %} 

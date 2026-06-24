@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title|default:_("Create Internal Requirement") }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <h1>
+                <i class="fas fa-plus-circle"></i> {{ page_title|default:_("Create Internal Requirement") }}
+            </h1>
+            <p class="text-muted">{{ page_subtitle|default:_("Create a new internal company requirement") }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'compliance:control_mapping' %}" class="btn btn-outline-info btn-sm">
+                <i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}
+            </a>
+            <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#internalComplianceGuideModal">
+                <i class="bi bi-book me-1"></i>{% trans "Guide" %}
+            </button>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <form method="post" action="{{ form_action }}">
+                {% csrf_token %}
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> {% trans "Basic Information" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Company" %} *</label>
+                                <select name="company" id="company-select" class="form-control" required>
+                                    <option value="">{% trans "Select Company" %}</option>
+                                    {% for company in accessible_companies %}
+                                    <option value="{{ company.id }}" {% if requirement.company_id == company.id %}selected{% endif %}>
+                                        {{ company.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Requirement Code" %} *</label>
+                                <input type="text" name="code" class="form-control" required 
+                                       placeholder="{% trans 'e.g., POL-001' %}" value="{{ requirement.code|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Requirement Name" %} *</label>
+                                <input type="text" name="name" class="form-control" required 
+                                       placeholder="{% trans 'Full name of requirement' %}" value="{{ requirement.name|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Requirement Local Name" %}</label>
+                                <input type="text" name="name_local" class="form-control" 
+                                       placeholder="{% trans 'Requirement name in local language' %}" value="{{ requirement.name_local|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Requirement Type" %} *</label>
+                                {% with current_type=requirement.requirement_type|default:'' %}
+                                <select name="requirement_type" class="form-control" required>
+                                    {% for option in requirement_types %}
+                                    <option value="{{ option.code }}" {% if option.code == current_type %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% endwith %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Status" %}</label>
+                                {% with current_status=requirement.status|default:default_status|default:'draft' %}
+                                <select name="status" class="form-control">
+                                    {% for option in status_choices %}
+                                    <option value="{{ option.code }}" {% if option.code == current_status %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% endwith %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Priority" %}</label>
+                                {% with current_priority=requirement.priority|default:default_priority|default:'medium' %}
+                                <select name="priority" class="form-control">
+                                    {% for option in priority_choices %}
+                                    <option value="{{ option.code }}" {% if option.code == current_priority %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% endwith %}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Description" %}</label>
+                                <textarea name="description" class="form-control" rows="3" 
+                                          placeholder="{% trans 'Detailed description' %}">{{ requirement.description|default:'' }}</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Applicable To" %}</label>
+                                <input type="text" name="applicable_to" class="form-control" 
+                                       placeholder="{% trans 'e.g., departments, teams, or processes' %}" value="{{ requirement.applicable_to|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-calendar"></i> {% trans "Important Dates" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Publication Date" %}</label>
+                                <input type="date" name="publication_date" class="form-control" value="{% if requirement.publication_date %}{{ requirement.publication_date|date:'Y-m-d' }}{% endif %}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Effective Date" %}</label>
+                                <input type="date" name="effective_date" class="form-control" value="{% if requirement.effective_date %}{{ requirement.effective_date|date:'Y-m-d' }}{% endif %}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{% trans "Compliance Deadline" %}</label>
+                                <input type="date" name="deadline_date" class="form-control" value="{% if requirement.deadline_date %}{{ requirement.deadline_date|date:'Y-m-d' }}{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-link"></i> {% trans "References" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">{% trans "Document" %}</label>
+                                <select name="document" id="document-select" class="form-control" disabled>
+                                    <option value="">{% trans "Select Company first" %}</option>
+                                    {% if requirement and requirement.document_id %}
+                                    <option value="{{ requirement.document_id }}" selected data-preselected="true">
+                                        {{ requirement.document.name_doc }}{% if requirement.document.vers_doc %} ({{ requirement.document.vers_doc }}){% endif %}
+                                    </option>
+                                    {% endif %}
+                                </select>
+                                <small class="form-text text-muted">{% trans "Select a company to load available documents" %}</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input type="checkbox" name="is_mandatory" value="1" 
+                                           class="form-check-input" id="is_mandatory" {% if default_is_mandatory|default:True %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_mandatory">
+                                        {% trans "Is Mandatory" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end">
+                    <a href="{% url 'compliance:internal_requirements_library' %}" class="btn btn-secondary me-2">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {{ submit_label|default:_('Create Requirement') }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const companySelect = document.getElementById('company-select');
+    const documentSelect = document.getElementById('document-select');
+    
+    if (companySelect && documentSelect) {
+        function loadDocuments() {
+            const selectedCompanyId = companySelect.value;
+            
+            // Disable and clear document select if no company selected
+            if (!selectedCompanyId) {
+                documentSelect.disabled = true;
+                documentSelect.innerHTML = '<option value="">{% trans "Select Company first" %}</option>';
+                return;
+            }
+            
+            // Show loading state
+            documentSelect.disabled = true;
+            documentSelect.innerHTML = '<option value="">{% trans "Loading documents..." %}</option>';
+            
+            // Load documents via AJAX
+            fetch('{% url "compliance:get_internal_company_documents" %}?company_id=' + selectedCompanyId, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Clear and populate document select
+                    documentSelect.innerHTML = '<option value="">{% trans "Select Document (optional)" %}</option>';
+                    
+                    data.documents.forEach(function(doc) {
+                        const option = document.createElement('option');
+                        option.value = doc.id;
+                        let label = doc.name_doc;
+                        if (doc.vers_doc) {
+                            label += ' (' + doc.vers_doc + ')';
+                        }
+                        if (doc.status_doc) {
+                            label += ' - ' + doc.status_doc;
+                        }
+                        option.textContent = label;
+                        documentSelect.appendChild(option);
+                    });
+                    
+                    // Restore selected document if editing
+                    {% if requirement and requirement.document_id %}
+                    const savedDocumentId = {{ requirement.document_id }};
+                    if (savedDocumentId) {
+                        const option = Array.from(documentSelect.options).find(opt => opt.value == savedDocumentId);
+                        if (option) {
+                            documentSelect.value = savedDocumentId;
+                        } else {
+                            // If document not found in list, add it as preselected option
+                            const preselectedOption = documentSelect.querySelector('option[data-preselected="true"]');
+                            if (preselectedOption) {
+                                documentSelect.insertBefore(preselectedOption, documentSelect.firstChild.nextSibling);
+                                documentSelect.value = savedDocumentId;
+                            }
+                        }
+                    }
+                    {% endif %}
+                    
+                    documentSelect.disabled = false;
+                } else {
+                    documentSelect.innerHTML = '<option value="">{% trans "Error loading documents" %}</option>';
+                    console.error('Error loading documents:', data.error);
+                }
+            })
+            .catch(error => {
+                documentSelect.innerHTML = '<option value="">{% trans "Error loading documents" %}</option>';
+                console.error('Error loading documents:', error);
+            });
+        }
+        
+        companySelect.addEventListener('change', loadDocuments);
+        
+        // Load documents on page load if company is already selected (for edit mode)
+        {% if requirement and requirement.company_id %}
+        if (companySelect.value) {
+            // Small delay to ensure DOM is ready
+            setTimeout(function() {
+                loadDocuments();
+            }, 100);
+        }
+        {% endif %}
+    }
+});
+</script>
+
+<!-- Internal Compliance Guide Modal -->
+<div class="modal fade" id="internalComplianceGuideModal" tabindex="-1" aria-labelledby="internalComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:internal_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="internalComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Internal Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="internalComplianceGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('internalComplianceGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('internalComplianceGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl)
+                .done(function(data) {
+                    if (data && data.content) {
+                        body.innerHTML = data.content;
+                    } else {
+                        body.innerHTML = '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    }
+                })
+                .fail(function() {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+</script>
+{% endblock %}
+

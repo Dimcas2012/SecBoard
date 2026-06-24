@@ -1,0 +1,379 @@
+<!--SecBoard/templates/app_cabinet/modals/add_group_modal.html-->
+{% load i18n %}
+
+<!-- Add Group Modal -->
+<div class="modal fade" id="createGroupModal" tabindex="-1" aria-labelledby="createGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addGroupModalLabel">{% trans "Create New Group" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addGroupForm" method="POST">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="add_system_group_name" class="required">{% trans "System Group Name" %}</label>
+                                <input type="text" class="form-control" id="add_system_group_name" name="group_name" required>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="add_company" class="required">{% trans "Company" %}</label>
+                                <select class="form-control" id="add_company" name="company" required>
+                                    <option value="">{% trans "Select Company" %}</option>
+                                    {% for company in companies %}
+                                        <option value="{{ company.id }}">{{ company.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cabinet Users (based on selected Company) -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label class="d-flex align-items-center justify-content-between">
+                                    <span>{% trans "Cabinet Users (Selected Company)" %}</span>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary me-1" id="selectAllUsers">
+                                            <i class="fas fa-check-square"></i> {% trans "Select All" %}
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary me-1" id="deselectAllUsers">
+                                            <i class="fas fa-square"></i> {% trans "Deselect All" %}
+                                        </button>
+                                        <span class="badge bg-secondary" id="companyUsersCount">0</span>
+                                    </div>
+                                </label>
+                                <input type="text" class="form-control mb-2" id="companyUsersSearch" placeholder="{% trans 'Search users...' %}">
+                                <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;" id="companyUsersList">
+                                    <small class="text-muted">{% trans "Select a company to load users" %}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label for="add_group_name" class="required">{% trans "Name" %}</label>
+                                <input type="text" class="form-control" id="add_group_name" name="name" required maxlength="50">
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label for="description">{% trans "Description" %}</label>
+                                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="color">{% trans "Group Color" %}</label>
+                                <div class="input-group">
+                                    <input type="color" class="form-control form-control-color" id="color" name="color" value="#000000" style="max-width: 60px;">
+                                    <input type="text" class="form-control" id="color_hex" name="color_hex" value="#000000" maxlength="7" pattern="^#([A-Fa-f0-9]{6})$" title="{% trans 'Please enter a valid HEX color code.' %}">
+                                </div>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Create Group" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block add_group_modal_scripts %}
+<script>
+// Prevent double initialization
+if (typeof window.addGroupModalInitialized === 'undefined') {
+    window.addGroupModalInitialized = false;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Prevent double initialization
+    if (window.addGroupModalInitialized) {
+        return;
+    }
+    window.addGroupModalInitialized = true;
+    
+    const addGroupForm = document.getElementById('addGroupForm');
+    const addGroupModal = document.getElementById('createGroupModal');
+    const colorInput = document.getElementById('color');
+    const colorHexInput = document.getElementById('color_hex');
+    const companySelect = document.getElementById('add_company');
+    const usersList = document.getElementById('companyUsersList');
+    const usersCount = document.getElementById('companyUsersCount');
+    const usersSearch = document.getElementById('companyUsersSearch');
+    
+    if (!usersList) {
+        console.error('companyUsersList element not found!');
+        return;
+    }
+
+    // Color input synchronization
+    if (colorInput && colorHexInput) {
+        colorInput.addEventListener('input', function() {
+            colorHexInput.value = this.value;
+        });
+
+        colorHexInput.addEventListener('input', function() {
+            if (/^#([A-Fa-f0-9]{6})$/.test(this.value)) {
+                colorInput.value = this.value;
+            }
+        });
+    }
+
+    // Load company users
+    function loadCompanyUsers(companyId) {
+        if (!companyId) {
+            usersList.innerHTML = '<small class="text-muted">{% trans "Select a company to load users" %}</small>';
+            usersCount.textContent = '0';
+            return;
+        }
+        const currentLang = window.location.pathname.split('/')[1];
+        const url = `/${currentLang}/app_cabinet/api/company/${companyId}/users/`;
+        
+        usersList.innerHTML = '<div class="text-center py-2"><span class="spinner-border spinner-border-sm"></span></div>';
+        fetch(url, {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            const allUsers = data.users || data || [];
+            // Filter only active users
+            const users = allUsers.filter(u => u.is_active);
+            usersCount.textContent = users.length;
+            if (!users.length) {
+                usersList.innerHTML = '<small class="text-muted">{% trans "No active users found for this company" %}</small>';
+                return;
+            }
+            const items = users.map(u => {
+                const deptPos = [];
+                if (u.department_name) deptPos.push(u.department_name);
+                if (u.position_name) deptPos.push(u.position_name);
+                const deptPosText = deptPos.length > 0 ? deptPos.join(' / ') : '-';
+                
+                return `
+                <div class="user-row d-flex justify-content-between align-items-center py-1 border-bottom" data-user-id="${u.id}">
+                    <div class="form-check d-flex align-items-center">
+                        <input class="form-check-input me-2" type="checkbox" name="users" value="${u.id}" id="user_${u.id}">
+                        <label class="form-check-label" for="user_${u.id}" style="cursor: pointer;">
+                            <strong>${u.full_name || u.username || '-'}</strong>
+                            <div class="text-muted" style="font-size: 0.875rem;">${u.email || ''}</div>
+                            <div class="text-muted" style="font-size: 0.8rem;"><i class="fas fa-briefcase me-1"></i>${deptPosText}</div>
+                        </label>
+                    </div>
+                    <span class="badge bg-success">{% trans "Active" %}</span>
+                </div>
+            `}).join('');
+            
+            // Clear existing content before adding new
+            usersList.innerHTML = items;
+        })
+        .catch(error => {
+            console.error('Error loading users:', error);
+            usersList.innerHTML = '<div class="text-danger">{% trans "Error loading users" %}</div>';
+            usersCount.textContent = '0';
+        });
+    }
+
+    if (companySelect && !companySelect.dataset.listenerAdded) {
+        companySelect.dataset.listenerAdded = 'true';
+        companySelect.addEventListener('change', function() {
+            loadCompanyUsers(this.value);
+        });
+    }
+    
+    // Load users when modal is shown if company is already selected
+    if (addGroupModal && !addGroupModal.dataset.modalListenerAdded) {
+        addGroupModal.dataset.modalListenerAdded = 'true';
+        
+        let isHandling = false;
+        
+        addGroupModal.addEventListener('shown.bs.modal', function handleModalShown() {
+            // Prevent double execution
+            if (isHandling) {
+                return;
+            }
+            isHandling = true;
+            
+            const selectedCompanyId = companySelect ? companySelect.value : null;
+            
+            if (selectedCompanyId) {
+                loadCompanyUsers(selectedCompanyId);
+            }
+            
+            // Reset flag after a short delay
+            setTimeout(() => { isHandling = false; }, 100);
+        });
+    }
+
+    if (usersSearch && !usersSearch.dataset.listenerAdded) {
+        usersSearch.dataset.listenerAdded = 'true';
+        
+        let searchTimeout = null;
+        
+        usersSearch.addEventListener('keyup', function(event) {
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            const inputElement = this;
+            
+            // Debounce: wait 100ms after user stops typing
+            searchTimeout = setTimeout(() => {
+                const term = inputElement.value.toLowerCase();
+                const rows = usersList.querySelectorAll('.user-row');
+            
+            let visible = 0;
+            rows.forEach((row) => {
+                const text = row.textContent.toLowerCase();
+                const show = term === '' || text.indexOf(term) > -1;
+                
+                // Use class instead of inline style to ensure it works with flex layouts
+                if (show) {
+                    row.classList.remove('d-none');
+                    row.style.display = '';
+                } else {
+                    row.classList.add('d-none');
+                }
+                
+                if (show) visible++;
+            });
+            
+                // Update count badge
+                const totalRows = rows.length;
+                if (term === '') {
+                    usersCount.textContent = totalRows;
+                } else {
+                    usersCount.textContent = `${visible}/${totalRows}`;
+                }
+            }, 100); // 100ms debounce delay
+        });
+    }
+
+    // Handle Select All Users button
+    const selectAllBtn = document.getElementById('selectAllUsers');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function() {
+            const checkboxes = usersList.querySelectorAll('input[type="checkbox"]:not([disabled])');
+            checkboxes.forEach(cb => {
+                if (cb.closest('.user-row') && !cb.closest('.user-row').classList.contains('d-none')) {
+                    cb.checked = true;
+                }
+            });
+        });
+    }
+    
+    // Handle Deselect All Users button
+    const deselectAllBtn = document.getElementById('deselectAllUsers');
+    if (deselectAllBtn) {
+        deselectAllBtn.addEventListener('click', function() {
+            const checkboxes = usersList.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+        });
+    }
+
+    if (addGroupForm) {
+        addGroupForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // Reset previous error states
+            addGroupForm.querySelectorAll('.is-invalid').forEach(element => {
+                element.classList.remove('is-invalid');
+            });
+
+            // Get form data
+            const formData = new FormData(addGroupForm);
+
+            // Send AJAX request
+            fetch('{% url "create_group" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Show success message
+                    alert(data.message);
+
+                    // Reset form and close modal
+                    addGroupForm.reset();
+
+                    // Reset color inputs to default
+                    colorInput.value = '#000000';
+                    colorHexInput.value = '#000000';
+                    usersList.innerHTML = '<small class="text-muted">{% trans "Select a company to load users" %}</small>';
+                    usersCount.textContent = '0';
+
+                    bootstrap.Modal.getInstance(addGroupModal).hide();
+
+                    // Refresh page to update table
+                    window.location.reload();
+                } else {
+                    // Handle validation errors
+                    const errors = data.errors;
+                    Object.keys(errors).forEach(key => {
+                        const field = addGroupForm.querySelector(`[name="${key}"]`);
+                        if (field) {
+                            field.classList.add('is-invalid');
+                            const feedback = field.nextElementSibling;
+                            if (feedback && feedback.classList.contains('invalid-feedback')) {
+                                feedback.textContent = errors[key].join(' ');
+                            }
+                        }
+                    });
+
+                    // Show error message
+                    alert(data.message || '{% trans "Error creating group" %}');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('{% trans "An unexpected error occurred" %}');
+            });
+        });
+
+        // Reset form when modal is hidden
+        addGroupModal.addEventListener('hidden.bs.modal', function () {
+            addGroupForm.reset();
+            addGroupForm.querySelectorAll('.is-invalid').forEach(element => {
+                element.classList.remove('is-invalid');
+            });
+
+            // Reset color inputs to default
+            if (colorInput && colorHexInput) {
+                colorInput.value = '#000000';
+                colorHexInput.value = '#000000';
+            }
+            usersList.innerHTML = '<small class="text-muted">{% trans "Select a company to load users" %}</small>';
+            usersCount.textContent = '0';
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,3788 @@
+{% load i18n %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<!-- Grant Access Modal -->
+<div class="modal fade" id="grantAccessModal" tabindex="-1" aria-labelledby="grantAccessModalLabel" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="grantAccessModalLabel">
+                    <i class="bi bi-plus-circle text-success me-2"></i>
+                    {% trans "Grant Access Request" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" tabindex="-1"></button>
+            </div>
+            <div class="modal-body">
+                <form id="grantAccessForm" class="needs-validation row g-2" novalidate>
+                    {% csrf_token %}
+                    
+                    <!-- Request Type (hidden) -->
+                    <input type="hidden" name="requestType" value="grant">
+                    
+                    <!-- Основні поля форми в одному ряду -->
+                    <div class="col-lg-3 col-md-6 mb-2">
+                        <label for="grantCompany" class="form-label required">{% trans "Company" %}</label>
+                        <select class="form-select" id="grantCompany" name="company" required>
+                            <option value="">{% trans "Select Company..." %}</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select a company" %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-6 mb-2">
+                        <label for="grantSystem" class="form-label required">{% trans "Information System" %}</label>
+                        <select class="form-select" id="grantSystem" name="system" disabled>
+                            <option value="">{% trans "Select System..." %}</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select an information system" %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-6 mb-2">
+                        <label for="grantEnvironment" class="form-label required">{% trans "Environment" %}</label>
+                        <select class="form-select" id="grantEnvironment" name="environment" disabled>
+                            <option value="">{% trans "Select Environment..." %}</option>
+                            <option value="production">{% trans "Production" %}</option>
+                            <option value="test">{% trans "Test" %}</option>
+                            <option value="development">{% trans "Development" %}</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select an environment" %}
+                        </div>
+                        <div class="form-text small">
+                            {% trans "Select the environment for which access is requested" %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-6 mb-2">
+                        <label class="form-label required">{% trans "User Type" %}</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="userType" id="grantUserTypeThirdParty" value="third_parties" disabled>
+                            <label class="form-check-label" for="grantUserTypeThirdParty">
+                                {% trans "Third parties" %}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="userType" id="grantUserTypeEmployees" value="employees" disabled checked>
+                            <label class="form-check-label" for="grantUserTypeEmployees">
+                                {% trans "Employees" %}
+                            </label>
+                        </div>
+                        <div class="invalid-feedback" id="grantUserTypeInvalidFeedback">
+                            {% trans "Please select a user type" %}
+                        </div>
+                        <div class="form-text small text-warning" id="grantUserEnvironmentWarning" style="display: none;">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            {% trans "Please select Environment first to enable User selection" %}
+                        </div>
+                    </div>
+                    
+                    <!-- Додаткові поля для третьої сторони -->
+                    <div id="grantThirdPartyFields" class="col-12 mb-2" style="display: none;">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="card-title mb-0">{% trans "Third Party Information" %}</h6>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="grantToggleExistingUsersBtn" disabled>
+                                        <i class="bi bi-eye me-1"></i>
+                                        {% trans "Show Existing Users" %}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="grantAddThirdPartyBtn" disabled onclick="grantShowAddNewUsersModal()">
+                                        <i class="bi bi-person-plus me-1"></i>
+                                        {% trans "Add New User" %}
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <!-- Available Users Section -->
+                                <div id="grantAvailableUsersSection" style="display: none;">
+                                    <h6 class="mb-2">
+                                        <i class="bi bi-people me-2"></i>
+                                        {% trans "Available Users" %}
+                                        <small class="text-muted ms-2">{% trans "(click row or checkbox to select/unselect)" %}</small>
+                                    </h6>
+                                    
+                                    <!-- Search Controls -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-8">
+                                            <div class="input-group">
+                                                <span class="input-group-text">
+                                                    <i class="bi bi-search"></i>
+                                                </span>
+                                                <input type="text" class="form-control form-control-sm" id="grantUsersSearchInput" 
+                                                       placeholder="{% trans 'Search users by name, email, organization...' %}">
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" id="grantClearUsersSearch">
+                                                    <i class="bi bi-x"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <select class="form-select form-select-sm" id="grantUsersOrganizationFilter">
+                                                <option value="">{% trans "All Organizations" %}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                        <table class="table table-hover table-sm table-sm-font sb-data-table" id="grantExistingUsersTable">
+                                            <thead class="table-light sticky-top">
+                                                <tr>
+                                                    <th width="5%">
+                                                        <input type="checkbox" class="form-check-input" id="grantSelectAllExistingUsers">
+                                                    </th>
+                                                    <th width="35%">{% trans "Name" %}</th>
+                                                    <th width="30%">{% trans "Email" %}</th>
+                                                    <th width="20%">{% trans "Organization" %}</th>
+                                                    <th width="10%">{% trans "Phone" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="grantExistingUsersList">
+                                                <!-- Available users will be loaded here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <hr>
+                                </div>
+                                
+                                <!-- Секція для нових користувачів (доданих вручну) -->
+                                <div id="grantSelectedUsersSection">
+                                    <h6 class="mb-2">
+                                        <i class="bi bi-person-plus me-2"></i>
+                                        {% trans "New Third Party Users" %}
+                                        <small class="text-muted ms-2">{% trans "(manually added)" %}</small>
+                                    </h6>
+                                    <div id="grantThirdPartyContainer">
+                                        <!-- Повідомлення, коли немає нових користувачів -->
+                                        <div id="grantNoUsersMessage" class="alert alert-info text-center">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            {% trans "No new third party users added. Select existing users from the table above or add new ones manually." %}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-muted small mt-1" id="grantThirdPartyCounter">
+                                    {% trans "Total third party users" %}: <span id="grantThirdPartyCount">0</span>
+                                    <small class="text-muted ms-2">{% trans "(selected + new)" %}</small>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Додаткові поля для співробітників (Cabinet users) -->
+                    <div id="grantEmployeeFields" class="col-12 mb-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-people me-2"></i>
+                                    {% trans "Available Users" %}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- Search and Filter Controls for Employee Users -->
+                                <div class="row mb-3">
+                                    <div class="col-md-8">
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="bi bi-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control form-control-sm" id="grantEmployeeUsersSearchInput" 
+                                                   placeholder="{% trans 'Search users by name, department, position...' %}">
+                                            <button class="btn btn-outline-secondary btn-sm" type="button" id="grantClearEmployeeUsersSearch">
+                                                <i class="bi bi-x"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="d-flex gap-2">
+                                            <select class="form-select form-select-sm" id="grantEmployeeUsersDepartmentFilter">
+                                                <option value="">{% trans "All Departments" %}</option>
+                                            </select>
+                                            <select class="form-select form-select-sm" id="grantEmployeeUsersPositionFilter">
+                                                <option value="">{% trans "All Positions" %}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Available Users Section for Employees -->
+                                <div class="table-responsive full-width-table" style="max-height: 300px; overflow-y: auto;">
+                                    <table class="table table-hover table-sm table-sm-font sb-data-table" id="grantEmployeeUsersTable">
+                                        <thead class="table-light sticky-top">
+                                            <tr>
+                                                <th>
+                                                    <input type="checkbox" class="form-check-input" id="grantSelectAllEmployeeUsers">
+                                                </th>
+                                                <th title="{% trans 'Available Access Records' %}">
+                                                    <i class="bi bi-list-check"></i>
+                                                </th>
+                                                <th>{% trans "Name" %}</th>
+                                                <th>{% trans "Email" %}</th>
+                                                <th>{% trans "Department" %}</th>
+                                                <th>{% trans "Position" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="grantEmployeeUsersList">
+                                            <!-- Available employee users will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Available Access Records -->
+                    <div id="grantAccessRecordsContainer" class="col-12 mb-2" style="display: none;">
+                        <label class="form-label required">{% trans "Available Access Records" %}</label>
+                        
+                        <!-- Search and Filter Controls for Access Records -->
+                        <div class="row mb-3 search-filter-controls">
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+                                    <input type="text" class="form-control form-control-sm" id="grantAccessRecordsSearchInput" 
+                                           placeholder="{% trans 'Search by information system, object roles, objects, owners...' %}">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" id="grantClearAccessRecordsSearch">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex gap-2">
+                                    <select class="form-select form-select-sm" id="grantAccessRecordsObjectFilter">
+                                        <option value="">{% trans "All Objects" %}</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" id="grantAccessRecordsRolesFilter">
+                                        <option value="">{% trans "All Roles" %}</option>
+                                    </select>
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" id="grantClearAccessRecordsFilters">
+                                        <i class="bi bi-funnel-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bulk Object Role for selected access records -->
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="grantBulkObjectRoleToolbar">
+                            <span class="small text-muted">{% trans "Bulk Object Role" %}:</span>
+                            <select class="form-select form-select-sm" id="grantBulkObjectRoleSelect" style="max-width: 240px;" disabled>
+                                <option value="">{% trans "Choose role..." %}</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="grantApplyBulkObjectRoleBtn" disabled>
+                                <i class="bi bi-check2-all me-1"></i>{% trans "Apply to selected" %}
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="grantAutoSelectFirstObjectRoleBtn" disabled
+                                    title="{% trans 'Select the first available role for each selected access record' %}">
+                                <i class="bi bi-magic me-1"></i>{% trans "First role for each selected" %}
+                            </button>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm table-sm-font sb-data-table" id="grantAccessRecordsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="5%">
+                                            <input type="checkbox" class="form-check-input" id="grantSelectAllAccessRecords" title="{% trans 'Select all access records' %}">
+                                        </th>
+                                        <th width="15%">{% trans "Object" %}</th>
+                                        <th width="18%">{% trans "Object Roles" %}</th>
+                                        <th width="12%">{% trans "Object Role" %} <small class="text-muted">({% trans "choose one" %})</small></th>
+                                        <th width="8%">{% trans "Environment" %}</th>
+                                        <th width="12%">{% trans "Period" %}</th>
+                                        <th width="12%">{% trans "Owners" %}</th>
+                                        <th width="9%">{% trans "Administrators" %}</th>
+                                        <th width="9%">{% trans "Approvers" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="grantAccessRecordsList">
+                                    <!-- Записи будуть додані динамічно -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div id="grantPostSelectionFields" class="row g-2" style="display: none;">
+                        <!-- Access Period -->
+                        <div class="col-lg-6 col-md-6 mb-2">
+                            <label for="grantStartDate" class="form-label required">{% trans "Start Date" %}</label>
+                            <input type="text" class="form-control" id="grantStartDate" name="start_date" placeholder="dd.mm.yyyy hh:mm">
+                            <div class="invalid-feedback">
+                                {% trans "Please select start date" %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6 col-md-6 mb-2">
+                            <label for="grantEndDate" class="form-label">{% trans "End Date" %}</label>
+                            <input type="text" class="form-control" id="grantEndDate" name="end_date" placeholder="dd.mm.yyyy hh:mm">
+                            <div class="form-text small">
+                                {% trans "Leave empty for permanent access" %}
+                            </div>
+                        </div>
+                        
+                        <!-- Justification -->
+                        <div class="col-12 mb-2">
+                            <label for="grantJustification" class="form-label required">{% trans "Access Justification" %}</label>
+                            <select class="form-select form-select-sm mb-2" id="grantJustificationTemplate">
+                                <option value="">{% trans "Select justification template..." %}</option>
+                                {% for tpl in access_justification_templates %}
+                                    <option value="{{ tpl.id }}" data-template-text="{{ tpl.content|escape }}">
+                                        {{ tpl.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <textarea class="form-control" id="grantJustification" name="justification" rows="3" 
+                                      placeholder="{% trans 'Please provide detailed justification for this access request...' %}"></textarea>
+                            <div class="invalid-feedback">
+                                {% trans "Please provide justification for the access request" %}
+                            </div>
+                            <div class="form-text small">
+                                {% trans "Choose a template to auto-fill justification, then adjust if needed." %}
+                            </div>
+                        </div>
+                        
+                        <!-- Additional Requirements (optional) -->
+                        <div class="col-md-6 mb-2">
+                            <label for="grantRequirements" class="form-label">
+                                {% trans "Additional Requirements" %}
+                                <small class="text-muted">({% trans "optional" %})</small>
+                            </label>
+                            <textarea class="form-control" id="grantRequirements" name="requirements" rows="2"
+                                      placeholder="{% trans 'Any additional requirements or conditions for this access request...' %}"></textarea>
+                        </div>
+
+                        <!-- Notes (optional) -->
+                        <div class="col-md-6 mb-2">
+                            <label for="grantNotes" class="form-label">
+                                {% trans "Notes" %}
+                                <small class="text-muted">({% trans "optional" %})</small>
+                            </label>
+                            <textarea class="form-control" id="grantNotes" name="notes" rows="2"
+                                      placeholder="{% trans 'Any additional notes or comments...' %}"></textarea>
+                        </div>
+
+                        <!-- Attachments (optional) -->
+                        <div class="col-md-6 mb-2">
+                            <label for="grantAttachments" class="form-label">
+                                {% trans "Attachments" %}
+                                <small class="text-muted">({% trans "optional" %})</small>
+                            </label>
+                            <input type="file" class="form-control" id="grantAttachments" name="attachments" multiple
+                                   accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xlsx,.xls"
+                                   data-bs-toggle="tooltip"
+                                   title="{% trans 'Allowed file types: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, XLSX, XLS' %}">
+                            <div class="form-text">
+                                {% trans "You can upload multiple files. Maximum file size: 10MB per file." %}
+                            </div>
+                            <div id="grantFilesList" class="mt-1"></div>
+                            <div id="grantExistingAttachmentsSection" class="mt-2" style="display: none;">
+                                <label class="form-label small mb-1">{% trans "Existing attachments" %}</label>
+                                <div id="grantExistingAttachmentsList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-success" id="submitGrantAccess">
+                    <i class="bi bi-check-circle me-1"></i>
+                    {% trans "Submit Request" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Ensure form fields in SweetAlert2 modal are not disabled */
+.grant-user-modal-container .form-control,
+.grant-user-modal-container .form-select,
+.swal2-container .form-control,
+.swal2-container .form-select {
+    pointer-events: auto !important;
+    opacity: 1 !important;
+    background-color: #fff !important;
+    border-color: #ced4da !important;
+}
+
+.grant-user-modal-container .form-control:focus,
+.grant-user-modal-container .form-select:focus,
+.swal2-container .form-control:focus,
+.swal2-container .form-select:focus {
+    border-color: #86b7fe !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+.grant-user-modal-container .btn,
+.swal2-container .btn {
+    pointer-events: auto !important;
+}
+
+/* Additional rules to ensure inputs are not blocked */
+.swal2-container input,
+.swal2-container select,
+.swal2-container textarea {
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+}
+
+/* SweetAlert2 specific fixes */
+.swal2-popup input,
+.swal2-popup select,
+.swal2-popup textarea {
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+    opacity: 1 !important;
+    background-color: #fff !important;
+}
+
+.swal2-content input,
+.swal2-content select,
+.swal2-content textarea {
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+}
+
+/* Override any SweetAlert2 default styles that might interfere */
+.swal2-container * {
+    pointer-events: auto !important;
+}
+
+.swal2-container .swal2-popup * {
+    pointer-events: auto !important;
+}
+
+/* Ensure SweetAlert2 modal is above everything else */
+.grant-user-modal-container {
+    z-index: 9999 !important;
+}
+
+.grant-user-modal-container .swal2-popup {
+    z-index: 10000 !important;
+}
+
+/* Prevent main modal from interfering when SweetAlert2 is open */
+.swal2-shown #grantAccessModal {
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+.swal2-shown #grantAccessModal * {
+    pointer-events: none !important;
+}
+
+/* Ensure SweetAlert2 modal is completely above everything */
+.swal2-container.grant-user-modal-container {
+    z-index: 999999 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.swal2-container.grant-user-modal-container .swal2-popup {
+    z-index: 1000000 !important;
+    position: relative !important;
+}
+
+/* Стилі для множинних third party записів */
+.third-party-record {
+    background-color: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.third-party-record:hover {
+    background-color: #e9ecef;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.remove-third-party-btn {
+    transition: all 0.2s ease;
+}
+
+.remove-third-party-btn:hover {
+    transform: scale(1.1);
+}
+
+.third-party-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Compact table styling for employee users */
+.table-sm-font {
+    font-size: 0.875rem;
+}
+
+.full-width-table {
+    min-width: 100%;
+}
+
+.full-width-table .table {
+    margin-bottom: 0;
+}
+
+.full-width-table .table td,
+.full-width-table .table th {
+    padding: 0.375rem;
+    vertical-align: middle;
+}
+
+.full-width-table .table-sm td,
+.full-width-table .table-sm th {
+    padding: 0.25rem;
+}
+
+/* Extra compact layout for Grant -> Available Users */
+#grantEmployeeUsersTable {
+    table-layout: auto;
+    width: max-content;
+    min-width: 100%;
+}
+
+#grantEmployeeUsersTable th,
+#grantEmployeeUsersTable td {
+    white-space: nowrap;
+    font-size: 0.78rem;
+    padding: 0.18rem 0.32rem;
+    line-height: 1.2;
+    vertical-align: middle;
+    text-align: left;
+}
+
+#grantEmployeeUsersTable th:first-child,
+#grantEmployeeUsersTable td:first-child {
+    width: 1%;
+    min-width: 28px;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+}
+
+#grantEmployeeUsersTable th:nth-child(2),
+#grantEmployeeUsersTable td:nth-child(2) {
+    width: 1%;
+    min-width: 44px;
+    text-align: center;
+}
+
+#grantEmployeeUsersTable td strong,
+#grantEmployeeUsersTable td small {
+    font-size: inherit;
+}
+</style>
+
+<script>
+// Ensure CSRF token meta for fetch fallbacks
+if (!document.querySelector('meta[name="csrf-token"]')) {
+  const meta = document.createElement('meta');
+  meta.setAttribute('name', 'csrf-token');
+  const token = (document.querySelector('input[name=csrfmiddlewaretoken]')?.value) || (document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '');
+  meta.setAttribute('content', token);
+  document.head.appendChild(meta);
+}
+// Grant Access Modal JavaScript - matches main form functionality
+let grantSelectedFiles = [];
+let grantStartDatePicker = null;
+let grantEndDatePicker = null;
+let grantEditRequestId = null;
+let grantEditKeepAttachmentIds = [];
+let grantEditPopulateInProgress = false;
+const grantModalDefaultTitle = $('#grantAccessModalLabel').html();
+const grantModalDefaultSubmitHtml = $('#submitGrantAccess').html();
+
+function grantGetApiBase() {
+    const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+    return `/${languagePrefix}/app_access`;
+}
+
+// Передаємо список організацій в JavaScript для grant модалі
+let grantAvailableOrganizations = [];
+
+$(document).ready(function() {
+    initGrantDateTimePickers();
+
+    // Initialize modal functionality
+    $('#grantAccessModal').on('shown.bs.modal', function() {
+        if (grantEditRequestId || grantEditPopulateInProgress) {
+            return;
+        }
+        // Reset form when modal opens
+        $('#grantAccessForm')[0].reset();
+        $('#grantAccessForm').removeClass('was-validated');
+        
+        // Reset variables
+        grantSelectedFiles = [];
+        
+        // Hide sections initially
+        $('#grantThirdPartyFields, #grantAccessRecordsContainer').hide();
+        
+        // Set default user type to employees and show employee fields if environment is selected
+        $('input[name="userType"][value="employees"]').prop('checked', true);
+        const environment = $('#grantEnvironment').val();
+        if (environment) {
+            showGrantEmployeeFields();
+        } else {
+            hideGrantEmployeeFields();
+        }
+        
+        // Clear file list
+        updateGrantFilesList();
+        
+        // Set default dates
+        setGrantMinDates();
+    });
+
+    $('#grantAccessModal').on('hidden.bs.modal', function() {
+        resetGrantEditMode();
+    });
+
+    $(document).on('click', '.edit-request-btn', function(e) {
+        e.preventDefault();
+        const requestId = $(this).data('request-id');
+        if (requestId) {
+            openGrantAccessEditModal(requestId);
+        }
+    });
+    
+    // Company change handler
+    $('#grantCompany').change(function() {
+        const companyId = $(this).val();
+        loadGrantJustificationTemplates(companyId);
+        if (companyId) {
+            loadGrantSystems(companyId);
+            $('#grantSystem').prop('disabled', false);
+        } else {
+            resetGrantSystemFields();
+        }
+    });
+    
+    // System change handler
+    $('#grantSystem').change(function() {
+        const systemId = $(this).val();
+        if (systemId) {
+            $('#grantEnvironment').prop('disabled', false);
+        } else {
+            resetGrantEnvironmentFields();
+        }
+        
+        // Hide duplicate warning when system changes
+        hideGrantDuplicateWarning();
+    });
+    
+    // Environment change handler
+    $('#grantEnvironment').change(function() {
+        const environment = $(this).val();
+        if (environment) {
+            // Enable user type radio buttons
+            $('input[name="userType"]').prop('disabled', false);
+            $('#grantUserEnvironmentWarning').hide();
+            
+            // Trigger user type selection to load appropriate users
+            const selectedUserType = $('input[name="userType"]:checked').val();
+            if (selectedUserType === 'employees') {
+                showGrantEmployeeFields();
+            } else if (selectedUserType === 'third_parties') {
+                showGrantThirdPartyFields();
+            }
+        } else {
+            resetGrantUserFields();
+        }
+        
+        // Hide duplicate warning when environment changes
+        hideGrantDuplicateWarning();
+    });
+    
+    // User type selection change handler
+    $('input[name="userType"]').change(function() {
+        const selectedValue = $(this).val();
+        
+        // Hide duplicate warning when user selection changes
+        hideGrantDuplicateWarning();
+        
+        if (selectedValue === 'third_parties') {
+            showGrantThirdPartyFields();
+            hideGrantEmployeeFields();
+            // Enable the Add New User button when third party is selected
+            $('#grantAddThirdPartyBtn').prop('disabled', false);
+        } else if (selectedValue === 'employees') {
+            // Cabinet users selected
+            hideGrantThirdPartyFields();
+            showGrantEmployeeFields();
+            // Disable the Add New User button when third party is not selected
+            $('#grantAddThirdPartyBtn').prop('disabled', true);
+            
+            // Clear any existing user selections from checkboxes
+            $('.grant-existing-user-checkbox').prop('checked', false);
+            $('.grant-employee-user-checkbox').prop('checked', false);
+            
+            // Load employee users (access records will be loaded when users are selected)
+            loadGrantEmployeeUsers();
+        }
+    });
+    
+    // Add third party user button - now handled by onclick in HTML
+    
+    // Toggle existing users button
+    $('#grantToggleExistingUsersBtn').click(function() {
+        toggleGrantExistingUsersDisplay();
+    });
+    
+    // Search functionality
+    $('#grantUsersSearchInput').on('input', function() {
+        filterGrantExistingUsers();
+    });
+    
+    $('#grantClearUsersSearch').click(function() {
+        $('#grantUsersSearchInput').val('');
+        filterGrantExistingUsers();
+    });
+    
+    // Organization filter
+    $('#grantUsersOrganizationFilter').change(function() {
+        filterGrantExistingUsers();
+    });
+    
+    // Employee Users Search and Filter handlers
+    $('#grantEmployeeUsersSearchInput').on('input', function() {
+        filterGrantEmployeeUsers();
+    });
+    
+    $('#grantClearEmployeeUsersSearch').click(function() {
+        $('#grantEmployeeUsersSearchInput').val('');
+        filterGrantEmployeeUsers();
+    });
+    
+    $('#grantEmployeeUsersDepartmentFilter, #grantEmployeeUsersPositionFilter').change(function() {
+        filterGrantEmployeeUsers();
+    });
+
+    $('#grantStartDate, #grantEndDate').on('blur', function() {
+        const dt = parseDateTimeInputToDate($(this).val());
+        if (dt) $(this).val(formatDisplayDateTime(dt));
+    });
+
+    // Justification templates
+    $('#grantJustificationTemplate').change(function() {
+        const selectedText = $(this).find(':selected').data('template-text') || '';
+        if (!selectedText) return;
+        $('#grantJustification').val(selectedText).trigger('input');
+    });
+    
+    // Select all existing users
+    $('#grantSelectAllExistingUsers').change(function() {
+        const isChecked = $(this).is(':checked');
+        $('#grantExistingUsersList .grant-existing-user-checkbox:visible').prop('checked', isChecked);
+    });
+    
+    // Select all employee users
+    $('#grantSelectAllEmployeeUsers').change(function() {
+        const isChecked = $(this).is(':checked');
+        $('#grantEmployeeUsersList .grant-employee-user-checkbox:visible').prop('checked', isChecked);
+        
+        // Trigger change event on all affected checkboxes to load access records
+        $('#grantEmployeeUsersList .grant-employee-user-checkbox:visible').trigger('change');
+    });
+    
+    // File upload handler
+    $('#grantAttachments').on('change', function() {
+        const files = Array.from(this.files);
+        files.forEach(file => {
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                showError(`{% trans "File" %} "${file.name}" {% trans "is too large. Maximum file size is 10MB." %}`);
+                return;
+            }
+            grantSelectedFiles.push(file);
+        });
+        updateGrantFilesList();
+        this.value = ''; // Reset input to allow selecting same file again
+    });
+    
+    // Access Records Search and Filter handlers
+    $('#grantAccessRecordsSearch').on('input', function() {
+        try {
+            applyGrantAccessRecordsFilters();
+        } catch (e) {
+            console.error('Error applying filters:', e);
+        }
+    });
+    
+    $('#grantClearAccessRecordsSearch').click(function() {
+        $('#grantAccessRecordsSearch').val('');
+        try {
+            applyGrantAccessRecordsFilters();
+        } catch (e) {
+            console.error('Error applying filters:', e);
+        }
+    });
+    
+    $('#grantAccessRecordsObjectFilter, #grantAccessRecordsRolesFilter').change(function() {
+        try {
+            applyGrantAccessRecordsFilters();
+        } catch (e) {
+            console.error('Error applying filters:', e);
+        }
+    });
+    
+    $('#grantClearAccessRecordsFilters').click(function() {
+        $('#grantAccessRecordsObjectFilter, #grantAccessRecordsRolesFilter').val('');
+        try {
+            applyGrantAccessRecordsFilters();
+        } catch (e) {
+            console.error('Error applying filters:', e);
+        }
+    });
+    
+    // Select all access records handler
+    $('#grantSelectAllAccessRecords').change(function() {
+        const isChecked = $(this).is(':checked');
+        $('#grantAccessRecordsList .grant-access-record-checkbox:visible')
+            .prop('checked', isChecked)
+            .trigger('change');
+        updateGrantBulkObjectRoleSelectOptions();
+        updateGrantBulkObjectRoleButtonsState();
+    });
+
+    $('#grantBulkObjectRoleSelect').on('change', updateGrantBulkObjectRoleButtonsState);
+    $('#grantApplyBulkObjectRoleBtn').on('click', function(e) {
+        e.preventDefault();
+        applyGrantBulkObjectRoleToSelected();
+    });
+    $('#grantAutoSelectFirstObjectRoleBtn').on('click', function(e) {
+        e.preventDefault();
+        autoSelectFirstGrantObjectRoleForSelected();
+    });
+    
+    // Submit handler
+    $('#submitGrantAccess').click(function() {
+        console.log('Submit button clicked');
+        
+        // Custom validation for grant form
+        let isValid = true;
+        const errors = [];
+        
+        // Check required fields that should be enabled
+        const company = $('#grantCompany').val();
+        const system = $('#grantSystem').val();
+        const environment = $('#grantEnvironment').val();
+        const startDate = $('#grantStartDate').val();
+        const justification = $('#grantJustification').val();
+        
+        if (!company) {
+            errors.push('{% trans "Please select a company" %}');
+            isValid = false;
+        }
+        
+        if (!system) {
+            errors.push('{% trans "Please select an information system" %}');
+            isValid = false;
+        }
+        
+        if (!environment) {
+            errors.push('{% trans "Please select an environment" %}');
+            isValid = false;
+        }
+        
+        // Check for user selection from radio buttons and checkboxes
+        const selectedUserType = $('input[name="userType"]:checked').val();
+        
+        // Get selected users from third party checkboxes
+        const selectedThirdPartyCheckboxes = $('.grant-existing-user-checkbox:checked');
+        const selectedThirdPartyUserIds = selectedThirdPartyCheckboxes.map(function() {
+            return $(this).data('user-id');
+        }).get();
+        
+        // Get selected users from employee checkboxes
+        const selectedEmployeeCheckboxes = $('.grant-employee-user-checkbox:checked');
+        const selectedEmployeeUserIds = selectedEmployeeCheckboxes.map(function() {
+            return $(this).data('user-id');
+        }).get();
+        
+        // Check if users are selected based on user type
+        let hasUsers = false;
+        if (selectedUserType === 'third_parties') {
+            hasUsers = selectedThirdPartyUserIds.length > 0;
+        } else if (selectedUserType === 'employees') {
+            hasUsers = selectedEmployeeUserIds.length > 0;
+        }
+        
+        if (!hasUsers) {
+            errors.push('{% trans "Please select at least one user" %}');
+            isValid = false;
+        }
+        
+        // Debug logging for user selection
+        console.log('DEBUG: User validation:', {
+            selectedUserType: selectedUserType,
+            selectedThirdPartyUserIds: selectedThirdPartyUserIds,
+            selectedEmployeeUserIds: selectedEmployeeUserIds,
+            hasUsers: hasUsers
+        });
+        
+        if (!startDate) {
+            errors.push('{% trans "Please select start date" %}');
+            isValid = false;
+        }
+        
+        if (!justification) {
+            errors.push('{% trans "Please provide justification for the access request" %}');
+            isValid = false;
+        }
+        
+        // Check if at least one access record is selected
+        const selectedRecords = $('.grant-access-record-checkbox:checked');
+        if (selectedRecords.length === 0) {
+            errors.push('{% trans "Please select at least one access record" %}');
+            isValid = false;
+        }
+        
+        console.log('Validation result:', { isValid, errors });
+        
+        if (isValid) {
+            console.log('Form is valid, submitting...');
+            submitGrantAccessRequest();
+        } else {
+            console.log('Form is invalid, showing validation errors');
+            showError(errors.join('<br>'));
+            $('#grantAccessForm').addClass('was-validated');
+        }
+    });
+});
+
+// Set minimum dates for grant form
+function setGrantMinDates() {
+    const now = new Date();
+    const minDate = new Date(now.getTime() + 30 * 60000);
+    const currentDateTime = formatDisplayDateTime(minDate);
+    
+    // Set default start date to current time
+    $('#grantStartDate').val(currentDateTime);
+    if (grantStartDatePicker) {
+        grantStartDatePicker.set('minDate', minDate);
+        grantStartDatePicker.setDate(minDate, false);
+    }
+    
+    // End Date is empty by default
+    $('#grantEndDate').val('');
+    if (grantEndDatePicker) {
+        grantEndDatePicker.set('minDate', minDate);
+        grantEndDatePicker.clear();
+    }
+}
+
+function initGrantDateTimePickers() {
+    if (typeof flatpickr === 'undefined') return;
+    const config = {
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: 'd.m.Y H:i',
+        minuteIncrement: 1,
+        allowInput: true,
+    };
+
+    if (!grantStartDatePicker) {
+        grantStartDatePicker = flatpickr('#grantStartDate', config);
+    }
+    if (!grantEndDatePicker) {
+        grantEndDatePicker = flatpickr('#grantEndDate', config);
+    }
+}
+
+function formatDisplayDateTime(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function parseDateTimeInputToDate(value) {
+    if (!value) return null;
+    const v = String(value).trim();
+    const localPattern = /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/;
+    const m = v.match(localPattern);
+    if (m) {
+        const [, dd, mm, yyyy, hh, min] = m;
+        const dt = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), 0);
+        return Number.isNaN(dt.getTime()) ? null : dt;
+    }
+    const dt = new Date(v);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function localDateTimeToIso(value) {
+    if (!value) return '';
+    const dt = parseDateTimeInputToDate(value);
+    if (!dt) return value;
+    return dt.toISOString();
+}
+
+// Reset system fields
+function resetGrantSystemFields() {
+    $('#grantEnvironment, #grantUser').prop('disabled', true);
+    $('#grantSystem').empty().append('<option value="">{% trans "Select System..." %}</option>');
+    resetGrantEnvironmentFields();
+}
+
+// Reset environment fields
+function resetGrantEnvironmentFields() {
+    $('#grantUser').prop('disabled', true);
+    $('#grantEnvironment').empty().append('<option value="">{% trans "Select Environment..." %}</option>');
+    $('#grantEnvironment').append('<option value="production">{% trans "Production" %}</option>');
+    $('#grantEnvironment').append('<option value="test">{% trans "Test" %}</option>');
+    $('#grantEnvironment').append('<option value="development">{% trans "Development" %}</option>');
+    resetGrantUserFields();
+}
+
+// Reset user fields
+function resetGrantUserFields() {
+    // Disable user type radio buttons
+    $('input[name="userType"]').prop('disabled', true);
+    $('#grantUserEnvironmentWarning').show();
+    
+    // Hide both user sections
+    hideGrantThirdPartyFields();
+    hideGrantEmployeeFields();
+    hideGrantAccessRecords();
+}
+
+// Load systems for grant access
+function loadGrantSystems(companyId) {
+    $.ajax({
+        url: '/app_access/get-systems-by-company/',
+        data: { company_id: companyId },
+        success: function(data) {
+            const systemSelect = $('#grantSystem');
+            systemSelect.empty().append('<option value="">{% trans "Select System..." %}</option>');
+            
+            if (data.systems && data.systems.length > 0) {
+                data.systems.forEach(system => {
+                    systemSelect.append(`<option value="${system.id}">${system.name}</option>`);
+                });
+            }
+        },
+        error: function() {
+            showError('{% trans "Error loading systems" %}');
+        }
+    });
+}
+
+function loadGrantJustificationTemplates(companyId) {
+    const templateSelect = $('#grantJustificationTemplate');
+    const emptyOption = '<option value="">{% trans "Select justification template..." %}</option>';
+    templateSelect.empty().append(emptyOption);
+    $('#grantJustification').val('');
+
+    if (!companyId) {
+        return;
+    }
+
+    $.ajax({
+        url: '{% url "get_access_justification_templates" %}',
+        data: { company_id: companyId },
+        success: function(data) {
+            if (data.status !== 'success' || !Array.isArray(data.templates)) {
+                return;
+            }
+
+            data.templates.forEach((tpl) => {
+                const escapedContent = $('<div>').text(tpl.content || '').html();
+                templateSelect.append(
+                    `<option value="${tpl.id}" data-template-text="${escapedContent}">${tpl.name}</option>`
+                );
+            });
+        },
+        error: function() {
+            showError('{% trans "Error loading access justification templates" %}');
+        }
+    });
+}
+
+
+
+// Show third party fields
+function showGrantThirdPartyFields() {
+    $('#grantThirdPartyFields').slideDown();
+    $('#grantAvailableUsersSection').show();
+    loadGrantExistingUsers();
+    $('#grantToggleExistingUsersBtn').prop('disabled', false);
+    $('#grantToggleExistingUsersBtn').html('<i class="bi bi-eye-slash me-1"></i>{% trans "Hide Existing Users" %}');
+    // Enable the Add New User button
+    $('#grantAddThirdPartyBtn').prop('disabled', false);
+    hideGrantAccessRecords();
+}
+
+// Hide third party fields
+function hideGrantThirdPartyFields() {
+    $('#grantThirdPartyFields').slideUp();
+    $('#grantThirdPartyContainer').empty();
+    $('#grantToggleExistingUsersBtn').prop('disabled', true);
+    // Disable the Add New User button
+    $('#grantAddThirdPartyBtn').prop('disabled', true);
+}
+
+// Show employee fields
+function showGrantEmployeeFields() {
+    $('#grantEmployeeFields').slideDown();
+    loadGrantEmployeeUsers();
+}
+
+// Hide employee fields
+function hideGrantEmployeeFields() {
+    $('#grantEmployeeFields').slideUp();
+    $('#grantEmployeeUsersList').empty();
+    $('.grant-employee-user-checkbox').prop('checked', false);
+}
+
+// Load existing third party users
+function loadGrantExistingUsers() {
+    const companyId = $('#grantCompany').val();
+    const systemId = $('#grantSystem').val();
+    const environment = $('#grantEnvironment').val();
+    
+    if (!companyId || !systemId || !environment) return;
+    
+    $.ajax({
+        url: '/app_access/get-third-party-users/',
+        data: { 
+            company_id: companyId,
+            system_id: systemId,
+            environment: environment 
+        },
+        success: function(data) {
+            const users = data.users || [];
+            // Store the existing third-party users data globally
+            grantExistingThirdPartyUsers = users;
+            console.log('DEBUG: Stored existing third-party users:', grantExistingThirdPartyUsers);
+            displayGrantExistingUsers(users);
+            updateGrantOrganizationFilter(users);
+        },
+        error: function() {
+            console.log('Error loading existing third party users (this is normal if none exist)');
+            grantExistingThirdPartyUsers = [];
+            displayGrantExistingUsers([]);
+        }
+    });
+}
+
+// Display existing users in table
+function displayGrantExistingUsers(users) {
+    const tbody = $('#grantExistingUsersList');
+    tbody.empty();
+    
+    if (users.length === 0) {
+        tbody.append(`
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    <i class="bi bi-info-circle me-2"></i>
+                    {% trans "No existing third party users found" %}
+                </td>
+            </tr>
+        `);
+        return;
+    }
+    
+    users.forEach(user => {
+        const row = createGrantExistingUserRow(user);
+        tbody.append(row);
+    });
+    
+    // Add event handlers for checkboxes
+    $('.grant-existing-user-checkbox').off('change').on('change', function() {
+        const userId = parseInt($(this).data('user-id'));
+        const isChecked = $(this).is(':checked');
+        
+        if (isChecked) {
+            // Add user to selection
+            addGrantExistingUserToSelection(userId);
+        } else {
+            // Remove user from selection - just uncheck
+            $(this).prop('checked', false);
+        }
+    });
+    
+    // Add click handlers for table rows
+    $('.grant-existing-user-row').off('click').on('click', function(e) {
+        if (e.target.type !== 'checkbox') {
+            const checkbox = $(this).find('.grant-existing-user-checkbox');
+            checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+        }
+    });
+}
+
+// Create existing user row
+function createGrantExistingUserRow(user) {
+    return `
+        <tr class="grant-existing-user-row" 
+            data-user-id="${user.id}" 
+            style="cursor: pointer; transition: all 0.2s;">
+            <td>
+                <input type="checkbox" class="form-check-input grant-existing-user-checkbox" 
+                       data-user-id="${user.id}">
+            </td>
+            <td>
+                <strong>${user.first_name} ${user.last_name}</strong>
+            </td>
+            <td>
+                <small class="text-muted">
+                    <i class="bi bi-envelope me-1"></i>${user.email}
+                </small>
+            </td>
+            <td>
+                <small class="text-muted">
+                    <i class="bi bi-building me-1"></i>${user.organization_name || '-'}
+                </small>
+            </td>
+            <td>
+                <small class="text-muted">
+                    ${user.phone ? `<i class="bi bi-telephone me-1"></i>${user.phone}` : '-'}
+                </small>
+            </td>
+
+        </tr>
+    `;
+}
+
+// Toggle existing users display
+function toggleGrantExistingUsersDisplay() {
+    const section = $('#grantAvailableUsersSection');
+    const btn = $('#grantToggleExistingUsersBtn');
+    
+    if (section.is(':visible')) {
+        section.slideUp();
+        btn.html('<i class="bi bi-eye me-1"></i>{% trans "Show Existing Users" %}');
+    } else {
+        section.slideDown();
+        btn.html('<i class="bi bi-eye-slash me-1"></i>{% trans "Hide Existing Users" %}');
+    }
+}
+
+// Filter existing users
+function filterGrantExistingUsers() {
+    const searchTerm = $('#grantUsersSearchInput').val().toLowerCase();
+    const orgFilter = $('#grantUsersOrganizationFilter').val();
+    
+    $('#grantExistingUsersList .grant-existing-user-row').each(function() {
+        const row = $(this);
+        const text = row.text().toLowerCase();
+        const orgText = row.find('td:nth-child(4)').text();
+        
+        const matchesSearch = !searchTerm || text.includes(searchTerm);
+        const matchesOrg = !orgFilter || orgText.includes(orgFilter);
+        
+        if (matchesSearch && matchesOrg) {
+            row.show();
+        } else {
+            row.hide();
+        }
+    });
+}
+
+// Update organization filter options
+function updateGrantOrganizationFilter(users) {
+    const filter = $('#grantUsersOrganizationFilter');
+    const currentValue = filter.val();
+    
+    filter.empty().append('<option value="">{% trans "All Organizations" %}</option>');
+    
+    const organizations = [...new Set(users.map(u => u.organization_name).filter(Boolean))];
+    organizations.forEach(org => {
+        filter.append(`<option value="${org}">${org}</option>`);
+    });
+    
+    if (currentValue) {
+        filter.val(currentValue);
+    }
+}
+
+// Filter employee users
+function filterGrantEmployeeUsers() {
+    const searchTerm = $('#grantEmployeeUsersSearchInput').val().toLowerCase();
+    const deptFilter = $('#grantEmployeeUsersDepartmentFilter').val();
+    const posFilter = $('#grantEmployeeUsersPositionFilter').val();
+    
+    $('#grantEmployeeUsersList .grant-employee-user-row').each(function() {
+        const row = $(this);
+        const text = row.text().toLowerCase();
+        const deptText = row.find('td:nth-child(5)').text().trim(); // Department column
+        const posText = row.find('td:nth-child(6)').text().trim(); // Position column
+        
+        const matchesSearch = !searchTerm || text.includes(searchTerm);
+        const matchesDept = !deptFilter || deptText.includes(deptFilter);
+        const matchesPos = !posFilter || posText.includes(posFilter);
+        
+        if (matchesSearch && matchesDept && matchesPos) {
+            row.show();
+        } else {
+            row.hide();
+        }
+    });
+}
+
+// Update employee user filter options
+function updateGrantEmployeeUserFilters(users) {
+    const deptFilter = $('#grantEmployeeUsersDepartmentFilter');
+    const posFilter = $('#grantEmployeeUsersPositionFilter');
+    const currentDeptValue = deptFilter.val();
+    const currentPosValue = posFilter.val();
+    
+    // Update department filter
+    deptFilter.empty().append('<option value="">{% trans "All Departments" %}</option>');
+    const departments = [...new Set(users.map(u => u.department).filter(Boolean))];
+    departments.forEach(dept => {
+        deptFilter.append(`<option value="${dept}">${dept}</option>`);
+    });
+    if (currentDeptValue) {
+        deptFilter.val(currentDeptValue);
+    }
+    
+    // Update position filter
+    posFilter.empty().append('<option value="">{% trans "All Positions" %}</option>');
+    const positions = [...new Set(users.map(u => u.position).filter(Boolean))];
+    positions.forEach(pos => {
+        posFilter.append(`<option value="${pos}">${pos}</option>`);
+    });
+    if (currentPosValue) {
+        posFilter.val(currentPosValue);
+    }
+}
+
+// Load employee users (Cabinet users)
+function loadGrantEmployeeUsers() {
+    const companyId = $('#grantCompany').val();
+    const systemId = $('#grantSystem').val();
+    const environment = $('#grantEnvironment').val();
+    
+    if (!companyId || !systemId || !environment) return;
+    
+    $.ajax({
+        url: '{% url "get_cabinet_users_and_groups" %}',
+        type: 'GET',
+        data: {
+            company_id: companyId,
+            system_id: systemId,
+            environment: environment
+        },
+        success: function(response) {
+            if (response.users) {
+                displayGrantEmployeeUsers(response.users || []);
+            } else {
+                console.error('Error loading employee users:', response.error);
+                showError('{% trans "Error loading employee users" %}');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX error loading employee users:', error);
+            showError('{% trans "Error loading employee users" %}');
+        }
+    });
+}
+
+// Display employee users in the table
+function displayGrantEmployeeUsers(users) {
+    const $tableBody = $('#grantEmployeeUsersList');
+    $tableBody.empty();
+    
+    if (users.length === 0) {
+        $tableBody.append(`
+            <tr>
+                <td colspan="6" class="text-center text-muted">
+                    {% trans "No employee users available" %}
+                </td>
+            </tr>
+        `);
+        return;
+    }
+    
+    users.forEach(user => {
+        const row = createGrantEmployeeUserRow(user);
+        $tableBody.append(row);
+    });
+    
+    // Update filter options
+    updateGrantEmployeeUserFilters(users);
+    
+    // Add event handlers for employee user checkboxes
+    $('.grant-employee-user-checkbox').off('change').on('change', function() {
+        // Handle selection logic for employee users
+        const userId = $(this).data('user-id');
+        const isChecked = $(this).is(':checked');
+        console.log('Employee user selection changed:', userId, isChecked);
+        
+        // Load access records when employee users are selected/deselected
+        loadGrantAccessRecords();
+        
+        // Check for duplicates after selection change
+        setTimeout(() => {
+            checkGrantDuplicateRequests();
+        }, 500);
+    });
+    
+    // Add click handlers for table rows
+    $('.grant-employee-user-row').off('click').on('click', function(e) {
+        if (e.target.type !== 'checkbox') {
+            const checkbox = $(this).find('.grant-employee-user-checkbox');
+            checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+        }
+    });
+}
+
+// Create employee user row
+function createGrantEmployeeUserRow(user) {
+    return `
+        <tr class="grant-employee-user-row" 
+            data-user-id="${user.id}" 
+            style="cursor: pointer; transition: all 0.2s;">
+            <td>
+                <input type="checkbox" class="form-check-input grant-employee-user-checkbox" 
+                       data-user-id="${user.id}">
+            </td>
+            <td>
+                <span class="badge bg-light text-dark" title="{% trans 'Available Access Records' %}">
+                    ${user.available_access_records_count || 0}
+                </span>
+            </td>
+            <td>
+                <strong>${user.full_name || ''}</strong>
+            </td>
+            <td>
+                <small class="text-muted">
+                    ${user.email || ''}
+                </small>
+            </td>
+            <td>
+                <small class="text-muted">
+                    ${user.department || ''}
+                </small>
+            </td>
+            <td>
+                <small class="text-muted">
+                    ${user.position || ''}
+                </small>
+            </td>
+        </tr>
+    `;
+}
+
+// Add existing user to selection
+function addGrantExistingUserToSelection(userId) {
+    // Find user data from the table
+    const row = $(`.grant-existing-user-row[data-user-id="${userId}"]`);
+    
+    // Update the row appearance
+    row.addClass('table-primary').css('cursor', 'default');
+    row.find('.grant-existing-user-checkbox').prop('checked', true);
+    
+    console.log('DEBUG: Selected user:', userId);
+    
+    // Load access records after adding user
+    loadGrantAccessRecords();
+    
+    // Check for duplicates after adding user
+    setTimeout(() => {
+        checkGrantDuplicateRequests();
+    }, 500);
+}
+
+
+
+
+
+// Функція для перевірки duplicate requests при виборі access record
+async function checkGrantDuplicateRequests(isThirdPartyMode = null, usersToCheck = null) {
+    try {
+        // Отримуємо дані з форми
+        const systemId = $('#grantSystem').val();
+        const selectedAccessRecord = $('.grant-access-record-row input[type="checkbox"]:checked');
+        
+        // Перевіряємо чи є всі необхідні дані
+        if (!systemId || !selectedAccessRecord.length) {
+            return; // Не всі дані доступні, пропускаємо перевірку
+        }
+        
+        const accessRecordId = selectedAccessRecord.first().val();
+        const environment = $('#grantEnvironment').val();
+        
+        if (!accessRecordId || !environment) {
+            return; // Не всі дані доступні
+        }
+        
+        // Determine if this is a third-party request if not provided
+        let isThirdParty;
+        let finalUserIds;
+        
+        if (isThirdPartyMode !== null) {
+            // Use provided parameters
+            isThirdParty = isThirdPartyMode;
+            finalUserIds = usersToCheck || [];
+        } else {
+            // Fallback to old logic for backward compatibility
+            const userIds = $('#grantUser').val() || [];
+            isThirdParty = userIds.includes('third_parties');
+            
+            if (isThirdParty) {
+                // Для third-party запитів використовуємо ID вибраних користувачів з таблиці
+                finalUserIds = $('.grant-existing-user-checkbox:checked').map(function() {
+                    return $(this).data('user-id');
+                }).get();
+            } else {
+                finalUserIds = userIds.filter(id => id !== 'third_parties');
+            }
+        }
+        
+        const requestData = {
+            system_id: systemId,
+            access_record_id: accessRecordId,
+            environment: environment,
+            user_ids: finalUserIds,
+            is_third_party: isThirdParty
+        };
+        
+        console.log('Checking for duplicates with data:', requestData);
+        console.log('DEBUG: isThirdParty:', isThirdParty, 'finalUserIds:', finalUserIds);
+        
+        // Відправляємо запит на перевірку
+        const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+        const response = await fetch(`/${languagePrefix}/app_access/check-duplicate-request/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        const data = await response.json();
+        
+        console.log('DEBUG: Backend response for duplicate check:', data);
+        
+        if (response.ok && data.success) {
+            if (data.has_duplicates) {
+                console.log('DEBUG: Duplicates found:', data.duplicates);
+                showGrantDuplicateWarning(data.duplicates);
+            } else {
+                hideGrantDuplicateWarning();
+            }
+        } else {
+            console.error('Error checking duplicates:', data.message);
+        }
+        
+    } catch (error) {
+        console.error('Error checking for duplicate requests:', error);
+    }
+}
+
+// Функція для показу попередження про duplicates
+function showGrantDuplicateWarning(duplicates) {
+    // Спочатку прибираємо попереднє попередження
+    hideGrantDuplicateWarning();
+    
+    // Формуємо список дублікатів з детальною інформацією
+    const duplicatesList = duplicates.map(duplicate => {
+        let detailsHtml = '';
+        
+        // Якщо є детальна інформація, додаємо її
+        if (duplicate.details) {
+            const details = duplicate.details;
+            detailsHtml = `
+                <div class="duplicate-details mt-2 p-3 border-start border-3 border-warning" style="background-color: #fffbf2; margin-left: 20px;">
+                    <h6 class="mb-2 text-warning">📋 EXISTING REQUEST DETAILS</h6>
+                    <div class="row small">
+                        <div class="col-md-6">
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Request ID:</span>
+                                <span class="detail-value">#${duplicate.request_id}</span>
+                            </div>
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Object:</span>
+                                <span class="detail-value">${details.object_name}</span>
+                            </div>
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Requested By:</span>
+                                <span class="detail-value">${details.requested_by}</span>
+                            </div>
+                            ${details.requested_for ? `
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Requested For:</span>
+                                <span class="detail-value">${details.requested_for}</span>
+                            </div>
+                            ` : ''}
+                            ${details.third_party ? `
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Third Party:</span>
+                                <span class="detail-value">${details.third_party}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                        <div class="col-md-6">
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Roles:</span>
+                                <span class="detail-value">${details.roles}</span>
+                            </div>
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Access Period:</span>
+                                <span class="detail-value">${details.period}</span>
+                            </div>
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Attachments:</span>
+                                <span class="detail-value">${details.attachments}</span>
+                            </div>
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Status:</span>
+                                <span class="detail-value text-success">${details.status}</span>
+                            </div>
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Admin Status:</span>
+                                <span class="detail-value text-success">${details.admin_status}</span>
+                            </div>
+                            <div class="detail-row mb-1">
+                                <span class="detail-label text-muted">Created:</span>
+                                <span class="detail-value">${duplicate.created_date}</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${details.approvers !== 'No approvers' ? `
+                    <div class="detail-row mt-2">
+                        <span class="detail-label text-muted">Approving Persons:</span>
+                        <span class="detail-value small">${details.approvers}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        return `
+            <li class="mb-3">
+                <div class="d-flex align-items-center mb-1">
+                    <strong>${duplicate.user_info}</strong>
+                    <span class="badge bg-warning text-dark ms-2">Request #${duplicate.request_id}</span>
+                </div>
+                ${detailsHtml}
+            </li>
+        `;
+    }).join('');
+    
+    // Створюємо HTML для попередження
+    const warningHtml = `
+        <div id="grantDuplicateWarning" class="alert alert-warning alert-dismissible fade show mt-3" role="alert">
+            <div class="d-flex align-items-start">
+                <i class="bi bi-exclamation-triangle-fill me-2 flex-shrink-0" style="font-size: 1.25rem; color: #f39c12;"></i>
+                <div class="flex-grow-1">
+                    <h6 class="alert-heading mb-2">
+                        <i class="bi bi-info-circle"></i> {% trans "Duplicate Access Warning" %}
+                    </h6>
+                    <p class="mb-2">
+                        {% trans "The following users already have approved and granted access for this system and environment:" %}
+                    </p>
+                    <ul class="mb-2 list-unstyled">
+                        ${duplicatesList}
+                    </ul>
+                    <small class="text-muted">
+                        <i class="bi bi-lightbulb"></i> 
+                        {% trans "You can still proceed, but the request may be rejected due to duplicate access." %}
+                    </small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    
+    // Додаємо попередження після контейнера з access records
+    $('#grantAccessRecordsContainer').after(warningHtml);
+    
+    // Додаємо динамічні CSS стилі для детальної інформації
+    if (!document.getElementById('grantDuplicateWarningStyles')) {
+        const style = document.createElement('style');
+        style.id = 'grantDuplicateWarningStyles';
+        style.textContent = `
+            .duplicate-details .detail-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+            }
+            .duplicate-details .detail-label {
+                font-weight: 500;
+                min-width: 120px;
+                flex-shrink: 0;
+                margin-right: 10px;
+            }
+            .duplicate-details .detail-value {
+                text-align: right;
+                word-break: break-word;
+                flex-grow: 1;
+            }
+            .duplicate-details h6 {
+                color: #856404 !important;
+                font-weight: bold;
+            }
+            #grantDuplicateWarning {
+                max-height: 80vh;
+                overflow-y: auto;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Додаємо плавну анімацію
+    $('#grantDuplicateWarning').hide().fadeIn(500);
+    
+    console.log('Duplicate warning shown for', duplicates.length, 'users');
+}
+
+// Функція для приховання попередження про duplicates
+function hideGrantDuplicateWarning() {
+    $('#grantDuplicateWarning').fadeOut(300, function() {
+        $(this).remove();
+    });
+}
+
+
+
+
+
+// Global function for creating organization modal (reuse from main form)
+window.createOrganizationModal = function(selectId) {
+    Swal.fire({
+        title: '{% trans "Add New Organization" %}',
+        html: `
+            <div class="text-start">
+                <div class="mb-3">
+                    <label for="modal-org-name" class="form-label required">{% trans "Organization Name" %}</label>
+                    <input type="text" class="form-control" id="modal-org-name" required>
+                </div>
+                <div class="mb-3">
+                    <label for="modal-org-description" class="form-label">{% trans "Description" %}</label>
+                    <textarea class="form-control" id="modal-org-description" rows="3"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="modal-org-contact-email" class="form-label">{% trans "Contact Email" %}</label>
+                    <input type="email" class="form-control" id="modal-org-contact-email">
+                </div>
+                <div class="mb-3">
+                    <label for="modal-org-contact-phone" class="form-label">{% trans "Contact Phone" %}</label>
+                    <input type="tel" class="form-control" id="modal-org-contact-phone">
+                </div>
+                <div class="mb-3">
+                    <label for="modal-org-website" class="form-label">{% trans "Website" %}</label>
+                    <input type="url" class="form-control" id="modal-org-website">
+                </div>
+                <div class="mb-3">
+                    <label for="modal-org-address" class="form-label">{% trans "Address" %}</label>
+                    <textarea class="form-control" id="modal-org-address" rows="2"></textarea>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '{% trans "Create Organization" %}',
+        cancelButtonText: '{% trans "Cancel" %}',
+        confirmButtonColor: '#0d6efd',
+        cancelButtonColor: '#6c757d',
+        width: '600px',
+        preConfirm: () => {
+            const name = document.getElementById('modal-org-name').value.trim();
+            if (!name) {
+                Swal.showValidationMessage('{% trans "Organization name is required" %}');
+                return false;
+            }
+            
+            return {
+                name: name,
+                description: document.getElementById('modal-org-description').value.trim(),
+                contact_email: document.getElementById('modal-org-contact-email').value.trim(),
+                contact_phone: document.getElementById('modal-org-contact-phone').value.trim(),
+                website: document.getElementById('modal-org-website').value.trim(),
+                address: document.getElementById('modal-org-address').value.trim()
+            };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            createNewOrganizationForSelect(result.value, selectId);
+        }
+    });
+}
+
+// Create new organization and add to select
+function createNewOrganizationForSelect(orgData, selectId) {
+    // In a real application, this would make an API call to create the organization
+    // For now, we'll just add it to the select
+    const select = document.getElementById(selectId);
+    if (select) {
+        const option = document.createElement('option');
+        option.value = orgData.name;
+        option.textContent = orgData.name;
+        option.selected = true;
+        select.appendChild(option);
+        
+        // Also add to availableOrganizations if it exists
+        if (typeof availableOrganizations !== 'undefined') {
+            availableOrganizations.push(orgData);
+        }
+    }
+}
+
+
+
+
+
+
+
+// Load access records
+function loadGrantAccessRecords() {
+    const systemId = $('#grantSystem').val();
+    const environment = $('#grantEnvironment').val();
+    
+    // Get selected user type
+    const selectedUserType = $('input[name="userType"]:checked').val();
+    
+    // Get selected users from checkboxes (for third party users)
+    const selectedThirdPartyCheckboxes = $('.grant-existing-user-checkbox:checked');
+    const selectedThirdPartyUsers = selectedThirdPartyCheckboxes.map(function() {
+        return $(this).data('user-id');
+    }).get();
+    
+    // Get selected users from employee checkboxes (for cabinet users)
+    const selectedEmployeeCheckboxes = $('.grant-employee-user-checkbox:checked');
+    const selectedEmployeeUsers = selectedEmployeeCheckboxes.map(function() {
+        return $(this).data('user-id');
+    }).get();
+    
+    console.log('DEBUG: Loading access records for user type:', selectedUserType);
+    console.log('DEBUG: Third party users:', selectedThirdPartyUsers);
+    console.log('DEBUG: Employee users:', selectedEmployeeUsers);
+    
+    // Determine if this is a third-party request
+    const isThirdPartyMode = selectedUserType === 'third_parties';
+    
+    // Get the users to load records for
+    let usersToLoadRecordsFor = [];
+    
+    if (isThirdPartyMode) {
+        // For third-party mode, use the selected third party checkbox users
+        usersToLoadRecordsFor = selectedThirdPartyUsers;
+    } else {
+        // For employee mode, use the selected employee checkbox users
+        usersToLoadRecordsFor = selectedEmployeeUsers;
+    }
+    
+    if (!systemId || !environment || usersToLoadRecordsFor.length === 0) {
+        hideGrantAccessRecords();
+        return;
+    }
+    
+    showGrantAccessRecords();
+    
+    // Load available access records based on selection
+    let url;
+    if (isThirdPartyMode) {
+        url = `/app_access/get-access-records-by-system/${systemId}/third_parties/`;
+    } else {
+        // For employee users, we need to handle multiple users
+        // For now, use the first selected user ID to get access records
+        // The backend should return records that can be applied to multiple users
+        const cabinetUserId = usersToLoadRecordsFor[0];
+        if (!cabinetUserId || isNaN(cabinetUserId)) {
+            console.error('Invalid cabinet user ID:', cabinetUserId);
+            showError('{% trans "Invalid user selection" %}');
+            return;
+        }
+        url = `/app_access/get-access-records-by-system/${systemId}/${cabinetUserId}/`;
+        
+        // Log that we're loading records for multiple users
+        console.log('DEBUG: Loading access records for multiple employee users:', usersToLoadRecordsFor);
+    }
+    
+    console.log('DEBUG: Making request to URL:', url);
+    
+    $.ajax({
+        url: url,
+        data: { 
+            environment: environment,
+            language: document.documentElement.lang || 'en'
+        },
+        success: function(data) {
+            console.log('DEBUG: Received access records:', data);
+            displayGrantAccessRecords(data.access_records || []);
+            
+            // Check for duplicates after loading access records
+            setTimeout(() => {
+                checkGrantDuplicateRequests(isThirdPartyMode, usersToLoadRecordsFor);
+            }, 500);
+        },
+        error: function(xhr, status, error) {
+            console.error('DEBUG: Error loading access records:', error);
+            console.error('DEBUG: Response:', xhr.responseText);
+            showError('{% trans "Error loading access records" %}');
+        }
+    });
+}
+
+// Show access records container
+function showGrantAccessRecords() {
+    $('#grantAccessRecordsContainer').slideDown();
+}
+
+// Hide access records container
+function hideGrantAccessRecords() {
+    $('#grantAccessRecordsContainer').slideUp();
+    updateGrantPostSelectionFieldsVisibility();
+}
+
+function updateGrantPostSelectionFieldsVisibility(options) {
+    const preserveValues = options && options.preserveValues;
+    const hasSelectedRecords = $('.grant-access-record-checkbox:checked').length > 0;
+    if (hasSelectedRecords) {
+        $('#grantPostSelectionFields').slideDown();
+        return;
+    }
+
+    $('#grantPostSelectionFields').slideUp();
+    if (preserveValues) {
+        return;
+    }
+    $('#grantEndDate').val('');
+    $('#grantJustificationTemplate').val('');
+    $('#grantJustification, #grantRequirements, #grantNotes').val('');
+    grantSelectedFiles = [];
+    updateGrantFilesList();
+    const fileInput = $('#grantAttachments')[0];
+    if (fileInput) {
+        fileInput.value = '';
+    }
+}
+
+// Display access records in table format
+function displayGrantAccessRecords(records) {
+    const tbody = $('#grantAccessRecordsList');
+    tbody.empty();
+    updateGrantPostSelectionFieldsVisibility({ preserveValues: grantEditPopulateInProgress });
+    
+    // Get selected filters for automatic filtering
+    const selectedEnvironment = $('#grantEnvironment').val();
+    const selectedSystem = $('#grantSystem').val();
+    
+    // Filter records by selected environment and system automatically
+    let filteredRecords = records;
+    
+    if (selectedEnvironment) {
+        filteredRecords = filteredRecords.filter(record => record.environment === selectedEnvironment);
+    }
+    
+    if (selectedSystem) {
+        filteredRecords = filteredRecords.filter(record => record.asset_id == selectedSystem);
+    }
+    
+    if (filteredRecords.length === 0) {
+        let filterInfo = [];
+        if (selectedEnvironment) filterInfo.push(`Environment: ${selectedEnvironment}`);
+        if (selectedSystem) {
+            const systemName = $('#grantSystem option:selected').text();
+            filterInfo.push(`System: ${systemName}`);
+        }
+        
+        tbody.html(`
+            <tr>
+                <td colspan="9" class="text-center text-muted py-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    {% trans "No access records available" %}
+                    ${filterInfo.length > 0 ? ` (${filterInfo.join(', ')})` : ''}
+                </td>
+            </tr>
+        `);
+        updateGrantBulkObjectRoleSelectOptions();
+        updateGrantBulkObjectRoleButtonsState();
+        return;
+    }
+    
+    filteredRecords.forEach(record => {
+        const recordRow = createGrantAccessRecordRow(record);
+        tbody.append(recordRow);
+    });
+    
+    // Update filter options with filtered records
+    updateGrantAccessRecordsFilters(filteredRecords);
+    
+    // Apply any additional filters (if function exists and records are displayed)
+    if (typeof applyGrantAccessRecordsFilters === 'function' && filteredRecords.length > 0) {
+        applyGrantAccessRecordsFilters();
+    }
+    
+    // Add event handlers for access record selection
+    setupGrantAccessRecordEventHandlers();
+    updateGrantBulkObjectRoleSelectOptions();
+    updateGrantBulkObjectRoleButtonsState();
+    applyGrantEditAccessRecordSelection();
+}
+
+function updateGrantBulkObjectRoleSelectOptions() {
+    const $select = $('#grantBulkObjectRoleSelect');
+    const currentValue = $select.val();
+    const rolesMap = new Map();
+    const roleNames = {};
+    const $checked = $('.grant-access-record-checkbox:checked');
+
+    if ($checked.length > 0) {
+        let commonRoleIds = null;
+        $checked.each(function() {
+            const rowRoleIds = new Set();
+            $(this).closest('.grant-access-record-row').find('.grant-record-role-select option[value!=""]').each(function() {
+                const id = $(this).val();
+                rowRoleIds.add(id);
+                roleNames[id] = $(this).text();
+            });
+            if (commonRoleIds === null) {
+                commonRoleIds = rowRoleIds;
+            } else {
+                commonRoleIds = new Set([...commonRoleIds].filter(id => rowRoleIds.has(id)));
+            }
+        });
+        if (commonRoleIds) {
+            commonRoleIds.forEach(id => {
+                if (id) rolesMap.set(id, roleNames[id] || id);
+            });
+        }
+    } else {
+        $('#grantAccessRecordsList .grant-record-role-select').each(function() {
+            $(this).find('option[value!=""]').each(function() {
+                const id = $(this).val();
+                const name = $(this).text();
+                if (id && !rolesMap.has(id)) {
+                    rolesMap.set(id, name);
+                }
+            });
+        });
+    }
+    $select.empty().append('<option value="">{% trans "Choose role..." %}</option>');
+    Array.from(rolesMap.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([id, name]) => {
+            $select.append(`<option value="${id}">${name}</option>`);
+        });
+    if (currentValue && rolesMap.has(currentValue)) {
+        $select.val(currentValue);
+    }
+}
+
+function updateGrantBulkObjectRoleButtonsState() {
+    const hasRecords = $('#grantAccessRecordsList .grant-access-record-row').length > 0;
+    const hasSelected = $('.grant-access-record-checkbox:checked').length > 0;
+    const hasRoles = $('#grantBulkObjectRoleSelect option[value!=""]').length > 0;
+    $('#grantBulkObjectRoleSelect').prop('disabled', !hasRecords);
+    $('#grantApplyBulkObjectRoleBtn').prop(
+        'disabled',
+        !(hasSelected && hasRoles && $('#grantBulkObjectRoleSelect').val())
+    );
+    $('#grantAutoSelectFirstObjectRoleBtn').prop('disabled', !hasSelected);
+}
+
+function applyGrantBulkObjectRoleToSelected() {
+    const roleId = $('#grantBulkObjectRoleSelect').val();
+    if (!roleId) {
+        showError('{% trans "Please choose a role to apply" %}');
+        return;
+    }
+    let applied = 0;
+    let skipped = 0;
+    $('.grant-access-record-checkbox:checked').each(function() {
+        const $row = $(this).closest('.grant-access-record-row');
+        const $roleSelect = $row.find('.grant-record-role-select');
+        if ($roleSelect.length && $roleSelect[0].tagName === 'SELECT') {
+            if ($roleSelect.find(`option[value="${roleId}"]`).length) {
+                $roleSelect.prop('disabled', false).val(roleId).trigger('change');
+                applied++;
+            } else {
+                skipped++;
+            }
+        }
+    });
+    if (applied === 0) {
+        showError('{% trans "Selected role is not available for any of the selected access records" %}');
+    } else if (skipped > 0) {
+        showSuccess(
+            '{% trans "Role applied to" %} ' + applied +
+            ' {% trans "record(s);" %} ' + skipped + ' {% trans "skipped (role not available)" %}'
+        );
+    } else {
+        showSuccess('{% trans "Role applied to" %} ' + applied + ' {% trans "access record(s)" %}');
+    }
+}
+
+function autoSelectFirstGrantObjectRoleForSelected() {
+    let applied = 0;
+    $('.grant-access-record-checkbox:checked').each(function() {
+        const $row = $(this).closest('.grant-access-record-row');
+        const $roleSelect = $row.find('.grant-record-role-select');
+        if ($roleSelect.length && $roleSelect[0].tagName === 'SELECT') {
+            const firstVal = $roleSelect.find('option[value!=""]').first().val();
+            if (firstVal) {
+                $roleSelect.prop('disabled', false).val(firstVal).trigger('change');
+                applied++;
+            }
+        }
+    });
+    if (applied === 0) {
+        showError('{% trans "No roles available for selected access records" %}');
+    } else {
+        showSuccess('{% trans "First role selected for" %} ' + applied + ' {% trans "access record(s)" %}');
+    }
+}
+
+// Create access record row for table
+function createGrantAccessRecordRow(record) {
+    // Handle roles with proper colors - styled like in My Access Requests (color only to text, no background)
+    const rolesHtml = (record.roles || []).map(role => {
+        const roleColor = role.color || '#6c757d'; // Default color if not specified
+        const roleName = role.name || 'Unknown Role';
+        return `<span class="role-badge" style="color: ${roleColor}; font-size: 0.75rem; margin-right: 0.25rem; margin-bottom: 0.25rem; display: inline-block; font-weight: 600;" 
+               data-bs-toggle="tooltip" title="${role.description || roleName}">${roleName}</span>`;
+    }).join('');
+    
+    // Handle owners with proper fallback
+    const ownersHtml = (record.owners || []).map(owner => {
+        const ownerName = owner.full_name || owner.name || owner.username || 'Unknown Owner';
+        return `<div class="small">${ownerName}</div>`;
+    }).join('');
+    
+    // Handle administrators with proper fallback
+    const adminsHtml = (record.administrators || []).map(admin => {
+        const adminName = admin.full_name || admin.name || admin.username || 'Unknown Admin';
+        return `<div class="small">${adminName}</div>`;
+    }).join('');
+    
+    // Handle approvers with proper fallback
+    const approversHtml = (record.approvers || []).map(approver => {
+        const approverName = approver.full_name || approver.name || approver.username || 'Unknown Approver';
+        return `<div class="small">${approverName}</div>`;
+    }).join('');
+    
+    // Handle dates properly
+    const startDate = record.start_date ? new Date(record.start_date).toLocaleDateString() : '-';
+    const endDate = record.end_date ? new Date(record.end_date).toLocaleDateString() : '{% trans "Permanent" %}';
+    const period = `${startDate} - ${endDate}`;
+    
+    // Handle object name with fallback
+    const objectName = record.object_name || record.name || 'Unknown Object';
+    const objectColor = record.object_color || '#6c757d'; // Default color if not specified
+    
+    // Dropdown for choosing one Object Role (enabled when row is selected)
+    const roles = record.roles || [];
+    const roleOptions = roles.length ? roles.map(r => 
+        `<option value="${r.id}">${r.name || r.name_local || 'Unknown'}</option>`
+    ).join('') : '';
+    const firstRoleId = roles.length ? roles[0].id : '';
+    const roleSelectHtml = roles.length
+        ? `<select class="form-select form-select-sm grant-record-role-select" disabled data-record-id="${record.id}" data-record-roles="${roles.map(r => r.id).join(',')}">
+             <option value="">{% trans "Choose role..." %}</option>${roleOptions}
+           </select>`
+        : '<span class="text-muted small">-</span>';
+    
+    return `
+        <tr class="grant-access-record-row" data-record-id="${record.id}">
+            <td>
+                <input type="checkbox" class="form-check-input grant-access-record-checkbox" 
+                       data-record-id="${record.id}" value="${record.id}">
+            </td>
+            <td>
+                <span class="object-name" style="color: ${objectColor}; font-size: 0.9rem; font-weight: 600;">
+                    ${objectName}
+                </span>
+            </td>
+            <td>
+                <div class="roles-container">${rolesHtml || '<span class="text-muted">-</span>'}</div>
+            </td>
+            <td class="grant-role-select-cell">${roleSelectHtml}</td>
+            <td>
+                <span class="badge ${record.environment === 'production' ? 'bg-danger' : record.environment === 'test' ? 'bg-warning text-dark' : 'bg-info'}">
+                    ${record.environment || 'Unknown'}
+                </span>
+            </td>
+            <td>
+                <small>${period}</small>
+            </td>
+            <td>
+                ${ownersHtml || '<span class="text-muted">-</span>'}
+            </td>
+            <td>
+                ${adminsHtml || '<span class="text-muted">-</span>'}
+            </td>
+            <td>
+                ${approversHtml || '<span class="text-muted">-</span>'}
+            </td>
+        </tr>
+    `;
+}
+
+// Setup event handlers for access record selection
+function setupGrantAccessRecordEventHandlers() {
+    // Handle checkbox changes
+    $(document).off('change', '.grant-access-record-checkbox').on('change', '.grant-access-record-checkbox', function() {
+        const isChecked = $(this).is(':checked');
+        const row = $(this).closest('.grant-access-record-row');
+        const roleSelect = row.find('.grant-record-role-select');
+        
+        if (isChecked) {
+            row.addClass('table-active');
+            if (roleSelect.length && roleSelect[0].tagName === 'SELECT') {
+                roleSelect.prop('disabled', false);
+                if (!roleSelect.val() && roleSelect.find('option[value!=""]').length === 1) {
+                    roleSelect.val(roleSelect.find('option[value!=""]').val());
+                }
+            }
+        } else {
+            row.removeClass('table-active');
+            if (roleSelect.length && roleSelect[0].tagName === 'SELECT') {
+                roleSelect.prop('disabled', true).val('');
+            }
+        }
+        updateGrantPostSelectionFieldsVisibility();
+        updateGrantBulkObjectRoleSelectOptions();
+        updateGrantBulkObjectRoleButtonsState();
+        
+        // Check for duplicates when access record is selected
+        if (isChecked) {
+            setTimeout(() => {
+                // Get current user selection for duplicate check
+                const selectedDropdownUsers = $('#grantUser').val() || [];
+                const isThirdPartyMode = selectedDropdownUsers.includes('third_parties');
+                let usersToCheck = [];
+                
+                if (isThirdPartyMode) {
+                    usersToCheck = $('.grant-existing-user-checkbox:checked').map(function() {
+                        return $(this).data('user-id');
+                    }).get();
+                } else {
+                    usersToCheck = selectedDropdownUsers.filter(userId => userId !== 'third_parties' && userId !== '');
+                }
+                
+                checkGrantDuplicateRequests(isThirdPartyMode, usersToCheck);
+            }, 100);
+        } else {
+            // Hide duplicate warning when no records are selected
+            const selectedRecords = $('.grant-access-record-checkbox:checked');
+            if (selectedRecords.length === 0) {
+                hideGrantDuplicateWarning();
+            }
+        }
+    });
+    
+    // Handle row clicks (toggle checkbox)
+    $(document).off('click', '.grant-access-record-row').on('click', '.grant-access-record-row', function(e) {
+        if ($(e.target).is('input[type="checkbox"]') || $(e.target).hasClass('form-check-input') ||
+            $(e.target).closest('select.grant-record-role-select').length) {
+            return;
+        }
+        
+        const checkbox = $(this).find('.grant-access-record-checkbox');
+        checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+    });
+    
+    // Prevent role select from toggling row
+    $(document).off('click', '.grant-record-role-select').on('click', '.grant-record-role-select', function(e) {
+        e.stopPropagation();
+    });
+}
+
+// Update files list display
+function updateGrantFilesList() {
+    const container = $('#grantFilesList');
+    container.empty();
+    
+    if (grantSelectedFiles.length === 0) {
+        return;
+    }
+    
+    grantSelectedFiles.forEach((file, index) => {
+        const fileItem = $(`
+            <div class="d-flex justify-content-between align-items-center p-2 border rounded mb-1 file-item">
+                <div>
+                    <i class="bi bi-file-earmark me-2"></i>
+                    <span class="file-name">${file.name}</span>
+                    <small class="text-muted ms-2">(${(file.size / 1024 / 1024).toFixed(2)} MB)</small>
+                </div>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeGrantFile(${index})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `);
+        container.append(fileItem);
+    });
+}
+
+// Remove file from selection
+function removeGrantFile(index) {
+    grantSelectedFiles.splice(index, 1);
+    updateGrantFilesList();
+}
+
+// Filter access records
+function filterGrantAccessRecords() {
+    const searchTerm = $('#grantAccessRecordsSearchInput').val().toLowerCase();
+    const objectFilter = $('#grantAccessRecordsObjectFilter').val();
+    const rolesFilter = $('#grantAccessRecordsRolesFilter').val();
+    
+    $('#grantAccessRecordsList .grant-access-record-row').each(function() {
+        const row = $(this);
+        const text = row.text().toLowerCase();
+        const objectText = row.find('td:nth-child(2)').text();
+        const rolesText = row.find('td:nth-child(3)').text();
+        
+        const matchesSearch = !searchTerm || text.includes(searchTerm);
+        const matchesObject = !objectFilter || objectText.includes(objectFilter);
+        const matchesRoles = !rolesFilter || rolesText.includes(rolesFilter);
+        
+        if (matchesSearch && matchesObject && matchesRoles) {
+            row.show();
+        } else {
+            row.hide();
+        }
+    });
+}
+
+// Update access records filters
+function updateGrantAccessRecordsFilters(records) {
+    const objectFilter = $('#grantAccessRecordsObjectFilter');
+    const rolesFilter = $('#grantAccessRecordsRolesFilter');
+    
+    // Get unique objects and roles with proper fallback
+    const objects = [...new Set(records.map(r => r.object_name || r.name || 'Unknown Object').filter(Boolean))];
+    const roles = [...new Set(records.flatMap(r => (r.roles || []).map(role => role.name || 'Unknown Role').filter(Boolean)))];
+    
+    // Update object filter
+    const currentObjectValue = objectFilter.val();
+    objectFilter.empty().append('<option value="">{% trans "All Objects" %}</option>');
+    objects.forEach(obj => {
+        if (obj && obj !== 'Unknown Object') {
+            objectFilter.append(`<option value="${obj}">${obj}</option>`);
+        }
+    });
+    if (currentObjectValue) objectFilter.val(currentObjectValue);
+    
+    // Update roles filter
+    const currentRolesValue = rolesFilter.val();
+    rolesFilter.empty().append('<option value="">{% trans "All Roles" %}</option>');
+    roles.forEach(role => {
+        if (role && role !== 'Unknown Role') {
+            rolesFilter.append(`<option value="${role}">${role}</option>`);
+        }
+    });
+    if (currentRolesValue) rolesFilter.val(currentRolesValue);
+}
+
+// Apply access records filters
+function applyGrantAccessRecordsFilters() {
+    // Check if the table exists and has rows
+    const tableBody = $('#grantAccessRecordsList');
+    if (!tableBody.length || tableBody.find('tr').length === 0) {
+        return;
+    }
+    
+    const searchTerm = ($('#grantAccessRecordsSearch').val() || '').toLowerCase();
+    const objectFilter = $('#grantAccessRecordsObjectFilter').val() || '';
+    const rolesFilter = $('#grantAccessRecordsRolesFilter').val() || '';
+    
+    $('#grantAccessRecordsList tr').each(function() {
+        const $row = $(this);
+        const rowText = ($row.text() || '').toLowerCase();
+        const objectName = $row.find('td:eq(1)').text() || ''; // Information System column (corrected index)
+        const rolesText = $row.find('td:eq(2)').text() || ''; // Object Roles column (corrected index)
+        
+        let showRow = true;
+        
+        // Apply search filter
+        if (searchTerm && !rowText.includes(searchTerm)) {
+            showRow = false;
+        }
+        
+        // Apply object filter
+        if (objectFilter && !objectName.includes(objectFilter)) {
+            showRow = false;
+        }
+        
+        // Apply roles filter
+        if (rolesFilter && !rolesText.includes(rolesFilter)) {
+            showRow = false;
+        }
+        
+        $row.toggle(showRow);
+    });
+}
+
+// Submit grant access request
+function grantLoadSystemsPromise(companyId) {
+    return new Promise((resolve, reject) => {
+        $.ajax({
+            url: `${grantGetApiBase()}/get-systems-by-company/`,
+            data: { company_id: companyId },
+            success: function(data) {
+                const systemSelect = $('#grantSystem');
+                systemSelect.empty().append('<option value="">{% trans "Select System..." %}</option>');
+                if (data.systems && data.systems.length > 0) {
+                    data.systems.forEach(system => {
+                        systemSelect.append(`<option value="${system.id}">${system.name}</option>`);
+                    });
+                }
+                resolve();
+            },
+            error: function() {
+                reject(new Error('systems'));
+            }
+        });
+    });
+}
+
+function grantLoadExistingUsersPromise() {
+    return new Promise((resolve) => {
+        const companyId = $('#grantCompany').val();
+        const systemId = $('#grantSystem').val();
+        const environment = $('#grantEnvironment').val();
+        if (!companyId || !systemId || !environment) {
+            resolve();
+            return;
+        }
+        $.ajax({
+            url: `${grantGetApiBase()}/get-third-party-users/`,
+            data: { company_id: companyId, system_id: systemId, environment: environment },
+            success: function(data) {
+                grantExistingThirdPartyUsers = data.users || [];
+                displayGrantExistingUsers(grantExistingThirdPartyUsers);
+                updateGrantOrganizationFilter(grantExistingThirdPartyUsers);
+                resolve();
+            },
+            error: function() {
+                grantExistingThirdPartyUsers = [];
+                displayGrantExistingUsers([]);
+                resolve();
+            }
+        });
+    });
+}
+
+function grantLoadEmployeeUsersPromise() {
+    return new Promise((resolve, reject) => {
+        const companyId = $('#grantCompany').val();
+        const systemId = $('#grantSystem').val();
+        const environment = $('#grantEnvironment').val();
+        if (!companyId || !systemId || !environment) {
+            resolve();
+            return;
+        }
+        $.ajax({
+            url: '{% url "get_cabinet_users_and_groups" %}',
+            type: 'GET',
+            data: { company_id: companyId, system_id: systemId, environment: environment },
+            success: function(response) {
+                displayGrantEmployeeUsers(response.users || []);
+                resolve();
+            },
+            error: function() {
+                reject(new Error('employees'));
+            }
+        });
+    });
+}
+
+function grantLoadAccessRecordsPromise(options) {
+    options = options || {};
+    return new Promise((resolve, reject) => {
+        const systemId = $('#grantSystem').val();
+        const environment = $('#grantEnvironment').val();
+        const selectedUserType = $('input[name="userType"]:checked').val();
+        const isThirdPartyMode = selectedUserType === 'third_parties' || options.forceThirdParty;
+        let usersToLoadRecordsFor = [];
+        if (isThirdPartyMode) {
+            usersToLoadRecordsFor = $('.grant-existing-user-checkbox:checked').map(function() {
+                return $(this).data('user-id');
+            }).get();
+            if (!usersToLoadRecordsFor.length && options.fallbackThirdParty) {
+                usersToLoadRecordsFor = ['third_parties'];
+            }
+        } else {
+            usersToLoadRecordsFor = $('.grant-employee-user-checkbox:checked').map(function() {
+                return $(this).data('user-id');
+            }).get();
+            if (!usersToLoadRecordsFor.length && options.fallbackUserId) {
+                usersToLoadRecordsFor = [options.fallbackUserId];
+            }
+        }
+        if (!systemId || !environment || usersToLoadRecordsFor.length === 0) {
+            resolve();
+            return;
+        }
+        showGrantAccessRecords();
+        const apiBase = grantGetApiBase();
+        let url;
+        if (isThirdPartyMode) {
+            url = `${apiBase}/get-access-records-by-system/${systemId}/third_parties/`;
+        } else {
+            const cabinetUserId = usersToLoadRecordsFor[0];
+            url = `${apiBase}/get-access-records-by-system/${systemId}/${cabinetUserId}/`;
+        }
+        $.ajax({
+            url: url,
+            data: { environment: environment, language: document.documentElement.lang || 'en' },
+            success: function(data) {
+                displayGrantAccessRecords(data.access_records || []);
+                resolve();
+            },
+            error: function() {
+                reject(new Error('access_records'));
+            }
+        });
+    });
+}
+
+let grantEditPendingSelection = null;
+
+function applyGrantEditAccessRecordSelection() {
+    if (!grantEditPendingSelection) {
+        return false;
+    }
+    const { access_record_ids, access_record_roles } = grantEditPendingSelection;
+    const roleByRecord = {};
+    (access_record_roles || []).forEach(item => {
+        roleByRecord[String(item.access_record_id)] = String(item.role_id);
+    });
+    let matched = 0;
+    (access_record_ids || []).forEach(recordId => {
+        const recordKey = String(recordId);
+        const checkbox = $('.grant-access-record-checkbox').filter(function() {
+            return String($(this).val()) === recordKey || String($(this).data('record-id')) === recordKey;
+        }).first();
+        if (!checkbox.length) {
+            return;
+        }
+        matched += 1;
+        checkbox.prop('checked', true);
+        const row = checkbox.closest('.grant-access-record-row');
+        row.addClass('table-active');
+        const roleSelect = row.find('.grant-record-role-select');
+        if (roleSelect.length && roleByRecord[recordKey]) {
+            roleSelect.prop('disabled', false).val(roleByRecord[recordKey]);
+        } else if (roleSelect.length && roleSelect.find('option[value!=""]').length === 1) {
+            roleSelect.prop('disabled', false).val(roleSelect.find('option[value!=""]').val());
+        }
+    });
+    updateGrantPostSelectionFieldsVisibility({ preserveValues: true });
+    updateGrantBulkObjectRoleSelectOptions();
+    updateGrantBulkObjectRoleButtonsState();
+    grantEditPendingSelection = null;
+    return matched > 0;
+}
+
+function setGrantEditDateFields(startDateIso, endDateIso) {
+    if (startDateIso) {
+        const startDt = new Date(startDateIso);
+        if (!Number.isNaN(startDt.getTime())) {
+            const formattedStart = formatDisplayDateTime(startDt);
+            $('#grantStartDate').val(formattedStart);
+            if (grantStartDatePicker) {
+                grantStartDatePicker.setDate(startDt, false);
+            }
+        }
+    }
+    if (endDateIso) {
+        const endDt = new Date(endDateIso);
+        if (!Number.isNaN(endDt.getTime())) {
+            const formattedEnd = formatDisplayDateTime(endDt);
+            $('#grantEndDate').val(formattedEnd);
+            if (grantEndDatePicker) {
+                grantEndDatePicker.setDate(endDt, false);
+            }
+        }
+    } else {
+        $('#grantEndDate').val('');
+        if (grantEndDatePicker) {
+            grantEndDatePicker.clear();
+        }
+    }
+}
+
+function resetGrantEditMode() {
+    grantEditRequestId = null;
+    grantEditPopulateInProgress = false;
+    grantEditKeepAttachmentIds = [];
+    grantEditPendingSelection = null;
+    $('#grantCompany, #grantSystem, #grantEnvironment, input[name="userType"]').prop('disabled', false);
+    $('#grantAccessModalLabel').html(grantModalDefaultTitle);
+    $('#submitGrantAccess').html(grantModalDefaultSubmitHtml);
+    $('#grantExistingAttachmentsSection').hide();
+    $('#grantExistingAttachmentsList').empty();
+}
+
+function renderGrantExistingAttachments(attachments) {
+    const $section = $('#grantExistingAttachmentsSection');
+    const $list = $('#grantExistingAttachmentsList');
+    $list.empty();
+    if (!attachments.length) {
+        $section.hide();
+        return;
+    }
+    attachments.forEach(attachment => {
+        const kept = grantEditKeepAttachmentIds.includes(attachment.id);
+        const item = $(`
+            <div class="d-flex justify-content-between align-items-center p-2 border rounded mb-1 ${kept ? '' : 'opacity-50'}" data-attachment-id="${attachment.id}">
+                <div>
+                    <i class="${attachment.icon_class || 'bi bi-file-earmark'} me-2"></i>
+                    <a href="${attachment.url}" target="_blank" class="text-decoration-none">${attachment.original_filename}</a>
+                    <small class="text-muted ms-2">(${attachment.file_size_display || ''})</small>
+                </div>
+                <button type="button" class="btn btn-outline-danger btn-sm grant-remove-existing-attachment" data-attachment-id="${attachment.id}" title="{% trans 'Remove attachment' %}">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `);
+        if (!kept) {
+            item.find('.grant-remove-existing-attachment').prop('disabled', true);
+        }
+        $list.append(item);
+    });
+    $section.show();
+}
+
+$(document).on('click', '.grant-remove-existing-attachment', function() {
+    const attachmentId = parseInt($(this).data('attachment-id'), 10);
+    grantEditKeepAttachmentIds = grantEditKeepAttachmentIds.filter(id => id !== attachmentId);
+    const row = $(this).closest('[data-attachment-id]');
+    row.addClass('opacity-50');
+    $(this).prop('disabled', true);
+});
+
+async function openGrantAccessEditModal(requestId) {
+    const apiBase = grantGetApiBase();
+    grantEditPopulateInProgress = true;
+    try {
+        const response = await fetch(`${apiBase}/get-access-request-edit-data/${requestId}/`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success || !data.can_be_edited) {
+            showError(data.message || '{% trans "This request cannot be edited" %}');
+            grantEditPopulateInProgress = false;
+            return;
+        }
+
+        const req = data.request;
+        grantEditKeepAttachmentIds = (req.attachments || []).map(a => a.id);
+
+        $('#grantAccessModalLabel').html('<i class="bi bi-pencil text-primary me-2"></i>{% trans "Edit Access Request" %}');
+        $('#submitGrantAccess').html('<i class="bi bi-check-circle me-1"></i>{% trans "Save Changes" %}');
+
+        $('#grantAccessForm').removeClass('was-validated');
+        grantSelectedFiles = [];
+        updateGrantFilesList();
+        $('#grantExistingAttachmentsSection').hide();
+        $('#grantExistingAttachmentsList').empty();
+
+        if (!$('#grantCompany option[value="' + req.company_id + '"]').length && req.company_name) {
+            $('#grantCompany').append(
+                $('<option></option>').val(String(req.company_id)).text(req.company_name)
+            );
+        }
+        $('#grantCompany').prop('disabled', false).val(String(req.company_id)).prop('disabled', true);
+        loadGrantJustificationTemplates(req.company_id);
+        await grantLoadSystemsPromise(req.company_id);
+        if (!$('#grantSystem option[value="' + req.system_id + '"]').length && req.system_name) {
+            $('#grantSystem').append(
+                $('<option></option>').val(String(req.system_id)).text(req.system_name)
+            );
+        }
+        $('#grantSystem').prop('disabled', false).val(String(req.system_id)).prop('disabled', true);
+        $('#grantEnvironment').prop('disabled', false).val(req.environment);
+        $('#grantUserEnvironmentWarning').hide();
+
+        $('input[name="userType"]').prop('disabled', true);
+        if (req.is_third_party) {
+            $('input[name="userType"][value="third_parties"]').prop('checked', true);
+            $('#grantThirdPartyFields').show();
+            $('#grantAvailableUsersSection').show();
+            $('#grantEmployeeFields').hide();
+            await grantLoadExistingUsersPromise();
+            (req.third_party_user_ids || []).forEach(userId => {
+                $('.grant-existing-user-checkbox').filter(function() {
+                    return String($(this).data('user-id')) === String(userId);
+                }).prop('checked', true);
+            });
+        } else {
+            $('input[name="userType"][value="employees"]').prop('checked', true);
+            $('#grantEmployeeFields').show();
+            $('#grantThirdPartyFields').hide();
+            await grantLoadEmployeeUsersPromise();
+            if (req.requested_for_id) {
+                $('.grant-employee-user-checkbox').filter(function() {
+                    return String($(this).data('user-id')) === String(req.requested_for_id);
+                }).prop('checked', true);
+            }
+        }
+
+        $('#grantJustification').val(req.justification || '');
+        $('#grantRequirements').val(req.requirements || '');
+        $('#grantNotes').val(req.notes || '');
+        setGrantEditDateFields(req.start_date, req.end_date);
+        $('#grantPostSelectionFields').show();
+
+        grantEditPendingSelection = {
+            access_record_ids: req.access_record_ids || [],
+            access_record_roles: req.access_record_roles || []
+        };
+        await grantLoadAccessRecordsPromise({
+            fallbackUserId: req.is_third_party ? null : req.requested_for_id,
+            forceThirdParty: req.is_third_party,
+            fallbackThirdParty: req.is_third_party
+        });
+        if (!applyGrantEditAccessRecordSelection()) {
+            $('#grantPostSelectionFields').show();
+        }
+
+        renderGrantExistingAttachments(req.attachments || []);
+
+        grantEditRequestId = requestId;
+        grantEditPopulateInProgress = false;
+        $('#grantAccessModal').modal('show');
+    } catch (error) {
+        console.error('Error loading request for edit:', error);
+        showError('{% trans "Error loading request data" %}');
+        resetGrantEditMode();
+    }
+}
+
+function submitGrantAccessRequest() {
+    console.log('submitGrantAccessRequest called');
+    
+    // Collect form data
+    // Create FormData manually to avoid automatic field inclusion
+    const formData = new FormData();
+    
+    // Collect selected access records
+    const selectedRecords = [];
+    $('.grant-access-record-checkbox:checked').each(function() {
+        selectedRecords.push($(this).val());
+    });
+    
+    if (selectedRecords.length === 0) {
+        showError('{% trans "Please select at least one access record" %}');
+        return;
+    }
+    
+    // Add required fields that backend expects
+    formData.append('request_type', 'grant');
+    formData.append('company_id', $('#grantCompany').val());
+    formData.append('system_id', $('#grantSystem').val());
+    formData.append('environment', $('#grantEnvironment').val());
+    formData.append('start_date', localDateTimeToIso($('#grantStartDate').val()));
+    formData.append('end_date', localDateTimeToIso($('#grantEndDate').val()));
+    formData.append('justification', $('#grantJustification').val());
+    formData.append('requirements', $('#grantRequirements').val());
+    formData.append('notes', $('#grantNotes').val());
+    
+    console.log('Added basic fields:', {
+        request_type: 'grant',
+        company_id: $('#grantCompany').val(),
+        system_id: $('#grantSystem').val(),
+        environment: $('#grantEnvironment').val()
+    });
+    
+    // Add user information - get selected users from radio buttons and checkboxes
+    const selectedUserType = $('input[name="userType"]:checked').val();
+    const isEditMode = Boolean(grantEditRequestId);
+
+    if (!isEditMode) {
+    // Get selected users from third party checkboxes
+    const selectedThirdPartyCheckboxes = $('.grant-existing-user-checkbox:checked');
+    const selectedThirdPartyUserIds = selectedThirdPartyCheckboxes.map(function() {
+        return $(this).data('user-id');
+    }).get();
+    
+    // Get selected users from employee checkboxes
+    const selectedEmployeeCheckboxes = $('.grant-employee-user-checkbox:checked');
+    const selectedEmployeeUserIds = selectedEmployeeCheckboxes.map(function() {
+        return $(this).data('user-id');
+    }).get();
+    
+    // Determine if this is a third-party request based on radio button selection
+    const isThirdPartyMode = selectedUserType === 'third_parties';
+    
+    console.log('User selection:', {
+        selectedUserType: selectedUserType,
+        selectedThirdPartyUserIds: selectedThirdPartyUserIds,
+        selectedEmployeeUserIds: selectedEmployeeUserIds,
+        isThirdPartyMode: isThirdPartyMode
+    });
+    
+    // Handle third party users
+    if (isThirdPartyMode) {
+        formData.append('user_id', 'third_parties');
+        console.log('Added user_id: third_parties');
+        
+        // Collect all third party users (existing + new)
+        const allThirdPartyUsers = [];
+        
+        // Process selected checkbox users (these are all third-party users in third-party mode)
+        selectedThirdPartyUserIds.forEach(userId => {
+            // Check if this is a newly added third-party user
+            if (userId.toString().startsWith('tp_grantThirdParty_')) {
+                // This is a new user from our array
+                const user = grantThirdPartyUsers.find(u => `tp_${u.id}` === userId);
+                if (user) {
+                    allThirdPartyUsers.push({
+                        first_name: user.firstName,
+                        last_name: user.lastName,
+                        email: user.email,
+                        phone: user.phone,
+                        organization: user.organization,
+                        description: user.description,
+                        isNew: true
+                    });
+                }
+            } else {
+                // This is an existing third party user - get data from grantExistingThirdPartyUsers
+                const existingUser = grantExistingThirdPartyUsers.find(u => u.id.toString() === userId.toString());
+                if (existingUser) {
+                    allThirdPartyUsers.push({
+                        id: existingUser.id,
+                        first_name: existingUser.first_name,
+                        last_name: existingUser.last_name,
+                        email: existingUser.email,
+                        phone: existingUser.phone || '',
+                        organization: existingUser.organization_name || '',
+                        isNew: false
+                    });
+                } else {
+                    // Fallback to checkbox data if not found in grantExistingThirdPartyUsers
+                    const checkbox = $(`.grant-existing-user-checkbox[data-user-id="${userId}"]`);
+                    if (checkbox.length > 0) {
+                        allThirdPartyUsers.push({
+                            id: userId,
+                            first_name: checkbox.data('user-name').split(' ')[0] || '',
+                            last_name: checkbox.data('user-name').split(' ').slice(1).join(' ') || '',
+                            email: checkbox.data('user-email') || '',
+                            phone: checkbox.data('user-phone') || '',
+                            organization: checkbox.data('user-organization') || '',
+                            isNew: false
+                        });
+                    }
+                }
+            }
+        });
+        
+        if (allThirdPartyUsers.length > 0) {
+            formData.append('third_party_users_json', JSON.stringify(allThirdPartyUsers));
+            console.log('Added third_party_users_json:', allThirdPartyUsers);
+            console.log('JSON string being sent:', JSON.stringify(allThirdPartyUsers));
+        } else {
+            showError('{% trans "Please select at least one third party user" %}');
+            return;
+        }
+    } else {
+        // Handle employee users - use employee checkbox selection
+        if (selectedEmployeeUserIds.length > 0) {
+            formData.append('access_users', JSON.stringify(selectedEmployeeUserIds));
+            console.log('Added access_users:', selectedEmployeeUserIds);
+        } else {
+            showError('{% trans "Please select at least one employee user" %}');
+            return;
+        }
+    }
+    }
+
+    if (isEditMode) {
+        const originalAttachmentIds = $('#grantExistingAttachmentsList [data-attachment-id]').map(function() {
+            return parseInt($(this).data('attachment-id'), 10);
+        }).get();
+        const deletedAttachmentIds = originalAttachmentIds.filter(id => !grantEditKeepAttachmentIds.includes(id));
+        formData.append('deleted_attachment_ids', JSON.stringify(deletedAttachmentIds));
+    }
+    
+    // Add access record IDs and selected Object Role per record
+    const accessRecordRoles = [];
+    let roleValidationFailed = false;
+    $('.grant-access-record-checkbox:checked').each(function() {
+        const recordId = $(this).val();
+        formData.append('access_record_ids', recordId);
+        const row = $(this).closest('.grant-access-record-row');
+        const roleSelect = row.find('.grant-record-role-select');
+        if (roleSelect.length && roleSelect[0].tagName === 'SELECT' && roleSelect.find('option[value!=""]').length > 0) {
+            const roleId = roleSelect.val();
+            if (!roleId) {
+                roleValidationFailed = true;
+                return false;
+            }
+            accessRecordRoles.push({ access_record_id: parseInt(recordId, 10), role_id: parseInt(roleId, 10) });
+        }
+    });
+    if (roleValidationFailed) {
+        showError('{% trans "Please select one Object Role for each selected access record" %}');
+        return;
+    }
+    if (accessRecordRoles.length) {
+        formData.append('access_record_roles', JSON.stringify(accessRecordRoles));
+    }
+    
+    // Add additional form fields
+    // Note: requirements and notes are already in FormData from form fields with name attributes
+    
+    // Add files from our custom array
+    grantSelectedFiles.forEach((file) => {
+        formData.append('attachments', file);
+    });
+    
+
+    
+    // Add start and end dates from form fields
+    const startDate = $('#grantStartDate').val();
+    const endDate = $('#grantEndDate').val();
+    
+    if (!startDate) {
+        showError('{% trans "Please select start date" %}');
+        return;
+    }
+    
+    // Note: start_date and end_date are already in FormData from form fields with name attributes
+    
+    // Add justification from form field
+    const justification = $('#grantJustification').val();
+    if (!justification) {
+        showError('{% trans "Please provide justification for the access request" %}');
+        return;
+    }
+    // Note: justification is already in FormData from form field with name attribute
+    
+    // Submit request using fetch (same approach as main form)
+    const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+    const submitUrl = isEditMode
+        ? `/${languagePrefix}/app_access/edit-access-request/${grantEditRequestId}/`
+        : `/${languagePrefix}/app_access/submit-access-request/`;
+    
+    console.log('Submitting to URL:', submitUrl);
+    console.log('FormData contents:');
+    for (let [key, value] of formData.entries()) {
+        console.log(key + ':', value);
+    }
+    console.log('Debug - selectedRecords:', selectedRecords);
+    
+    fetch(submitUrl, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: formData
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            showSuccess(isEditMode
+                ? '{% trans "Access request updated successfully" %}'
+                : '{% trans "Access request submitted successfully" %}');
+            $('#grantAccessModal').modal('hide');
+            // Refresh the main page
+            location.reload();
+        } else {
+            console.error('Submit failed:', data.message);
+            
+            // Handle duplicate request error with detailed display
+            if (data && data.message_type === 'duplicate_request') {
+                console.log('Showing duplicate request error with structured data');
+                
+                let htmlContent = `
+                    <div style="text-align: left;">
+                        <p style="margin-bottom: 20px; color: #dc3545; font-weight: 600;">
+                            {% trans "Access request cannot be created. The following users already have approved and granted access for this system and environment:" %}
+                        </p>
+                `;
+                
+                // Handle multiple duplicates from different users
+                if (data.users_with_duplicates && data.users_with_duplicates.length > 0) {
+                    htmlContent += `
+                        <div style="margin-bottom: 15px;">
+                            <strong style="color: #dc3545;">{% trans "Found duplicates for" %} ${data.users_with_duplicates.length} {% trans "users" %}:</strong>
+                        </div>
+                    `;
+                    
+                    data.users_with_duplicates.forEach((userDuplicate, userIndex) => {
+                        htmlContent += `
+                            <div style="margin-bottom: 20px; border: 2px solid #dc3545; border-radius: 8px; padding: 10px;">
+                                <h6 style="color: #dc3545; margin-bottom: 15px; font-weight: bold;">
+                                    👤 ${userDuplicate.user}
+                                </h6>
+                        `;
+                        
+                        if (userDuplicate.duplicate_details && userDuplicate.duplicate_details.all_duplicates) {
+                            const duplicates = userDuplicate.duplicate_details.all_duplicates;
+                            duplicates.forEach((duplicate, index) => {
+                                htmlContent += `
+                                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 10px 0; font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 14px; line-height: 1.6;">
+                                        <div style="background: #e9ecef; margin: -15px -15px 15px -15px; padding: 10px 15px; border-radius: 8px 8px 0 0; font-weight: bold; color: #495057; border-bottom: 1px solid #dee2e6;">
+                                            📋 DUPLICATE #${index + 1} - REQUEST #${duplicate.request_id}
+                                        </div>
+                                        <div style="display: flex; margin-bottom: 8px;">
+                                            <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Object:</span>
+                                            <span style="color: #212529;">${duplicate.object_name}</span>
+                                        </div>
+                                        <div style="display: flex; margin-bottom: 8px;">
+                                            <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Roles:</span>
+                                            <span style="color: #212529;">${duplicate.roles}</span>
+                                        </div>
+                                        <div style="display: flex; margin-bottom: 8px;">
+                                            <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Requested by:</span>
+                                            <span style="color: #212529;">${duplicate.requested_by}</span>
+                                        </div>
+                                        <div style="display: flex; margin-bottom: 8px;">
+                                            <span style="min-width: 140px; font-weight: 600; color: #6c757d;">${duplicate.third_party ? 'Third Party:' : 'Requested for:'}</span>
+                                            <span style="color: #212529;">${duplicate.third_party || duplicate.requested_for}</span>
+                                        </div>
+                                        <div style="display: flex; margin-bottom: 8px;">
+                                            <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Access Period:</span>
+                                            <span style="color: #212529;">${duplicate.period}</span>
+                                        </div>
+                                        <div style="display: flex; margin-bottom: 8px;">
+                                            <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Request Status:</span>
+                                            <span style="color: #28a745; font-weight: 600;">${duplicate.status}</span>
+                                        </div>
+                                        <div style="display: flex; margin-bottom: 8px;">
+                                            <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Admin Status:</span>
+                                            <span style="color: #28a745; font-weight: 600;">${duplicate.admin_status}</span>
+                                        </div>
+                                        <div style="display: flex; margin-bottom: 8px;">
+                                            <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Created Date:</span>
+                                            <span style="color: #212529;">${duplicate.created_date}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                        }
+                        
+                        htmlContent += `</div>`;
+                    });
+                }
+                
+                if (data.duplicate_details && data.duplicate_details.all_duplicates) {
+                    // Show all duplicates
+                    const duplicates = data.duplicate_details.all_duplicates;
+                    htmlContent += `
+                        <div style="margin-bottom: 15px;">
+                            <strong style="color: #dc3545;">{% trans "Found" %} ${duplicates.length} {% trans "duplicate access records" %}:</strong>
+                        </div>
+                    `;
+                    
+                    duplicates.forEach((duplicate, index) => {
+                        htmlContent += `
+                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 10px 0; font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 14px; line-height: 1.6;">
+                                <div style="background: #e9ecef; margin: -15px -15px 15px -15px; padding: 10px 15px; border-radius: 8px 8px 0 0; font-weight: bold; color: #495057; border-bottom: 1px solid #dee2e6;">
+                                    📋 DUPLICATE #${index + 1} - REQUEST #${duplicate.request_id}
+                                </div>
+                                <div style="display: flex; margin-bottom: 8px;">
+                                    <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Object:</span>
+                                    <span style="color: #212529;">${duplicate.object_name}</span>
+                                </div>
+                                <div style="display: flex; margin-bottom: 8px;">
+                                    <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Roles:</span>
+                                    <span style="color: #212529;">${duplicate.roles}</span>
+                                </div>
+                                <div style="display: flex; margin-bottom: 8px;">
+                                    <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Requested by:</span>
+                                    <span style="color: #212529;">${duplicate.requested_by}</span>
+                                </div>
+                                <div style="display: flex; margin-bottom: 8px;">
+                                    <span style="min-width: 140px; font-weight: 600; color: #6c757d;">${duplicate.third_party ? 'Third Party:' : 'Requested for:'}</span>
+                                    <span style="color: #212529;">${duplicate.third_party || duplicate.requested_for}</span>
+                                </div>
+                                <div style="display: flex; margin-bottom: 8px;">
+                                    <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Access Period:</span>
+                                    <span style="color: #212529;">${duplicate.period}</span>
+                                </div>
+                                <div style="display: flex; margin-bottom: 8px;">
+                                    <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Request Status:</span>
+                                    <span style="color: #28a745; font-weight: 600;">${duplicate.status}</span>
+                                </div>
+                                <div style="display: flex; margin-bottom: 8px;">
+                                    <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Admin Status:</span>
+                                    <span style="color: #28a745; font-weight: 600;">${duplicate.admin_status}</span>
+                                </div>
+                                <div style="display: flex; margin-bottom: 8px;">
+                                    <span style="min-width: 140px; font-weight: 600; color: #6c757d;">Created Date:</span>
+                                    <span style="color: #212529;">${duplicate.created_date}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                htmlContent += `</div>`;
+                
+                // Show the detailed error using SweetAlert2
+                Swal.fire({
+                    title: '{% trans "Duplicate Access Request" %}',
+                    html: htmlContent,
+                    icon: 'warning',
+                    confirmButtonText: '{% trans "OK" %}',
+                    width: '800px',
+                    customClass: {
+                        container: 'swal2-duplicate-container',
+                        popup: 'swal2-duplicate-popup'
+                    }
+                });
+            } else {
+                // Regular error handling
+                showError(data.message || '{% trans "Error submitting request" %}');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Submit error:', error);
+        showError('{% trans "Error submitting access request" %}: ' + error.message);
+    });
+}
+
+
+
+// Fix aria-hidden accessibility issue for Grant Access Modal
+let grantModalObserver = null;
+
+$('#grantAccessModal').on('show.bs.modal', function() {
+    const modal = this;
+    
+    // Remove aria-hidden immediately
+    $(modal).removeAttr('aria-hidden');
+    
+    // Create observer to prevent Bootstrap from adding aria-hidden back
+    if (grantModalObserver) {
+        grantModalObserver.disconnect();
+    }
+    
+    grantModalObserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'aria-hidden') {
+                if ($(modal).hasClass('show') && $(modal).attr('aria-hidden') === 'true') {
+                    $(modal).removeAttr('aria-hidden');
+                }
+            }
+        });
+    });
+    
+    grantModalObserver.observe(modal, {
+        attributes: true,
+        attributeFilter: ['aria-hidden']
+    });
+});
+
+$('#grantAccessModal').on('shown.bs.modal', function() {
+    const modal = this;
+    
+    // Ensure aria-hidden is removed
+    $(modal).removeAttr('aria-hidden');
+    
+    // Do not reset form when opening in edit mode (values are pre-filled before show)
+    if (!grantEditRequestId && !grantEditPopulateInProgress) {
+        initializeGrantModal();
+    }
+    
+    // Set focus to the first focusable element after a short delay
+    setTimeout(() => {
+        const firstFocusable = $(modal).find('input, select, textarea, button').filter(':visible:enabled').first();
+        if (firstFocusable.length) {
+            firstFocusable.focus();
+        }
+    }, 200);
+});
+
+$('#grantAccessModal').on('hidden.bs.modal', function() {
+    // Disconnect observer
+    if (grantModalObserver) {
+        grantModalObserver.disconnect();
+        grantModalObserver = null;
+    }
+    
+    // Reset aria-hidden when modal is closed
+    $(this).attr('aria-hidden', 'true');
+});
+
+// Set initial aria-hidden on page load
+$(document).ready(function() {
+    $('#grantAccessModal').attr('aria-hidden', 'true');
+});
+
+// Initialize grant modal
+function initializeGrantModal() {
+    if (grantEditRequestId || grantEditPopulateInProgress) {
+        return;
+    }
+    // Reset form
+    $('#grantAccessForm')[0].reset();
+    
+    // Reset variables
+    grantSelectedFiles = [];
+    
+    // Clear additional fields
+    $('#grantRequirements, #grantNotes').val('');
+    updateGrantFilesList();
+    
+    // Set minimum dates
+    setGrantMinDates();
+    
+    // Reset all fields properly and enable company field
+    $('#grantCompany').prop('disabled', false);
+    resetGrantSystemFields();
+    
+    // Hide sections
+    $('#grantThirdPartyFields, #grantAccessRecordsContainer').hide();
+    $('#grantPostSelectionFields').hide();
+    
+    // Reset third party users
+    grantThirdPartyUsers = [];
+    grantThirdPartyIdCounter = 0;
+    grantExistingThirdPartyUsers = [];
+    updateGrantThirdPartyCounter();
+}
+
+// Global variables for third party users in grant modal
+let grantThirdPartyUsers = [];
+let grantThirdPartyIdCounter = 0;
+let grantExistingThirdPartyUsers = []; // Store existing third-party users data
+
+// Function to show modal for adding new third party users
+window.grantShowAddNewUsersModal = function() {
+    grantShowNewUsersForm(1); // Start with one form
+}
+
+// Function to show form for adding new users
+function grantShowNewUsersForm(initialCount = 1) {
+    let currentUserCount = 1; // Always only one user
+    
+    function generateFormHtml(usersCount) {
+        let formHtml = '<div class="text-start">';
+        
+        // Header with information
+        formHtml += `
+            <div class="mb-3">
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    {% trans "Fill in the form below to add a new third party user." %}
+                </div>
+            </div>
+        `;
+        
+        formHtml += '<div id="grantUsersFormsContainer">';
+        
+        for (let i = 1; i <= usersCount; i++) {
+            formHtml += generateGrantSingleUserForm(i);
+        }
+        
+        formHtml += '</div></div>';
+        return formHtml;
+    }
+    
+    function generateGrantSingleUserForm(userIndex) {
+        return `
+            <div class="card mb-3 user-form-card" data-user-index="${userIndex}">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-person-plus me-2"></i>
+                        {% trans "Third Party User Information" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-1">
+                            <label class="form-label small">{% trans "First Name" %} *</label>
+                            <input type="text" class="form-control form-control-sm" id="grantNewUser${userIndex}_firstName" required>
+                        </div>
+                        <div class="col-md-6 mb-1">
+                            <label class="form-label small">{% trans "Last Name" %} *</label>
+                            <input type="text" class="form-control form-control-sm" id="grantNewUser${userIndex}_lastName" required>
+                        </div>
+                        <div class="col-md-6 mb-1">
+                            <label class="form-label small">{% trans "Email" %} *</label>
+                            <input type="email" class="form-control form-control-sm" id="grantNewUser${userIndex}_email" required>
+                        </div>
+                        <div class="col-md-6 mb-1">
+                            <label class="form-label small">{% trans "Phone" %}</label>
+                            <input type="text" class="form-control form-control-sm" id="grantNewUser${userIndex}_phone">
+                        </div>
+                        <div class="col-md-8 mb-1">
+                            <label class="form-label small">{% trans "Organization" %}</label>
+                            <div class="input-group">
+                                <select class="form-control form-control-sm" id="grantNewUser${userIndex}_organization">
+                                    <option value="">{% trans "Select or enter organization" %}</option>
+                                    ${grantAvailableOrganizations.map(org => 
+                                        `<option value="${org.name}">${org.name}</option>`
+                                    ).join('')}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="grantCreateOrganizationModal('grantNewUser${userIndex}_organization')">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-12 mb-1">
+                            <label class="form-label small">{% trans "Description" %}</label>
+                            <textarea class="form-control form-control-sm" id="grantNewUser${userIndex}_description" rows="1"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    Swal.fire({
+        title: '{% trans "Add New Third Party User" %}',
+        html: generateFormHtml(currentUserCount),
+        showCancelButton: true,
+        confirmButtonText: '{% trans "Add User" %}',
+        cancelButtonText: '{% trans "Cancel" %}',
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        width: '900px',
+        customClass: {
+            container: 'grant-user-modal-container'
+        },
+        didOpen: () => {
+            // Simply focus the first field without altering Bootstrap modal state
+                const firstInput = document.getElementById('grantNewUser1_firstName');
+            if (firstInput) firstInput.focus();
+        },
+        preConfirm: () => {
+            const firstName = document.getElementById('grantNewUser1_firstName').value.trim();
+            const lastName = document.getElementById('grantNewUser1_lastName').value.trim();
+            const email = document.getElementById('grantNewUser1_email').value.trim();
+            const phone = document.getElementById('grantNewUser1_phone').value.trim();
+            const organization = document.getElementById('grantNewUser1_organization').value.trim();
+            const description = document.getElementById('grantNewUser1_description').value.trim();
+            
+            if (!firstName) {
+                Swal.showValidationMessage('{% trans "Please enter first name" %}');
+                return false;
+            }
+            
+            if (!lastName) {
+                Swal.showValidationMessage('{% trans "Please enter last name" %}');
+                return false;
+            }
+            
+            if (!email) {
+                Swal.showValidationMessage('{% trans "Please enter email address" %}');
+                return false;
+            }
+            
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailPattern.test(email)) {
+                Swal.showValidationMessage('{% trans "Please enter a valid email address" %}');
+                return false;
+            }
+            
+            // Check if email is not duplicated
+            const existingUser = grantThirdPartyUsers.find(user => user.email === email);
+            if (existingUser) {
+                Swal.showValidationMessage(`{% trans "Email" %} ${email} {% trans "is already used" %}`);
+                return false;
+            }
+            
+            return [{
+                firstName,
+                lastName,
+                email,
+                phone,
+                organization,
+                description
+            }];
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            grantAddNewUsers(result.value);
+        }
+        
+        // Clean up stored values
+        delete window.grantModalOriginalDisplay;
+        delete window.grantBackdropOriginalDisplay;
+    });
+}
+
+// Function to add new users
+function grantAddNewUsers(newUsers) {
+    const languagePrefix = window.location.pathname.split('/')[1] || 'en';
+    const createUrl = `/${languagePrefix}/app_access/create-third-party-user/`;
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    let savedCount = 0;
+
+    const savePromises = newUsers.map(user => {
+        return fetch(createUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                first_name: user.firstName,
+                last_name: user.lastName,
+                email: user.email,
+                phone: user.phone,
+                organization: user.organization,
+                description: user.description
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                showError(data.message || '{% trans "Failed to save third party user" %}');
+                return;
+            }
+
+            savedCount++;
+            const savedUser = data.user;
+
+            if (!grantExistingThirdPartyUsers.some(u => u.id === savedUser.id)) {
+                grantExistingThirdPartyUsers.push(savedUser);
+            }
+
+            console.log('DEBUG: Saved third party user to database:', savedUser);
+        })
+        .catch(error => {
+            console.error('Error saving third party user:', error);
+            showError('{% trans "Failed to save third party user" %}');
+        });
+    });
+
+    Promise.all(savePromises).then(() => {
+        if (savedCount > 0) {
+            displayGrantExistingUsers(grantExistingThirdPartyUsers);
+            updateGrantOrganizationFilter(grantExistingThirdPartyUsers);
+            updateGrantThirdPartyCounter();
+            showSuccess(`{% trans "Added" %} ${savedCount} {% trans "new users" %}`);
+        }
+    });
+}
+
+// Function to attach event handlers to user rows
+function attachGrantUserEventHandlers($row) {
+    // Attach checkbox change handler
+    $row.find('.grant-existing-user-checkbox').off('change').on('change', function() {
+        const userId = $(this).data('user-id');
+        const isChecked = $(this).is(':checked');
+        
+        if (isChecked) {
+            // Add user to selection
+            addGrantExistingUserToSelection(userId);
+        } else {
+            // Remove user from selection - just uncheck
+            $(this).prop('checked', false);
+        }
+    });
+    
+    // Attach row click handler
+    $row.off('click').on('click', function(e) {
+        if (e.target.type !== 'checkbox') {
+            const checkbox = $(this).find('.grant-existing-user-checkbox');
+            checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+        }
+    });
+}
+
+// Function to create HTML for Available Users table row
+function createGrantAvailableUserRow(record) {
+    return `
+        <tr class="grant-existing-user-row" 
+            data-user-id="tp_${record.id}" 
+            data-user-type="third_party" 
+            data-user-name="${record.firstName} ${record.lastName}"
+            style="cursor: pointer; transition: all 0.2s;">
+            <td>
+                <input type="checkbox" class="form-check-input grant-existing-user-checkbox" 
+                       data-user-id="tp_${record.id}" 
+                       data-user-type="third_party"
+                       data-user-name="${record.firstName} ${record.lastName}"
+                       data-user-email="${record.email}"
+                       data-user-phone="${record.phone || ''}"
+                       data-user-organization="${record.organization || ''}"
+                       data-is-new="true">
+            </td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-person-plus text-success me-2" title="{% trans 'New user' %}"></i>
+                    <div>
+                        <div class="fw-bold">${record.firstName} ${record.lastName}</div>
+                        ${record.description ? `<small class="text-muted">${record.description}</small>` : ''}
+                    </div>
+                </div>
+            </td>
+            <td>${record.email}</td>
+            <td>
+                ${record.organization ? `
+                    <span class="badge bg-light text-dark">
+                        <i class="bi bi-building me-1"></i>
+                        ${record.organization}
+                    </span>
+                ` : '<span class="text-muted">-</span>'}
+            </td>
+            <td>${record.phone || '<span class="text-muted">-</span>'}</td>
+        </tr>
+    `;
+}
+
+// Function to create HTML for third party record
+function createGrantThirdPartyRecordHtml(record, index) {
+    return `
+        <div class="third-party-record card mb-2" data-record-id="${record.id}">
+            <div class="card-body p-2">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <small class="text-muted">{% trans "Name" %}</small>
+                        <div class="fw-bold">${record.firstName} ${record.lastName}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">{% trans "Email" %}</small>
+                        <div>${record.email}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <small class="text-muted">{% trans "Phone" %}</small>
+                        <div>${record.phone || '-'}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <small class="text-muted">{% trans "Organization" %}</small>
+                        <div>${record.organization || '-'}</div>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-outline-danger btn-sm remove-third-party-btn" 
+                                onclick="grantRemoveThirdPartyRecord('${record.id}')" 
+                                title="{% trans 'Remove user' %}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                ${record.description ? `
+                    <div class="row mt-1">
+                        <div class="col-12">
+                            <small class="text-muted">{% trans "Description" %}</small>
+                            <div class="small">${record.description}</div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Function to remove third party record
+function grantRemoveThirdPartyRecord(recordId) {
+    const index = grantThirdPartyUsers.findIndex(user => user.id === recordId);
+    if (index > -1) {
+        grantThirdPartyUsers.splice(index, 1);
+        $(`[data-record-id="${recordId}"]`).remove();
+        updateGrantThirdPartyCounter();
+        showSuccess('{% trans "User removed successfully" %}');
+    }
+}
+
+// Function to update third party counter
+function updateGrantThirdPartyCounter() {
+    const totalCount = grantThirdPartyUsers.length;
+    console.log('DEBUG: Updating counter with total count:', totalCount);
+    
+    $('#grantThirdPartyCount').text(totalCount);
+    
+    if (totalCount === 0) {
+        $('#grantNoUsersMessage').show();
+        console.log('DEBUG: Showing no users message');
+    } else {
+        $('#grantNoUsersMessage').hide();
+        console.log('DEBUG: Hiding no users message');
+    }
+    
+    console.log('DEBUG: No users message is visible:', $('#grantNoUsersMessage').is(':visible'));
+    console.log('DEBUG: Third party section is visible:', $('#grantSelectedUsersSection').is(':visible'));
+}
+
+// Function to create organization modal (placeholder)
+function grantCreateOrganizationModal(targetFieldId) {
+    Swal.fire({
+        title: '{% trans "Create Organization" %}',
+        html: `
+            <div class="text-start">
+              <label class="form-label small">{% trans "Organization name" %} *</label>
+              <input id="swal_org_name" class="form-control form-control-sm" autocomplete="off" />
+              <label class="form-label small mt-2">{% trans "Description" %}</label>
+              <textarea id="swal_org_desc" class="form-control form-control-sm" rows="2"></textarea>
+              <div class="row mt-2">
+                <div class="col-md-6">
+                  <label class="form-label small">{% trans "Contact email" %}</label>
+                  <input id="swal_org_email" type="email" class="form-control form-control-sm"/>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">{% trans "Contact phone" %}</label>
+                  <input id="swal_org_phone" class="form-control form-control-sm"/>
+                </div>
+              </div>
+              <label class="form-label small mt-2">{% trans "Website" %}</label>
+              <input id="swal_org_site" class="form-control form-control-sm"/>
+              <label class="form-label small mt-2">{% trans "Address" %}</label>
+              <input id="swal_org_addr" class="form-control form-control-sm"/>
+            </div>
+        `,
+        focusConfirm: false,
+        allowOutsideClick: false,
+        allowEscapeKey: true,
+        stopKeydownPropagation: false,
+        didOpen: () => {
+            const popup = Swal.getPopup();
+            ['swal_org_name','swal_org_email','swal_org_phone','swal_org_site','swal_org_addr'].forEach(id => {
+                const el = popup.querySelector('#' + id);
+                if (el) {
+                    el.removeAttribute('disabled');
+                    el.removeAttribute('readonly');
+                }
+            });
+            const nameInput = popup.querySelector('#swal_org_name');
+            if (nameInput) {
+                setTimeout(() => nameInput.focus(), 0);
+            }
+        },
+        showCancelButton: true,
+        confirmButtonText: '{% trans "Create" %}',
+        cancelButtonText: '{% trans "Cancel" %}',
+        preConfirm: () => {
+            const name = document.getElementById('swal_org_name').value.trim();
+            if (!name) {
+                Swal.showValidationMessage('{% trans "Organization name is required" %}');
+                return false;
+            }
+            return {
+                name,
+                description: document.getElementById('swal_org_desc').value.trim(),
+                contact_email: document.getElementById('swal_org_email').value.trim(),
+                contact_phone: document.getElementById('swal_org_phone').value.trim(),
+                website: document.getElementById('swal_org_site').value.trim(),
+                address: document.getElementById('swal_org_addr').value.trim()
+            };
+        }
+    }).then(result => {
+        if (!result.isConfirmed) return;
+        const payload = result.value;
+        const csrfToken = (document.querySelector('input[name=csrfmiddlewaretoken]')?.value)
+                       || (document.querySelector('meta[name="csrf-token"]')?.content)
+                       || (document.cookie.match(/(^|; )csrftoken=([^;]+)/)?.[2] || '');
+        fetch('{% url "create_third_party_organization" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload)
+        }).then(async r => {
+            if (!r.ok) {
+                const text = await r.text();
+                throw new Error(text || 'Request failed');
+            }
+            return r.json();
+        }).then(data => {
+            if (!data.success) {
+                showError(data.message || '{% trans "Failed to create organization" %}');
+                return;
+            }
+            // Update local list and target select
+            const selectEl = document.getElementById(targetFieldId);
+            if (selectEl) {
+                const opt = document.createElement('option');
+                opt.value = data.organization.name;
+                opt.textContent = data.organization.name;
+                selectEl.appendChild(opt);
+                selectEl.value = data.organization.name;
+            }
+            if (typeof grantAvailableOrganizations !== 'undefined') {
+                grantAvailableOrganizations.push({ id: data.organization.id, name: data.organization.name });
+            }
+            showSuccess('{% trans "Organization created successfully" %}');
+        }).catch(() => {
+            showError('{% trans "Failed to create organization" %}');
+        });
+    });
+}
+
+// Notification functions (in case they're not available from parent template)
+function showSuccess(message) {
+    Swal.fire({
+        icon: 'success',
+        title: '{% trans "Success" %}',
+        text: message,
+        timer: 1500,
+        showConfirmButton: false
+    });
+}
+
+function showError(message, data = null) {
+    Swal.fire({
+        icon: 'error',
+        title: '{% trans "Error" %}',
+        text: message,
+        confirmButtonText: '{% trans "OK" %}'
+    });
+}
+
+function showInfo(message) {
+    Swal.fire({
+        icon: 'info',
+        title: '{% trans "Information" %}',
+        text: message,
+        confirmButtonText: '{% trans "OK" %}'
+    });
+}
+
+// CSRF helper
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+</script>
+
+<!-- Populate organizations data via hidden JSON -->
+<script type="application/json" id="grant-organizations-data">
+[{% for org in third_party_organizations %}{
+    "id": {{ org.id }},
+    "name": "{{ org.name|escapejs }}"
+}{% if not forloop.last %},{% endif %}{% endfor %}]
+</script>
+
+<script>
+// Load organizations from JSON data
+try {
+    const orgData = document.getElementById('grant-organizations-data');
+    if (orgData) {
+        grantAvailableOrganizations = JSON.parse(orgData.textContent);
+        console.log('DEBUG: Loaded organizations:', grantAvailableOrganizations);
+    }
+} catch (e) {
+    console.error('DEBUG: Error loading organizations:', e);
+    grantAvailableOrganizations = [];
+}
+</script>

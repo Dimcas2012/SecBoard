@@ -1,0 +1,1235 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Framework templates" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_compliance/includes/compliance_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 compliance-page">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h1><i class="bi bi-file-earmark-text me-2"></i>{% trans "Framework templates" %}</h1>
+            <p class="text-muted">{% trans "Master templates that can be applied to multiple companies" %}</p>
+        </div>
+        <div class="col-md-6 text-end">
+            {% include "app_compliance/includes/compliance_framework_nav_toolbar.html" with active="templates" show_create=permissions.can_add_frameworks %}
+        </div>
+    </div>
+
+    {% with filters_expanded=search or selected_type or selected_status %}
+    <div class="card mb-2 filter-section access-request-filters compliance-filters-card">
+        {% url 'compliance:framework_list' as framework_list_clear_url %}
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="frameworkFiltersCollapse" toggle_id="toggleFrameworkFilters" icon_id="frameworkFiltersToggleIcon" filter_clear_url=framework_list_clear_url filters_expanded=filters_expanded %}
+        <div class="collapse{% if filters_expanded %} show{% endif %}" id="frameworkFiltersCollapse">
+        <div class="card-body py-2">
+            <form method="get" id="filterForm" class="row g-1 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "Search" %}</label>
+                    <input type="text" name="search" class="form-control form-control-sm"
+                           placeholder="{% trans 'Search frameworks...' %}"
+                           value="{{ search }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Framework Type" %}</label>
+                    <select name="type" class="form-select form-select-sm">
+                        <option value="">{% trans "All Types" %}</option>
+                        {% for value, label in framework_types %}
+                        <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{% trans "Status" %}</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">{% trans "All Statuses" %}</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">{% trans "Sort By" %}</label>
+                    <select name="sort" class="form-select form-select-sm">
+                        <option value="-created_date" {% if sort_by == '-created_date' %}selected{% endif %}>{% trans "Newest First" %}</option>
+                        <option value="created_date" {% if sort_by == 'created_date' %}selected{% endif %}>{% trans "Oldest First" %}</option>
+                        <option value="name" {% if sort_by == 'name' %}selected{% endif %}>{% trans "Name (A-Z)" %}</option>
+                        <option value="-name" {% if sort_by == '-name' %}selected{% endif %}>{% trans "Name (Z-A)" %}</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        </div>
+    </div>
+    {% endwith %}
+
+    <!-- Frameworks Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "Framework templates" %} ({{ frameworks.paginator.count }})</h4>
+                {% if permissions.can_add_frameworks %}
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-icon-action" data-bs-toggle="modal" data-bs-target="#importExcelModal"
+                        title="{% trans 'Import Excel' %}">
+                    <i class="bi bi-file-earmark-arrow-up"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- View Mode Switcher -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+                    <button type="button" class="btn btn-outline-primary active" id="tableViewBtn" onclick="switchView('table')">
+                        <i class="fas fa-list"></i> {% trans "Table" %}
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="cardsViewBtn" onclick="switchView('cards')">
+                        <i class="fas fa-th-large"></i> {% trans "Cards" %}
+                    </button>
+                </div>
+                <div class="text-muted" style="font-size: 0.75rem;">
+                    <i class="fas fa-eye"></i> {% trans "Viewing" %}: <span id="currentViewMode">{% trans "Table" %}</span>
+                </div>
+            </div>
+            
+            <!-- Bulk Actions Toolbar -->
+            <div id="bulkActionsToolbar" class="alert alert-info mb-3" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-check-square"></i>
+                        <span id="selectedCount">0</span> {% trans "selected" %}
+                    </div>
+                    <div class="btn-group" role="group">
+                        {% if permissions.can_edit_frameworks %}
+                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#bulkApplyModal">
+                            <i class="fas fa-building"></i> {% trans "Apply to Companies" %}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#bulkStatusModal">
+                            <i class="fas fa-edit"></i> {% trans "Change Status" %}
+                        </button>
+                        {% endif %}
+                        {% if permissions.can_export %}
+                        <button type="button" class="btn btn-sm btn-primary" onclick="bulkExport()">
+                            <i class="fas fa-file-export"></i> {% trans "Export Selected" %}
+                        </button>
+                        {% endif %}
+                        {% if permissions.can_add_frameworks %}
+                        <button type="button" class="btn btn-sm btn-info" onclick="bulkDuplicate()">
+                            <i class="fas fa-copy"></i> {% trans "Duplicate" %}
+                        </button>
+                        {% endif %}
+                        {% if permissions.can_edit_frameworks %}
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#bulkTranslateModal">
+                            <i class="fas fa-language"></i> {% trans "Translate" %}
+                        </button>
+                        {% endif %}
+                        {% if permissions.can_delete_frameworks %}
+                        <button type="button" class="btn btn-sm btn-danger" onclick="bulkDelete()">
+                            <i class="fas fa-trash"></i> {% trans "Delete" %}
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="clearSelection()">
+                            <i class="fas fa-times"></i> {% trans "Clear" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table" id="frameworksTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px;">
+                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)">
+                            </th>
+                            <th>{% trans "Name" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Version" %}</th>
+                            <th>{% trans "Status" %}</th>
+                            <th>{% trans "Applied to Companies" %}</th>
+                            <th>{% trans "Categories" %}</th>
+                            <th>{% trans "Controls" %}</th>
+                            <th>{% trans "Created" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for framework in frameworks %}
+                        <tr data-framework-id="{{ framework.id }}">
+                            <td>
+                                <input type="checkbox" class="framework-checkbox" value="{{ framework.id }}" onchange="updateBulkActions()">
+                            </td>
+                            <td>
+                                <a href="{% url 'compliance:framework_detail' framework.id %}">
+                                    <strong>{{ framework.name }}</strong>
+                                    <span class="badge badge-secondary ml-1" style="background-color: #6c757d; color: white; font-size: 0.75em;">
+                                        <i class="fas fa-file-alt"></i> TEMPLATE
+                                    </span>
+                                </a>
+                            </td>
+                            <td>{{ framework.get_framework_type_display }}</td>
+                            <td>{{ framework.version }}</td>
+                            <td>
+                                <span style="{% if framework.status == 'active' %}color: #28a745;
+                                    {% elif framework.status == 'draft' %}color: #ffc107;
+                                    {% else %}color: #6c757d;{% endif %} font-weight: bold;">
+                                    {% if framework.status == 'active' %}<i class="fas fa-check-circle"></i>
+                                    {% elif framework.status == 'draft' %}<i class="fas fa-edit"></i>
+                                    {% else %}<i class="fas fa-archive"></i>{% endif %}
+                                    {{ framework.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if framework.instances_data %}
+                                    {% for inst in framework.instances_data %}
+                                    <div class="mb-1">
+                                        <span style="color: #17a2b8; font-weight: bold;">
+                                            <i class="fas fa-building"></i> {{ inst.company__name }}
+                                        </span>
+                                        {% if inst.is_mandatory %}
+                                        <span style="color: #dc3545; font-weight: bold;" class="ml-2">
+                                            <i class="fas fa-exclamation-circle"></i> Mandatory
+                                        </span>
+                                        {% else %}
+                                        <span style="color: #6c757d; font-weight: normal;" class="ml-2">
+                                            <i class="fas fa-info-circle"></i> Optional
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                <span class="text-muted">
+                                    <i class="fas fa-minus"></i> {% trans "Not applied" %}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">{{ framework.total_categories }}</td>
+                            <td class="text-center">{{ framework.total_controls }}</td>
+                            <td>{{ framework.created_date|date:"d.m.Y" }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'compliance:framework_detail' framework.id %}" 
+                                       class="btn btn-sm btn-info" title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if permissions.can_export %}
+                                    <a href="{% url 'compliance:framework_export_excel' framework.id %}" 
+                                       class="btn btn-sm btn-success" title="{% trans 'Export to Excel' %}">
+                                        <i class="fas fa-file-excel"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if permissions.can_edit_frameworks %}
+                                    <a href="{% url 'compliance:framework_edit_form' framework.id %}" 
+                                       class="btn btn-sm btn-warning" 
+                                       title="{% trans 'Edit' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if permissions.can_delete_frameworks %}
+                                    <form method="post" action="{% url 'compliance:framework_delete' framework.id %}" style="display: inline;" onsubmit="return confirm('{% trans "Are you sure you want to delete" %} {{ framework.name }}?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-danger" title="{% trans 'Delete' %}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="text-center text-muted">
+                                {% trans "No frameworks found" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Cards View -->
+            <div id="cardsView" style="display: none;">
+                <div class="row">
+                    {% for framework in frameworks %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100 shadow-sm framework-card-view" data-framework-id="{{ framework.id }}">
+                            <div class="card-header d-flex justify-content-between align-items-start" 
+                                 {% if framework.status == 'active' %}
+                                 style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white;"
+                                 {% elif framework.status == 'draft' %}
+                                 style="background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); color: white;"
+                                 {% else %}
+                                 style="background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); color: white;"
+                                 {% endif %}>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-1">
+                                        <i class="fas fa-shield-alt"></i> {{ framework.name }}
+                                    </h5>
+                                    <div style="font-size: 0.75rem; opacity: 0.9;">
+                                        <span class="badge badge-light">{{ framework.get_status_display }}</span>
+                                        <span class="badge badge-light">v{{ framework.version }}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <input type="checkbox" class="framework-checkbox" value="{{ framework.id }}" onchange="updateBulkActions()" style="width: 18px; height: 18px;">
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-2">
+                                    <small class="text-muted">{{ framework.get_framework_type_display }}</small>
+                                </div>
+                                
+                                <!-- Progress Bar -->
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="text-muted">{% trans "Completion" %}</small>
+                                        <strong style="color: #28a745;">{{ framework.completion|default:0 }}%</strong>
+                                    </div>
+                                    <div class="progress" style="height: 15px;">
+                                        <div class="progress-bar bg-success" role="progressbar" 
+                                             style="width: {{ framework.completion|default:0 }}%" 
+                                             aria-valuenow="{{ framework.completion|default:0 }}" 
+                                             aria-valuemin="0" aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Stats -->
+                                <div class="row text-center mb-2">
+                                    <div class="col-4">
+                                        <div style="font-size: 1.25rem; color: #17a2b8; font-weight: bold;">
+                                            {{ framework.total_controls }}
+                                        </div>
+                                        <small class="text-muted" style="font-size: 0.65rem;">{% trans "Controls" %}</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div style="font-size: 1.25rem; color: #28a745; font-weight: bold;">
+                                            {{ framework.total_instances }}
+                                        </div>
+                                        <small class="text-muted" style="font-size: 0.65rem;">{% trans "Companies" %}</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div style="font-size: 1.25rem; color: #6c757d; font-weight: bold;">
+                                            {{ framework.total_categories }}
+                                        </div>
+                                        <small class="text-muted" style="font-size: 0.65rem;">{% trans "Categories" %}</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Date -->
+                                <div class="text-center mb-3">
+                                    <small class="text-muted">
+                                        <i class="far fa-calendar"></i> {{ framework.created_date|date:"d.m.Y" }}
+                                    </small>
+                                </div>
+                                
+                                <!-- Actions -->
+                                <div class="d-grid gap-2">
+                                    <a href="{% url 'compliance:framework_detail' framework.id %}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i> {% trans "View" %}
+                                    </a>
+                                    <div class="btn-group" role="group">
+                                        {% if permissions.can_edit_frameworks %}
+                                        <a href="{% url 'compliance:framework_edit_form' framework.id %}" class="btn btn-sm btn-warning">
+                                            <i class="fas fa-edit"></i> {% trans "Edit" %}
+                                        </a>
+                                        {% endif %}
+                                        {% if permissions.can_export %}
+                                        <a href="{% url 'compliance:framework_export_excel' framework.id %}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-file-excel"></i> {% trans "Excel" %}
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12">
+                        <p class="text-center text-muted">{% trans "No frameworks found" %}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            {% if frameworks.has_other_pages %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if frameworks.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">
+                            {% trans "First" %}
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ frameworks.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">
+                            {% trans "Previous" %}
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            {% trans "Page" %} {{ frameworks.number }} {% trans "of" %} {{ frameworks.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if frameworks.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ frameworks.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">
+                            {% trans "Next" %}
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ frameworks.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">
+                            {% trans "Last" %}
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Create Framework Modal -->
+<div class="modal fade" id="createFrameworkModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:framework_create' %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">{% trans "Create New Framework" %}</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>{% trans "Name" %} *</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>{% trans "Framework Type" %} *</label>
+                            <select name="framework_type" class="form-control" required>
+                                {% for value, label in framework_types %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>{% trans "Version" %} *</label>
+                            <input type="text" name="version" class="form-control" value="1.0" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>{% trans "Description" %}</label>
+                        <textarea name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>{% trans "Status" %}</label>
+                        <select name="status" class="form-control">
+                            {% for value, label in status_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> {% trans "Create Framework" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import Excel Modal -->
+<div class="modal fade" id="importExcelModal" tabindex="-1" aria-labelledby="importExcelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:framework_import_excel' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="importExcelModalLabel">
+                        <i class="fas fa-file-import"></i> {% trans "Import Framework from Excel" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3 p-3 import-template-banner">
+                        <div class="mb-2 text-muted">
+                            <i class="fas fa-download fa-2x"></i>
+                        </div>
+                        <a href="{% url 'compliance:framework_excel_template' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-download"></i> {% trans "Download Excel Template" %}
+                        </a>
+                        <div class="text-muted mt-2 small">
+                            {% trans "Start with our ready-to-use template with examples" %}
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="form-group">
+                        <label for="excelFile">{% trans "Select Excel File" %} (.xlsx) *</label>
+                        <input type="file" class="form-control" id="excelFile" name="file" accept=".xlsx" required>
+                        <small class="form-text text-muted" style="font-size: 0.65rem;">
+                            {% trans "Maximum file size: 10MB" %}
+                        </small>
+                    </div>
+                    
+                    <div class="mt-3 p-2" style="background-color: #fff3cd; border-radius: 3px; border-left: 4px solid #ffc107;">
+                        <small style="font-size: 0.65rem;">
+                            <i class="fas fa-exclamation-triangle text-warning"></i> 
+                            <strong>{% trans "Note:" %}</strong>
+                            {% trans "The imported framework will be created as a Template with 'Draft' status. You can edit and activate it later." %}
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-file-import"></i> {% trans "Import" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Apply to Companies Modal -->
+<div class="modal fade" id="bulkApplyModal" tabindex="-1" aria-labelledby="bulkApplyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:bulk_apply_frameworks' %}" id="bulkApplyForm">
+                {% csrf_token %}
+                <input type="hidden" name="framework_ids" id="bulkApplyFrameworkIds">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="bulkApplyModalLabel">
+                        <i class="fas fa-building"></i> {% trans "Apply Frameworks to Companies" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "Select Companies" %} *</label>
+                        <select name="company_ids" class="form-control" multiple required size="10">
+                            {% for company in companies %}
+                            <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted" style="font-size: 0.65rem;">
+                            {% trans "Hold Ctrl/Cmd to select multiple companies" %}
+                        </small>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_mandatory" id="bulkIsMandatory">
+                        <label class="form-check-label" for="bulkIsMandatory">
+                            {% trans "Mark as Mandatory" %}
+                        </label>
+                    </div>
+                    <div class="alert alert-info" style="font-size: 0.75rem;">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "This will create framework company requirements for selected companies using selected templates." %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-building"></i> {% trans "Apply" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Change Status Modal -->
+<div class="modal fade" id="bulkStatusModal" tabindex="-1" aria-labelledby="bulkStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:bulk_change_status' %}" id="bulkStatusForm">
+                {% csrf_token %}
+                <input type="hidden" name="framework_ids" id="bulkStatusFrameworkIds">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title" id="bulkStatusModalLabel">
+                        <i class="fas fa-edit"></i> {% trans "Change Status" %}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group mb-3">
+                        <label class="form-label">{% trans "New Status" %} *</label>
+                        <select name="status" class="form-control" required>
+                            <option value="draft">{% trans "Draft" %}</option>
+                            <option value="active">{% trans "Active" %}</option>
+                            <option value="archived">{% trans "Archived" %}</option>
+                        </select>
+                    </div>
+                    <div class="alert alert-warning" style="font-size: 0.75rem;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% trans "This will change the status of all selected frameworks." %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> {% trans "Change Status" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Translate Modal -->
+<div class="modal fade" id="bulkTranslateModal" tabindex="-1" aria-labelledby="bulkTranslateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="bulkTranslateModalLabel">
+                    <i class="fas fa-language"></i> {% trans "Translate Frameworks" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <!-- Target Language Selection -->
+                        <div class="mb-4">
+                            <h6 class="text-primary">
+                                <i class="fas fa-globe me-2"></i>
+                                {% trans "Target Language" %}
+                            </h6>
+                            <select id="targetLanguage" class="form-select">
+                                <option value="uk">{% trans "Ukrainian (uk)" %}</option>
+                                <option value="ru">{% trans "Russian (ru)" %}</option>
+                                <option value="en">{% trans "English (en)" %}</option>
+                                <option value="de">{% trans "German (de)" %}</option>
+                                <option value="fr">{% trans "French (fr)" %}</option>
+                                <option value="es">{% trans "Spanish (es)" %}</option>
+                                <option value="it">{% trans "Italian (it)" %}</option>
+                                <option value="pl">{% trans "Polish (pl)" %}</option>
+                                <option value="pt">{% trans "Portuguese (pt)" %}</option>
+                                <option value="nl">{% trans "Dutch (nl)" %}</option>
+                                <option value="cs">{% trans "Czech (cs)" %}</option>
+                                <option value="sk">{% trans "Slovak (sk)" %}</option>
+                                <option value="ro">{% trans "Romanian (ro)" %}</option>
+                                <option value="bg">{% trans "Bulgarian (bg)" %}</option>
+                                <option value="hr">{% trans "Croatian (hr)" %}</option>
+                                <option value="sr">{% trans "Serbian (sr)" %}</option>
+                                <option value="tr">{% trans "Turkish (tr)" %}</option>
+                                <option value="ar">{% trans "Arabic (ar)" %}</option>
+                                <option value="zh">{% trans "Chinese (zh)" %}</option>
+                                <option value="ja">{% trans "Japanese (ja)" %}</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Translation Model Settings -->
+                        <div class="mb-4">
+                            <h6 class="text-primary">
+                                <i class="fas fa-robot me-2"></i>
+                                {% trans "Translation Model" %}
+                            </h6>
+                            <select id="translationModel" class="form-select">
+                                {% for model_id, model_name in available_models %}
+                                    <option value="{{ model_id }}">{{ model_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="alert alert-info mt-2" style="font-size: 0.75rem;">
+                                <i class="fas fa-info-circle"></i>
+                                {% if available_models|length > 1 %}
+                                    {% trans "You have" %} {{ available_models|length }} {% trans "translation models available. Google Translator is free and doesn't require API keys." %}
+                                {% else %}
+                                    {% trans "Google Translator is free and doesn't require API keys. Configure AI models in admin panel for better quality." %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- What to Translate -->
+                        <div class="mb-4">
+                            <h6 class="text-primary">
+                                <i class="fas fa-tasks me-2"></i>
+                                {% trans "What to Translate" %}
+                            </h6>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="translateName" checked>
+                                <label class="form-check-label" for="translateName">
+                                    {% trans "Framework Name" %}
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="translateDescription" checked>
+                                <label class="form-check-label" for="translateDescription">
+                                    {% trans "Framework Description" %}
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="translateCategories" checked>
+                                <label class="form-check-label" for="translateCategories">
+                                    {% trans "Categories (Name & Description)" %}
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="translateControls" checked>
+                                <label class="form-check-label" for="translateControls">
+                                    {% trans "Controls (Name & Description)" %}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <!-- Translation Progress -->
+                        <div class="mb-4">
+                            <h6 class="text-primary">
+                                <i class="fas fa-chart-line me-2"></i>
+                                {% trans "Translation Progress" %}
+                            </h6>
+                            <div class="progress mb-2" style="height: 25px;">
+                                <div id="translateProgressBar" class="progress-bar progress-bar-striped" 
+                                     role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    <span id="translateProgressText">0%</span>
+                                </div>
+                            </div>
+                            <div class="text-muted" style="font-size: 0.75rem;">
+                                <span id="translateProgressDetails">{% trans "Ready to start" %}</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Translation Log -->
+                        <div class="mb-4">
+                            <h6 class="text-primary">
+                                <i class="fas fa-terminal me-2"></i>
+                                {% trans "Translation Log" %}
+                            </h6>
+                            <div id="translateLog" style="background-color: #1e1e1e; color: #f0f0f0; font-family: monospace; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto; font-size: 0.75rem;">
+                                <div class="text-muted">{% trans "Waiting to start..." %}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Selected Frameworks Info -->
+                        <div class="alert alert-warning" style="font-size: 0.75rem;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>{% trans "Note:" %}</strong> <span id="translateSelectedCount">0</span> {% trans "frameworks selected for translation" %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-danger" id="stopTranslateBtn" style="display: none;">
+                    <i class="fas fa-stop"></i> {% trans "Stop" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="startTranslateBtn" onclick="startFrameworkTranslation()">
+                    <i class="fas fa-play"></i> {% trans "Start Translation" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Framework Compliance Guide Modal -->
+<div class="modal fade" id="frameworkComplianceGuideModal" tabindex="-1" aria-labelledby="frameworkComplianceGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'compliance:framework_compliance_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="frameworkComplianceGuideModalLabel"><i class="bi bi-book me-2"></i>{% trans "Framework Compliance Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="frameworkComplianceGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var modal = document.getElementById('frameworkComplianceGuideModal');
+    if (!modal) return;
+    var guideUrl = modal.getAttribute('data-guide-url');
+    if (!guideUrl) return;
+    function onGuideShow() {
+        var body = document.getElementById('frameworkComplianceGuideModalBody');
+        if (!body) return;
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>';
+        if (typeof jQuery !== 'undefined' && jQuery.getJSON) {
+            jQuery.getJSON(guideUrl).done(function(data) {
+                body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+            }).fail(function() {
+                body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+            });
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', guideUrl, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        body.innerHTML = (data && data.content) ? data.content : '<p class="text-muted">{% trans "No guide available." %}</p>';
+                    } catch (e) {
+                        body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                    }
+                } else {
+                    body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>';
+                }
+            };
+            xhr.onerror = function() { body.innerHTML = '<p class="text-danger">{% trans "Failed to load guide." %}</p>'; };
+            xhr.send();
+        }
+    }
+    modal.addEventListener('show.bs.modal', onGuideShow);
+})();
+
+// Bulk operations JavaScript
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.framework-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateBulkActions();
+}
+
+function updateBulkActions() {
+    const checkboxes = document.querySelectorAll('.framework-checkbox:checked');
+    const count = checkboxes.length;
+    const toolbar = document.getElementById('bulkActionsToolbar');
+    const countSpan = document.getElementById('selectedCount');
+    const selectAll = document.getElementById('selectAll');
+    
+    countSpan.textContent = count;
+    
+    if (count > 0) {
+        toolbar.style.display = 'block';
+    } else {
+        toolbar.style.display = 'none';
+    }
+    
+    // Update Select All checkbox state
+    const allCheckboxes = document.querySelectorAll('.framework-checkbox');
+    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+    selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+}
+
+function getSelectedIds() {
+    const checkboxes = document.querySelectorAll('.framework-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+function clearSelection() {
+    document.querySelectorAll('.framework-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAll').checked = false;
+    updateBulkActions();
+}
+
+function bulkExport() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('{% trans "Please select at least one framework" %}');
+        return;
+    }
+    
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "compliance:bulk_export_frameworks" %}';
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    form.innerHTML = `
+        <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+        <input type="hidden" name="framework_ids" value="${ids.join(',')}">
+    `;
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+function bulkDuplicate() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('{% trans "Please select at least one framework" %}');
+        return;
+    }
+    
+    if (!confirm('{% trans "Duplicate selected frameworks?" %}')) {
+        return;
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "compliance:bulk_duplicate_frameworks" %}';
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    form.innerHTML = `
+        <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+        <input type="hidden" name="framework_ids" value="${ids.join(',')}">
+    `;
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+function bulkDelete() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('{% trans "Please select at least one framework" %}');
+        return;
+    }
+    
+    if (!confirm('{% trans "Are you sure you want to delete selected frameworks? This action cannot be undone." %}')) {
+        return;
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "compliance:bulk_delete_frameworks" %}';
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    form.innerHTML = `
+        <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+        <input type="hidden" name="framework_ids" value="${ids.join(',')}">
+    `;
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+// View mode switcher
+function switchView(mode) {
+    const tableView = document.getElementById('frameworksTable').parentElement;
+    const cardsView = document.getElementById('cardsView');
+    
+    const tableBtn = document.getElementById('tableViewBtn');
+    const cardsBtn = document.getElementById('cardsViewBtn');
+    
+    const currentViewText = document.getElementById('currentViewMode');
+    
+    // Hide all views
+    tableView.style.display = 'none';
+    cardsView.style.display = 'none';
+    
+    // Remove active class from all buttons
+    tableBtn.classList.remove('active');
+    cardsBtn.classList.remove('active');
+    
+    // Show selected view
+    if (mode === 'table') {
+        tableView.style.display = 'block';
+        tableBtn.classList.add('active');
+        currentViewText.textContent = '{% trans "Table" %}';
+        localStorage.setItem('frameworkViewMode', 'table');
+    } else if (mode === 'cards') {
+        cardsView.style.display = 'block';
+        cardsBtn.classList.add('active');
+        currentViewText.textContent = '{% trans "Cards" %}';
+        localStorage.setItem('frameworkViewMode', 'cards');
+    }
+    
+    // Update bulk actions after view switch
+    updateBulkActions();
+}
+
+// ===== FRAMEWORK TRANSLATION FUNCTIONS =====
+
+let translationInProgress = false;
+let translationPollTimer = null;
+
+// Function to start framework translation
+function startFrameworkTranslation() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('{% trans "Please select at least one framework to translate" %}');
+        return;
+    }
+    
+    const targetLanguage = document.getElementById('targetLanguage').value;
+    const translationModel = document.getElementById('translationModel').value;
+    const translateName = document.getElementById('translateName').checked;
+    const translateDescription = document.getElementById('translateDescription').checked;
+    const translateCategories = document.getElementById('translateCategories').checked;
+    const translateControls = document.getElementById('translateControls').checked;
+    
+    if (!translateName && !translateDescription && !translateCategories && !translateControls) {
+        alert('{% trans "Please select at least one thing to translate" %}');
+        return;
+    }
+    
+    if (!confirm(`{% trans "Start translation of" %} ${ids.length} {% trans "frameworks to" %} ${targetLanguage}?`)) {
+        return;
+    }
+    
+    // Prepare request data
+    const data = {
+        framework_ids: ids,
+        target_language: targetLanguage,
+        translation_model: translationModel,
+        translate_name: translateName,
+        translate_description: translateDescription,
+        translate_categories: translateCategories,
+        translate_controls: translateControls
+    };
+    
+    // Update UI
+    document.getElementById('startTranslateBtn').disabled = true;
+    document.getElementById('startTranslateBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> {% trans "Starting..." %}';
+    document.getElementById('translateLog').innerHTML = '<div class="text-info">{% trans "Starting translation process..." %}</div>';
+    
+    // Send request
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch('{% url "compliance:start_framework_translation" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            translationInProgress = true;
+            document.getElementById('startTranslateBtn').style.display = 'none';
+            document.getElementById('stopTranslateBtn').style.display = 'inline-block';
+            addTranslationLog('success', '{% trans "Translation started successfully" %}');
+            startTranslationPolling();
+        } else {
+            addTranslationLog('error', data.message || '{% trans "Failed to start translation" %}');
+            document.getElementById('startTranslateBtn').disabled = false;
+            document.getElementById('startTranslateBtn').innerHTML = '<i class="fas fa-play"></i> {% trans "Start Translation" %}';
+        }
+    })
+    .catch(error => {
+        console.error('Error starting translation:', error);
+        addTranslationLog('error', '{% trans "Error starting translation" %}: ' + error.message);
+        document.getElementById('startTranslateBtn').disabled = false;
+        document.getElementById('startTranslateBtn').innerHTML = '<i class="fas fa-play"></i> {% trans "Start Translation" %}';
+    });
+}
+
+// Function to start polling translation progress
+function startTranslationPolling() {
+    if (translationPollTimer) {
+        clearInterval(translationPollTimer);
+    }
+    
+    translationPollTimer = setInterval(updateTranslationProgress, 2000);
+    updateTranslationProgress(); // Initial update
+}
+
+// Function to update translation progress
+function updateTranslationProgress() {
+    fetch('{% url "compliance:get_framework_translation_progress" %}')
+    .then(response => response.json())
+    .then(data => {
+        if (data.in_progress !== undefined) {
+            translationInProgress = data.in_progress;
+        }
+        
+        const progress = data.progress || {};
+        
+        // Update progress bar
+        const percent = progress.percent || 0;
+        const progressBar = document.getElementById('translateProgressBar');
+        progressBar.style.width = percent + '%';
+        progressBar.setAttribute('aria-valuenow', percent);
+        document.getElementById('translateProgressText').textContent = Math.round(percent) + '%';
+        
+        // Update progress details
+        const details = `${progress.processed || 0} / ${progress.total || 0} {% trans "items processed" %}`;
+        document.getElementById('translateProgressDetails').textContent = details;
+        
+        // Update log
+        if (progress.log && progress.log.length > 0) {
+            updateTranslationLog(progress.log);
+        }
+        
+        // Check if translation is finished
+        if (!translationInProgress && translationPollTimer) {
+            clearInterval(translationPollTimer);
+            translationPollTimer = null;
+            
+            // Update UI
+            progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+            progressBar.classList.add('bg-success');
+            document.getElementById('startTranslateBtn').style.display = 'inline-block';
+            document.getElementById('startTranslateBtn').disabled = false;
+            document.getElementById('startTranslateBtn').innerHTML = '<i class="fas fa-play"></i> {% trans "Start Translation" %}';
+            document.getElementById('stopTranslateBtn').style.display = 'none';
+            
+            addTranslationLog('success', '{% trans "Translation completed!" %}');
+            
+            // Refresh page after 2 seconds
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching translation progress:', error);
+    });
+}
+
+// Function to add a log entry
+function addTranslationLog(type, message) {
+    const logContainer = document.getElementById('translateLog');
+    const timestamp = new Date().toLocaleTimeString();
+    
+    let colorClass = 'text-muted';
+    if (type === 'success') colorClass = 'text-success';
+    else if (type === 'error') colorClass = 'text-danger';
+    else if (type === 'warning') colorClass = 'text-warning';
+    else if (type === 'info') colorClass = 'text-info';
+    
+    const logEntry = document.createElement('div');
+    logEntry.className = colorClass;
+    logEntry.innerHTML = `<span class="text-muted">[${timestamp}]</span> ${message}`;
+    
+    logContainer.appendChild(logEntry);
+    logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+// Function to update translation log from server
+function updateTranslationLog(logEntries) {
+    const logContainer = document.getElementById('translateLog');
+    
+    // Clear first entry if it's the "Waiting to start" message
+    if (logContainer.children.length === 1 && logContainer.children[0].textContent.includes('Waiting')) {
+        logContainer.innerHTML = '';
+    }
+    
+    // Get current number of entries
+    const currentEntries = logContainer.children.length;
+    
+    // Add only new entries
+    for (let i = currentEntries; i < logEntries.length; i++) {
+        const entry = logEntries[i];
+        const logEntry = document.createElement('div');
+        
+        // Determine color based on message content
+        let colorClass = 'text-muted';
+        if (entry.message.includes('Error') || entry.message.includes('Failed')) {
+            colorClass = 'text-danger';
+        } else if (entry.message.includes('Success') || entry.message.includes('Completed')) {
+            colorClass = 'text-success';
+        } else if (entry.message.includes('Translating')) {
+            colorClass = 'text-info';
+        }
+        
+        logEntry.className = colorClass;
+        logEntry.innerHTML = `<span class="text-muted">[${entry.time}]</span> ${entry.message}`;
+        logContainer.appendChild(logEntry);
+    }
+    
+    logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+// Function to stop translation
+document.getElementById('stopTranslateBtn').addEventListener('click', function() {
+    if (!confirm('{% trans "Stop translation process?" %}')) {
+        return;
+    }
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch('{% url "compliance:stop_framework_translation" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addTranslationLog('warning', '{% trans "Stop requested - completing current item..." %}');
+        } else {
+            addTranslationLog('error', data.message || '{% trans "Failed to stop translation" %}');
+        }
+    })
+    .catch(error => {
+        console.error('Error stopping translation:', error);
+        addTranslationLog('error', '{% trans "Error stopping translation" %}');
+    });
+});
+
+// Update translate modal when opened
+document.getElementById('bulkTranslateModal').addEventListener('show.bs.modal', function() {
+    const ids = getSelectedIds();
+    document.getElementById('translateSelectedCount').textContent = ids.length;
+    
+    // Reset UI
+    document.getElementById('translateProgressBar').style.width = '0%';
+    document.getElementById('translateProgressText').textContent = '0%';
+    document.getElementById('translateProgressDetails').textContent = '{% trans "Ready to start" %}';
+    document.getElementById('translateLog').innerHTML = '<div class="text-muted">{% trans "Waiting to start..." %}</div>';
+    document.getElementById('startTranslateBtn').style.display = 'inline-block';
+    document.getElementById('startTranslateBtn').disabled = false;
+    document.getElementById('startTranslateBtn').innerHTML = '<i class="fas fa-play"></i> {% trans "Start Translation" %}';
+    document.getElementById('stopTranslateBtn').style.display = 'none';
+    
+    // Reset progress bar styling
+    const progressBar = document.getElementById('translateProgressBar');
+    progressBar.classList.remove('bg-success');
+    progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+});
+
+// Update hidden fields when modals open
+document.addEventListener('DOMContentLoaded', function() {
+    // Restore saved view mode
+    const savedViewMode = localStorage.getItem('frameworkViewMode') || 'table';
+    switchView(savedViewMode);
+    
+    const bulkApplyModal = document.getElementById('bulkApplyModal');
+    if (bulkApplyModal) {
+        bulkApplyModal.addEventListener('show.bs.modal', function() {
+            const ids = getSelectedIds();
+            document.getElementById('bulkApplyFrameworkIds').value = ids.join(',');
+        });
+    }
+    
+    const bulkStatusModal = document.getElementById('bulkStatusModal');
+    if (bulkStatusModal) {
+        bulkStatusModal.addEventListener('show.bs.modal', function() {
+            const ids = getSelectedIds();
+            document.getElementById('bulkStatusFrameworkIds').value = ids.join(',');
+        });
+    }
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,180 @@
+﻿{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Edit Template Control" %}{% endblock %}
+
+{% block extra_css %}
+{% include "includes/sb_compact_css.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <div class="card">
+                <div class="card-header bg-warning text-white">
+                    <h3><i class="fas fa-edit"></i> {% trans "Edit Template Control" %}</h3>
+                    <p class="mb-0">
+                        <small>
+                            {% trans "Category" %}: {{ control.category.code }} - {{ control.category.name }} |
+                            {% trans "Framework" %}: {{ control.category.framework.name }} {{ control.category.framework.version }}
+                        </small>
+                    </p>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'compliance:control_update' control.id %}">
+                        {% csrf_token %}
+                        
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label for="code">{% trans "Control Code" %} *</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="code" 
+                                       name="code" 
+                                       value="{{ control.code }}"
+                                       placeholder="{% trans 'e.g., 1.1, 1.1.1' %}"
+                                       required>
+                                <small class="form-text text-muted">{% trans "Unique identifier within category" %}</small>
+                            </div>
+                            
+                            <div class="form-group col-md-4">
+                                <label for="title">{% trans "Title" %}</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="title" 
+                                       name="title" 
+                                       value="{{ control.title }}"
+                                       placeholder="{% trans 'e.g., 1.1.1, 1.1.1.a' %}">
+                                <small class="form-text text-muted">{% trans "Display title (badge)" %}</small>
+                            </div>
+                            
+                            <div class="form-group col-md-4">
+                                <label for="parent_control">{% trans "Parent Control" %}</label>
+                                <select class="form-control" id="parent_control" name="parent_control">
+                                    <option value="">{% trans "None (top-level control)" %}</option>
+                                    {% for ctrl in control.category.controls.all %}
+                                    {% if ctrl.id != control.id %}
+                                    <option value="{{ ctrl.id }}" {% if control.parent_control and ctrl.id == control.parent_control.id %}selected{% endif %}>
+                                        {{ ctrl.code }} - {{ ctrl.name }}
+                                    </option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">{% trans "Select parent for sub-control" %}</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="name">{% trans "Control Name" %} *</label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="name" 
+                                   name="name" 
+                                   value="{{ control.name }}"
+                                   placeholder="{% trans 'e.g., Security policies are documented' %}"
+                                   required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="description">{% trans "Description" %} *</label>
+                            <textarea class="form-control" 
+                                      id="description" 
+                                      name="description" 
+                                      rows="4"
+                                      placeholder="{% trans 'Full description of the control requirement...' %}"
+                                      required>{{ control.description }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="domain">{% trans "Domain" %}</label>
+                            <select class="form-control" id="domain" name="domain">
+                                <option value="">{% trans "Select domain..." %}</option>
+                                {% for domain in framework_domains %}
+                                <option value="{{ domain.id }}" {% if control.domain and control.domain.id == domain.id %}selected{% endif %}>{{ domain.code }} - {{ domain.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">{% trans "Framework security domain" %}</small>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="priority">{% trans "Priority" %}</label>
+                                <select class="form-control" id="priority" name="priority">
+                                    <option value="low" {% if control.priority == 'low' %}selected{% endif %}>{% trans "Low" %}</option>
+                                    <option value="medium" {% if control.priority == 'medium' %}selected{% endif %}>{% trans "Medium" %}</option>
+                                    <option value="high" {% if control.priority == 'high' %}selected{% endif %}>{% trans "High" %}</option>
+                                    <option value="critical" {% if control.priority == 'critical' %}selected{% endif %}>{% trans "Critical" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group col-md-6">
+                                <label for="required_evidence_count">{% trans "Required Evidence Count" %}</label>
+                                <input type="number" 
+                                       class="form-control" 
+                                       id="required_evidence_count" 
+                                       name="required_evidence_count" 
+                                       value="{{ control.required_evidence_count }}"
+                                       min="0">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="evidence_description">{% trans "Evidence Description" %}</label>
+                            <textarea class="form-control" 
+                                      id="evidence_description" 
+                                      name="evidence_description" 
+                                      rows="2"
+                                      placeholder="{% trans 'Describe what evidence is needed...' %}">{{ control.evidence_description }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="implementation_guidance">{% trans "Implementation Guidance" %}</label>
+                            <textarea class="form-control" 
+                                      id="implementation_guidance" 
+                                      name="implementation_guidance" 
+                                      rows="3"
+                                      placeholder="{% trans 'How to implement this control...' %}">{{ control.implementation_guidance }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="testing_procedure">{% trans "Testing Procedure" %}</label>
+                            <textarea class="form-control" 
+                                      id="testing_procedure" 
+                                      name="testing_procedure" 
+                                      rows="3"
+                                      placeholder="{% trans 'How to test compliance with this control...' %}">{{ control.testing_procedure }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="order">{% trans "Display Order" %}</label>
+                            <input type="number" 
+                                   class="form-control" 
+                                   id="order" 
+                                   name="order" 
+                                   value="{{ control.order }}">
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <a href="{% url 'compliance:framework_detail' control.category.framework.id %}" class="btn btn-secondary btn-block btn-lg">
+                                    <i class="fas fa-times"></i> {% trans "Cancel" %}
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="submit" class="btn btn-warning btn-block btn-lg">
+                                    <i class="fas fa-save"></i> {% trans "Save Changes" %}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

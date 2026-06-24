@@ -1,0 +1,247 @@
+{% load i18n %}
+<div class="modal fade" id="vendorHistoryModal" tabindex="-1" aria-labelledby="vendorHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-md modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" id="vendorHistoryModalLabel" style="font-size: 0.9rem; font-weight: 600;">
+                    <i class="fas fa-history me-1"></i>{% trans "Vendor history" %}
+                </h6>
+                <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body" style="padding: 0.75rem;">
+                <div id="vendorHistoryLoading" class="text-center py-2">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                    <p class="mt-1 mb-0" style="font-size: 0.75rem;">{% trans "Loading history..." %}</p>
+                </div>
+                <div id="vendorHistoryContent" style="display: none;">
+                    <div class="mb-1 pb-1 border-bottom">
+                        <div id="vendorHistoryVendorName" class="text-primary mb-0" style="font-size: 0.8rem; font-weight: 600;"></div>
+                        <small class="text-muted" id="vendorHistoryVendorId" style="font-size: 0.65rem;"></small>
+                    </div>
+                    <div id="vendorHistoryTimeline" class="vendor-history-timeline" style="max-height: 400px; overflow-y: auto; overflow-x: hidden;"></div>
+                </div>
+                <div id="vendorHistoryError" class="alert alert-danger py-1 mb-0" style="display: none; font-size: 0.75rem;">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <span id="vendorHistoryErrorMessage"></span>
+                </div>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    #vendorHistoryTimeline::-webkit-scrollbar { width: 6px; }
+    #vendorHistoryTimeline::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 3px; }
+    #vendorHistoryTimeline::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+    #vendorHistoryTimeline::-webkit-scrollbar-thumb:hover { background: #555; }
+    .vendor-history-timeline { position: relative; padding: 6px 0; }
+    .vendor-history-timeline .timeline-item {
+        position: relative; padding-left: 22px; padding-bottom: 8px; border-left: 2px solid #e0e0e0;
+    }
+    .vendor-history-timeline .timeline-item:last-child { border-left: none; padding-bottom: 0; }
+    .vendor-history-timeline .timeline-item::before {
+        content: ''; position: absolute; left: -4px; top: 2px; width: 6px; height: 6px; border-radius: 50%;
+        background-color: #667eea; border: 1.5px solid #fff; box-shadow: 0 0 0 1px #667eea;
+    }
+    .vendor-history-timeline .timeline-item.created::before { background-color: #10b981; box-shadow: 0 0 0 1.5px #10b981; }
+    .vendor-history-timeline .timeline-item.modified::before { background-color: #3b82f6; box-shadow: 0 0 0 1.5px #3b82f6; }
+    .vendor-history-timeline .timeline-item.owners-changed::before { background-color: #f59e0b; box-shadow: 0 0 0 1.5px #f59e0b; }
+    .vendor-history-timeline .timeline-item.actualized::before { background-color: #0ea5e9; box-shadow: 0 0 0 1.5px #0ea5e9; }
+    .vendor-history-timeline .timeline-item.marked-not-actual::before { background-color: #f97316; box-shadow: 0 0 0 1.5px #f97316; }
+    .vendor-history-timeline .timeline-content {
+        background: #f8f9fa; border-radius: 3px; padding: 5px 8px; margin-bottom: 4px; transition: all 0.2s ease;
+    }
+    .vendor-history-timeline .timeline-content:hover { background: #e9ecef; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
+    .vendor-history-timeline .timeline-header {
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; flex-wrap: wrap; gap: 3px;
+    }
+    .vendor-history-timeline .timeline-action { font-weight: 500; color: #374151; font-size: 0.7rem; display: flex; align-items: center; gap: 3px; }
+    .vendor-history-timeline .timeline-timestamp { color: #6b7280; font-size: 0.65rem; white-space: nowrap; }
+    .vendor-history-timeline .timeline-details { color: #4b5563; margin-top: 3px; font-size: 0.7rem; line-height: 1.25; }
+    .vendor-history-timeline .timeline-user { color: #667eea; font-weight: 400; margin-top: 3px; font-size: 0.65rem; }
+    .vendor-history-timeline .timeline-changes {
+        margin-top: 4px; padding: 4px 6px; background: #fff; border-radius: 3px; border-left: 2px solid #667eea; font-size: 0.7rem;
+    }
+    .vendor-history-timeline .badge-action { padding: 0.15rem 0.3rem; font-size: 0.6rem; font-weight: 500; border-radius: 3px; line-height: 1.1; }
+    .vendor-history-timeline .badge-created { background-color: #d1fae5; color: #065f46; }
+    .vendor-history-timeline .badge-modified { background-color: #dbeafe; color: #1e40af; }
+    .vendor-history-timeline .badge-owners-changed { background-color: #fef3c7; color: #92400e; }
+    .vendor-history-timeline .badge-actualized { background-color: #e0f2fe; color: #0369a1; }
+    .vendor-history-timeline .badge-marked-not-actual { background-color: #ffedd5; color: #9a3412; }
+    .vendor-history-timeline .timeline-changes .change-item { padding: 5px 0; border-bottom: 1px solid #e5e7eb; line-height: 1.35; }
+    .vendor-history-timeline .timeline-changes .change-item:last-child { border-bottom: none; }
+    .vendor-history-timeline .timeline-changes .change-label { font-weight: 600; color: #374151; font-size: 0.68rem; display: block; margin-bottom: 3px; }
+    .vendor-history-timeline .change-old { color: #b91c1c; text-decoration: line-through; font-size: 0.65rem; word-break: break-word; }
+    .vendor-history-timeline .change-new { color: #047857; font-weight: 500; font-size: 0.65rem; word-break: break-word; }
+    .vendor-history-timeline .change-arrow { font-size: 0.55rem; color: #9ca3af; margin: 0 0.25rem; }
+</style>
+
+<script>
+(function() {
+    var modalEl = document.getElementById('vendorHistoryModal');
+    if (!modalEl || typeof bootstrap === 'undefined') {
+        return;
+    }
+    var bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    var loadingEl = document.getElementById('vendorHistoryLoading');
+    var contentEl = document.getElementById('vendorHistoryContent');
+    var errorEl = document.getElementById('vendorHistoryError');
+    var timelineEl = document.getElementById('vendorHistoryTimeline');
+    var nameEl = document.getElementById('vendorHistoryVendorName');
+    var idEl = document.getElementById('vendorHistoryVendorId');
+
+    function escapeHtml(text) {
+        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return String(text == null ? '' : text).replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    function getBadgeClass(action) {
+        if (action === 'created') return 'badge-created';
+        if (action === 'modified') return 'badge-modified';
+        if (action === 'owners_changed') return 'badge-owners-changed';
+        if (action === 'actualized') return 'badge-actualized';
+        if (action === 'marked_not_actual') return 'badge-marked-not-actual';
+        return 'badge-modified';
+    }
+
+    function getActionIcon(action) {
+        if (action === 'created') return 'fas fa-plus-circle';
+        if (action === 'modified') return 'fas fa-edit';
+        if (action === 'owners_changed') return 'fas fa-user-tie';
+        if (action === 'actualized') return 'fas fa-sync-alt';
+        if (action === 'marked_not_actual') return 'fas fa-times-circle';
+        return 'fas fa-info-circle';
+    }
+
+    function formatChanges(changes, action) {
+        if (!changes) return '';
+        var html = '<div class="timeline-changes"><strong>{% trans "Changes" %}:</strong><div class="mt-1">';
+        if (changes.field_diffs && changes.field_diffs.length) {
+            changes.field_diffs.forEach(function(d) {
+                var o = d.old != null ? String(d.old) : '';
+                var n = d.new != null ? String(d.new) : '';
+                html += '<div class="change-item">';
+                html += '<span class="change-label">' + escapeHtml(d.label || d.field || '') + '</span>';
+                html += '<div class="d-flex flex-wrap align-items-baseline gap-1">';
+                html += '<span class="change-old">' + escapeHtml(o) + '</span>';
+                html += '<i class="fas fa-arrow-right change-arrow"></i>';
+                html += '<span class="change-new">' + escapeHtml(n) + '</span>';
+                html += '</div></div>';
+            });
+        } else if (action === 'owners_changed') {
+            if (changes.items && changes.items.length) {
+                var actionType = changes.type === 'add' ? '{% trans "Added" %}' :
+                    changes.type === 'remove' ? '{% trans "Removed" %}' : '{% trans "Cleared" %}';
+                html += '<div class="change-item"><span class="change-label">' + escapeHtml(actionType) + ':</span> ';
+                changes.items.forEach(function(item) {
+                    html += '<span class="badge bg-secondary ms-1" style="font-size: 0.6rem; padding: 0.1rem 0.25rem;">' + escapeHtml(item.name) + '</span>';
+                });
+                html += '</div>';
+            } else if (changes.type === 'clear') {
+                html += '<div class="change-item text-muted small">{% trans "All owners removed from this vendor." %}</div>';
+            }
+            if (changes.owners_current) {
+                html += '<div class="change-item mt-1"><span class="change-label">{% trans "Current owners" %}</span>';
+                html += '<div class="small text-body">' + escapeHtml(changes.owners_current) + '</div></div>';
+            }
+        } else if (changes.changed_fields && changes.changed_fields.length) {
+            html += '<div class="change-item"><span class="change-label">{% trans "Fields" %}:</span> ';
+            changes.changed_fields.forEach(function(field) {
+                html += '<span class="badge bg-info ms-1" style="font-size: 0.6rem; padding: 0.1rem 0.25rem;">' + escapeHtml(field) + '</span>';
+            });
+            html += '</div>';
+        } else if (action === 'marked_not_actual' && changes.comment) {
+            html += '<div class="change-item text-muted small">' + escapeHtml(changes.comment) + '</div>';
+        } else if (typeof changes === 'object' && Object.keys(changes).length) {
+            html += '<pre class="small mb-0 mt-1" style="white-space: pre-wrap;">' + escapeHtml(JSON.stringify(changes, null, 2)) + '</pre>';
+        }
+        html += '</div></div>';
+        return html;
+    }
+
+    function buildItem(record) {
+        var actionClass = String(record.action || '').replace(/_/g, '-');
+        var badgeClass = getBadgeClass(record.action);
+        var icon = getActionIcon(record.action);
+        var changesHtml = formatChanges(record.changes, record.action);
+        var detailsHtml = record.details ? '<div class="timeline-details">' + escapeHtml(record.details) + '</div>' : '';
+        var userHtml = record.action_by ? '<div class="timeline-user"><i class="fas fa-user"></i> ' + escapeHtml(record.action_by) + '</div>' : '';
+        return (
+            '<div class="timeline-item ' + escapeHtml(actionClass) + '">' +
+            '<div class="timeline-content">' +
+            '<div class="timeline-header">' +
+            '<div class="timeline-action">' +
+            '<i class="' + icon + '"></i> ' +
+            '<span class="badge badge-action ' + badgeClass + '">' + escapeHtml(record.action_display || record.action) + '</span>' +
+            '</div>' +
+            '<div class="timeline-timestamp"><i class="fas fa-clock"></i> ' + escapeHtml(record.timestamp) + '</div>' +
+            '</div>' +
+            detailsHtml +
+            changesHtml +
+            userHtml +
+            '</div></div>'
+        );
+    }
+
+    function showError(msg) {
+        document.getElementById('vendorHistoryErrorMessage').textContent = msg;
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (contentEl) contentEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'block';
+    }
+
+    function loadVendorHistory(historyUrl, vendorNameHint, vendorId) {
+        if (loadingEl) loadingEl.style.display = 'block';
+        if (contentEl) contentEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'none';
+        if (timelineEl) timelineEl.innerHTML = '';
+        fetch(historyUrl, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+            .then(function(result) {
+                var data = result.data;
+                if (!result.ok || !data || data.status !== 'success') {
+                    showError((data && data.message) ? data.message : '{% trans "Error loading history" %}');
+                    return;
+                }
+                if (nameEl) nameEl.textContent = data.vendor_name || vendorNameHint || '';
+                if (idEl) idEl.textContent = '{% trans "ID" %}: ' + (data.vendor_id != null ? data.vendor_id : (vendorId || ''));
+                if (!data.history || !data.history.length) {
+                    if (timelineEl) {
+                        timelineEl.innerHTML = '<div class="text-center text-muted py-2"><i class="fas fa-inbox fa-lg mb-1" style="opacity: 0.5;"></i>' +
+                            '<p class="mb-0" style="font-size: 0.7rem;">{% trans "No history records found" %}</p></div>';
+                    }
+                } else if (timelineEl) {
+                    timelineEl.innerHTML = data.history.map(buildItem).join('');
+                }
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (contentEl) contentEl.style.display = 'block';
+            })
+            .catch(function() {
+                showError('{% trans "Error loading history" %}');
+            });
+    }
+
+    document.querySelectorAll('.vendor-open-history-modal').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var url = this.getAttribute('data-history-url');
+            var vid = this.getAttribute('data-vendor-id');
+            var vname = this.getAttribute('data-vendor-name') || '';
+            if (!url) return;
+            loadVendorHistory(url, vname, vid);
+            bsModal.show();
+        });
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', function() {
+        if (timelineEl) timelineEl.innerHTML = '';
+        if (loadingEl) loadingEl.style.display = 'block';
+        if (contentEl) contentEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'none';
+    });
+})();
+</script>

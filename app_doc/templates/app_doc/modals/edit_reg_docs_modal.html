@@ -1,0 +1,865 @@
+ 
+{% load i18n %}
+
+<div class="modal fade" id="editRegDocModal" tabindex="-1" aria-labelledby="editRegDocModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editRegDocModalLabel">{% trans "Edit Document" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editRegDocForm" class="needs-validation" novalidate enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" id="edit_doc_id" name="doc_id">
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="edit_name_doc" class="form-label">{% trans "Document Name" %}*</label>
+                            <input type="text" class="form-control" id="edit_name_doc" name="name_doc" required>
+                            <div class="invalid-feedback">
+                                {% trans "Please enter document name" %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_company" class="form-label">{% trans "Company" %}*</label>
+                            <select class="form-select" id="edit_company" name="company" required>
+                                <option value="">{% trans "Select Company" %}</option>
+                                {% for company in companies %}
+                                    <option value="{{ company.id }}">{{ company.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="invalid-feedback">
+                                {% trans "Please select company" %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label for="edit_date_doc" class="form-label">{% trans "Document Date" %}*</label>
+                            <input type="date" class="form-control" id="edit_date_doc" name="date_doc" required>
+                            <div class="invalid-feedback">
+                                {% trans "Please select document date" %}
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="edit_type_doc" class="form-label">{% trans "Document Type" %}*</label>
+                            <select class="form-select" id="edit_type_doc" name="type_doc" required>
+                                <option value="">{% trans "Select Document Type" %}</option>
+                                {% for display in doc_types_display %}
+                                    <option value="{{ display.id }}"
+                                            data-color="{{ display.color }}"
+                                            style="color: {{ display.color }}">{{ display.current_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="invalid-feedback">
+                                {% trans "Please select document type" %}
+                            </div>
+                            <div id="editTypeDescription" class="form-text mt-2"></div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="edit_status_doc" class="form-label">{% trans "Document Status" %}*</label>
+                            <select class="form-select" id="edit_status_doc" name="status_doc" required>
+                                <option value="">{% trans "Select Document Status" %}</option>
+                                {% for display in doc_statuses_display %}
+                                    <option value="{{ display.id }}"
+                                            data-color="{{ display.color }}"
+                                            style="color: {{ display.color }}">{{ display.current_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="invalid-feedback">
+                                {% trans "Please select document status" %}
+                            </div>
+                            <div id="editStatusDescription" class="form-text mt-2 small"></div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="edit_access_classification" class="form-label">{% trans "Level" %}</label>
+                            <select class="form-select" id="edit_access_classification" name="access_classification">
+                                <option value="">{% trans "Select Level" %}</option>
+                                {% for classification in access_classifications %}
+                                    <option value="{{ classification.id }}"
+                                            data-color="{{ classification.color }}"
+                                            data-icon="{{ classification.icon }}"
+                                            style="color: {{ classification.color }}">
+                                        <i class="fas {{ classification.icon }}"></i>
+                                        {{ classification.get_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text small">
+                                <i class="fas fa-info-circle"></i> {% trans "Level" %}
+                            </div>
+                            <div id="editAccessDescription" class="form-text mt-2"></div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="edit_vers_doc" class="form-label">{% trans "Document Version" %}*</label>
+                            <input type="text" class="form-control" id="edit_vers_doc" name="vers_doc" required>
+                            <div class="invalid-feedback">
+                                {% trans "Please enter document version" %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="edit_previous_version" class="form-label">{% trans "Previous Document" %}</label>
+                            <select class="form-select" id="edit_previous_version" name="previous_version">
+                                <option value="">{% trans "— None —" %}</option>
+                                <!-- Options loaded when company is set / modal opened -->
+                            </select>
+                            <div class="form-text small">{% trans "Select a previous Document from the list" %}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="edit_version_history" class="form-label">{% trans "Version history" %}</label>
+                            <textarea class="form-control" id="edit_version_history" name="version_history" rows="3" placeholder="{% trans 'History of changes' %}"></textarea>
+                            <div class="form-text small">{% trans "History of changes" %}</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Current File" %}</label>
+                        <div id="currentFileInfo"></div>
+                        <input type="hidden" name="remove_file" id="removeFile" value="false">
+
+                        <label for="edit_file_doc" class="form-label mt-3">{% trans "Upload New File" %}</label>
+                        <input type="file" class="form-control" id="edit_file_doc" name="file_doc">
+                        <div class="form-text">
+                            {% trans "Allowed file types: PDF, DOC, DOCX, XLS, XLSX, TXT, RTF. Max size: 10MB" %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_description" class="form-label">{% trans "Description" %}*</label>
+                        <textarea class="form-control" id="edit_description" name="description" rows="3" required></textarea>
+                        <div class="invalid-feedback">
+                            {% trans "Please enter description" %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_vers_doc_html" class="form-label">{% trans "HTML Version" %}</label>
+                        <textarea class="form-control" id="edit_vers_doc_html" name="vers_doc_html" rows="5"></textarea>
+                    </div>
+
+                    <div class="mb-3" id="editAccessSection">
+                        <label class="form-label">{% trans "Access" %}*</label>
+                        <p class="text-muted small mb-2">{% trans "Select at least one: Groups and/or Cabinet users." %}</p>
+                        <label class="form-label small">{% trans "Groups" %}</label>
+                        <div class="border p-3 rounded groups-container" id="groupsContent">
+                            <!-- Groups will be loaded dynamically -->
+                        </div>
+                        <label class="form-label small mt-2">{% trans "Cabinet users (access)" %}</label>
+                        <div class="border p-3 rounded" id="editAllowedUsersContent">
+                            <div id="editAllowedUsersBadges" class="d-flex flex-wrap gap-1 mb-2"></div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="editSelectCabinetUsersBtn">
+                                <i class="fas fa-user-plus me-1"></i>{% trans "Select Cabinet users" %}
+                            </button>
+                        </div>
+                        <div class="invalid-feedback" id="editAccessInvalidFeedback">
+                            {% trans "Select at least one: Groups and/or Cabinet users." %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Related Documents" %}</label>
+                        <div class="border p-3 rounded related-docs-container" id="editRelatedDocsContent">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Select a company to see available related documents" %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="approversSelect" class="form-label">{% trans "Document Approvers" %}</label>
+                        <select class="form-select" id="approversSelect" name="approvers[]" multiple>
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="submit" form="editRegDocForm" class="btn btn-primary">{% trans "Save Changes" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let formChanged = false;
+    let isSubmitting = false;
+
+    // Generalized function to update descriptions
+    function updateDescription(selectElementId, descriptionElementId, dataCollection) {
+        const selectedOption = $(`#${selectElementId} option:selected`);
+        const selectedValue = selectedOption.val();
+
+        if (!selectedValue) {
+            $(`#${descriptionElementId}`).empty();
+            return;
+        }
+
+        const item = dataCollection.find(dt => dt.id === parseInt(selectedValue));
+
+        if (!item) {
+            $(`#${descriptionElementId}`).empty();
+            return;
+        }
+
+        const currentLang = window.currentLanguage.substring(0, 2);
+
+        let description;
+        // Check different description structure variants
+        if (typeof item.description === 'object') {
+            description = item.description[currentLang] ||
+                        item.description[currentLang === 'uk' ? 'ua' : currentLang] ||
+                        item.description.en ||
+                        item.description.uk ||
+                        item.description.ua;
+        } else {
+            // If description is not an object, use as is
+            description = item.description;
+        }
+
+        if (description) {
+            $(`#${descriptionElementId}`)
+                .text(description)
+                .css('color', item.color || '#6c757d')
+                .show();
+        } else {
+            $(`#${descriptionElementId}`).empty();
+        }
+    }
+
+    // Assign update functions to window object
+    window.updateEditTypeDescription = function() {
+        updateDescription('edit_type_doc', 'editTypeDescription', window.docTypesData);
+    };
+
+    window.updateEditStatusDescription = function() {
+        updateDescription('edit_status_doc', 'editStatusDescription', window.docStatusesData);
+    };
+
+    // Initialize Select2
+    $('#approversSelect').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: window.getLocalizedText('Select approvers'),
+        closeOnSelect: false,
+        allowClear: true,
+        templateResult: formatApproverOption,
+        templateSelection: formatApproverSelection,
+        escapeMarkup: m => m
+    });
+
+    // Event handlers
+    $('#editRegDocForm').on('change input', 'input, select, textarea', () => {
+        formChanged = true;
+    });
+
+    $('#edit_status_doc').on('change', function() {
+        window.updateEditStatusDescription();
+        formChanged = true;
+    });
+
+    $('#edit_type_doc').on('change', function() {
+        window.updateEditTypeDescription();
+        formChanged = true;
+    });
+
+    window.updateEditTypeDescription();
+    window.updateEditStatusDescription();
+
+    // Approver formatting functions
+    function formatApproverOption(user) {
+        if (!user.id || user.loading) return user.text;
+
+        const $user = $(user.element);
+        const userData = $user.data();
+        const currentLanguage = window.currentLanguage.substring(0, 2);
+
+        const getLocalizedInfo = (data, prefix) => {
+            if (!data) return '';
+            return data[`${prefix}_${currentLanguage}`] ||
+                   data[`${prefix}_${getLanguageFallback(currentLanguage)}`] ||
+                   data[`${prefix}_ua`];
+        };
+        // Prefer backend-provided localized name (site language)
+        const positionText = (userData.position_name != null && userData.position_name !== '') ? userData.position_name : getLocalizedInfo(userData.position, 'position_name');
+        const departmentText = (userData.department_name != null && userData.department_name !== '') ? userData.department_name : getLocalizedInfo(userData.department, 'department_name');
+
+        const statusClass = {
+            'approved': 'success',
+            'pending': 'warning',
+            'not_assigned': 'secondary'
+        }[userData.status] || 'secondary';
+
+        return `
+            <div class="d-flex align-items-start p-2 user-option ${userData['is-existing'] ? 'is-existing' : ''}">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-user text-${statusClass}"></i>
+                </div>
+                <div class="flex-grow-1 ms-2">
+                    <div class="fw-bold">${userData['full-name'] || user.text}</div>
+                    ${positionText ? `<div class="small text-muted"><i class="fas fa-briefcase me-1"></i>${positionText}</div>` : ''}
+                    ${departmentText ? `<div class="small text-muted"><i class="fas fa-building me-1"></i>${departmentText}</div>` : ''}
+                    ${userData.email ? `<div class="small text-muted"><i class="fas fa-envelope me-1"></i>${userData.email}</div>` : ''}
+                    <div class="small mt-1">
+                        <span class="badge bg-${statusClass} rounded-pill">
+                            <i class="fas fa-${userData.status === 'approved' ? 'check' : 'clock'} me-1"></i>
+                            ${window.getLocalizedText(userData.status)}
+                        </span>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    function formatApproverSelection(user) {
+        if (!user.id) return user.text;
+
+        const userData = $(user.element).data();
+        const currentLanguage = window.currentLanguage.substring(0, 2);
+
+        const position = (userData.position_name != null && userData.position_name !== '') ? userData.position_name : (userData.position ? getLocalizedInfo(userData.position, 'position_name', currentLanguage) : '');
+        const department = (userData.department_name != null && userData.department_name !== '') ? userData.department_name : (userData.department ? getLocalizedInfo(userData.department, 'department_name', currentLanguage) : '');
+
+        return [
+            userData['full-name'] || user.text,
+            position ? `(${position})` : '',
+            department ? `| ${department}` : ''
+        ].filter(Boolean).join(' ');
+    }
+
+    function getLocalizedInfo(data, prefix, language) {
+        if (!data) return '';
+        return data[`${prefix}_${language}`] ||
+               data[`${prefix}_${getLanguageFallback(language)}`] ||
+               data[`${prefix}_ua`];
+    }
+
+    function getLanguageFallback(language) {
+        return { 'uk': 'ua', 'en': 'ua', 'ru': 'ua' }[language] || 'ua';
+    }
+
+    // Form validation and submission handlers
+    $(document).on('submit', '#editRegDocForm', async function(e) {
+        e.preventDefault();
+        if (isSubmitting) return;
+
+        try {
+            const form = this;
+            if (!form.checkValidity()) {
+                form.classList.add('was-validated');
+                return;
+            }
+
+            // Create FormData object
+            const formData = new FormData(form);
+            const docId = $('#edit_doc_id').val();
+
+            // Handle file
+            const fileInput = $('#edit_file_doc')[0];
+            const removeFile = $('#removeFile').val() === 'true';
+
+            // If there's a new file, add it to formData
+            if (fileInput.files.length > 0) {
+                formData.set('file_doc', fileInput.files[0]);
+            }
+
+            // Set remove_file flag
+            formData.set('remove_file', removeFile);
+
+            // Access: at least one of Groups or Cabinet users required
+            const selectedGroups = $('.edit-group-checkbox:checked').map(function() {
+                return $(this).val();
+            }).get();
+            const cabinetUsersSelected = window.selectedEditDocAllowedUsers && window.selectedEditDocAllowedUsers.size > 0;
+            if (!selectedGroups.length && !cabinetUsersSelected) {
+                $('#editAccessSection').addClass('is-invalid');
+                $('#groupsContent').addClass('is-invalid');
+                $('#editAllowedUsersContent').addClass('is-invalid');
+                $('#editAccessInvalidFeedback').addClass('d-block');
+                return;
+            }
+            $('#editAccessSection').removeClass('is-invalid');
+            $('#groupsContent').removeClass('is-invalid');
+            $('#editAllowedUsersContent').removeClass('is-invalid');
+            $('#editAccessInvalidFeedback').removeClass('d-block');
+
+            // Add groups to formData
+            formData.delete('groups[]');
+            selectedGroups.forEach(groupId => {
+                formData.append('groups[]', groupId);
+            });
+
+            // Add related documents to formData
+            const selectedRelatedDocs = $('.edit-related-doc-checkbox:checked').map(function() {
+                return $(this).val();
+            }).get();
+
+            // Clear existing related docs and add selected ones
+            formData.delete('related_docs[]');
+            selectedRelatedDocs.forEach(relatedDocId => {
+                formData.append('related_docs[]', relatedDocId);
+            });
+
+            // Add approvers to formData
+            const selectedApprovers = $('#approversSelect').val();
+            if (!selectedApprovers || !selectedApprovers.length) {
+                $('#approversSelect').next('.select2-container').find('.select2-selection').addClass('is-invalid');
+                return;
+            }
+
+            // Clear existing approvers and add selected ones
+            formData.delete('approvers[]');
+            selectedApprovers.forEach(approverId => {
+                formData.append('approvers[]', approverId);
+            });
+
+            // Add allowed users (Cabinet users with access)
+            formData.delete('allowed_users[]');
+            if (window.selectedEditDocAllowedUsers && window.selectedEditDocAllowedUsers.size) {
+                window.selectedEditDocAllowedUsers.forEach(function(u, id) {
+                    formData.append('allowed_users[]', id);
+                });
+            }
+
+            // Get HTML version from CKEditor if available
+            if (typeof CKEDITOR !== 'undefined' && CKEDITOR.instances.edit_vers_doc_html) {
+                formData.set('vers_doc_html', CKEDITOR.instances.edit_vers_doc_html.getData());
+            }
+
+            isSubmitting = true;
+            $('.loading-overlay').removeClass('d-none');
+
+            // Log formData contents for debugging
+            for (let pair of formData.entries()) {
+                console.log(pair[0] + ': ' + pair[1]);
+            }
+
+            const response = await fetch(`{% url 'edit_register_doc' '0' %}`.replace('0', docId), {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.error || window.getLocalizedText('Error updating document'));
+            }
+
+            // Hide modal and show success message
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editRegDocModal'));
+            modal?.hide();
+
+            // Reload table and show success message
+            window.mainDocsTable?.ajax.reload();
+            window.showNotification('success', window.getLocalizedText('Document updated successfully'));
+
+        } catch (error) {
+            console.error('Error submitting form:', error);
+            window.showNotification('error', error.message || window.getLocalizedText('Error updating document'));
+        } finally {
+            $('.loading-overlay').addClass('d-none');
+            isSubmitting = false;
+        }
+    });
+
+    function getSelectedGroups() {
+        return $('.edit-group-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+    }
+
+    async function submitForm(form) {
+        const formData = new FormData(form);
+        const docId = $('#edit_doc_id').val();
+
+        // Add groups to formData
+        const selectedGroups = getSelectedGroups();
+        if (!selectedGroups.length) {
+            $('#groupsContent').addClass('is-invalid');
+            $('.groups-container + .invalid-feedback').show();
+            throw new Error('At least one group must be selected');
+        }
+
+        selectedGroups.forEach(groupId => {
+            formData.append('groups[]', groupId);
+        });
+
+        isSubmitting = true;
+        showLoadingState(true);
+
+        try {
+            const response = await fetch(`{% url 'edit_register_doc' '0' %}`.replace('0', docId), {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            handleSuccessfulSubmission(result);
+
+        } finally {
+            showLoadingState(false);
+            isSubmitting = false;
+        }
+    }
+
+    function validateForm(form) {
+        if (!form.checkValidity()) {
+            form.classList.add('was-validated');
+            highlightInvalidFields();
+            return false;
+        }
+
+        return validateRequiredSelections();
+    }
+
+    function validateRequiredSelections() {
+        let isValid = true;
+
+        // Check approvers
+        if (!$('#approversSelect').val()?.length) {
+            $('#approversSelect')
+                .next('.select2-container')
+                .find('.select2-selection')
+                .addClass('is-invalid');
+            isValid = false;
+        }
+
+        // Check groups
+        const selectedGroups = $('.edit-group-checkbox:checked').length;
+        if (selectedGroups === 0) {
+            $('#groupsContent').addClass('is-invalid');
+            $('.groups-container + .invalid-feedback').show();
+            isValid = false;
+        }
+
+        if (!isValid) {
+            window.showNotification('error', window.getLocalizedText('Please fill in all required fields'));
+        }
+
+        return isValid;
+    }
+
+    function highlightInvalidFields() {
+        document.querySelectorAll('.form-control:invalid, .form-select:invalid')
+            .forEach(field => {
+                field.addEventListener('input', function() {
+                    if (this.checkValidity()) {
+                        this.classList.remove('is-invalid');
+                    }
+                });
+            });
+    }
+
+    function handleSuccessfulSubmission(result) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('editRegDocModal'));
+        modal?.hide();
+
+        window.mainDocsTable?.ajax.reload();
+        window.showNotification('success', window.getLocalizedText('Document updated successfully'));
+        formChanged = false;
+    }
+
+    function handleSubmissionError(error) {
+        console.error('Error submitting form:', error);
+        window.showNotification('error', error.message || window.getLocalizedText('Error updating document'));
+    }
+
+    function showLoadingState(show) {
+        $('.loading-overlay').toggleClass('d-none', !show);
+        $('button[type="submit"]').prop('disabled', show);
+    }
+
+    // File handling
+    const fileHandler = {
+        maxSize: 10 * 1024 * 1024,
+        allowedTypes: new Set([
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/plain',
+            'application/rtf'
+        ]),
+
+        validateFile(file) {
+            if (file.size > this.maxSize) {
+                throw new Error(window.getLocalizedText('File size exceeds 10MB limit'));
+            }
+            if (!this.allowedTypes.has(file.type)) {
+                throw new Error(window.getLocalizedText('Invalid file type'));
+            }
+            return true;
+        },
+
+        handleFileSelect(e) {
+            const file = e.target?.files?.[0];
+            if (!file) return;
+
+            try {
+                this.validateFile(file);
+                formChanged = true;
+            } catch (error) {
+                e.target.value = '';
+                window.showNotification('error', error.message);
+            }
+        }
+    };
+
+    $('#edit_file_doc').on('change', e => fileHandler.handleFileSelect(e));
+
+    // Drag and drop handling
+    const dropZone = {
+        element: document.getElementById('editRegDocModal'),
+        init() {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {
+                this.element.addEventListener(event, this.prevent, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(event => {
+                this.element.addEventListener(event, () => this.highlight(), false);
+            });
+
+            ['dragleave', 'drop'].forEach(event => {
+                this.element.addEventListener(event, () => this.unhighlight(), false);
+            });
+
+            this.element.addEventListener('drop', e => this.handleDrop(e), false);
+        },
+
+        prevent(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        },
+
+        highlight() {
+            this.element.classList.add('drag-over');
+        },
+
+        unhighlight() {
+            this.element.classList.remove('drag-over');
+        },
+
+        handleDrop(e) {
+            const file = e.dataTransfer?.files?.[0];
+            if (file) {
+                const input = document.getElementById('edit_file_doc');
+                input.files = e.dataTransfer.files;
+                $(input).trigger('change');
+            }
+        }
+    };
+
+    dropZone.init();
+
+    // Modal handler
+    const modalHandler = {
+        init() {
+            const modal = $('#editRegDocModal');
+            modal.on('hide.bs.modal', e => this.handleHide(e));
+            modal.on('hidden.bs.modal', () => this.resetModal());
+        },
+
+        handleHide(e) {
+            if (formChanged && !isSubmitting && !this.confirmClose()) {
+                e.preventDefault();
+            }
+        },
+
+        confirmClose() {
+            return window.confirm(window.getLocalizedText('You have unsaved changes. Are you sure you want to close?'));
+        },
+
+        resetModal() {
+            const form = $('#editRegDocForm')[0];
+            form.reset();
+            $(form).removeClass('was-validated');
+
+            $('#approversSelect').val(null).trigger('change');
+            $('#currentFileInfo').html(window.fileUtils.displayFileInfo(null));
+            $('#removeFile').val('false');
+
+            if (typeof CKEDITOR !== 'undefined' && CKEDITOR.instances?.edit_vers_doc_html) {
+                CKEDITOR.instances.edit_vers_doc_html.setData('');
+            }
+
+            $('#groupsContent')
+                .empty()
+                .removeClass('is-invalid');
+            $('.groups-container + .invalid-feedback').hide();
+            $('.edit-related-doc-checkbox').prop('checked', false);
+            $('.groups-counter, .related-docs-counter').remove();
+
+            formChanged = false;
+            $('#editRegDocForm').removeData('selectedGroups');
+        }
+    };
+
+    modalHandler.init();
+
+    $(document).on('click', '.remove-file-btn', function(e) {
+        e.preventDefault();
+        $('#removeFile').val('true');
+        $('#edit_file_doc').val('');
+        $('#currentFileInfo').html(window.fileUtils.displayFileInfo(null));
+        formChanged = true;
+    });
+
+    // Group handling
+    function updateSelectedCounts() {
+        const groupCount = $('.edit-group-checkbox:checked').length;
+        const relatedCount = $('.edit-related-doc-checkbox:checked').length;
+
+        $('.groups-counter').remove();
+        if (groupCount > 0) {
+            $('.groups-container').prev('.form-label')
+                .append(`<span class="badge bg-primary ms-2 groups-counter">${groupCount}</span>`);
+        }
+
+        $('.related-docs-counter').remove();
+        if (relatedCount > 0) {
+            $('.related-docs-container').prev('.form-label')
+                .append(`<span class="badge bg-primary ms-2 related-docs-counter">${relatedCount}</span>`);
+        }
+    }
+
+    $(document).on('change', '.edit-group-checkbox', function() {
+        updateSelectedCounts();
+        formChanged = true;
+        const hasGroups = $('.edit-group-checkbox:checked').length > 0;
+        const hasUsers = window.selectedEditDocAllowedUsers && window.selectedEditDocAllowedUsers.size > 0;
+        if (hasGroups || hasUsers) {
+            $('#editAccessSection').removeClass('is-invalid');
+            $('#groupsContent').removeClass('is-invalid');
+            $('#editAllowedUsersContent').removeClass('is-invalid');
+            $('#editAccessInvalidFeedback').removeClass('d-block');
+        }
+    });
+
+    // Company change handler
+    $('#edit_company').on('change', async function() {
+        const companyId = $(this).val();
+        if (!companyId) {
+            $('#approversSelect').empty().trigger('change');
+            $('#groupsContent').empty();
+            return;
+        }
+
+        $('#approversSelect').prop('disabled', true);
+        $('.loading-overlay').removeClass('d-none');
+
+        try {
+            const [usersResponse, approvalResponse] = await Promise.all([
+                fetch(`{% url 'get_company_cabinet_users' %}?company_id=${companyId}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                }),
+                $('#edit_doc_id').val() ?
+                    fetch(`{% url 'document_approvals' '0' %}`.replace('0', $('#edit_doc_id').val())) :
+                    Promise.resolve(null)
+            ]);
+
+            const usersData = await usersResponse.json();
+            const approvalData = await approvalResponse?.json();
+
+            $('#approversSelect').empty();
+
+            if (usersData.success && Array.isArray(usersData.users)) {
+                const approvers = new Map(approvalData?.total_approvers?.map(approver => [
+                    approver.approver_id.toString(),
+                    {
+                        status: approver.status,
+                        position: approver.position,
+                        position_name: approver.position_name,
+                        department: approver.department,
+                        department_name: approver.department_name
+                    }
+                ]) || []);
+
+                usersData.users.forEach(user => {
+                    const approverData = approvers.get(user.id.toString());
+                    const option = new Option(
+                        user.full_name || user.username,
+                        user.id,
+                        !!approverData,
+                        !!approverData
+                    );
+
+                    $(option).data({
+                        'username': user.username,
+                        'full-name': user.full_name,
+                        'position': approverData?.position || user.position,
+                        'position_name': approverData?.position_name ?? user.position_name,
+                        'department': approverData?.department || user.department,
+                        'department_name': approverData?.department_name ?? user.department_name,
+                        'email': user.email,
+                        'status': approverData ? approverData.status : 'not_assigned',
+                        'is-existing': !!approverData
+                    });
+
+                    $('#approversSelect').append(option);
+                });
+
+                $('#approversSelect').trigger('change');
+            }
+
+            window.loadCompanyGroups(companyId);
+            formChanged = true;
+
+        } catch (error) {
+            console.error('Error loading data:', error);
+            window.showNotification('error', window.getLocalizedText('Error loading data'));
+        } finally {
+            $('#approversSelect').prop('disabled', false);
+            $('.loading-overlay').addClass('d-none');
+        }
+    });
+
+    // Handle group loading completion
+    $('#groupsContent').on('groupsLoaded', function() {
+        const selectedGroups = $('#editRegDocForm').data('selectedGroups') || [];
+        selectedGroups.forEach(groupId => {
+            $(`#editGroup${groupId}`).prop('checked', true);
+        });
+        updateSelectedCounts();
+    });
+
+    // CKEditor setup
+    if (typeof CKEDITOR !== 'undefined') {
+        CKEDITOR.replace('edit_vers_doc_html', {
+            height: 300,
+            removePlugins: 'elementspath,resize',
+            removeButtons: 'Source',
+            allowedContent: true,
+            contentsCss: ['https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css']
+        });
+
+        CKEDITOR.instances.edit_vers_doc_html.on('change', () => {
+            formChanged = true;
+        });
+
+        CKEDITOR.instances.edit_vers_doc_html.on('paste', e => {
+            e.data.dataValue = e.data.dataValue
+                .replace(/style="[^"]*"/g, '')
+                .replace(/class="[^"]*"/g, '');
+        });
+    }
+})
+</script>

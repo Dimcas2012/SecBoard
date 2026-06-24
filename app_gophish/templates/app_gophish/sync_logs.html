@@ -1,0 +1,104 @@
+{% extends 'app_gophish/gophish.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Sync Logs" %}{% endblock %}
+
+{% block gophish_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="bi bi-arrow-repeat me-2"></i>{% trans "Synchronization Logs" %}</h2>
+    </div>
+</div>
+
+<!-- Sync Logs Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="export-controls px-3 pt-2 pb-0">
+                    <div class="row align-items-center g-1">
+                        <div class="col-md-6"></div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group sb-toolbar" role="group">
+                                <a href="{% url 'app_gophish:sync_data' %}" class="btn btn-outline-primary btn-sm btn-icon-action"
+                                   title="{% trans 'Manual Sync' %}">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive full-width-table">
+                    <table class="table table-hover table-sm table-sm-font campaign-metrics-table sb-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Server" %}</th>
+                                <th>{% trans "Sync Type" %}</th>
+                                <th>{% trans "Status" %}</th>
+                                <th>{% trans "Started" %}</th>
+                                <th>{% trans "Duration" %}</th>
+                                <th class="text-center">{% trans "Records" %}</th>
+                                <th class="no-sort">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in page_obj %}
+                            <tr>
+                                <td>{{ log.server.name }}</td>
+                                <td>{{ log.get_sync_type_display }}</td>
+                                <td class="sync-status-{{ log.status }}">
+                                    {{ log.get_status_display }}
+                                </td>
+                                <td>{{ log.started_at|date:"M d, H:i:s" }}</td>
+                                <td>
+                                    {% if log.duration %}
+                                        {{ log.duration }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="campaign-metrics">
+                                        <div class="d-flex justify-content-between">
+                                            <span>{% trans "Processed" %}:</span>
+                                            <span class="numeric {% if log.records_processed == 0 %}zero{% else %}positive{% endif %}">{{ log.records_processed }}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>{% trans "Created" %}:</span>
+                                            <span class="numeric {% if log.records_created == 0 %}zero{% else %}positive{% endif %}">{{ log.records_created }}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>{% trans "Updated" %}:</span>
+                                            <span class="numeric {% if log.records_updated == 0 %}zero{% else %}positive{% endif %}">{{ log.records_updated }}</span>
+                                        </div>
+                                        {% if log.records_failed > 0 %}
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-danger">{% trans "Failed" %}:</span>
+                                            <span class="numeric text-danger">{{ log.records_failed }}</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <a href="{% url 'app_gophish:sync_log_detail' log.id %}" class="btn btn-outline-info btn-sm" title="{% trans 'View Details' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    {% trans "No sync logs found" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'app_gophish/includes/gophish_table_pagination.html' with pagination_item_label=_("logs") pagination_aria_label=_("Sync logs pagination") %}
+{% endblock %}

@@ -1,0 +1,702 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Legislative Documents" %}{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    {% include "app_doc/includes/doc_styles.html" %}
+    <link rel="stylesheet" href="{% static 'app_doc/css/legislative_docs-page.css' %}">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap5.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.dataTables.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 doc-page">
+    <div class="mb-3">
+        <h1 class="mb-0"><i class="bi bi-journal-text me-2"></i>{% trans "Legislative Documents and Regulatory Requirements" %}</h1>
+    </div>
+
+    <div class="card mb-2 filter-section access-request-filters">
+        {% include "includes/sb_access_request_filters_header.html" with collapse_id="legislativeDocsFiltersCollapse" toggle_id="toggleLegislativeDocsFilters" icon_id="legislativeDocsFiltersToggleIcon" %}
+        <div class="collapse" id="legislativeDocsFiltersCollapse">
+            <div class="card-body py-2">
+                <div id="advancedSearchForm" class="row g-1">
+                    <div class="col-md-3">
+                        <label for="searchTitle" class="form-label">{% trans "Title" %}</label>
+                        <input type="text" class="form-control form-control-sm" id="searchTitle" placeholder="{% trans 'Search by title...' %}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="searchDocNumber" class="form-label">{% trans "Doc Number" %}</label>
+                        <input type="text" class="form-control form-control-sm" id="searchDocNumber" placeholder="{% trans 'Document ID...' %}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="searchDocType" class="form-label">{% trans "Type" %}</label>
+                        <select class="form-select form-select-sm" id="searchDocType">
+                            <option value="">{% trans "All Types" %}</option>
+                            {% for doc_type in doc_types %}
+                            <option value="{{ doc_type.id }}">{{ doc_type.get_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="searchRegulator" class="form-label">{% trans "Regulator" %}</label>
+                        <select class="form-select form-select-sm" id="searchRegulator">
+                            <option value="">{% trans "All" %}</option>
+                            {% for regulator in regulators %}
+                            <option value="{{ regulator.id }}">{{ regulator.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="searchCompany" class="form-label">{% trans "Company" %}</label>
+                        <select class="form-select form-select-sm" id="searchCompany">
+                            <option value="">{% trans "All" %}</option>
+                            {% for company in companies %}
+                            <option value="{{ company.id }}">{{ company.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <label for="searchStartDate" class="form-label">{% trans "From" %}</label>
+                        <input type="date" class="form-control form-control-sm" id="searchStartDate">
+                    </div>
+                    <div class="col-md-1">
+                        <label for="searchEndDate" class="form-label">{% trans "To" %}</label>
+                        <input type="date" class="form-control form-control-sm" id="searchEndDate">
+                    </div>
+                    <div class="col-md-12">
+                        <label for="searchHtmlContent" class="form-label">{% trans "Content Search" %}</label>
+                        <input type="text" class="form-control form-control-sm" id="searchHtmlContent" placeholder="{% trans 'Search in content...' %}">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{% trans "Documents List" %}</h5>
+                <div class="btn-group sb-toolbar" role="group">
+                    {% if user_access.can_edit %}
+                    <button type="button" class="btn btn-outline-success btn-sm btn-icon-action" id="addLegislativeDocBtn"
+                            title="{% trans 'Add Document' %}">
+                        <i class="bi bi-plus-circle"></i>
+                    </button>
+                    {% endif %}
+                    <button type="button" class="btn btn-outline-info btn-sm btn-icon-action sb-btn-guide" data-bs-toggle="modal" data-bs-target="#legislativeDocsGuideModal"
+                            title="{% trans 'Guide' %}">
+                        <i class="bi bi-book"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table"><table class="table table-hover table-sm table-sm-font sb-data-table w-100 mb-0" id="legislativeDocsTable" width="100%" cellspacing="0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "Title" %}</th>
+                            <th>{% trans "Document Number" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Issuing Authority" %}</th>
+                            <th>{% trans "Regulator" %}</th>
+                            <th>{% trans "Issue Date" %}</th>
+                            <th>{% trans "Effective Date" %}</th>
+                            <th>{% trans "Company" %}</th>
+                            <th>{% trans "Description" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data loaded via AJAX -->
+                    </tbody>
+                </table>
+            </div>
+            {% include "app_doc/includes/doc_table_pagination_client.html" with pagination_id="legislativeDocsTablePagination" %}
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" style="display: none;">
+    <div class="d-flex flex-column align-items-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">{% trans "Loading..." %}</span>
+        </div>
+        <div class="mt-3 text-primary" id="loadingText">{% trans "Loading..." %}</div>
+    </div>
+</div>
+
+<!-- View HTML Content Modal -->
+<div class="modal fade" id="viewHtmlModal" tabindex="-1" aria-labelledby="viewHtmlModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewHtmlModalLabel">{% trans "Document Content" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="htmlContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+{% include 'app_doc/modals/add_legislative_doc_modal.html' %}
+{% include 'app_doc/modals/edit_legislative_doc_modal.html' %}
+{% include 'app_doc/modals/delete_legislative_doc_modal.html' %}
+
+<!-- Legislative Docs Guide Modal -->
+<div class="modal fade" id="legislativeDocsGuideModal" tabindex="-1" aria-labelledby="legislativeDocsGuideModalLabel" aria-hidden="true" data-guide-url="{% url 'legislative_docs_guide' %}">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="legislativeDocsGuideModalLabel"><i class="fas fa-book me-2"></i>{% trans "Legislative Documents Guide" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="legislativeDocsGuideModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">{% trans "Loading..." %}</span></div>
+                    <p class="mt-2 text-muted">{% trans "Loading guide..." %}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    $(document).ready(function() {
+        // Get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Setup CSRF for AJAX
+        const csrftoken = getCookie('csrftoken');
+        
+        // Add CSRF token to all AJAX requests
+        $(function() {
+            $.ajaxSetup({
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            });
+        });
+
+        // Initialize DataTable
+        const legislativeDocsTable = $('#legislativeDocsTable').DataTable({
+            processing: true,
+            serverSide: true,
+            responsive: true,
+            autoWidth: false,
+            pageLength: 25,
+            lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+            lengthChange: false,
+            dom: '<"row"<"col-sm-12"tr>>',
+            ajax: {
+                url: "{% url 'legislative_docs' %}",
+                type: "GET",
+                data: function(d) {
+                    // Add advanced search parameters
+                    d.title = $('#searchTitle').val();
+                    d.doc_number = $('#searchDocNumber').val();
+                    d.doc_type = $('#searchDocType').val();
+                    d.regulator = $('#searchRegulator').val();
+                    d.company = $('#searchCompany').val();
+                    d.start_date = $('#searchStartDate').val();
+                    d.end_date = $('#searchEndDate').val();
+                    d.html_content = $('#searchHtmlContent').val();
+                    return d;
+                }
+            },
+            columns: [
+                { data: "title" },
+                { data: "doc_number" },
+                { 
+                    data: 'doc_type',
+                    name: 'doc_type',
+                    render: function(data, type, row) {
+                        if (row.doc_type_color) {
+                            return `<span class="doc-type-badge" style="color: ${row.doc_type_color}">${data}</span>`;
+                        }
+                        return `<span class="doc-type-badge">${data}</span>`;
+                    }
+                },
+                { data: "issuing_authority" },
+                { 
+                    data: "regulator",
+                    render: function(data, type, row) {
+                        if (data) {
+                            const code = data.code ? data.code.toLowerCase() : '';
+                            const cssClass = code || data.name.toLowerCase().replace(/\s+/g, '-');
+                            
+                            if (row.original_url) {
+                                return `<a href="${row.original_url}" target="_blank" class="regulator-badge ${cssClass}" style="color:${data.color || '#006064'}">${data.name}</a>`;
+                            } else {
+                                return `<span class="regulator-badge ${cssClass}" style="color:${data.color || '#006064'}">${data.name}</span>`;
+                            }
+                        }
+                        return '-';
+                    }
+                },
+                { 
+                    data: "issue_date",
+                    render: function(data) {
+                        if (!data) return '-';
+                        const date = new Date(data);
+                        // Format as dd-mm-yyyy
+                        return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+                    }
+                },
+                { 
+                    data: "effective_date",
+                    render: function(data) {
+                        if (!data) return '-';
+                        const date = new Date(data);
+                        // Format as dd-mm-yyyy
+                        return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+                    }
+                },
+                { 
+                    data: "company",
+                    render: function(data) {
+                        if (!data) return '-';
+                        return data;
+                    }
+                },
+                { 
+                    data: "description",
+                    render: function(data) {
+                        if (!data) return '-';
+                        // Truncate description to 50 characters with ellipsis
+                        return data.length > 50 ? 
+                               `<span title="${data.replace(/"/g, '&quot;')}">${data.substring(0, 50)}...</span>` : 
+                               data;
+                    }
+                },
+                {
+                    data: null,
+                    sortable: false,
+                    render: function(data, type, row) {
+                        let buttons = '';
+                        
+                        if (row.has_pdf) {
+                            buttons += `<a href="{% url 'legislative_docs' %}${row.id}/pdf/" class="btn btn-sm btn-info action-btn" title="Download PDF">
+                                        <i class="fas fa-download"></i></a>`;
+                        }
+                        
+                        if (row.has_html) {
+                            buttons += `<button class="btn btn-sm btn-success action-btn view-html-btn" data-id="${row.id}" title="View HTML">
+                                        <i class="fas fa-eye"></i></button>`;
+                        }
+                        
+                        {% if user_access.can_edit %}
+                        buttons += `<button class="btn btn-sm btn-warning action-btn edit-doc-btn" data-id="${row.id}" title="Edit">
+                                    <i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-sm btn-danger action-btn delete-doc-btn" data-id="${row.id}" title="Delete">
+                                    <i class="fas fa-trash-alt"></i></button>`;
+                        {% endif %}
+                        
+                        return buttons;
+                    }
+                }
+            ],
+            columnDefs: [
+                {
+                    targets: 0,
+                    width: "110px",
+                    className: "document-name-cell"
+                },
+                {
+                    targets: 8,
+                    width: "90px",
+                    className: "text-truncate"
+                },
+                {
+                    targets: 9,
+                    width: "90px",
+                    orderable: false
+                }
+            ],
+            order: [[5, 'desc']], // Order by effective date by default
+            initComplete: function() {
+                if (window.initDocDataTablePagination) {
+                    window.initDocDataTablePagination({
+                        api: this.api(),
+                        containerId: 'legislativeDocsTablePagination',
+                        paginationAriaLabel: '{% trans "Legislative documents pagination" %}',
+                        labels: {
+                            showing: '{% trans "Showing" %}',
+                            of: '{% trans "of" %}',
+                            items: '{% trans "documents" %}',
+                            perPage: '{% trans "Per page" %}'
+                        }
+                    });
+                }
+            },
+            language: {
+                search: "{% trans 'Search:' %}",
+                lengthMenu: "{% trans 'Show _MENU_ entries' %}",
+                info: "{% trans 'Showing _START_ to _END_ of _TOTAL_ entries' %}",
+                infoEmpty: "{% trans 'Showing 0 to 0 of 0 entries' %}",
+                infoFiltered: "{% trans '(filtered from _MAX_ total entries)' %}",
+                paginate: {
+                    first: "{% trans 'First' %}",
+                    last: "{% trans 'Last' %}",
+                    next: "{% trans 'Next' %}",
+                    previous: "{% trans 'Previous' %}"
+                }
+            }
+        });
+
+        function reloadLegislativeDocsTable() {
+            legislativeDocsTable.ajax.reload();
+        }
+
+        function resetLegislativeSearchFilters() {
+            $('#searchTitle, #searchDocNumber, #searchHtmlContent').val('');
+            $('#searchDocType, #searchRegulator, #searchCompany, #searchStartDate, #searchEndDate').val('');
+            reloadLegislativeDocsTable();
+        }
+
+        $('#clearAllFilters').on('click', resetLegislativeSearchFilters);
+
+        $('#searchDocType, #searchRegulator, #searchCompany, #searchStartDate, #searchEndDate').on('change', reloadLegislativeDocsTable);
+
+        let legislativeSearchTimeout;
+        $('#searchTitle, #searchDocNumber, #searchHtmlContent').on('input', function() {
+            clearTimeout(legislativeSearchTimeout);
+            legislativeSearchTimeout = setTimeout(reloadLegislativeDocsTable, 400);
+        });
+
+        // Enter key in search fields should trigger search
+        $('#advancedSearchForm input').on('keypress', function(e) {
+            if (e.which === 13) { // Enter key
+                e.preventDefault();
+                legislativeDocsTable.ajax.reload();
+            }
+        });
+        
+        // Enter key in select fields should trigger search
+        $('#advancedSearchForm select').on('keypress', function(e) {
+            if (e.which === 13) { // Enter key
+                e.preventDefault();
+                legislativeDocsTable.ajax.reload();
+            }
+        });
+
+        // Add Document Button Click
+        $('#addLegislativeDocBtn').on('click', function() {
+            $('#addLegislativeDocModal').modal('show');
+        });
+
+        // Edit Document Button Click
+        $('#legislativeDocsTable').on('click', '.edit-doc-btn', function() {
+            const docId = $(this).data('id');
+            loadDocumentData(docId);
+        });
+
+        // Delete Document Button Click
+        $('#legislativeDocsTable').on('click', '.delete-doc-btn', function() {
+            const docId = $(this).data('id');
+            $('#deleteDocId').val(docId);
+            // Set the form action URL for delete
+            $('#deleteLegislativeDocForm').attr('action', `{% url 'legislative_docs' %}${docId}/delete/`);
+            $('#deleteLegislativeDocModal').modal('show');
+        });
+
+        // View HTML Button Click
+        $('#legislativeDocsTable').on('click', '.view-html-btn', function() {
+            const docId = $(this).data('id');
+            loadHtmlContent(docId);
+        });
+
+        // Load document data for editing
+        function loadDocumentData(docId) {
+            showLoading("{% trans 'Loading document data...' %}");
+            
+            $.ajax({
+                url: `{% url 'legislative_docs' %}${docId}/`,
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        fillEditForm(response.data);
+                        // Set the form action URL for edit
+                        $('#editLegislativeDocForm').attr('action', `{% url 'legislative_docs' %}${docId}/edit/`);
+                        
+                        // Set company values after modal is fully shown (for Select2)
+                        $('#editLegislativeDocModal').off('shown.bs.modal').on('shown.bs.modal', function() {
+                            if (response.data.company && Array.isArray(response.data.company) && response.data.company.length > 0) {
+                                $('#editCompany').val(response.data.company).trigger('change');
+                            } else {
+                                $('#editCompany').val(null).trigger('change');
+                            }
+                        });
+                        
+                        $('#editLegislativeDocModal').modal('show');
+                    } else {
+                        showError(response.error);
+                    }
+                    hideLoading();
+                },
+                error: function(xhr) {
+                    hideLoading();
+                    showError("{% trans 'Error loading document data' %}");
+                }
+            });
+        }
+
+        // Fill edit form with document data
+        function fillEditForm(data) {
+            $('#editDocId').val(data.id);
+            $('#editTitle').val(data.title);
+            $('#editDocNumber').val(data.doc_number);
+            $('#editDocType').val(data.doc_type_id || '');
+            $('#editIssuingAuthority').val(data.issuing_authority);
+            $('#editRegulator').val(data.regulator_id || '');
+            $('#editOriginalUrl').val(data.original_url);
+            $('#editIssueDate').val(data.issue_date);
+            $('#editEffectiveDate').val(data.effective_date);
+            $('#editExpirationDate').val(data.expiration_date);
+            $('#editDescription').val(data.description);
+            
+            // Trigger change events for Select2 dropdowns first
+            $('#editRegulator').trigger('change');
+            $('#editDocType').trigger('change');
+            
+            // Company value will be set after modal is shown (see loadDocumentData function)
+            
+            if (data.html_content) {
+                $('#editHtmlContent').val(data.html_content);
+            }
+            
+            // File information
+            if (data.pdf_file) {
+                const fileInfo = `<div class="mb-2 current-file-info">
+                    <span class="file-name">${data.pdf_file.name}</span>
+                    <span class="file-size">(${formatFileSize(data.pdf_file.size)})</span>
+                    <a href="${data.pdf_file.url}" target="_blank" class="btn btn-sm btn-info ms-2">View</a>
+                    <button type="button" class="btn btn-sm btn-danger remove-file-btn">Remove</button>
+                </div>`;
+                
+                $('#editFileContainer').html(fileInfo);
+                $('#editFileContainer').show();
+                $('#removeFile').val('false');
+            } else {
+                $('#editFileContainer').html('');
+                $('#editFileContainer').hide();
+                $('#removeFile').val('false');
+            }
+            
+            // Clear and set groups
+            $('#editGroups').val(null).trigger('change');
+            
+            if (data.groups && data.groups.length > 0) {
+                $('#editGroups').val(data.groups).trigger('change');
+            }
+        }
+
+        // Load HTML content for viewing
+        function loadHtmlContent(docId) {
+            showLoading("{% trans 'Loading HTML content...' %}");
+            
+            $.ajax({
+                url: `{% url 'legislative_docs' %}${docId}/html/`,
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        $('#htmlContent').html(response.data.html);
+                        $('#viewHtmlModalLabel').text(response.data.title);
+                        $('#viewHtmlModal').modal('show');
+                    } else {
+                        showError(response.error);
+                    }
+                    hideLoading();
+                },
+                error: function(xhr) {
+                    hideLoading();
+                    showError("{% trans 'Error loading HTML content' %}");
+                }
+            });
+        }
+
+        // Initialize Select2 for company select (multiple)
+        $('.company-select').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            multiple: true,
+            placeholder: "{% trans 'Select Companies' %}",
+            allowClear: true
+        });
+
+        // Initialize Select2 for groups select
+        $('.groups-select').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            multiple: true,
+            placeholder: "{% trans 'Select Groups' %}"
+        });
+
+        // Initialize Select2 for document type select
+        $('.doc-type-select').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: "{% trans 'Select Document Type' %}",
+            templateResult: formatDocType,
+            templateSelection: formatDocType
+        });
+        
+        function formatDocType(docType) {
+            if (!docType.id) {
+                return docType.text;
+            }
+            
+            const color = $(docType.element).data('color') || '#000000';
+            
+            const $docType = $(
+                `<span class="doc-type-badge" style="color:${color}">
+                    ${docType.text}
+                </span>`
+            );
+            
+            return $docType;
+        }
+
+        // Remove file button click handler
+        $(document).on('click', '.remove-file-btn', function() {
+            $(this).closest('.current-file-info').remove();
+            $('#removeFile').val('true');
+            $('#editFileContainer').hide();
+        });
+
+        // Format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Show loading overlay
+        function showLoading(text) {
+            $('#loadingText').text(text || "{% trans 'Loading...' %}");
+            $('.loading-overlay').show();
+        }
+
+        // Hide loading overlay
+        function hideLoading() {
+            $('.loading-overlay').hide();
+        }
+
+        // Show error message
+        function showError(message) {
+            Swal.fire({
+                icon: 'error',
+                title: "{% trans 'Error' %}",
+                text: message,
+                confirmButtonText: "{% trans 'OK' %}"
+            });
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            Swal.fire({
+                icon: 'success',
+                title: "{% trans 'Success' %}",
+                text: message,
+                confirmButtonText: "{% trans 'OK' %}"
+            });
+        }
+
+        // Handle add document form submission
+        $('#addLegislativeDocForm').on('submit', function(e) {
+            // Let the form submit naturally since we added the action attribute
+        });
+
+        // Handle edit document form submission
+        $('#editLegislativeDocForm').on('submit', function(e) {
+            // Let the form submit naturally since we set the action dynamically
+        });
+
+        // Handle delete document form submission
+        $('#deleteLegislativeDocForm').on('submit', function(e) {
+            // Let the form submit naturally since we set the action dynamically
+        });
+
+        // Show messages on form submission success
+        {% if messages %}
+        $(function() {
+            {% for message in messages %}
+            showSuccess('{{ message }}');
+            {% endfor %}
+        });
+        {% endif %}
+        
+        // Reset forms when modals are closed
+        $('.modal').on('hidden.bs.modal', function() {
+            $(this).find('form').trigger('reset');
+            $('.select2-hidden-accessible').val(null).trigger('change');
+        });
+
+        // Legislative Docs Guide modal: load content when shown
+        var $guideModal = $('#legislativeDocsGuideModal');
+        if ($guideModal.length) {
+            var guideUrl = $guideModal.data('guide-url');
+            if (guideUrl) {
+                $guideModal.on('show.bs.modal', function() {
+                    var $body = $('#legislativeDocsGuideModalBody');
+                    if (!$body.length) return;
+                    $body.html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">{% trans "Loading guide..." %}</p></div>');
+                    $.getJSON(guideUrl)
+                        .done(function(data) {
+                            if (data && data.content) {
+                                $body.html(data.content);
+                            } else {
+                                $body.html('<p class="text-muted">{% trans "No guide available." %}</p>');
+                            }
+                        })
+                        .fail(function() {
+                            $body.html('<p class="text-danger">{% trans "Failed to load guide." %}</p>');
+                        });
+                });
+            }
+        }
+    });
+</script>
+{% endblock %} 

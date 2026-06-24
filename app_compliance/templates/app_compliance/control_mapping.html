@@ -1,0 +1,1053 @@
+﻿{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Control Mapping" %}{% endblock %}
+
+{% block extra_css %}<link rel="stylesheet" href="https://unpkg.com/vis-network@9.1.2/dist/dist/vis-network.min.css">
+<style>
+    #mappingChart {
+        width: 100% !important;
+        height: 1024px !important;
+        min-height: 1024px !important;
+        max-height: 1024px !important;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #f8f9fa;
+        overflow: hidden;
+        display: block;
+    }
+    
+    /* Ensure canvas inside takes full height */
+    #mappingChart canvas {
+        max-height: 1024px !important;
+    }
+    
+    .chart-controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+    
+    .chart-legend {
+        display: flex;
+        gap: 15px;
+        padding: 10px;
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: flex-start;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        border: 2px solid #fff;
+        box-shadow: 0 0 3px rgba(0,0,0,0.3);
+    }
+    
+    .legend-color.framework { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); }
+    .legend-color.internal { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); }
+    .legend-color.local { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); }
+    
+    .chart-stats {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 20px;
+        padding: 15px;
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        flex-wrap: nowrap !important;
+        justify-content: space-around;
+        align-items: center;
+        width: 100%;
+    }
+    
+    .stat-item {
+        display: inline-flex !important;
+        flex-direction: column;
+        align-items: center;
+        flex: 1 1 auto;
+        min-width: 100px;
+        max-width: 200px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #495057;
+        display: block;
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        font-size: 12px;
+        color: #6c757d;
+        text-transform: uppercase;
+        white-space: nowrap;
+        display: block;
+    }
+    
+    /* Force horizontal layout */
+    .card-body .chart-stats {
+        display: flex !important;
+        flex-direction: row !important;
+    }
+    
+    .card-body .chart-stats .stat-item {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    /* Responsive: allow wrapping on small screens */
+    @media (max-width: 992px) {
+        .chart-stats {
+            flex-wrap: wrap !important;
+            justify-content: center;
+        }
+        
+        .chart-legend {
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            min-width: 80px;
+            flex: 0 0 auto;
+        }
+    }
+    
+    @media (min-width: 993px) {
+        .chart-stats {
+            overflow-x: auto;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1><i class="fas fa-project-diagram"></i> {% trans "Control Mapping" %}</h1>
+            <p class="text-muted">{% trans "View all control mappings across Framework, Internal, and Local controls" %}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'compliance:dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "Back" %}
+            </a>
+        </div>
+    </div>
+    
+    <!-- Company Filter -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="row g-3 align-items-center">
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "Filter by Company" %}</label>
+                            <select name="company" class="form-control" onchange="this.form.submit()">
+                                <option value="">{% trans "Select Company" %}</option>
+                                {% for company in companies %}
+                                <option value="{{ company.id }}" {% if selected_company and selected_company.id == company.id %}selected{% endif %}>
+                                    {{ company.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            {% if selected_company %}
+                            <a href="{% url 'compliance:control_mapping' %}" class="btn btn-outline-secondary w-100">
+                                <i class="fas fa-times"></i> {% trans "Clear" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if selected_company %}
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-building"></i> {% trans "Showing mappings for" %}: <strong>{{ selected_company.name }}</strong>
+    </div>
+    
+    <!-- Control Mappings Visualization Chart -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex align-items-center justify-content-between">
+                <h5 class="mb-0"><i class="fas fa-project-diagram"></i> {% trans "Control Mappings Visualization" %}</h5>
+                <div class="chart-controls">
+                    <button class="btn btn-sm btn-outline-primary" id="fitChartBtn">
+                        <i class="fas fa-compress-arrows-alt"></i> {% trans "Fit to Screen" %}
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="resetChartBtn">
+                        <i class="fas fa-redo"></i> {% trans "Reset" %}
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" id="exportChartBtn">
+                        <i class="fas fa-download"></i> {% trans "Export PNG" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Chart Statistics -->
+            <div class="chart-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalNodes">0</div>
+                    <div class="stat-label">{% trans "Total Controls" %}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="totalMappings">0</div>
+                    <div class="stat-label">{% trans "Total Mappings" %}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value text-success" id="frameworkCount">0</div>
+                    <div class="stat-label">{% trans "Framework" %}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value text-primary" id="internalCount">0</div>
+                    <div class="stat-label">{% trans "Internal" %}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value text-info" id="localCount">0</div>
+                    <div class="stat-label">{% trans "Local" %}</div>
+                </div>
+            </div>
+            
+            <!-- Legend -->
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-color framework"></div>
+                    <span><strong>{% trans "Framework Controls" %}</strong></span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color internal"></div>
+                    <span><strong>{% trans "Internal Controls" %}</strong></span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color local"></div>
+                    <span><strong>{% trans "Local Controls" %}</strong></span>
+                </div>
+                <div class="legend-item ms-auto">
+                    <i class="fas fa-info-circle text-muted"></i>
+                    <span class="text-muted">{% trans "Click and drag to pan, scroll to zoom" %}</span>
+                </div>
+            </div>
+            
+            <!-- Chart Container -->
+            <div id="mappingChart"></div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning mb-4">
+        <i class="fas fa-exclamation-triangle"></i> {% trans "Please select a company to view control mappings" %}
+    </div>
+    {% endif %}
+    
+    <!-- Framework Control Mappings -->
+    {% if framework_mappings %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-globe"></i> {% trans "Framework Control Mappings" %} ({{ framework_mappings.count }})</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Source" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Target" %}</th>
+                            <th>{% trans "Notes" %}</th>
+                            <th>{% trans "Created" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mapping in framework_mappings %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-success">Framework</span>
+                                <a href="{% url 'compliance:control_detail' mapping.source_control.id %}">
+                                    <strong>{{ mapping.source_control.code }}</strong>
+                                </a>
+                                <div class="text-muted small">{{ mapping.source_control.name }}</div>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ mapping.get_mapping_type_display }}</span></td>
+                            <td>
+                                {% if mapping.target_internal_control %}
+                                    <span class="badge bg-primary">Internal</span>
+                                    <strong>{{ mapping.target_internal_control.code }}</strong>
+                                    <div class="text-muted small">{{ mapping.target_internal_control.name }}</div>
+                                {% elif mapping.target_local_control %}
+                                    <span class="badge bg-info">Local</span>
+                                    <strong>{{ mapping.target_local_control.code }}</strong>
+                                    <div class="text-muted small">{{ mapping.target_local_control.name }}</div>
+                                {% elif mapping.target_control %}
+                                    <span class="badge bg-success">Framework</span>
+                                    <a href="{% url 'compliance:control_detail' mapping.target_control.id %}">
+                                        {{ mapping.target_control.code }}
+                                    </a>
+                                    <div class="text-muted small">{{ mapping.target_control.name }}</div>
+                                {% endif %}
+                            </td>
+                            <td>{{ mapping.notes|default:"—" }}</td>
+                            <td>
+                                {{ mapping.created_date|date:"d.m.Y" }}<br>
+                                <small class="text-muted">{{ mapping.created_by.username|default:"-" }}</small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Internal Control Mappings -->
+    {% if internal_mappings %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-file-contract"></i> {% trans "Internal Control Mappings" %} ({{ internal_mappings.count }})</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Source" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Target" %}</th>
+                            <th>{% trans "Notes" %}</th>
+                            <th>{% trans "Created" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mapping in internal_mappings %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-primary">Internal</span>
+                                <a href="{% url 'compliance:internal_control_detail' mapping.internal_control.id %}">
+                                    <strong>{{ mapping.internal_control.code }}</strong>
+                                </a>
+                                <div class="text-muted small">{{ mapping.internal_control.name }}</div>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ mapping.get_mapping_type_display }}</span></td>
+                            <td>
+                                {% if mapping.target_internal_control %}
+                                    <span class="badge bg-primary">Internal</span>
+                                    <strong>{{ mapping.target_internal_control.code }}</strong>
+                                    <div class="text-muted small">{{ mapping.target_internal_control.name }}</div>
+                                {% elif mapping.target_local_control %}
+                                    <span class="badge bg-info">Local</span>
+                                    <strong>{{ mapping.target_local_control.code }}</strong>
+                                    <div class="text-muted small">{{ mapping.target_local_control.name }}</div>
+                                {% elif mapping.target_framework_control %}
+                                    <span class="badge bg-success">Framework</span>
+                                    <strong>{{ mapping.target_framework_control.code }}</strong>
+                                    <div class="text-muted small">{{ mapping.target_framework_control.name }}</div>
+                                {% endif %}
+                            </td>
+                            <td>{{ mapping.notes|default:"—" }}</td>
+                            <td>
+                                {{ mapping.created_date|date:"d.m.Y" }}<br>
+                                <small class="text-muted">{{ mapping.created_by.username|default:"-" }}</small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Local Control Mappings -->
+    {% if local_mappings %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-map-marker-alt"></i> {% trans "Local Control Mappings" %} ({{ local_mappings.count }})</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive full-width-table">
+                <table class="table table-hover table-sm table-sm-font sb-data-table">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Source" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Target" %}</th>
+                            <th>{% trans "Notes" %}</th>
+                            <th>{% trans "Created" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mapping in local_mappings %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-info">Local</span>
+                                <a href="{% url 'compliance:local_control_detail' mapping.local_control.id %}">
+                                    <strong>{{ mapping.local_control.code }}</strong>
+                                </a>
+                                <div class="text-muted small">{{ mapping.local_control.name }}</div>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ mapping.get_mapping_type_display }}</span></td>
+                            <td>
+                                {% if mapping.target_internal_control %}
+                                    <span class="badge bg-primary">Internal</span>
+                                    <strong>{{ mapping.target_internal_control.code }}</strong>
+                                    <div class="text-muted small">{{ mapping.target_internal_control.name }}</div>
+                                {% elif mapping.target_local_control %}
+                                    <span class="badge bg-info">Local</span>
+                                    <strong>{{ mapping.target_local_control.code }}</strong>
+                                    <div class="text-muted small">{{ mapping.target_local_control.name }}</div>
+                                {% elif mapping.target_framework_control %}
+                                    <span class="badge bg-success">Framework</span>
+                                    <strong>{{ mapping.target_framework_control.code }}</strong>
+                                    <div class="text-muted small">{{ mapping.target_framework_control.name }}</div>
+                                {% endif %}
+                            </td>
+                            <td>{{ mapping.notes|default:"—" }}</td>
+                            <td>
+                                {{ mapping.created_date|date:"d.m.Y" }}<br>
+                                <small class="text-muted">{{ mapping.created_by.username|default:"-" }}</small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if not selected_company %}
+    <div class="card">
+        <div class="card-body text-center text-muted py-5">
+            <i class="fas fa-building fa-3x mb-3"></i>
+            <h5>{% trans "Select a company to view control mappings" %}</h5>
+            <p>{% trans "Use the filter above to choose a company" %}</p>
+        </div>
+    </div>
+    {% elif not framework_mappings and not internal_mappings and not local_mappings %}
+    <div class="card">
+        <div class="card-body text-center text-muted py-5">
+            <i class="fas fa-project-diagram fa-3x mb-3"></i>
+            <h5>{% trans "No control mappings found for this company" %}</h5>
+            <p>{% trans "Create mappings from control detail pages" %}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Create Mapping Modal -->
+<div class="modal fade" id="createMappingModal" tabindex="-1" aria-labelledby="createMappingModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'compliance:control_mapping_create' %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createMappingModalLabel">{% trans "Create Control Mapping" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Source Control ID" %} *</label>
+                        <input type="number" name="source_control_id" class="form-control" required>
+                        <small class="form-text text-muted">
+                            {% trans "ID of the source control" %}
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Target Control ID" %} *</label>
+                        <input type="number" name="target_control_id" class="form-control" required>
+                        <small class="form-text text-muted">
+                            {% trans "ID of the target control" %}
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Mapping Type" %}</label>
+                        <select name="mapping_type" class="form-control">
+                            <option value="equivalent">{% trans "Equivalent" %}</option>
+                            <option value="partial">{% trans "Partial" %}</option>
+                            <option value="related" selected>{% trans "Related" %}</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Notes" %}</label>
+                        <textarea name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> {% trans "Create Mapping" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Node Details Modal -->
+<div class="modal fade" id="nodeDetailsModal" tabindex="-1" aria-labelledby="nodeDetailsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="nodeDetailsTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="nodeDetailsBody">
+                <!-- Content will be populated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> {% trans "Close" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if selected_company %}
+    // Initialize mapping data
+    const mappingData = {
+        framework: {{ framework_mappings|length|default:0 }},
+        internal: {{ internal_mappings|length|default:0 }},
+        local: {{ local_mappings|length|default:0 }}
+    };
+    
+    // Create nodes and edges from mapping data
+    const nodes = new vis.DataSet();
+    const edges = new vis.DataSet();
+    const nodeMap = new Map(); // To track unique nodes
+    
+    let nodeIdCounter = 0;
+    
+    // Helper function to get or create node
+    function getOrCreateNode(controlId, controlCode, controlName, controlType, detailUrl) {
+        const key = `${controlType}-${controlId}`;
+        
+        if (!nodeMap.has(key)) {
+            nodeIdCounter++;
+            const nodeId = nodeIdCounter;
+            
+            let color, shape, borderWidth, labelText;
+            if (controlType === 'framework') {
+                // Framework Controls - Яскравий зелений колір (як в таблиці)
+                color = {
+                    background: '#28a745',
+                    border: '#1e7e34',
+                    highlight: { 
+                        background: '#34ce57',
+                        border: '#1e7e34' 
+                    }
+                };
+                shape = 'box';
+                borderWidth = 6;
+                // Для Framework відображаємо Control Name (назву), якщо є, інакше Code
+                if (controlName && controlName.trim().length > 0) {
+                    labelText = controlName.length > 50 ? controlName.substring(0, 47) + '...' : controlName;
+                } else {
+                    labelText = controlCode; // Fallback на Code, якщо Name порожня
+                }
+            } else if (controlType === 'internal') {
+                // Internal Controls - Синій колір (як в таблиці)
+                color = {
+                    background: '#007bff',
+                    border: '#0056b3',
+                    highlight: { 
+                        background: '#0069d9',
+                        border: '#0056b3' 
+                    }
+                };
+                shape = 'box';
+                borderWidth = 6;
+                // Для Internal відображаємо Code
+                labelText = controlCode;
+            } else {
+                // Local Controls - Блакитний/cyan колір (як в таблиці)
+                color = {
+                    background: '#17a2b8',
+                    border: '#138496',
+                    highlight: { 
+                        background: '#1fc8e3',
+                        border: '#138496' 
+                    }
+                };
+                shape = 'box';
+                borderWidth = 6;
+                // Для Local відображаємо Code
+                labelText = controlCode;
+            }
+            
+            const controlTypeLabel = controlType === 'framework' ? '{% trans "Framework" %}' : controlType === 'internal' ? '{% trans "Internal" %}' : '{% trans "Local" %}';
+            const truncatedName = controlName.substring(0, 80) + (controlName.length > 80 ? '...' : '');
+            
+            // Debug log для перевірки створення nodes
+            console.log(`Creating node:
+                Code: ${controlCode}
+                Name: ${controlName}
+                Type: ${controlType}
+                Color: ${color.background}
+                Label: "${labelText}"
+                Label length: ${labelText ? labelText.length : 0}
+            `);
+            
+            // Налаштування для різних типів контролів
+            const nodeConfig = {
+                id: nodeId,
+                label: labelText,
+                title: `${controlCode}\n${truncatedName}\n[${controlTypeLabel.toUpperCase()}]`,
+                color: color,
+                shape: shape,
+                borderWidth: borderWidth,
+                controlType: controlType,
+                controlId: controlId,
+                controlCode: controlCode,
+                controlName: controlName,
+                detailUrl: detailUrl
+            };
+            
+            // Для Framework Controls збільшуємо розмір блоку та налаштовуємо шрифт
+            if (controlType === 'framework') {
+                nodeConfig.font = { 
+                    color: '#ffffff', 
+                    size: 22, 
+                    face: 'Arial, sans-serif', 
+                    bold: true,
+                    vadjust: 0
+                };
+                nodeConfig.widthConstraint = { minimum: 200, maximum: 350 };
+                nodeConfig.heightConstraint = { minimum: 90 };
+                nodeConfig.margin = 15;
+            } else {
+                nodeConfig.font = { 
+                    color: '#ffffff', 
+                    size: 28, 
+                    face: 'Arial, sans-serif', 
+                    bold: true 
+                };
+            }
+            
+            nodes.add(nodeConfig);
+            
+            nodeMap.set(key, nodeId);
+        }
+        
+        return nodeMap.get(key);
+    }
+    
+    // Helper function to truncate text
+    function truncateText(text, maxLength) {
+        if (!text) return '';
+        return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+    }
+    
+    // Process framework mappings
+    {% for mapping in framework_mappings %}
+    (function() {
+        const sourceId = getOrCreateNode(
+            {{ mapping.source_control.id }},
+            "{{ mapping.source_control.name|escapejs }}",  // name містить код (1.1)
+            "{{ mapping.source_control.title|escapejs }}",  // title містить назву
+            "framework",
+            "{% url 'compliance:control_detail' mapping.source_control.id %}"
+        );
+        
+        let targetId, targetType;
+        {% if mapping.target_internal_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_internal_control.id }},
+            "{{ mapping.target_internal_control.code|escapejs }}",
+            "{{ mapping.target_internal_control.name|escapejs }}",
+            "internal",
+            "{% url 'compliance:internal_control_detail' mapping.target_internal_control.id %}"
+        );
+        targetType = "internal";
+        {% elif mapping.target_local_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_local_control.id }},
+            "{{ mapping.target_local_control.code|escapejs }}",
+            "{{ mapping.target_local_control.name|escapejs }}",
+            "local",
+            "{% url 'compliance:local_control_detail' mapping.target_local_control.id %}"
+        );
+        targetType = "local";
+        {% elif mapping.target_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_control.id }},
+            "{{ mapping.target_control.code|escapejs }}",
+            "{{ mapping.target_control.name|escapejs }}",
+            "framework",
+            "{% url 'compliance:control_detail' mapping.target_control.id %}"
+        );
+        targetType = "framework";
+        {% endif %}
+        
+        if (targetId) {
+            let edgeTitle = "{{ mapping.get_mapping_type_display|escapejs }}";
+            {% if mapping.notes %}
+            edgeTitle += "\n{{ mapping.notes|escapejs|truncatewords:10 }}";
+            {% endif %}
+            edges.add({
+                from: sourceId,
+                to: targetId,
+                arrows: 'to',
+                color: { color: '#6c757d', highlight: '#495057' },
+                smooth: { type: 'cubicBezier', roundness: 0.5 },
+                title: edgeTitle,
+                mappingType: "{{ mapping.mapping_type }}",
+                dashes: "{{ mapping.mapping_type }}" === "partial" ? [10, 10] : false
+            });
+        }
+    })();
+    {% endfor %}
+    
+    // Process internal mappings
+    {% for mapping in internal_mappings %}
+    (function() {
+        const sourceId = getOrCreateNode(
+            {{ mapping.internal_control.id }},
+            "{{ mapping.internal_control.code|escapejs }}",
+            "{{ mapping.internal_control.name|escapejs }}",
+            "internal",
+            "{% url 'compliance:internal_control_detail' mapping.internal_control.id %}"
+        );
+        
+        let targetId;
+        {% if mapping.target_internal_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_internal_control.id }},
+            "{{ mapping.target_internal_control.code|escapejs }}",
+            "{{ mapping.target_internal_control.name|escapejs }}",
+            "internal",
+            "{% url 'compliance:internal_control_detail' mapping.target_internal_control.id %}"
+        );
+        {% elif mapping.target_local_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_local_control.id }},
+            "{{ mapping.target_local_control.code|escapejs }}",
+            "{{ mapping.target_local_control.name|escapejs }}",
+            "local",
+            "{% url 'compliance:local_control_detail' mapping.target_local_control.id %}"
+        );
+        {% elif mapping.target_framework_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_framework_control.id }},
+            "{{ mapping.target_framework_control.code|escapejs }}",
+            "{{ mapping.target_framework_control.name|escapejs }}",
+            "framework",
+            "{% url 'compliance:control_detail' mapping.target_framework_control.id %}"
+        );
+        {% endif %}
+        
+        if (targetId) {
+            let edgeTitle = "{{ mapping.get_mapping_type_display|escapejs }}";
+            {% if mapping.notes %}
+            edgeTitle += "\n{{ mapping.notes|escapejs|truncatewords:10 }}";
+            {% endif %}
+            edges.add({
+                from: sourceId,
+                to: targetId,
+                arrows: 'to',
+                color: { color: '#6c757d', highlight: '#495057' },
+                smooth: { type: 'cubicBezier', roundness: 0.5 },
+                title: edgeTitle,
+                mappingType: "{{ mapping.mapping_type }}",
+                dashes: "{{ mapping.mapping_type }}" === "partial" ? [10, 10] : false
+            });
+        }
+    })();
+    {% endfor %}
+    
+    // Process local mappings
+    {% for mapping in local_mappings %}
+    (function() {
+        const sourceId = getOrCreateNode(
+            {{ mapping.local_control.id }},
+            "{{ mapping.local_control.code|escapejs }}",
+            "{{ mapping.local_control.name|escapejs }}",
+            "local",
+            "{% url 'compliance:local_control_detail' mapping.local_control.id %}"
+        );
+        
+        let targetId;
+        {% if mapping.target_internal_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_internal_control.id }},
+            "{{ mapping.target_internal_control.code|escapejs }}",
+            "{{ mapping.target_internal_control.name|escapejs }}",
+            "internal",
+            "{% url 'compliance:internal_control_detail' mapping.target_internal_control.id %}"
+        );
+        {% elif mapping.target_local_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_local_control.id }},
+            "{{ mapping.target_local_control.code|escapejs }}",
+            "{{ mapping.target_local_control.name|escapejs }}",
+            "local",
+            "{% url 'compliance:local_control_detail' mapping.target_local_control.id %}"
+        );
+        {% elif mapping.target_framework_control %}
+        targetId = getOrCreateNode(
+            {{ mapping.target_framework_control.id }},
+            "{{ mapping.target_framework_control.code|escapejs }}",
+            "{{ mapping.target_framework_control.name|escapejs }}",
+            "framework",
+            "{% url 'compliance:control_detail' mapping.target_framework_control.id %}"
+        );
+        {% endif %}
+        
+        if (targetId) {
+            let edgeTitle = "{{ mapping.get_mapping_type_display|escapejs }}";
+            {% if mapping.notes %}
+            edgeTitle += "\n{{ mapping.notes|escapejs|truncatewords:10 }}";
+            {% endif %}
+            edges.add({
+                from: sourceId,
+                to: targetId,
+                arrows: 'to',
+                color: { color: '#6c757d', highlight: '#495057' },
+                smooth: { type: 'cubicBezier', roundness: 0.5 },
+                title: edgeTitle,
+                mappingType: "{{ mapping.mapping_type }}",
+                dashes: "{{ mapping.mapping_type }}" === "partial" ? [10, 10] : false
+            });
+        }
+    })();
+    {% endfor %}
+    
+    // Update statistics
+    const frameworkNodes = nodes.get().filter(n => n.controlType === 'framework').length;
+    const internalNodes = nodes.get().filter(n => n.controlType === 'internal').length;
+    const localNodes = nodes.get().filter(n => n.controlType === 'local').length;
+    
+    document.getElementById('totalNodes').textContent = nodes.length;
+    document.getElementById('totalMappings').textContent = edges.length;
+    document.getElementById('frameworkCount').textContent = frameworkNodes;
+    document.getElementById('internalCount').textContent = internalNodes;
+    document.getElementById('localCount').textContent = localNodes;
+    
+    // Create network
+    const container = document.getElementById('mappingChart');
+    
+    // Explicitly set container height before creating network
+    container.style.height = '1024px';
+    container.style.minHeight = '1024px';
+    container.style.display = 'block';
+    
+    const data = { nodes: nodes, edges: edges };
+    const options = {
+        physics: {
+            enabled: true,
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: {
+                gravitationalConstant: -80,
+                centralGravity: 0.01,
+                springLength: 250,
+                springConstant: 0.05,
+                damping: 0.4,
+                avoidOverlap: 1
+            },
+            stabilization: {
+                enabled: true,
+                iterations: 200,
+                updateInterval: 25
+            }
+        },
+        interaction: {
+            hover: true,
+            tooltipDelay: 100,
+            navigationButtons: true,
+            keyboard: true
+        },
+        nodes: {
+            shadow: {
+                enabled: true,
+                color: 'rgba(0,0,0,0.3)',
+                size: 10,
+                x: 2,
+                y: 2
+            },
+            margin: 20,
+            font: {
+                size: 28,
+                face: 'arial',
+                bold: {
+                    size: 28
+                }
+            },
+            widthConstraint: {
+                minimum: 120,
+                maximum: 250
+            },
+            heightConstraint: {
+                minimum: 60
+            },
+            scaling: {
+                min: 20,
+                max: 60
+            }
+        },
+        edges: {
+            shadow: {
+                enabled: true,
+                color: 'rgba(0,0,0,0.2)',
+                size: 5,
+                x: 1,
+                y: 1
+            },
+            width: 3,
+            arrows: {
+                to: {
+                    enabled: true,
+                    scaleFactor: 1.5
+                }
+            }
+        }
+    };
+    
+    const network = new vis.Network(container, data, options);
+    
+    // Force redraw with correct dimensions
+    setTimeout(function() {
+        network.redraw();
+        network.fit();
+    }, 100);
+    
+    // Node click event - show details
+    network.on('click', function(params) {
+        if (params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            const node = nodes.get(nodeId);
+            
+            // Populate modal
+            const badgeClass = node.controlType === 'framework' ? 'bg-success' : node.controlType === 'internal' ? 'bg-primary' : 'bg-info';
+            document.getElementById('nodeDetailsTitle').innerHTML = 
+                `<span class="badge ${badgeClass}">${node.controlType.toUpperCase()}</span> ${node.controlCode}`;
+            
+            const connectedEdges = network.getConnectedEdges(nodeId);
+            const connectedNodes = network.getConnectedNodes(nodeId);
+            
+            let connectionsHtml = '<ul class="list-group">';
+            connectedNodes.forEach(connId => {
+                const connNode = nodes.get(connId);
+                const connBadgeClass = connNode.controlType === 'framework' ? 'bg-success' : connNode.controlType === 'internal' ? 'bg-primary' : 'bg-info';
+                connectionsHtml += `<li class="list-group-item">
+                    <span class="badge ${connBadgeClass}">${connNode.controlType.toUpperCase()}</span>
+                    <strong>${connNode.controlCode}</strong> - ${truncateText(connNode.controlName, 60)}
+                </li>`;
+            });
+            connectionsHtml += '</ul>';
+            
+            document.getElementById('nodeDetailsBody').innerHTML = `
+                <div class="mb-3">
+                    <h6>{% trans "Control Name" %}:</h6>
+                    <p>${node.controlName}</p>
+                </div>
+                <div class="mb-3">
+                    <h6>{% trans "Control Code" %}:</h6>
+                    <p><code>${node.controlCode}</code></p>
+                </div>
+                <div class="mb-3">
+                    <h6>{% trans "Connected Controls" %} (${connectedNodes.length}):</h6>
+                    ${connectionsHtml}
+                </div>
+                <div class="mt-3">
+                    <a href="${node.detailUrl}" class="btn btn-primary" target="_blank">
+                        <i class="fas fa-external-link-alt"></i> {% trans "View Details" %}
+                    </a>
+                </div>
+            `;
+            
+            // Use Bootstrap 5 native API
+            const modalElement = document.getElementById('nodeDetailsModal');
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            
+            // Clean up modal on hide
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                document.getElementById('nodeDetailsBody').innerHTML = '';
+                document.getElementById('nodeDetailsTitle').innerHTML = '';
+            }, { once: true });
+        }
+    });
+    
+    // Chart controls
+    document.getElementById('fitChartBtn').addEventListener('click', function() {
+        network.fit({
+            animation: {
+                duration: 1000,
+                easingFunction: 'easeInOutQuad'
+            }
+        });
+    });
+    
+    document.getElementById('resetChartBtn').addEventListener('click', function() {
+        network.moveTo({
+            scale: 1,
+            position: {x: 0, y: 0},
+            animation: {
+                duration: 1000,
+                easingFunction: 'easeInOutQuad'
+            }
+        });
+    });
+    
+    document.getElementById('exportChartBtn').addEventListener('click', function() {
+        html2canvas(container, {
+            backgroundColor: '#f8f9fa',
+            scale: 2,
+            logging: false
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'control-mappings-chart.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }).catch(error => {
+            console.error('Error exporting chart:', error);
+            alert('{% trans "Error exporting chart" %}');
+        });
+    });
+    
+    // Stabilization progress
+    network.on('stabilizationProgress', function(params) {
+        const progress = Math.round((params.iterations / params.total) * 100);
+        console.log('Stabilization progress:', progress + '%');
+    });
+    
+    network.on('stabilizationIterationsDone', function() {
+        console.log('Network stabilized');
+        network.setOptions({ physics: false });
+        // Redraw after stabilization to ensure correct canvas size
+        network.redraw();
+    });
+    
+    {% endif %}
+});
+</script>
+{% endblock %}
+

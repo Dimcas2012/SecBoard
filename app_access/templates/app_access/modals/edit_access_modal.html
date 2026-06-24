@@ -1,0 +1,3092 @@
+<!-- SecBoard\templates\app_access\modals\edit_access_modal.html -->
+{% load i18n %}
+
+<style>
+/* Підтримка inert атрибута для accessibility */
+[inert] {
+    pointer-events: none;
+    cursor: default;
+}
+
+[inert], [inert] * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* Заборона фокуса на inert елементах */
+[inert] *:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Додаткова підтримка для старих браузерів */
+.modal-focus-trap {
+    position: fixed;
+    top: -9999px;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Стилі для заблокованих полів при наявності Access Requests */
+.field-disabled-due-to-requests {
+    background-color: #f8f9fa !important;
+    opacity: 0.7 !important;
+    cursor: not-allowed !important;
+}
+
+.field-disabled-due-to-requests:hover {
+    background-color: #e9ecef !important;
+}
+
+/* Стилі для попередження про обмежене редагування */
+#accessRequestsWarning {
+    border-left: 4px solid #ffc107;
+    background-color: #fff8e1;
+}
+
+#accessRequestsWarning .bi-exclamation-triangle-fill {
+    color: #ff9800;
+    font-size: 1.2em;
+}
+
+.select2-bulk-actions .btn-link:disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+</style>
+
+<!-- Модальне вікно редагування доступу -->
+<div class="modal fade" id="editAccessModal" tabindex="-1" aria-labelledby="editAccessModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editAccessModalLabel">{% trans "Edit Access Record" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editAccessForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" id="editAccessId">
+                    
+                    <!-- Інформаційні поля -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "Company" %}</label>
+                            <input type="text" class="form-control" id="editCompanyName" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{% trans "System" %}</label>
+                            <input type="text" class="form-control" id="editSystemName" readonly>
+                        </div>
+                    </div>
+
+                    <!-- Object Selection (one or multiple) -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1">
+                            <label for="editObject" class="form-label required mb-0">{% trans "Object" %}</label>
+                            <div class="select2-bulk-actions">
+                                <button type="button" class="btn btn-link btn-sm p-0 select2-select-all" data-target="#editObject" disabled>{% trans "Select all" %}</button>
+                                <span class="text-muted mx-1">·</span>
+                                <button type="button" class="btn btn-link btn-sm p-0 select2-clear-all" data-target="#editObject" disabled>{% trans "Clear" %}</button>
+                            </div>
+                        </div>
+                        <select class="form-select" id="editObject" multiple required>
+                            <!-- Options loaded by system/environment -->
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select at least one object" %}
+                        </div>
+                        <div class="form-text">{% trans "You can select one or several objects" %}</div>
+                    </div>
+
+                    <!-- Приховані поля для ID -->
+                    <input type="hidden" id="editCompanyId">
+                    <input type="hidden" id="editSystemId">
+
+                    <!-- Environment Selection -->
+                    <div class="mb-3">
+                        <label for="editEnvironment" class="form-label required">{% trans "Environment" %}</label>
+                        <select class="form-select" id="editEnvironment" required>
+                            <option value="">{% trans "Choose Environment..." %}</option>
+                            <option value="production">{% trans "Production" %}</option>
+                            <option value="test">{% trans "Test" %}</option>
+                            <option value="development">{% trans "Development" %}</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select an environment" %}
+                        </div>
+                    </div>
+
+                    <!-- Object Roles (one or multiple) -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1">
+                            <label for="editRoles" class="form-label required mb-0">{% trans "Object Roles" %}</label>
+                            <div class="select2-bulk-actions">
+                                <button type="button" class="btn btn-link btn-sm p-0 select2-select-all" data-target="#editRoles" disabled>{% trans "Select all" %}</button>
+                                <span class="text-muted mx-1">·</span>
+                                <button type="button" class="btn btn-link btn-sm p-0 select2-clear-all" data-target="#editRoles" disabled>{% trans "Clear" %}</button>
+                            </div>
+                        </div>
+                        <select class="form-select" id="editRoles" multiple required>
+                            <!-- Options loaded by object -->
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select at least one role" %}
+                        </div>
+                        <div class="form-text">{% trans "You can select one or several roles" %}</div>
+                    </div>
+
+
+
+
+
+                    <!-- Користувачі та групи запиту -->
+                    <div class="mb-3">
+                        <label for="editRequestUsersGroups" class="form-label required">{% trans "Access Request who" %}</label>
+                        <select class="form-select" id="editRequestUsersGroups" multiple required>
+                            <!-- Опції будуть додані динамічно -->
+                        </select>
+                        <div class="invalid-feedback">
+                            {% trans "Please select at least one user or group" %}
+                        </div>
+                    </div>
+
+                    <!-- Користувачі та групи доступу -->
+                    <div class="mb-3">
+                        <label for="editAccessUsersGroups" class="form-label">{% trans "Access request for" %}</label>
+                        <select class="form-select" id="editAccessUsersGroups" multiple>
+                            <!-- Опції будуть додані динамічно -->
+                        </select>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="editThirdParties">
+                            <label class="form-check-label" for="editThirdParties">
+                                {% trans "Third parties (customers, technical support, merchants, etc.)" %}
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Дати доступу -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="editStartDate" class="form-label required">{% trans "Start Date" %}</label>
+                            <input type="datetime-local" class="form-control" id="editStartDate" required>
+                            <div class="invalid-feedback">
+                                {% trans "Please select a start date and time" %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editEndDate" class="form-label">
+                                {% trans "End Date" %}
+                                <small class="text-muted">({% trans "optional" %})</small>
+                            </label>
+                            <input type="datetime-local" class="form-control" id="editEndDate">
+                            <div class="form-text">
+                                {% trans "Leave empty for indefinite access" %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Record Active Checkbox -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="editRecordActive" checked>
+                            <label class="form-check-label" for="editRecordActive">
+                                {% trans "Record Active" %}
+                            </label>
+                            <div class="form-text text-muted d-none" id="recordActiveHint">
+                                {% trans "Record automatically deactivated due to end date" %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Додаємо після Record Active Checkbox -->
+                    <div class="mb-3">
+                        <label for="editDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="editDescription" rows="3"></textarea>
+                    </div>
+
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-success" id="editAccessApproversBtn" data-bs-toggle="modal" data-bs-target="#editApproversModal">
+                    <i class="bi bi-people"></i> {% trans "Edit Approvers" %}
+                </button>
+                <div class="ms-auto">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="button" class="btn btn-primary" id="updateAccess">
+                        {% trans "Update" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальне вікно редагування approvers -->
+<div class="modal fade" id="editApproversModal" tabindex="-1" aria-labelledby="editApproversModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editApproversModalLabel">{% trans "Edit Approvers" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Кнопки управління -->
+                <div class="mb-3">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addApproverBtn">
+                            <i class="bi bi-plus-lg"></i> {% trans "Add Approver" %}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="useDefaultApproversBtn">
+                            <i class="bi bi-gear"></i> {% trans "Use Default Approvers" %}
+                        </button>
+
+                        <button type="button" class="btn btn-sm btn-outline-warning" id="repopulateSelectBtn">
+                            <i class="bi bi-arrow-clockwise"></i> {% trans "Reload Users" %}
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="addApproverForm" class="border rounded p-3 mb-3" style="display: none;">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">{% trans "Select Approver" %}</label>
+                            <select class="form-select" id="newApprover">
+                                <option value="">{% trans "Select user..." %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% trans "Approval Level" %}</label>
+                            <select class="form-select" id="newApproverLevel">
+                                <option value="1">Level 1</option>
+                                <option value="2">Level 2</option>
+                                <option value="3">Level 3</option>
+                                <option value="4">Level 4</option>
+                                <option value="5">Level 5</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <button type="button" class="btn btn-primary" id="confirmAddApprover">
+                                {% trans "Add" %}
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="cancelAddApprover">
+                                {% trans "Cancel" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Список поточних approvers -->
+                <div id="approversContainer">
+                    <!-- Тут будуть відображатися approvers по рівнях -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "Cancel" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="saveApprovers">
+                    {% trans "Save Changes" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Стилі -->
+<style>
+.form-label.required:after {
+    content: " *";
+    color: red;
+}
+
+.select2-container--bootstrap-5 .select2-selection {
+    border: 1px solid #dee2e6;
+    min-height: 38px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--multiple {
+    min-height: 100px;
+}
+
+.user-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem;
+}
+
+/* Стилі для Select2 в Edit Approvers Modal */
+#editApproversModal .select2-container {
+    z-index: 9999 !important;
+}
+
+#editApproversModal .select2-dropdown {
+    z-index: 9999 !important;
+    border: 1px solid #ced4da !important;
+}
+
+#editApproversModal .select2-selection {
+    height: 38px !important;
+    padding: 6px 12px !important;
+    border: 1px solid #ced4da !important;
+}
+
+#editApproversModal .select2-selection__rendered {
+    line-height: 24px !important;
+    padding: 0 !important;
+}
+
+/* Анімація спінера */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+.user-color-dot {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+}
+
+.approver-item {
+    padding: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    background-color: #fff;
+    transition: all 0.2s ease-in-out;
+}
+
+.approver-item:last-child {
+    margin-bottom: 0;
+}
+
+.approver-item:hover {
+    background-color: #f8f9fa;
+    border-color: #adb5bd;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+.badge.level-badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+    background-color: #6c757d;
+    color: #fff;
+    border-radius: 1rem;
+}
+
+.approvers-container {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+}
+
+.approver-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.approver-name {
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.approver-details {
+    color: #6c757d;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+input[readonly] {
+    background-color: #e9ecef;
+    cursor: default;
+    opacity: 1;
+}
+
+.approver-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.approver-card:last-child {
+    margin-bottom: 0;
+}
+
+.approver-level {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+}
+
+.approver-actions {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+}
+
+.drag-handle {
+    cursor: move;
+    color: #6c757d;
+}
+
+.level-badge {
+    font-size: 0.8rem;
+    padding: 0.3em 0.6em;
+}
+</style>
+
+<!-- Скрипти -->
+<script>
+function updateEditSelect2BulkActionButtons(selector) {
+    const $select = $(selector);
+    const hasOptions = $select.find('option').filter(function() { return $(this).val(); }).length > 0;
+    const enabled = !$select.prop('disabled') && hasOptions;
+    $(`#editAccessModal .select2-select-all[data-target="${selector}"], #editAccessModal .select2-clear-all[data-target="${selector}"]`)
+        .prop('disabled', !enabled);
+}
+
+function selectAllEditSelect2Options(selector) {
+    const $select = $(selector);
+    if ($select.prop('disabled')) return;
+    const values = $select.find('option').map(function() {
+        return $(this).val();
+    }).get().filter(Boolean);
+    $select.val(values).trigger('change');
+}
+
+function clearEditSelect2Options(selector) {
+    const $select = $(selector);
+    if ($select.prop('disabled')) return;
+    $select.val(null).trigger('change');
+}
+
+$(document).ready(function() {
+    $('#editAccessModal').on('click', '.select2-select-all', function(e) {
+        e.preventDefault();
+        selectAllEditSelect2Options($(this).data('target'));
+    });
+    $('#editAccessModal').on('click', '.select2-clear-all', function(e) {
+        e.preventDefault();
+        clearEditSelect2Options($(this).data('target'));
+    });
+
+    // Ініціалізуємо Select2 для користувачів та груп
+    initializeUsersGroupsSelect2();
+
+    // Object — множинний вибір (як Object Roles)
+    $('#editObject').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dropdownParent: $('#editAccessModal'),
+        placeholder: '{% trans "Choose one or more objects..." %}',
+        allowClear: true,
+        multiple: true
+    });
+
+    // Object Roles — множинний вибір
+    $('#editRoles').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Choose one or more roles..." %}',
+        allowClear: true,
+        multiple: true,
+        dropdownParent: $('#editAccessModal'),
+        templateResult: function(data) {
+            if (!data.id) return data.text;
+            const description = $(data.element).data('description');
+            return $(`
+                <div class="d-flex align-items-center">
+                    <span class="status-dot" style="background-color: ${$(data.element).data('color')}"></span>
+                    <div>
+                        <div>${data.text}</div>
+                        ${description ? `<small class="text-muted">${description}</small>` : ''}
+                    </div>
+                </div>
+            `);
+        },
+        templateSelection: function(data) {
+            if (!data.id) return data.text;
+            return $(`
+                <div class="d-flex align-items-center">
+                    <span class="status-dot" style="background-color: ${$(data.element).data('color')}"></span>
+                    <span>${data.text}</span>
+                </div>
+            `);
+        }
+    });
+
+    // Додаємо після ініціалізації Select2 для Request Users and Groups
+    $('#editRequestUsersGroups').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Select users and groups..." %}',
+        allowClear: true,
+        dropdownParent: $('#editAccessModal'),
+        ajax: {
+            url: '{% url "get_cabinet_users_and_groups" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                const companyId = $('#editCompanyId').val();
+                if (!companyId) {
+                    return null;
+                }
+                return {
+                    company_id: companyId,
+                    search: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: [
+                        {
+                            text: '{% trans "Users" %}',
+                            children: (data.users || []).map(user => ({
+                                id: `user_${user.id}`,
+                                text: user.full_name,
+                                type: 'user',
+                                department: user.department,
+                                position: user.position,
+                                avatar: user.avatar,
+                                color: user.color
+                            }))
+                        },
+                        {
+                            text: '{% trans "Groups" %}',
+                            children: (data.groups || []).map(group => ({
+                                id: `group_${group.id}`,
+                                text: group.name,
+                                type: 'group'
+                            }))
+                        }
+                    ]
+                };
+            },
+            cache: true
+        },
+        templateResult: formatUserOrGroup,
+        templateSelection: formatUserOrGroupSelection
+    });
+
+    // Обробники подій
+    $('#editApproversBtn').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Edit Approvers button clicked');
+        
+        const accessId = $('#editAccessId').val();
+        console.log('Access ID:', accessId);
+        
+        if (!accessId) {
+            console.error('Access ID not found');
+            showError('{% trans "Please save the access record first" %}');
+            return;
+        }
+
+        // Спрощена логіка відкриття модального вікна approvers
+        const handleModalTransition = () => {
+            const $editAccessModal = $('#editAccessModal');
+            const $editApproversModal = $('#editApproversModal');
+            
+            // Перевіряємо, чи існує модальне вікно approvers
+            if ($editApproversModal.length === 0) {
+                showError('{% trans "Approvers modal not found" %}');
+                return;
+            }
+            
+            // Очищаємо фокуси
+            if (document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            
+            // Завантажуємо дані approvers перед закриттям першого модального вікна
+            console.log('Loading approvers for access ID:', accessId);
+            
+            // Використовуємо стандартний підхід Bootstrap
+            $editAccessModal.modal('hide');
+            
+            // Після закриття першого модального вікна
+            $editAccessModal.one('hidden.bs.modal', function() {
+                // Невелика затримка для забезпечення повного закриття
+                setTimeout(() => {
+                    try {
+                        // Завантажуємо дані
+                        if (typeof loadAccessApprovers === 'function') {
+                            loadAccessApprovers(accessId);
+                        } else {
+                            console.error('loadAccessApprovers function not found');
+                            showError('{% trans "Error: approvers function not found" %}');
+                            return;
+                        }
+                        
+                        // Відкриваємо модальне вікно approvers
+                        console.log('About to show editApproversModal, element exists:', $editApproversModal.length > 0);
+                        $editApproversModal.modal('show');
+                        
+                        console.log('Approvers modal show() called');
+                        
+                        // Додаткова перевірка стану модального вікна
+                        setTimeout(() => {
+                            console.log('Modal state after 500ms:', {
+                                isVisible: $editApproversModal.hasClass('show'),
+                                display: $editApproversModal[0].style.display,
+                                ariaHidden: $editApproversModal.attr('aria-hidden')
+                            });
+                        }, 500);
+                        
+                        // Встановлюємо безпечний фокус після відкриття
+                        $editApproversModal.one('shown.bs.modal', function(e) {
+                            console.log('Approvers modal shown event fired');
+                            // НЕ зупиняємо поширення - дозволяємо Bootstrap керувати подіями
+                            // e.stopPropagation();
+                            
+                            // Додаткова перевірка що модальне вікно справді відкрите
+                            if (!$(this).hasClass('show')) {
+                                console.error('Modal does not have show class!');
+                                return;
+                            }
+                            
+                            setTimeout(() => {
+                                // Мінімальна обробка фокуса для approvers modal
+                                const modal = $(this);
+                                
+                                // Фокусуємося на заголовку
+                                const title = modal.find('.modal-title');
+                                if (title.length) {
+                                    title.attr('tabindex', '-1').focus();
+                                    console.log('Focus set on approvers modal title');
+                                } else {
+                                    // Fallback: фокусуємося на першому focusable елементі
+                                    const focusable = modal.find('input, button, select, textarea, [tabindex]:not([tabindex="-1"])').first();
+                                    if (focusable.length) {
+                                        focusable.focus();
+                                        console.log('Focus set on first focusable element');
+                                    }
+                                }
+                                
+                                console.log('Approvers modal is ready for interaction');
+                                
+                                // Додатково очищаємо aria-hidden для безпеки
+                                $('main').removeAttr('aria-hidden');
+                                console.log('Cleaned aria-hidden from main in shown event');
+                                
+                                // Додаємо MutationObserver для відстеження aria-hidden на main
+                                const mainElement = document.querySelector('main');
+                                if (mainElement && window.MutationObserver) {
+                                    const approversObserver = new MutationObserver(function(mutations) {
+                                        mutations.forEach(function(mutation) {
+                                            if (mutation.type === 'attributes' && mutation.attributeName === 'aria-hidden') {
+                                                if (mainElement.hasAttribute('aria-hidden')) {
+                                                    console.log('Detected aria-hidden on main, removing it');
+                                                    mainElement.removeAttribute('aria-hidden');
+                                                }
+                                            }
+                                        });
+                                    });
+                                    
+                                    approversObserver.observe(mainElement, { 
+                                        attributes: true, 
+                                        attributeFilter: ['aria-hidden'] 
+                                    });
+                                    
+                                    // Зберігаємо observer для очищення пізніше
+                                    modal.data('aria-observer', approversObserver);
+                                    console.log('Started monitoring main for aria-hidden changes');
+                                }
+                            }, 100);
+                        });
+                        
+                        // Додаємо обробники інших подій для debugging та контролю
+                        $editApproversModal.one('show.bs.modal', function(e) {
+                            console.log('Approvers modal show event fired');
+                            // Явно встановлюємо стан через глобальну функцію
+                            if (window.setApproversModalState) {
+                                window.setApproversModalState(true);
+                            }
+                        });
+                        
+                        $editApproversModal.one('hide.bs.modal', function(e) {
+                            console.log('Approvers modal hide event fired');
+                            
+                            // Перевіряємо, чи це справжнє закриття користувачем
+                            if (!e.isTrusted || (e.target && e.target.id !== 'editApproversModal')) {
+                                console.log('Preventing automatic hide of approvers modal');
+                                e.preventDefault();
+                                e.stopPropagation();
+                                
+                                // Виправляємо aria-hidden після запобігання закриттю
+                                setTimeout(() => {
+                                    $('main').removeAttr('aria-hidden');
+                                    console.log('Removed aria-hidden from main after preventing modal close');
+                                }, 50);
+                                
+                                return false;
+                            }
+                        });
+                        
+                        $editApproversModal.one('shown.bs.modal', function(e) {
+                            console.log('Approvers modal shown event fired (second handler)');
+                            // НЕ зупиняємо поширення
+                            // e.stopPropagation();
+                        });
+                        
+                        $editApproversModal.one('hidden.bs.modal', function(e) {
+                            console.log('Approvers modal hidden event fired (second handler)');
+                            
+                            // Явно встановлюємо стан через глобальну функцію
+                            if (window.setApproversModalState) {
+                                window.setApproversModalState(false);
+                            }
+                            
+                            // Очищаємо будь-які залишки inert атрибутів
+                            $('main').removeAttr('inert');
+                            $('main').removeAttr('aria-hidden');
+                            
+                            // Очищаємо MutationObserver
+                            const observer = $(this).data('aria-observer');
+                            if (observer) {
+                                observer.disconnect();
+                                $(this).removeData('aria-observer');
+                                console.log('Disconnected aria-hidden observer');
+                            }
+                            
+                            console.log('Cleaned up modal state');
+                        });
+                        
+                    } catch (error) {
+                        console.error('Error in modal transition:', error);
+                        showError('{% trans "Error opening approvers modal" %}');
+                        // Повертаємо перше модальне вікно якщо щось пішло не так
+                        setTimeout(() => {
+                            $editAccessModal.modal('show');
+                        }, 100);
+                    }
+                }, 200);
+            });
+        };
+        
+        // Викликаємо обробник
+        handleModalTransition();
+    });
+
+    $('#updateAccess').click(function(e) {
+        e.preventDefault();
+        if (validateForm()) {
+            updateAccess();
+        }
+    });
+
+    // Обробник зміни компанії
+    $('#editCompanyName').on('change', function() {
+        const companyId = $(this).val();
+        $('#editCompanyId').val(companyId);
+        
+        // Очищаємо та деактивуємо залежні поля
+        const $system = $('#editSystemName');
+        $system.empty().append('<option value="">{% trans "Select system..." %}</option>').prop('disabled', true);
+        $('#editRequestUsersGroups').empty().trigger('change');
+        $('#editAccessUsersGroups').empty().trigger('change');
+        
+        if (companyId) {
+            // Показуємо індикатор завантаження
+            $system.prop('disabled', true).append('<option>{% trans "Loading..." %}</option>');
+            
+            // Завантажуємо системи для вибраної компанії
+            $.get(`{% url 'get_company_systems' %}`, { company_id: companyId })
+                .done(function(data) {
+                    $system.empty().append('<option value="">{% trans "Select system..." %}</option>');
+                    if (data.systems && data.systems.length) {
+                        data.systems.forEach(system => {
+                            $system.append(new Option(system.name, system.id));
+                        });
+                        $system.prop('disabled', false);
+                    } else {
+                        $system.append('<option disabled>{% trans "No systems available" %}</option>');
+                    }
+                })
+                .fail(function(xhr) {
+                    console.error('Error loading systems:', xhr);
+                    $system.empty()
+                        .append('<option value="">{% trans "Select system..." %}</option>')
+                        .append('<option disabled>{% trans "Error loading systems" %}</option>');
+                    showError(xhr.responseJSON?.error || '{% trans "Error loading systems" %}');
+                })
+                .always(function() {
+                    // Видаляємо індикатор завантаження
+                    $system.find('option:contains("Loading...")').remove();
+                });
+        }
+    });
+
+    // Обробник зміни системи
+    $('#editSystemName').on('change', function() {
+        const systemId = $(this).val();
+        $('#editSystemId').val(systemId);
+    });
+
+    // Обробник зміни environment
+    $('#editEnvironment').on('change', async function() {
+        const systemId = $('#editSystemId').val();
+        const environment = $(this).val();
+        
+        if (systemId && environment) {
+            // Завантажуємо список об'єктів для системи
+            await loadEditSystemObjects(systemId, environment);
+            // Object Roles залишається disabled до вибору Object
+            $('#editRoles').empty().prop('disabled', true).trigger('change');
+        } else {
+            $('#editObject').empty().prop('disabled', true).trigger('change');
+            $('#editRoles').empty().prop('disabled', true).trigger('change');
+            updateEditSelect2BulkActionButtons('#editObject');
+            updateEditSelect2BulkActionButtons('#editRoles');
+        }
+    });
+
+    // Обробник зміни об'єкта (один або кілька)
+    $('#editObject').on('change', async function() {
+        const objectIds = $(this).val() || [];
+        const objectIdList = Array.isArray(objectIds) ? objectIds.filter(Boolean) : (objectIds ? [objectIds] : []);
+        const environment = $('#editEnvironment').val();
+        
+        if (objectIdList.length && environment) {
+            await loadEditObjectRolesForObjects(objectIdList, environment);
+            $('#editRoles').prop('disabled', false);
+            updateEditSelect2BulkActionButtons('#editRoles');
+        } else {
+            $('#editRoles').empty().prop('disabled', true).trigger('change');
+            updateEditSelect2BulkActionButtons('#editRoles');
+        }
+    });
+
+    // Оновлюємо обробник відкриття модального вікна
+    $('#editAccessModal').on('show.bs.modal', function(e) {
+        const accessId = $(e.relatedTarget).data('access-id') || $('#editAccessId').val();
+        console.log('Opening modal with access ID:', accessId);
+        
+        const $form = $('#editAccessForm');
+        
+        // Очищаємо форму та всі попередження
+        $form[0].reset();
+        $('#editRequestUsersGroups').empty().trigger('change');
+        $('#editThirdParties').prop('checked', false);
+        updateApproversList([]);
+        hideAccessRequestsWarning();
+        enableAllFields();
+
+        if (accessId) {
+            // Режим редагування
+            $(this).find('#editAccessModalLabel').text('{% trans "Edit Access Record" %}');
+            $(this).find('#updateAccess').text('{% trans "Update" %}');
+            $('#editAccessId').val(accessId);
+            loadAccessData(accessId);
+        } else {
+            // Режим створення
+            $(this).find('#editAccessModalLabel').text('{% trans "Add Access Record" %}');
+            $(this).find('#updateAccess').text('{% trans "Create" %}');
+            $('#editAccessId, #editCompanyId, #editSystemId').val('');
+            $('#editCompanyName, #editSystemName').val('');
+        }
+    });
+
+    // Додаємо обробник закриття модального вікна
+    $('#editAccessModal').on('hidden.bs.modal', function() {
+        hideAccessRequestsWarning();
+        enableAllFields();
+    });
+
+    // Додаємо обробник закриття модального вікна approvers
+    $('#editApproversModal').on('hidden.bs.modal', function() {
+        const accessId = $('#editAccessId').val();
+        if (accessId) {
+            console.log('Approvers modal closed, returning to main modal');
+            
+            // Очищаємо фокуси
+            if (document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            
+            // Невелика затримка для забезпечення повного закриття
+            setTimeout(() => {
+                const $editAccessModal = $('#editAccessModal');
+                
+                // Оновлюємо заголовки
+                $editAccessModal.find('#editAccessModalLabel').text('{% trans "Edit Access Record" %}');
+                $editAccessModal.find('#updateAccess').text('{% trans "Update" %}');
+                
+                // Відкриваємо основне модальне вікно
+                $editAccessModal.modal('show');
+                
+                // Встановлюємо безпечний фокус після відкриття
+                $editAccessModal.one('shown.bs.modal', function(e) {
+                    console.log('Main modal shown event fired after return from approvers');
+                    // НЕ зупиняємо поширення
+                    // e.stopPropagation();
+                    
+                    setTimeout(() => {
+                        // Переконуємося, що всі атрибути очищені
+                        $('main').removeAttr('inert');
+                        
+                        // Фокусуємося на заголовку модального вікна
+                        const title = $(this).find('.modal-title');
+                        if (title.length) {
+                            title.attr('tabindex', '-1').focus();
+                            console.log('Focus set on main modal title');
+                        }
+                    }, 100);
+                });
+                
+                console.log('Main modal should be reopening...');
+            }, 200);
+        }
+    });
+
+    // Додаємо обробник для кнопки Save Changes
+    $('#saveApprovers').on('click', function() {
+        try {
+            const formData = {
+                access_id: $('#editAccessId').val(),
+                approvers: currentApprovers.map(approver => ({
+                    cabinet_user_id: approver.id,
+                    order: approver.order
+                }))
+            };
+        
+        $.ajax({
+                url: '{% url "update_access_approvers" %}',
+            type: 'POST',
+                data: JSON.stringify(formData),
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            }).done(function(response) {
+                if (response.status === 'success') {
+                    renderMainApproversList(); // Оновлюємо основний список
+                    $('#editApproversModal').modal('hide');
+                    showSuccess('{% trans "Approvers updated successfully" %}');
+                } else {
+                    showError(response.message);
+                }
+            }).fail(function(xhr) {
+                showError(xhr.responseJSON?.message || '{% trans "Error updating approvers" %}');
+            });
+        } catch (error) {
+            showError(error.message);
+        }
+    });
+
+    // Додаємо обробник для події відкриття модального вікна approvers
+    $('#editApproversModal').on('show.bs.modal', function() {
+        // Зберігаємо стан основного вікна
+        $('#editAccessModal').modal('hide');
+    });
+
+    // Спрощений глобальний обробник фокуса
+    $(document).on('show.bs.modal hide.bs.modal hidden.bs.modal', function(e) {
+        // Радикальний підхід: очищаємо всі фокуси при будь-якій дії з модальними вікнами
+        setTimeout(() => {
+            const activeElement = document.activeElement;
+            if (activeElement && activeElement !== document.body && activeElement !== document.documentElement) {
+                try {
+                    activeElement.blur();
+                } catch(err) {
+                    // Ігноруємо помилки blur
+                }
+            }
+            
+            // Переконуємося, що фокус на безпечному елементі
+            if (document.activeElement && $(document.activeElement).closest('.modal').length > 0) {
+                try {
+                    document.activeElement.blur();
+                    document.body.focus();
+                } catch(err) {
+                    // Ігноруємо помилки
+                }
+            }
+        }, 10);
+    });
+
+    // Також оновіть обробник для перевірки дат
+    $('#editStartDate, #editEndDate').on('change', function() {
+        const startDate = new Date($('#editStartDate').val());
+        const endDate = new Date($('#editEndDate').val());
+        
+        if (endDate && startDate > endDate) {
+            showError('{% trans "End date cannot be earlier than start date" %}');
+            $('#editEndDate').val('');
+        }
+    });
+
+    // Обробник для чекбокса Third Parties
+    $('#editThirdParties').on('change', function() {
+        const $accessUsersGroups = $('#editAccessUsersGroups');
+        const isChecked = $(this).is(':checked');
+        
+        if (isChecked) {
+            // Додаємо опцію "Third parties" якщо її немає
+            if (!$accessUsersGroups.find('option[value="third_parties"]').length) {
+                const thirdPartiesOption = new Option('{% trans "Third parties" %}', 'third_parties', true, true);
+                $accessUsersGroups.append(thirdPartiesOption);
+                $accessUsersGroups.trigger('change');
+            }
+        } else {
+            // Видаляємо опцію "Third parties"
+            $accessUsersGroups.find('option[value="third_parties"]').remove();
+            $accessUsersGroups.trigger('change');
+        }
+    });
+
+    // Обробник зміни чекбоксу Record Active
+    $('#editRecordActive').on('change', async function() {
+        const accessId = $('#editAccessId').val();
+        const isActive = $(this).is(':checked');
+        const $checkbox = $(this);
+        
+        try {
+            $checkbox.prop('disabled', true); // Блокуємо чекбокс під час запиту
+            const response = await fetch(`{% url 'update_access_status' '0' %}`.replace('0', accessId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    is_active: isActive
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || '{% trans "Failed to update record status" %}');
+            }
+
+            toastr.success('{% trans "Record status updated successfully" %}');
+            // Оновлюємо сторінку після успішного оновлення
+            window.location.reload();
+
+        } catch (error) {
+            console.error('Error updating record status:', error);
+            toastr.error(error.message || '{% trans "Error updating record status" %}');
+            // Повертаємо чекбокс у попередній стан
+            $checkbox.prop('checked', !isActive);
+        } finally {
+            $checkbox.prop('disabled', false); // Розблоковуємо чекбокс
+        }
+    });
+});
+
+// Оновлюємо функцію initializeUsersGroupsSelect2
+function initializeUsersGroupsSelect2() {
+    // Ініціалізація для Request Users and Groups
+    $('#editRequestUsersGroups').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Select users and groups..." %}',
+        allowClear: true,
+        dropdownParent: $('#editAccessModal'),
+        ajax: {
+            url: '{% url "get_cabinet_users_and_groups" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                const companyId = $('#editCompanyId').val();
+                if (!companyId) {
+                    return null;
+                }
+                return {
+                    company_id: companyId,
+                    search: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: [
+                        {
+                            text: '{% trans "Users" %}',
+                            children: (data.users || []).map(user => ({
+                                id: `user_${user.id}`,
+                                text: user.full_name,
+                                type: 'user',
+                                department: user.department,
+                                position: user.position,
+                                avatar: user.avatar,
+                                color: user.color
+                            }))
+                        },
+                        {
+                            text: '{% trans "Groups" %}',
+                            children: (data.groups || []).map(group => ({
+                                id: `group_${group.id}`,
+                                text: group.name,
+                                type: 'group'
+                            }))
+                        }
+                    ]
+                };
+            },
+            cache: true
+        },
+        templateResult: formatUserOrGroup,
+        templateSelection: formatUserOrGroupSelection
+    });
+
+    // Ініціалізація для Access Users and Groups
+    $('#editAccessUsersGroups').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '{% trans "Select users and groups..." %}',
+        allowClear: true,
+        dropdownParent: $('#editAccessModal'),
+        ajax: {
+            url: '{% url "get_cabinet_users_and_groups" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                const companyId = $('#editCompanyId').val();
+                if (!companyId) {
+                    return null;
+                }
+                return {
+                    company_id: companyId,
+                    search: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: [
+                        {
+                            text: '{% trans "Users" %}',
+                            children: (data.users || []).map(user => ({
+                                id: `user_${user.id}`,
+                                text: user.full_name,
+                                type: 'user',
+                                department: user.department,
+                                position: user.position,
+                                avatar: user.avatar,
+                                color: user.color
+                            }))
+                        },
+                        {
+                            text: '{% trans "Groups" %}',
+                            children: (data.groups || []).map(group => ({
+                                id: `group_${group.id}`,
+                                text: group.name,
+                                type: 'group'
+                            }))
+                        }
+                    ]
+                };
+            },
+            cache: true
+        },
+        templateResult: formatUserOrGroup,
+        templateSelection: formatUserOrGroupSelection
+    });
+}
+
+// Оновлюємо функцію loadAccessData
+function loadAccessData(accessId) {
+    $.ajax({
+        url: `/app_access/access/get/${accessId}/`,
+        method: 'GET',
+        success: function(data) {
+            console.log('Loading access data:', data);
+            
+            if (!data || !data.access) {
+                console.error('Invalid data format received');
+                toastr.error('{% trans "Error loading access data" %}');
+                return;
+            }
+
+            // Зберігаємо default approvers
+            defaultApprovers = data.access.default_approvers || [];
+            
+            // Використовуємо default approvers якщо немає поточних approvers
+            currentApprovers = data.access.approvers && data.access.approvers.length > 0 
+                ? data.access.approvers 
+                : defaultApprovers.map(approver => ({
+                    ...approver,
+                    is_default: true
+                }));
+            
+            // Оновлюємо відображення approvers
+            renderMainApproversList();
+
+            // Перевіряємо, чи є Access Requests і блокуємо поля, якщо потрібно
+            const hasAccessRequests = data.access.access_requests_count > 0;
+            if (hasAccessRequests) {
+                disableFieldsForAccessRequests();
+                showAccessRequestsWarning(data.access.access_requests_count);
+            } else {
+                enableAllFields();
+                hideAccessRequestsWarning();
+            }
+
+            // Заповнюємо поля форми
+            $('#editAccessId').val(accessId);
+            $('#editCompanyId').val(data.access.asset.company.id);
+            $('#editCompanyName').val(data.access.asset.company.name);
+            $('#editSystemId').val(data.access.asset.id);
+            $('#editSystemName').val(data.access.asset.name);
+
+            // Встановлюємо environment
+            if (data.access.environment) {
+                $('#editEnvironment').val(data.access.environment);
+            }
+
+            // Встановлюємо дати
+            if (data.access.start_date) {
+                $('#editStartDate').val(formatDateTimeForInput(data.access.start_date));
+            }
+            if (data.access.end_date) {
+                $('#editEndDate').val(formatDateTimeForInput(data.access.end_date));
+            } else {
+                $('#editEndDate').val('');
+            }
+
+            // Перевіряємо активність запису
+            const isActive = data.access.is_active !== undefined ? data.access.is_active : true;
+            $('#editRecordActive').prop('checked', isActive);
+
+            // Перевіряємо дату закінчення
+            if (data.access.end_date) {
+                const endDate = new Date(data.access.end_date);
+                const now = new Date();
+                
+                if (endDate < now) {
+                    $('#editRecordActive').prop('checked', false);
+                    $('#editRecordActive').prop('disabled', true);
+                    $('#recordActiveHint').removeClass('d-none');
+                } else {
+                    $('#editRecordActive').prop('disabled', false);
+                    $('#recordActiveHint').addClass('d-none');
+                }
+            } else {
+                $('#editRecordActive').prop('disabled', false);
+                $('#recordActiveHint').addClass('d-none');
+            }
+
+            // Встановлюємо значення для відображення
+            $('#editDescription').val(data.access.description);
+
+            // Перевіряємо чи є третя сторона в access_users_groups
+            const hasThirdParties = data.access.third_parties || false;
+            $('#editThirdParties').prop('checked', hasThirdParties);
+
+            // Оновлюємо користувачів та групи запиту
+            const $requestUsersGroups = $('#editRequestUsersGroups');
+            const $accessUsersGroups = $('#editAccessUsersGroups');
+            
+            // Знищуємо попередні Select2 якщо вони існують
+            if ($requestUsersGroups.hasClass('select2-hidden-accessible')) {
+                $requestUsersGroups.select2('destroy');
+            }
+            if ($accessUsersGroups.hasClass('select2-hidden-accessible')) {
+                $accessUsersGroups.select2('destroy');
+            }
+            
+            $requestUsersGroups.empty();
+            $accessUsersGroups.empty();
+
+            // Створюємо групи для користувачів та груп запиту
+            const requestUsersOptgroup = $('<optgroup label="{% trans "Users" %}">');
+            const requestGroupsOptgroup = $('<optgroup label="{% trans "Groups" %}">');
+
+            // Створюємо групи для користувачів та груп доступу
+            const accessUsersOptgroup = $('<optgroup label="{% trans "Users" %}">');
+            const accessGroupsOptgroup = $('<optgroup label="{% trans "Groups" %}">');
+
+            // Додаємо користувачів запиту
+            if (data.access.request_users && data.access.request_users.length) {
+                data.access.request_users.forEach(user => {
+                    const option = new Option(user.name, `user_${user.id}`, true, true);
+                    $(option).data({
+                        type: 'user',
+                        department: user.department,
+                        position: user.position
+                    });
+                    requestUsersOptgroup.append(option);
+                });
+            }
+
+            // Додаємо групи запиту
+            if (data.access.request_groups && data.access.request_groups.length) {
+                data.access.request_groups.forEach(group => {
+                    const option = new Option(group.name, `group_${group.id}`, true, true);
+                    $(option).data('type', 'group');
+                    requestGroupsOptgroup.append(option);
+                });
+            }
+
+            // Додаємо користувачів доступу
+            if (data.access.access_users && data.access.access_users.length) {
+                data.access.access_users.forEach(user => {
+                    const option = new Option(user.name, `user_${user.id}`, true, true);
+                    $(option).data({
+                        type: 'user',
+                        department: user.department,
+                        position: user.position
+                    });
+                    accessUsersOptgroup.append(option);
+                });
+            }
+
+            // Додаємо групи доступу
+            if (data.access.access_groups && data.access.access_groups.length) {
+                data.access.access_groups.forEach(group => {
+                    const option = new Option(group.name, `group_${group.id}`, true, true);
+                    $(option).data('type', 'group');
+                    accessGroupsOptgroup.append(option);
+                });
+            }
+
+            // Додаємо групи до select
+            if (requestUsersOptgroup.children().length) {
+                $requestUsersGroups.append(requestUsersOptgroup);
+            }
+            if (requestGroupsOptgroup.children().length) {
+                $requestUsersGroups.append(requestGroupsOptgroup);
+            }
+            if (accessUsersOptgroup.children().length) {
+                $accessUsersGroups.append(accessUsersOptgroup);
+            }
+            if (accessGroupsOptgroup.children().length) {
+                $accessUsersGroups.append(accessGroupsOptgroup);
+            }
+
+            // Додаємо опцію "Third parties" якщо чекбокс відмічений
+            if (hasThirdParties) {
+                const thirdPartiesOption = new Option('{% trans "Third parties" %}', 'third_parties', true, true);
+                $accessUsersGroups.append(thirdPartiesOption);
+            }
+
+            // Ініціалізуємо Select2
+            initializeUsersGroupsSelect2();
+
+            // Встановлюємо вибрані значення
+            const selectedRequestValues = [
+                ...(data.access.request_users || []).map(u => `user_${u.id}`),
+                ...(data.access.request_groups || []).map(g => `group_${g.id}`)
+            ];
+            const selectedAccessValues = [
+                ...(data.access.access_users || []).map(u => `user_${u.id}`),
+                ...(data.access.access_groups || []).map(g => `group_${g.id}`)
+            ];
+            
+            // Додаємо third_parties до selectedAccessValues якщо потрібно
+            if (hasThirdParties) {
+                selectedAccessValues.push('third_parties');
+            }
+            
+            $requestUsersGroups.val(selectedRequestValues).trigger('change');
+            $accessUsersGroups.val(selectedAccessValues).trigger('change');
+
+            // Оновлюємо список об'єктів, ролей та статусів
+            if (data.access && data.access.asset && data.access.asset.id) {
+                // Спочатку завантажуємо об'єкти
+                $.get(`/app_access/system-objects/${data.access.asset.id}/?environment=${data.access.environment || 'test'}`)
+                    .done(function(objectsData) {
+
+                        // Оновлюємо список об'єктів
+                        const $objects = $('#editObject');
+                        $objects.empty();
+                        
+                        console.log('Loading objects for system:', data.access.asset.id);
+                        console.log('Objects data received:', objectsData);
+                        console.log('Current access object:', data.access.access_object);
+                        
+                        if (objectsData.status === 'success' && objectsData.data) {
+                            objectsData.data.forEach(obj => {
+                                const objectName = 
+                                    '{{ LANGUAGE_CODE }}' === 'uk' ? obj.name :
+                                    '{{ LANGUAGE_CODE }}' === 'en' ? obj.name :
+                                    obj.name;
+                                
+                                $objects.append(
+                                    `<option value="${obj.id}" title="${obj.description || ''}">
+                                        ${objectName}
+                                    </option>`
+                                );
+                            });
+                        }
+                        
+                        // Якщо об'єкт не знайдений в списку, але є в даних, додаємо його
+                        if (data.access.access_object) {
+                            const existingOption = $objects.find(`option[value="${data.access.access_object.id}"]`);
+                            if (existingOption.length === 0) {
+                                // Додаємо об'єкт, якого немає в списку (можливо, він з іншої системи або видалений)
+                                console.log('Object not found in list, adding manually:', data.access.access_object);
+                                $objects.append(
+                                    `<option value="${data.access.access_object.id}" selected title="${data.access.access_object.description || ''}">
+                                        ${data.access.access_object.name} ({% trans "Current object" %})
+                                    </option>`
+                                );
+                            }
+                            
+                            // Встановлюємо значення та тригеримо зміну
+                            $objects.val([String(data.access.access_object.id)]);
+                            console.log('Set object value to:', data.access.access_object.id);
+                            console.log('Current select value after setting:', $objects.val());
+                            console.log('Available options:', $objects.find('option').map(function() { return {value: this.value, text: this.text}; }).get());
+                            $objects.trigger('change');
+                        } else {
+                            console.log('No access object found in data');
+                        }
+                        updateEditSelect2BulkActionButtons('#editObject');
+                        
+                        // Тепер завантажуємо ролі
+                        const loadPromises = data.access.access_object 
+                            ? [
+                                // Якщо є об'єкт, завантажуємо його ролі
+                                fetch(`/app_access/object-filters/${data.access.access_object.id}/?environment=${data.access.environment}`).then(r => r.json())
+                              ]
+                            : [
+                                // Якщо немає об'єкта, завантажуємо системні ролі
+                                $.get(`{% url 'get_system_roles' %}?system_id=${data.access.asset.id}&environment=${data.access.environment}`)
+                              ];
+                        
+                                                 Promise.all(loadPromises).then(([rolesData]) => {
+                             // Оновлюємо ролі
+                             const $roles = $('#editRoles');
+                             $roles.empty();
+                             
+                             const roles = data.access.access_object 
+                                 ? (rolesData.status === 'success' ? rolesData.data.roles : [])
+                                 : (rolesData.roles || []);
+                             
+                             if (roles && roles.length) {
+                                 roles.forEach(role => {
+                                     const roleName = role.name || '';
+                                     const roleLabel = data.access.access_object && role.is_object_specific ? 
+                                         `${roleName} ({% trans "Object-specific" %})` : roleName;
+                                     const option = new Option(roleLabel, role.id);
+                                     $(option).data('color', role.color);
+                                     $(option).data('description', role.description || '');
+                                     $roles.append(option);
+                                 });
+                             }
+                             
+                             if (data.access.roles && data.access.roles.length > 0) {
+                                 $roles.val(data.access.roles.map(r => r.id)).trigger('change');
+                             }
+                             $roles.prop('disabled', false);
+                             updateEditSelect2BulkActionButtons('#editRoles');
+                         });
+                     })
+                     .fail(function(xhr) {
+                         console.error('Error loading objects:', xhr);
+                         toastr.error('{% trans "Error loading objects" %}');
+                         updateEditSelect2BulkActionButtons('#editObject');
+                         updateEditSelect2BulkActionButtons('#editRoles');
+                     });
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading access data:', xhr);
+            toastr.error('{% trans "Error loading access data" %}');
+        }
+    });
+}
+
+// Додайте функцію renderApprovers (для модального вікна Edit Approvers)
+function renderApprovers() {
+    const $container = $('#approversContainer');
+    $container.empty();
+    
+    // Показуємо/приховуємо кнопку Use Default Approvers
+    $('#useDefaultApproversBtn').toggle(defaultApprovers && defaultApprovers.length > 0);
+    
+    // Групуємо approvers за рівнями
+    const approversByLevel = {};
+    currentApprovers.forEach(approver => {
+        const level = approver.order;
+        if (!approversByLevel[level]) {
+            approversByLevel[level] = [];
+        }
+        approversByLevel[level].push(approver);
+    });
+    
+    // Створюємо контейнери для кожного рівня
+    Object.keys(approversByLevel).sort((a, b) => a - b).forEach(level => {
+        const $levelContainer = $('<div>')
+            .addClass('level-container mb-3')
+            .attr('data-level', level);
+        
+        $levelContainer.append(
+            $('<h6>').addClass('mb-2').text(`{% trans "Level" %} ${level}`)
+        );
+        
+        approversByLevel[level].forEach(approver => {
+            const $approverCard = $('<div>')
+                .addClass('approver-card p-3 border rounded mb-2')
+                .attr('data-approver-id', approver.id);
+            
+            const $content = $('<div>').addClass('d-flex align-items-center gap-3');
+            
+            // Аватар або кольорова точка
+            if (approver.avatar) {
+                $content.append(
+                    $('<img>')
+                        .addClass('rounded-circle')
+                        .attr('src', approver.avatar)
+                        .css({
+                            width: '40px',
+                            height: '40px',
+                            objectFit: 'cover'
+                        })
+                );
+            } else {
+                $content.append(
+                    $('<div>')
+                        .addClass('user-color-dot')
+                        .css({
+                            width: '40px',
+                            height: '40px',
+                            backgroundColor: approver.color || '#ccc',
+                            borderRadius: '50%'
+                        })
+                );
+            }
+            
+            // Інформація про користувача
+            const $info = $('<div>').addClass('flex-grow-1');
+            $info.append($('<div>').addClass('fw-semibold').text(approver.name));
+            
+            const details = [approver.department_name, approver.position_name]
+                .filter(Boolean)
+                .join(' • ');
+            
+            if (details) {
+                $info.append(
+                    $('<small>')
+                        .addClass('text-muted d-block')
+                        .text(details)
+                );
+            }
+            
+            $content.append($info);
+            
+            // Додаємо бейдж "Default" якщо потрібно
+            if (approver.is_default) {
+                $content.append(
+                    $('<span>')
+                        .addClass('badge bg-info me-2')
+                        .text('{% trans "Default" %}')
+                );
+            }
+            
+            // Кнопка видалення
+            if (!approver.is_default) {
+                $content.append(
+                    $('<button>')
+                        .addClass('btn btn-sm btn-outline-danger')
+                        .html('<i class="bi bi-trash"></i>')
+                        .on('click', function() {
+                            removeApprover(approver.id);
+                        })
+                );
+            }
+            
+            $approverCard.append($content);
+            $levelContainer.append($approverCard);
+        });
+        
+        $container.append($levelContainer);
+    });
+    
+    // Оновлюємо список доступних approvers
+    updateAvailableApproversSelect();
+}
+
+// Оновіть функцію loadAccessApprovers
+function loadAccessApprovers(accessId) {
+    console.log('loadAccessApprovers called with accessId:', accessId);
+    
+    $.get(`{% url 'get_access_approvers' 0 %}`.replace('0', accessId))
+        .done(function(data) {
+            console.log('Approvers data loaded successfully:', data);
+            
+            // Зберігаємо доступні approvers
+            availableApprovers = data.available_approvers;
+            
+            // Використовуємо default_approvers тільки якщо немає access_approvers
+            currentApprovers = data.access_approvers.length > 0 
+                ? data.access_approvers 
+                : data.system_approvers.map(approver => ({
+                    ...approver,
+                    is_default: true
+                }));
+            
+            console.log('Current approvers set to:', currentApprovers);
+            
+            // Оновлюємо обидва списки
+            renderApprovers();
+            renderMainApproversList();
+            
+            console.log('Approvers lists rendered');
+        })
+        .fail(function(xhr) {
+            console.error('Failed to load approvers:', xhr);
+            showError(xhr.responseJSON?.message || '{% trans "Error loading approvers" %}');
+        });
+}
+
+// Оновлюємо функцію updateApproversList
+function updateApproversList(approvers) {
+    const container = $('#approversList');
+    container.empty();
+
+    if (!approvers || !Array.isArray(approvers) || approvers.length === 0) {
+        container.append(`
+            <div class="text-center text-muted p-4">
+                <i class="bi bi-people fs-2"></i>
+                <p class="mb-0 mt-2">{% trans "No approvers assigned" %}</p>
+            </div>
+        `);
+        return;
+    }
+
+    // Групуємо approvers за рівнями
+    const approversByLevel = approvers.reduce((acc, approver) => {
+        const level = approver.order || 0;
+        if (!acc[level]) acc[level] = [];
+        acc[level].push(approver);
+        return acc;
+    }, {});
+
+    container.addClass('approvers-container');
+    
+    // Створюємо HTML для кожного рівня
+    Object.entries(approversByLevel)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .forEach(([level, levelApprovers]) => {
+            const levelHtml = `
+                <div class="mb-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-secondary">{% trans "Level" %} ${level}</span>
+                    </div>
+                    ${levelApprovers.map(approver => `
+                        <div class="approver-item">
+                            <div class="d-flex align-items-center">
+                                <div class="user-color-dot me-3" style="background-color: ${approver.color || '#ccc'}"></div>
+                                <div class="approver-info">
+                                    <div class="approver-name fw-bold">${approver.name || ''}</div>
+                                    <div class="approver-details">
+                                        ${approver.department || ''}
+                                        ${approver.position ? `<span class="text-muted mx-1">•</span>${approver.position}` : ''}
+                                    </div>
+                                </div>
+                                ${approver.is_default ? `
+                                    <div class="ms-2">
+                                        <span class="badge bg-info" data-bs-toggle="tooltip" title="{% trans 'Default Approver' %}">
+                                            <i class="bi bi-shield-check"></i>
+                                        </span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            container.append(levelHtml);
+        });
+
+    // Ініціалізуємо тултіпи
+    container.find('[data-bs-toggle="tooltip"]').tooltip();
+}
+
+// Оновлюємо функцію formatUserOrGroup
+function formatUserOrGroup(data) {
+    if (!data.id) return data.text;
+    
+    const $container = $('<div>').addClass('d-flex align-items-center gap-2 p-1');
+    
+    if (data.type === 'user') {
+        // Аватар або кольорова точка
+        if (data.avatar) {
+            $container.append(
+                $('<img>')
+                    .addClass('rounded-circle')
+                    .attr('src', data.avatar)
+                    .css({
+                        width: '32px',
+                        height: '32px',
+                        objectFit: 'cover'
+                    })
+            );
+        } else {
+            $container.append(
+                $('<div>')
+                    .addClass('user-color-dot')
+                    .css('background-color', data.color || '#ccc')
+                );
+        }
+        
+        // Інформація про користувача
+        const $info = $('<div>').addClass('flex-grow-1');
+        $info.append($('<div>').addClass('fw-semibold').text(data.text));
+        
+        // Департамент та посада
+        const details = [data.department, data.position]
+            .filter(Boolean)
+            .join(' • ');
+        if (details) {
+            $info.append(
+                $('<small>')
+                    .addClass('text-muted d-block')
+                    .text(details)
+            );
+        }
+        
+        $container.append($info);
+    } else {
+        // Групи
+        $container.append(
+            $('<i>').addClass('bi bi-people-fill fs-5 text-secondary'),
+            $('<span>').addClass('ms-2').text(data.text)
+        );
+    }
+    
+    return $container;
+}
+
+function formatUserOrGroupSelection(data) {
+    if (!data.id) return data.text;
+    
+    const $container = $('<div>').addClass('d-flex align-items-center gap-2');
+    
+    if (data.type === 'user') {
+        // Аватар або кольорова точка
+        if (data.avatar) {
+            $container.append(
+                $('<img>')
+                    .addClass('rounded-circle')
+                    .attr('src', data.avatar)
+                    .css({
+                        width: '24px',
+                        height: '24px',
+                        objectFit: 'cover'
+                    })
+            );
+        } else {
+            $container.append(
+                $('<div>')
+                    .addClass('user-color-dot')
+                    .css({
+                        width: '24px',
+                        height: '24px',
+                        'background-color': data.color || '#ccc'
+                    })
+            );
+        }
+        
+        // Ім'я та департамент
+        const $info = $('<div>').addClass('d-flex flex-column');
+        $info.append($('<div>').text(data.text));
+        if (data.department) {
+            $info.append(
+                $('<small>')
+                    .addClass('text-muted')
+                    .text(data.department)
+            );
+        }
+        
+        $container.append($info);
+    } else {
+        // Групи
+        $container.append(
+            $('<i>').addClass('bi bi-people-fill'),
+            $('<span>').text(data.text)
+        );
+    }
+    
+    return $container;
+}
+
+// Функція валідації форми
+function validateForm() {
+    const form = document.getElementById('editAccessForm');
+    if (!form.checkValidity()) {
+        form.classList.add('was-validated');
+        return false;
+    }
+
+    const company = $('#editCompanyId').val();
+    const system = $('#editSystemId').val();
+    const objectIds = $('#editObject').val() || [];
+    const objects = Array.isArray(objectIds) ? objectIds.filter(Boolean) : (objectIds ? [objectIds] : []);
+    const roles = $('#editRoles').val() || [];
+
+    const usersGroups = $('#editRequestUsersGroups').val();
+
+    if (!company || !system || !objects.length || !roles.length || !usersGroups?.length) {
+        showError('{% trans "Please fill in all required fields" %}');
+        return false;
+    }
+
+    return true;
+}
+
+// Функція оновлення доступу
+function updateAccess() {
+    try {
+        // Перевіряємо, чи є попередження про обмежене редагування
+        const hasAccessRequestsWarning = $('#accessRequestsWarning').length > 0;
+        
+        // Форматуємо дати у правильний формат YYYY-MM-DD
+        const startDate = $('#editStartDate').val();
+        const endDate = $('#editEndDate').val();
+
+        // Перевіряємо валідність дат
+        if (!isValidDate(startDate)) {
+            throw new Error('{% trans "Invalid start date format" %}');
+        }
+        if (endDate && !isValidDate(endDate)) {
+            throw new Error('{% trans "Invalid end date format" %}');
+        }
+
+    // Формуємо дані відповідно до обмежень редагування
+    let formData = {
+        id: $('#editAccessId').val(),
+
+        description: $('#editDescription').val(),
+        is_active: $('#editRecordActive').is(':checked')
+    };
+    
+    // Якщо немає обмежень через Access Requests, додаємо всі поля
+    if (!hasAccessRequestsWarning) {
+        formData = {
+            ...formData,
+            object_ids: (function() {
+                const v = $('#editObject').val() || [];
+                return Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
+            })(),
+            environment: $('#editEnvironment').val(),
+            roles: ($('#editRoles').val() || []).filter(Boolean),
+            start_date: startDate,
+            end_date: endDate || null,
+            justification: $('#editJustification').val(),
+            requirements: $('#editRequirements').val(),
+            request_users: $('#editRequestUsersGroups').val()
+                .filter(v => v.startsWith('user_'))
+                .map(v => v.replace('user_', '')),
+            request_groups: $('#editRequestUsersGroups').val()
+                .filter(v => v.startsWith('group_'))
+                .map(v => v.replace('group_', '')),
+            access_users: $('#editAccessUsersGroups').val()
+                .filter(v => v.startsWith('user_'))
+                .map(v => v.replace('user_', '')),
+            access_groups: $('#editAccessUsersGroups').val()
+                .filter(v => v.startsWith('group_'))
+                .map(v => v.replace('group_', '')),
+            third_parties: ($('#editAccessUsersGroups').val().includes('third_parties') || $('#editThirdParties').is(':checked')),
+            // Додаємо дані про approvers
+            approvers: currentApprovers.map(approver => ({
+                cabinet_user_id: approver.id,
+                order: approver.order
+            }))
+        };
+    }
+
+    $.ajax({
+        url: '{% url "update_access" %}',
+        type: 'POST',
+        data: JSON.stringify(formData),
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        success: function(response) {
+            if (response.success) {
+                $('#editAccessModal').modal('hide');
+                location.reload();
+            } else {
+                showError(response.message);
+            }
+        },
+        error: function(xhr) {
+            const errorMessage = xhr.responseJSON?.message || '{% trans "Error updating access" %}';
+            showError(errorMessage);
+        }
+    });
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// Додайте допоміжну функцію для валідації дати
+function isValidDate(dateString) {
+    if (!dateString) return false;
+    
+    // Перевіряємо формат YYYY-MM-DDThh:mm
+    const regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+    if (!regex.test(dateString)) return false;
+
+    // Перевіряємо чи дата валідна
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return false;
+
+    return true;
+}
+
+// Функції для завантаження ролей та статусів об'єкта
+async function loadEditObjectRolesForObjects(objectIds, environment) {
+    try {
+        const rolesById = new Map();
+        for (const objectId of objectIds) {
+            const response = await fetch(`/app_access/object-filters/${objectId}/?environment=${environment}`);
+            if (!response.ok) throw new Error('Failed to load object roles');
+            const data = await response.json();
+            if (data.status === 'success' && data.data && data.data.roles) {
+                data.data.roles.forEach(role => {
+                    const key = String(role.id);
+                    if (!rolesById.has(key)) {
+                        rolesById.set(key, role);
+                    }
+                });
+            }
+        }
+        const rolesSelect = $('#editRoles');
+        const currentRoleIds = rolesSelect.val() || [];
+        rolesSelect.empty();
+
+        const sortedRoles = Array.from(rolesById.values()).sort((a, b) => a.order - b.order);
+        sortedRoles.forEach(role => {
+            const roleName = role.name || '';
+            const roleLabel = role.is_object_specific ?
+                `${roleName} ({% trans "Object-specific" %})` : roleName;
+            const option = new Option(roleLabel, role.id);
+            $(option).data('color', role.color);
+            $(option).data('description', role.description || '');
+            rolesSelect.append(option);
+        });
+
+        const idsToRestore = (Array.isArray(currentRoleIds) ? currentRoleIds : [currentRoleIds]).filter(Boolean);
+        const validRestore = idsToRestore.filter(id => rolesById.has(String(id)));
+        if (validRestore.length) {
+            rolesSelect.val(validRestore);
+        }
+        rolesSelect.trigger('change');
+        updateEditSelect2BulkActionButtons('#editRoles');
+    } catch (error) {
+        console.error('Error loading object roles:', error);
+        showError('{% trans "Error loading object roles" %}');
+        updateEditSelect2BulkActionButtons('#editRoles');
+    }
+}
+
+
+
+async function loadEditSystemRoles(systemId, environment) {
+    try {
+        const response = await fetch(`{% url 'get_system_roles' %}?system_id=${systemId}&environment=${environment}`);
+        if (!response.ok) throw new Error('Failed to load system roles');
+        
+        const data = await response.json();
+        const rolesSelect = $('#editRoles');
+        const currentRoleIds = rolesSelect.val() || [];
+        
+        rolesSelect.empty();
+        
+        if (data.roles) {
+            const sortedRoles = data.roles.sort((a, b) => a.order - b.order);
+            
+            sortedRoles.forEach(role => {
+                const roleName = role.name || '';
+                const option = new Option(roleName, role.id);
+                $(option).data('color', role.color);
+                $(option).data('description', role.description || '');
+                rolesSelect.append(option);
+            });
+            
+            const idsToRestore = (Array.isArray(currentRoleIds) ? currentRoleIds : [currentRoleIds]).filter(Boolean);
+            if (idsToRestore.length && idsToRestore.every(id => rolesSelect.find(`option[value="${id}"]`).length)) {
+                rolesSelect.val(idsToRestore);
+            }
+        }
+        rolesSelect.trigger('change');
+        updateEditSelect2BulkActionButtons('#editRoles');
+    } catch (error) {
+        console.error('Error loading system roles:', error);
+        showError('{% trans "Error loading system roles" %}');
+        updateEditSelect2BulkActionButtons('#editRoles');
+    }
+}
+
+
+
+// Функції для показу повідомлень
+function showError(message) {
+    Swal.fire({
+        icon: 'error',
+        title: '{% trans "Error" %}',
+        text: message
+    });
+}
+
+function showSuccess(message) {
+    Swal.fire({
+        icon: 'success',
+        title: '{% trans "Success" %}',
+        text: message,
+        timer: 2000,
+        showConfirmButton: false
+    });
+}
+
+let currentApprovers = [];
+let availableApprovers = [];
+let defaultApprovers = [];
+
+// Додайте функцію для рендерингу списку approvers в основному вікні
+function renderMainApproversList() {
+    const $container = $('#approversList');
+    $container.empty();
+    
+    if (!currentApprovers || currentApprovers.length === 0) {
+        $container.append(
+            $('<div>')
+                .addClass('text-muted')
+                .text('{% trans "No approvers assigned" %}')
+        );
+        return;
+    }
+    
+    // Групуємо approvers за рівнями
+    const approversByLevel = {};
+    currentApprovers.forEach(approver => {
+        const level = approver.order;
+        if (!approversByLevel[level]) {
+            approversByLevel[level] = [];
+        }
+        approversByLevel[level].push(approver);
+    });
+    
+    // Створюємо контейнери для кожного рівня
+    Object.keys(approversByLevel).sort((a, b) => a - b).forEach(level => {
+        const $levelContainer = $('<div>').addClass('mb-2');
+        
+        // Додаємо заголовок рівня
+        $levelContainer.append(
+            $('<div>')
+                .addClass('badge bg-secondary mb-1')
+                .text(`{% trans "Level" %} ${level}`)
+        );
+        
+        // Додаємо approvers цього рівня
+        approversByLevel[level].forEach(approver => {
+            const $approverDiv = $('<div>')
+                .addClass('d-flex align-items-center gap-2 mb-1');
+            
+            // Аватар або кольорова точка
+            if (approver.avatar) {
+                $approverDiv.append(
+                    $('<img>')
+                        .addClass('rounded-circle')
+                        .attr('src', approver.avatar)
+                        .css({
+                            width: '24px',
+                            height: '24px',
+                            objectFit: 'cover'
+                        })
+                );
+            } else {
+                $approverDiv.append(
+                    $('<div>')
+                        .addClass('rounded-circle')
+                        .css({
+                            width: '24px',
+                            height: '24px',
+                            backgroundColor: approver.color || '#ccc'
+                        })
+                );
+            }
+            
+            // Інформація про approver
+            const $info = $('<div>').addClass('flex-grow-1');
+            $info.append($('<div>').text(approver.name));
+            
+            if (approver.department || approver.position) {
+                $info.append(
+                    $('<small>')
+                        .addClass('text-muted')
+                        .text([approver.department, approver.position].filter(Boolean).join(' • '))
+                );
+            }
+            
+            $approverDiv.append($info);
+            
+            // Індикатор default approver
+            if (approver.is_default) {
+                $approverDiv.append(
+                    $('<i>')
+                        .addClass('bi bi-person-fill-gear text-muted')
+                        .attr('title', '{% trans "Default Approver" %}')
+                );
+            }
+            
+            $levelContainer.append($approverDiv);
+        });
+        
+        $container.append($levelContainer);
+    });
+}
+
+// Обробник для кнопки Add Approver
+$('#addApproverBtn').on('click', function() {
+    $('#addApproverForm').slideDown();
+    updateAvailableApproversSelect();
+});
+
+// Обробник для кнопки підтвердження додавання
+$('#confirmAddApprover').on('click', function() {
+    const approverId = $('#newApprover').val();
+    const level = parseInt($('#newApproverLevel').val()) || 1;
+    
+    if (!approverId) {
+        showError('{% trans "Please select an approver" %}');
+        return;
+    }
+
+    const approver = availableApprovers.find(a => a.id == approverId);
+    if (approver) {
+        currentApprovers.push({
+            ...approver,
+            order: level
+        });
+        
+        renderApprovers();
+        $('#addApproverForm').slideUp();
+        $('#newApprover').val('');
+        $('#newApproverLevel').val('1');
+    }
+});
+
+// Обробник для кнопки скасування
+$('#cancelAddApprover').on('click', function() {
+    $('#addApproverForm').slideUp();
+    $('#newApprover').val('');
+});
+
+// Функція для видалення approver
+function removeApprover(approverId) {
+    currentApprovers = currentApprovers.filter(a => a.id !== approverId);
+    renderApprovers();
+}
+
+// Додайте цю функцію після renderApprovers
+function updateAvailableApproversSelect() {
+    const $select = $('#newApprover');
+    $select.empty();
+    
+    $select.append('<option value="">{% trans "Select Approver..." %}</option>');
+    
+    // Фільтруємо доступних approvers
+    const selectedIds = currentApprovers.map(a => a.id);
+    const filteredApprovers = availableApprovers.filter(a => !selectedIds.includes(a.id));
+    
+    // Додаємо опції з повною інформацією
+    filteredApprovers.forEach(approver => {
+        const details = [approver.department_name, approver.position_name]
+            .filter(Boolean)
+            .join(' • ');
+            
+        const option = new Option(
+            approver.name + (details ? ` (${details})` : ''),
+            approver.id,
+            false,
+            false
+        );
+        
+        // Додаємо дані до опції
+        $(option).data({
+            'avatar': approver.avatar,
+            'color': approver.color,
+            'department_name': approver.department_name,
+            'position_name': approver.position_name
+        });
+        
+        $select.append(option);
+    });
+
+    // Ініціалізуємо або оновлюємо Select2
+    if ($select.hasClass('select2-hidden-accessible')) {
+        $select.select2('destroy');
+    }
+
+    $select.select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dropdownParent: $('#editApproversModal'),
+        templateResult: formatApprover,
+        templateSelection: formatApproverSelection,
+        escapeMarkup: function(markup) {
+            return markup;
+        }
+    });
+}
+
+// Додайте також функції форматування для Select2
+function formatApprover(data) {
+    if (!data.id) return data.text;
+    
+    const $option = $(data.element);
+    const avatar = $option.data('avatar');
+    const color = $option.data('color');
+    const department = $option.data('department_name');
+    const position = $option.data('position_name');
+    
+    const $container = $('<div>').addClass('d-flex align-items-center gap-2 p-1');
+    
+    // Аватар або кольорова точка
+    if (avatar) {
+        $container.append(
+            $('<img>')
+                .addClass('rounded-circle')
+                .attr('src', avatar)
+                .css({
+                    width: '32px',
+                    height: '32px',
+                    objectFit: 'cover'
+                })
+        );
+    } else {
+        $container.append(
+            $('<div>')
+                .addClass('user-color-dot')
+                .css({
+                    width: '32px',
+                    height: '32px',
+                    'background-color': color || '#ccc'
+                })
+        );
+    }
+    
+    // Інформація про користувача
+    const $info = $('<div>').addClass('flex-grow-1');
+    
+    // Ім'я
+    const name = data.text.split(' (')[0]; // Отримуємо тільки ім'я без деталей
+    $info.append($('<div>').addClass('fw-semibold').text(name));
+    
+    // Департамент та посада
+    const details = [department, position].filter(Boolean).join(' • ');
+    if (details) {
+        $info.append(
+            $('<small>')
+                .addClass('text-muted d-block')
+                .text(details)
+        );
+    }
+    
+    $container.append($info);
+    return $container;
+}
+
+function formatApproverSelection(data) {
+    if (!data.id) return data.text;
+    
+    const $option = $(data.element);
+    const avatar = $option.data('avatar');
+    const color = $option.data('color');
+    const position = $option.data('position_name');
+    
+    const $container = $('<div>').addClass('d-flex align-items-center gap-2');
+    
+    // Аватар або кольорова точка
+    if (avatar) {
+        $container.append(
+            $('<img>')
+                .addClass('rounded-circle')
+                .attr('src', avatar)
+                .css({
+                    width: '24px',
+                    height: '24px',
+                    objectFit: 'cover'
+                })
+        );
+    } else {
+        $container.append(
+            $('<div>')
+                .addClass('user-color-dot')
+                .css({
+                    width: '24px',
+                    height: '24px',
+                    'background-color': color || '#ccc'
+                })
+        );
+    }
+    
+    // Ім'я та посада
+    const $info = $('<div>').addClass('d-flex flex-column');
+    const name = data.text.split(' (')[0]; // Отримуємо тільки ім'я без деталей
+    $info.append($('<div>').text(name));
+    
+    if (position) {
+        $info.append(
+            $('<small>')
+                .addClass('text-muted')
+                .text(position)
+        );
+    }
+    
+    $container.append($info);
+    return $container;
+}
+
+// Додайте допоміжну функцію для форматування дати
+function formatDateTimeForInput(date) {
+    const d = new Date(date);
+    return d.getFullYear().toString().padStart(4, '0') + '-' +
+           (d.getMonth() + 1).toString().padStart(2, '0') + '-' +
+           d.getDate().toString().padStart(2, '0') + 'T' +
+           d.getHours().toString().padStart(2, '0') + ':' +
+           d.getMinutes().toString().padStart(2, '0');
+}
+
+// Обробник для кнопки Use Default Approvers
+$('#useDefaultApproversBtn').on('click', async function() {
+    try {
+        // Показуємо підтвердження
+        const result = await Swal.fire({
+            title: '{% trans "Use Default Approvers?" %}',
+            text: '{% trans "This will replace current approvers with default approvers. Continue?" %}',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '{% trans "Yes, use defaults" %}',
+            cancelButtonText: '{% trans "Cancel" %}',
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#6c757d'
+        });
+
+        if (result.isConfirmed) {
+            // Копіюємо default approvers в поточні
+            currentApprovers = defaultApprovers.map(approver => ({
+                id: approver.id,
+                name: approver.name,
+                department_name: approver.department_name,
+                position_name: approver.position_name,
+                order: approver.order,
+                color: approver.color,
+                avatar: approver.avatar
+            }));
+
+            // Оновлюємо відображення
+            renderApprovers();
+            renderMainApproversList();
+            
+            // Показуємо повідомлення про успіх
+            await Swal.fire({
+                icon: 'success',
+                title: '{% trans "Success" %}',
+                text: '{% trans "Default approvers have been applied" %}',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
+    } catch (error) {
+        console.error('Error applying default approvers:', error);
+        showError('{% trans "Error applying default approvers" %}');
+    }
+});
+
+// Функції для блокування/розблокування полів при наявності Access Requests
+function disableFieldsForAccessRequests() {
+    // Поля, які потрібно заблокувати (всі крім Object Status, Record Active та Description)
+    const fieldsToDisable = [
+        '#editObject',
+        '#editEnvironment', 
+        '#editRoles',
+        '#editRequestUsersGroups',
+        '#editAccessUsersGroups',
+        '#editThirdParties',
+        '#editStartDate',
+        '#editEndDate'
+    ];
+    
+    fieldsToDisable.forEach(field => {
+        $(field).prop('disabled', true);
+        // Додаємо візуальний індикатор
+        $(field).addClass('field-disabled-due-to-requests');
+    });
+    
+    // Додаємо клас для тултіпів
+    fieldsToDisable.forEach(field => {
+        $(field).attr('title', '{% trans "This field cannot be edited because there are active Access Requests for this record" %}');
+    });
+    updateEditSelect2BulkActionButtons('#editObject');
+    updateEditSelect2BulkActionButtons('#editRoles');
+}
+
+function enableAllFields() {
+    // Розблокуємо всі поля
+    const fieldsToEnable = [
+        '#editObject',
+        '#editEnvironment', 
+        '#editRoles',
+        '#editRequestUsersGroups',
+        '#editAccessUsersGroups',
+        '#editThirdParties',
+        '#editStartDate',
+        '#editEndDate',
+        '#editApproversBtn',
+        '#editAccessApproversBtn'
+    ];
+    
+    fieldsToEnable.forEach(field => {
+        $(field).prop('disabled', false);
+        $(field).removeClass('field-disabled-due-to-requests');
+        $(field).removeAttr('title');
+    });
+    updateEditSelect2BulkActionButtons('#editObject');
+    updateEditSelect2BulkActionButtons('#editRoles');
+}
+
+function showAccessRequestsWarning(count) {
+    // Перевіряємо, чи вже існує попередження
+    if ($('#accessRequestsWarning').length === 0) {
+        const warningHtml = `
+            <div id="accessRequestsWarning" class="alert alert-warning mb-3" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                        <strong>{% trans "Limited Editing" %}</strong><br>
+                        {% trans "This access record has" %} <strong>${count}</strong> {% trans "active access request(s). Only Approvers, Record Active status, and Description can be modified." %}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Додаємо попередження на початок модального body
+        $('#editAccessForm').prepend(warningHtml);
+    }
+}
+
+function hideAccessRequestsWarning() {
+    $('#accessRequestsWarning').remove();
+}
+
+// ============= Edit Approvers Modal Functions =============
+
+let currentAccessId = null;
+let availableUsers = [];
+let currentAccessApprovers = [];
+
+// Допоміжна функція для отримання правильного URL з мовним префіксом
+function getApiUrl(path) {
+    const currentPath = window.location.pathname;
+    const languagePrefix = currentPath.split('/')[1];
+    return `/${languagePrefix}/app_access${path}`;
+}
+
+// Відкриття модального вікна редагування approvers
+$('#editAccessApproversBtn').on('click', async function(e) {
+    e.preventDefault();
+    
+    // Отримуємо поточний access_id
+    currentAccessId = $('#editAccessId').val();
+    
+    if (!currentAccessId) {
+        showError('{% trans "Access ID not found" %}');
+        return;
+    }
+    
+    try {
+        // Завантажуємо доступних користувачів та поточних approvers
+        await Promise.all([
+            loadAvailableUsers(currentAccessId),
+            loadCurrentApprovers(currentAccessId)
+        ]);
+        
+        // Заповнюємо селект користувачів
+        populateApproversSelect();
+        
+        // Відображаємо поточних approvers
+        renderCurrentApprovers();
+        
+    } catch (error) {
+        console.error('Error loading approvers data:', error);
+        showError('{% trans "Error loading approvers data" %}');
+    }
+});
+
+// Завантаження доступних користувачів
+async function loadAvailableUsers(accessId) {
+    try {
+        console.log('Loading available users for access ID:', accessId);
+        const response = await fetch(getApiUrl(`/access/${accessId}/available-approvers/`));
+        const data = await response.json();
+        
+        console.log('Available users response:', data);
+        
+        if (data.success) {
+            availableUsers = data.users;
+            console.log('Loaded available users:', availableUsers.length, 'users');
+            
+            // Якщо немає користувачів, додаємо тестового користувача для діагностики
+            if (availableUsers.length === 0) {
+                console.warn('No users loaded from backend, adding test user for debugging');
+                availableUsers = [{
+                    id: 'test',
+                    full_name: 'Test User (Debug)',
+                    email: 'test@example.com',
+                    department: 'IT Department',
+                    position: 'Developer'
+                }];
+            }
+        } else {
+            console.error('Backend returned error:', data.message);
+            throw new Error(data.message || '{% trans "Error loading users" %}');
+        }
+    } catch (error) {
+        console.error('Error loading available users:', error);
+        
+        // Якщо помилка мережі або сервера, додаємо тестового користувача
+        if (error.name === 'TypeError' || error.message.includes('fetch')) {
+            console.warn('Network error, adding test user for debugging');
+            availableUsers = [{
+                id: 'test_network',
+                full_name: 'Test User (Network Error)',
+                email: 'test@example.com',
+                department: 'IT Department',
+                position: 'Developer'
+            }];
+            return; // Не кидаємо помилку, щоб модальне вікно відкрилося
+        }
+        
+        throw error;
+    }
+}
+
+// Завантаження поточних approvers
+async function loadCurrentApprovers(accessId) {
+    try {
+        const response = await fetch(getApiUrl(`/access/${accessId}/approvers/`));
+        const data = await response.json();
+        
+        if (data.success) {
+            currentAccessApprovers = data.approvers;
+        } else {
+            throw new Error(data.message || '{% trans "Error loading approvers" %}');
+        }
+    } catch (error) {
+        console.error('Error loading current approvers:', error);
+        throw error;
+    }
+}
+
+// Заповнення селекту користувачів
+function populateApproversSelect() {
+    console.log('Populating approvers select with:', availableUsers.length, 'users');
+    const select = $('#newApprover');
+    select.empty().append('<option value="">{% trans "Select user..." %}</option>');
+    
+    if (availableUsers.length === 0) {
+        console.warn('No available users to populate select');
+        select.append('<option value="" disabled>{% trans "No users available" %}</option>');
+        return;
+    }
+    
+    availableUsers.forEach(user => {
+        const department = user.department ? ` (${user.department})` : '';
+        const position = user.position ? ` - ${user.position}` : '';
+        const optionText = `${user.full_name}${department}${position}`;
+        
+        console.log('Adding user option:', optionText, 'with ID:', user.id);
+        select.append(`<option value="${user.id}" data-user='${JSON.stringify(user)}'>${optionText}</option>`);
+    });
+    
+    console.log('Select populated with', select.find('option').length - 1, 'user options');
+    
+    // За замовчуванням використовуємо звичайний select для надійності
+    // Select2 можна увімкнути кнопкою "Enable Select2" при необхідності
+    console.log('Using regular HTML select for better compatibility');
+    
+    // Автоматично ініціалізуємо Select2 тільки якщо дуже багато користувачів (>50)
+    if (availableUsers.length > 50 && !select.hasClass('select2-hidden-accessible')) {
+        try {
+            select.select2({
+                theme: 'bootstrap-5',
+                dropdownParent: $('#editApproversModal'),
+                width: '100%',
+                placeholder: '{% trans "Select user..." %}',
+                allowClear: true,
+                dropdownAutoWidth: true,
+                minimumResultsForSearch: 0
+            });
+            console.log('Select2 auto-initialized for large user list');
+        } catch (e) {
+            console.warn('Select2 not available, using regular select:', e);
+        }
+    }
+    
+    // Додаткова перевірка - чи відображаються опції
+    setTimeout(() => {
+        const visibleOptions = select.find('option:not([value=""])').length;
+        console.log('Visible options after population:', visibleOptions);
+        if (visibleOptions === 0) {
+            console.error('No options visible in select - possible CSS or Select2 issue');
+            
+            // Якщо Select2 не показує опції, повертаємось до звичайного select
+            if (select.hasClass('select2-hidden-accessible')) {
+                console.warn('Destroying Select2 and using regular select');
+                select.select2('destroy');
+                select.show(); // Показуємо оригінальний select
+            }
+        }
+    }, 200);
+}
+
+// Відображення поточних approvers
+function renderCurrentApprovers() {
+    const container = $('#approversContainer');
+    container.empty();
+    
+    if (currentAccessApprovers.length === 0) {
+        container.html(`
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-people fs-1"></i>
+                <p class="mt-2">{% trans "No approvers assigned" %}</p>
+                <small>{% trans "Use the button above to add approvers" %}</small>
+            </div>
+        `);
+        return;
+    }
+    
+    // Групуємо approvers по рівнях
+    const approversByLevel = {};
+    currentAccessApprovers.forEach(approver => {
+        const level = approver.order;
+        if (!approversByLevel[level]) {
+            approversByLevel[level] = [];
+        }
+        approversByLevel[level].push(approver);
+    });
+    
+    // Сортуємо рівні
+    const sortedLevels = Object.keys(approversByLevel).sort((a, b) => parseInt(a) - parseInt(b));
+    
+    sortedLevels.forEach(level => {
+        const approvers = approversByLevel[level];
+        const levelHtml = `
+            <div class="mb-3 border rounded p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">
+                        <span class="badge bg-primary">{% trans "Level" %} ${level}</span>
+                    </h6>
+                </div>
+                <div class="approvers-list">
+                    ${approvers.map(approver => createApproverCard(approver)).join('')}
+                </div>
+            </div>
+        `;
+        container.append(levelHtml);
+    });
+}
+
+// Створення картки approver
+function createApproverCard(approver) {
+    const user = approver.user;
+    const department = approver.department ? `<small class="text-muted">${approver.department}</small><br>` : '';
+    const position = approver.position ? `<small class="text-muted">${approver.position}</small>` : '';
+    const avatar = user.avatar ? `<img src="${user.avatar}" class="rounded-circle me-2" width="32" height="32">` : 
+                                 `<div class="rounded-circle me-2 d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background-color: ${user.color || '#6c757d'}; color: white; font-size: 12px;">${user.full_name.charAt(0)}</div>`;
+    
+    return `
+        <div class="d-flex align-items-center justify-content-between mb-2 p-2 border rounded" data-approver-id="${approver.id}">
+            <div class="d-flex align-items-center">
+                ${avatar}
+                <div>
+                    <div class="fw-medium">${user.full_name}</div>
+                    ${department}
+                    ${position}
+                    <small class="text-muted">${user.email}</small>
+                </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-approver" data-approver-id="${approver.id}">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    `;
+}
+
+// Показ форми додавання approver
+$('#addApproverBtn').on('click', function() {
+    console.log('Add Approver button clicked');
+    $('#addApproverForm').slideDown();
+    
+    // Перевіряємо чи є опції в селекті
+    const select = $('#newApprover');
+    const optionsCount = select.find('option').length;
+    console.log('Options in select when form opens:', optionsCount);
+    
+    if (optionsCount <= 1) {
+        console.warn('No options in select, repopulating...');
+        populateApproversSelect();
+    }
+    
+    $('#newApprover').focus();
+});
+
+// Скасування додавання approver
+$('#cancelAddApprover').on('click', function() {
+    $('#addApproverForm').slideUp();
+    $('#newApprover').val('');
+    $('#newApproverLevel').val('1');
+});
+
+// Підтвердження додавання approver
+$('#confirmAddApprover').on('click', function() {
+    const userId = $('#newApprover').val();
+    const level = parseInt($('#newApproverLevel').val());
+    
+    if (!userId) {
+        showError('{% trans "Please select a user" %}');
+        return;
+    }
+    
+    // Перевіряємо, чи користувач вже не доданий на цьому рівні
+    const existingApprover = currentAccessApprovers.find(a => 
+        a.cabinet_user_id == userId && a.order == level
+    );
+    
+    if (existingApprover) {
+        showError('{% trans "This user is already assigned as approver at this level" %}');
+        return;
+    }
+    
+    // Знаходимо дані користувача
+    const userData = availableUsers.find(u => u.id == userId);
+    if (!userData) {
+        showError('{% trans "User data not found" %}');
+        return;
+    }
+    
+    // Створюємо нового approver
+    const newApprover = {
+        id: `temp_${Date.now()}`, // Тимчасовий ID
+        cabinet_user_id: parseInt(userId),
+        order: level,
+        current_status: 'pending',
+        user: {
+            id: userData.id,
+            full_name: userData.full_name,
+            email: userData.email,
+            avatar: userData.avatar,
+            color: userData.color
+        },
+        department: userData.department,
+        position: userData.position
+    };
+    
+    // Додаємо до списку
+    currentAccessApprovers.push(newApprover);
+    console.log('Added new approver:', newApprover);
+    console.log('Current approvers list now has:', currentAccessApprovers.length, 'approvers');
+    
+    // Оновлюємо відображення
+    renderCurrentApprovers();
+    
+    // Очищаємо форму
+    $('#newApprover').val('');
+    $('#newApproverLevel').val('1');
+    $('#addApproverForm').slideUp();
+    
+    showSuccess('{% trans "Approver added successfully" %}');
+});
+
+// Видалення approver
+$(document).on('click', '.remove-approver', function() {
+    const approverId = $(this).data('approver-id');
+    
+    // Видаляємо з масиву
+    currentAccessApprovers = currentAccessApprovers.filter(a => a.id != approverId);
+    
+    // Оновлюємо відображення
+    renderCurrentApprovers();
+    
+    showSuccess('{% trans "Approver removed successfully" %}');
+});
+
+// Кнопка для перезавантаження користувачів
+$('#repopulateSelectBtn').on('click', async function() {
+    console.log('Repopulate select button clicked');
+    const $btn = $(this);
+    const originalText = $btn.html();
+    
+    try {
+        $btn.prop('disabled', true).html('<i class="bi bi-arrow-clockwise spin"></i> {% trans "Loading..." %}');
+        
+        if (currentAccessId) {
+            await loadAvailableUsers(currentAccessId);
+            populateApproversSelect();
+            showSuccess('{% trans "Users reloaded successfully" %}');
+        } else {
+            showError('{% trans "No access ID found" %}');
+        }
+    } catch (error) {
+        console.error('Error reloading users:', error);
+        showError('{% trans "Error reloading users" %}');
+    } finally {
+        $btn.prop('disabled', false).html(originalText);
+    }
+});
+
+
+
+// Використання default approvers
+$('#useDefaultApproversBtn').on('click', async function() {
+    try {
+        const result = await Swal.fire({
+            title: '{% trans "Use Default Approvers?" %}',
+            text: '{% trans "This will replace all current approvers with default approvers from system settings." %}',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '{% trans "Yes, use defaults" %}',
+            cancelButtonText: '{% trans "Cancel" %}',
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#6c757d'
+        });
+
+        if (result.isConfirmed) {
+            // Завантажуємо default approvers з системних налаштувань
+            const systemId = $('#editSystemId').val();
+            const environment = $('#editEnvironment').val();
+            
+            if (!systemId || !environment) {
+                showError('{% trans "System and environment must be selected" %}');
+                return;
+            }
+            
+            const response = await fetch(getApiUrl(`/system-default-approvers/${systemId}/${environment}/`));
+            const data = await response.json();
+            
+            if (data.success && data.approvers) {
+                // Замінюємо поточних approvers на default
+                currentAccessApprovers = data.approvers.map(approver => ({
+                    id: `temp_${Date.now()}_${approver.id}`,
+                    cabinet_user_id: approver.cabinet_user_id,
+                    order: approver.order,
+                    current_status: 'pending',
+                    user: approver.user,
+                    department: approver.department,
+                    position: approver.position
+                }));
+                
+                renderCurrentApprovers();
+                showSuccess('{% trans "Default approvers have been applied" %}');
+            } else {
+                showError(data.message || '{% trans "No default approvers found" %}');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading default approvers:', error);
+        showError('{% trans "Error loading default approvers" %}');
+    }
+});
+
+// Збереження змін approvers
+$('#saveApprovers').on('click', async function() {
+    console.log('Save Approvers button clicked');
+    
+    if (!currentAccessId) {
+        console.error('No current access ID');
+        showError('{% trans "Access ID not found" %}');
+        return;
+    }
+    
+    console.log('Current access ID:', currentAccessId);
+    console.log('Current approvers to save:', currentAccessApprovers);
+    
+    try {
+        // Підготовлюємо дані для відправки
+        const approversData = currentAccessApprovers.map(approver => ({
+            cabinet_user_id: approver.cabinet_user_id,
+            order: approver.order
+        }));
+        
+        console.log('Prepared approvers data for backend:', approversData);
+        
+        const formData = new FormData();
+        formData.append('approvers', JSON.stringify(approversData));
+        formData.append('csrfmiddlewaretoken', $('[name=csrfmiddlewaretoken]').val());
+        
+        const url = getApiUrl(`/access/${currentAccessId}/approvers/update/`);
+        console.log('Sending request to:', url);
+        console.log('Request method: POST');
+        console.log('FormData contents:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`  ${key}: ${value}`);
+        }
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        });
+        
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response text:', errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Response data:', data);
+        
+        if (data.success) {
+            console.log('Approvers saved successfully');
+            
+            // Показуємо повідомлення про успіх
+            showSuccess(data.message || '{% trans "Approvers updated successfully" %}');
+            
+            // Закриваємо модальне вікно approvers
+            $('#editApproversModal').modal('hide');
+            
+            // Повертаємося до основного edit modal після короткої затримки
+            setTimeout(() => {
+                $('#editAccessModal').modal('show');
+                console.log('Returned to main edit modal');
+            }, 300);
+            
+            // Оновлюємо таблицю
+            if (typeof refreshTable === 'function') {
+                setTimeout(() => {
+                    refreshTable();
+                    console.log('Table refreshed');
+                }, 800);
+            }
+            
+        } else {
+            throw new Error(data.message || '{% trans "Error saving approvers" %}');
+        }
+        
+    } catch (error) {
+        console.error('Error saving approvers:', error);
+        showError(error.message || '{% trans "Error saving approvers" %}');
+    }
+});
+
+// Очищення даних при закритті модального вікна
+$('#editApproversModal').on('hidden.bs.modal', function() {
+    // НЕ очищаємо currentAccessId відразу, оскільки він може знадобитися
+    // для повернення до основного modal
+    availableUsers = [];
+    currentAccessApprovers = [];
+    $('#approversContainer').empty();
+    $('#addApproverForm').hide();
+    
+    // Очищаємо селект
+    $('#newApprover').val('');
+    $('#newApproverLevel').val('1');
+    
+    console.log('Edit Approvers Modal closed and cleaned up');
+    
+    // Очищаємо currentAccessId тільки якщо основне modal також закрите
+    setTimeout(() => {
+        if (!$('#editAccessModal').hasClass('show')) {
+            currentAccessId = null;
+            console.log('Cleared currentAccessId');
+        }
+    }, 500);
+});
+
+// Допоміжні функції для повідомлень
+function showSuccess(message) {
+    if (typeof toastr !== 'undefined') {
+        toastr.success(message);
+    } else {
+        alert(message);
+    }
+}
+
+function showError(message) {
+    if (typeof toastr !== 'undefined') {
+        toastr.error(message);
+    } else {
+        alert(message);
+    }
+}
+
+// Функція завантаження об'єктів для вибраної системи та environment
+async function loadEditSystemObjects(systemId, environment) {
+    try {
+        const response = await fetch(`/app_access/system-objects/${systemId}/?environment=${environment}`);
+        if (!response.ok) throw new Error('Failed to load objects');
+        
+        const data = await response.json();
+        const objectSelect = $('#editObject');
+        objectSelect.empty();
+        
+        if (data.status === 'success' && data.data) {
+            data.data.forEach(obj => {
+                const objectName = 
+                    '{{ LANGUAGE_CODE }}' === 'uk' ? obj.name :
+                    '{{ LANGUAGE_CODE }}' === 'en' ? obj.name :
+                    obj.name;
+                
+                objectSelect.append(
+                    `<option value="${obj.id}" title="${obj.description || ''}">
+                        ${objectName}
+                    </option>`
+                );
+            });
+        }
+        updateEditSelect2BulkActionButtons('#editObject');
+    } catch (error) {
+        console.error('Error loading objects:', error);
+        showError('{% trans "Error loading objects" %}');
+        updateEditSelect2BulkActionButtons('#editObject');
+    }
+}
+
+// Функція завантаження ролей для вибраного об'єкта та environment (дубль видалено — використовується визначення вище)
+
+</script>
