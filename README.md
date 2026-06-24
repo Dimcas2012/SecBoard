@@ -37,8 +37,17 @@ pip install -r requirements.txt
 
 python manage.py migrate
 python manage.py createsuperuser
+python manage.py init_site_settings
 python manage.py collectstatic --noinput
 python manage.py check
+```
+
+**Fresh database:** migrations are squashed into linear `0001_initial` (and `0002`/`0003` where Django splits FK dependencies). `migrate` on an empty MySQL schema applies cleanly. Optional seed/setup commands after migrate:
+
+```bash
+python manage.py init_site_settings
+python manage.py load_company_types      # compliance lookups
+python manage.py setup_all_periodic_tasks  # Celery beat (if using background jobs)
 ```
 
 ### License activation (required)
