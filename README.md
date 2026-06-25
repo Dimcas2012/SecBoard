@@ -1,37 +1,142 @@
 # SecBoard Community Edition
 
-Open Core ISMS / GRC platform — **AGPL v3** + Dual License model.
+Open Core ISMS / GRC Platform for Information Security, Compliance and Governance.
 
-SecBoard Community Edition provides the full open-core stack (GRC, ISMS, risk, compliance, access, and more) for self-hosting, NGOs, pilots, and small teams — up to **100 users** with a free community license key.
+AGPL v3 licensed community edition with a dual-license model for enterprise deployments.
 
-**Enterprise Edition** (commercial license) is available for production at scale, closed modifications, enterprise modules, and SLA.
+[SecBoard Community Edition](docs/social-preview.jpg)
 
-See **[LICENSING.md](LICENSING.md)** for the complete licensing model.
+## 🚀 Overview
 
-## Features
+SecBoard Community Edition provides a complete open-core stack for building and operating an Information Security Management System (ISMS).
 
-- Multi-tenant company and user management (`app_cabinet`)
-- Site configuration, licensing, public pages (`app_conf`)
-- AI assistant (`app_ai`)
-- Open-core ISMS modules: risk, compliance, GDPR, access, assets, incidents, SOC, and more
-- Celery + Redis for background tasks
-- i18n: English, Ukrainian, Russian
+Designed for organizations implementing:
 
-## Requirements
+* ISO 27001
+* PCI DSS
+* GDPR
+* NIS2
+* Internal Security Programs
+* Risk Management Frameworks
 
-- Python 3.12+
-- MySQL 8+ or MariaDB 10.6+
-- Redis (for Celery)
-- Ubuntu/Debian build deps: `python3-venv python3-dev default-libmysqlclient-dev build-essential pkg-config`
+The platform is suitable for self-hosting, NGOs, pilots, educational projects, startups, and small teams.
 
-## Quick start
+### Community Edition
+
+✅ AGPL v3 Open Source
+
+✅ Risk Management
+
+✅ Compliance Management
+
+✅ GDPR Management
+
+✅ Access Management
+
+✅ Asset Management
+
+✅ Incident Management
+
+✅ SOC Operations
+
+✅ Self-Hosted
+
+✅ Free Community License (up to 100 users)
+
+### Enterprise Edition
+
+Commercial licensing for:
+
+* Production deployments at scale
+* Closed-source modifications
+* Enterprise modules
+* Priority support
+* SLA agreements
+
+See [LICENSING.md](LICENSING.md) for details.
+
+---
+
+## 🎬 Video Demo
+
+[Watch SecBoard Demo on YouTube](https://www.youtube.com/@SecBoard)
+
+Watch product demonstrations, installation guides, compliance workflows, and release updates on the official SecBoard YouTube channel.
+
+📺 YouTube: https://www.youtube.com/@SecBoard
+
+---
+
+## ✨ Key Features
+
+### Governance, Risk & Compliance
+
+* Risk Register
+* Risk Assessments
+* Risk Treatment Plans
+* Compliance Management
+* Internal Controls
+* Evidence Collection
+* Audit Preparation
+
+### Security Operations
+
+* Incident Management
+* Security Event Tracking
+* Corrective Actions
+* Vulnerability Tracking
+* SOC Operations
+
+### Asset & Access Management
+
+* Asset Inventory
+* Asset Ownership
+* Access Reviews
+* User Management
+* Role-Based Access Control
+
+### Platform
+
+* Multi-tenant architecture
+* AI Assistant
+* Celery + Redis background processing
+* Licensing subsystem
+* Public and internal portals
+* English, Ukrainian and Russian localization
+
+---
+
+## 📦 Requirements
+
+* Python 3.12+
+* MySQL 8+ or MariaDB 10.6+
+* Redis
+* Ubuntu/Debian build dependencies:
+
+```bash
+python3-venv
+python3-dev
+default-libmysqlclient-dev
+build-essential
+pkg-config
+```
+
+---
+
+## ⚡ Quick Start
 
 ```bash
 cp .env.example .env
-# Edit .env — set SECRET_KEY, DB_*, ALLOWED_HOSTS, SITE_DOMAIN
+
+# Edit:
+# SECRET_KEY
+# DB_*
+# ALLOWED_HOSTS
+# SITE_DOMAIN
 
 python3 -m venv venv
 source venv/bin/activate
+
 pip install --upgrade pip
 pip install -r requirements.txt
 
@@ -42,71 +147,130 @@ python manage.py collectstatic --noinput
 python manage.py check
 ```
 
-**Fresh database:** migrations are squashed into linear `0001_initial` (and `0002`/`0003` where Django splits FK dependencies). `migrate` on an empty MySQL schema applies cleanly. Optional seed/setup commands after migrate:
+Optional setup commands:
 
 ```bash
-python manage.py init_site_settings
-python manage.py load_company_types      # compliance lookups
-python manage.py setup_all_periodic_tasks  # Celery beat (if using background jobs)
+python manage.py load_company_types
+python manage.py setup_all_periodic_tasks
 ```
 
-### License activation (required)
+---
 
-A valid **community** or **enterprise** license key is required to run the platform.
+## 🔑 License Activation
+
+A valid Community or Enterprise license key is required.
+
+Generate hardware ID:
 
 ```bash
 python manage.py get_hardware_id
-# Request a free community key: https://secboard.online (subject to ToS/AUP)
+```
 
+Request a free Community key:
+
+https://secboard.online
+
+Activate:
+
+```bash
 python manage.py activate_license YOUR_COMMUNITY_KEY
 python manage.py runserver
 ```
 
-Or activate via UI: `/about/license/activate/`
+Or activate from:
 
-Open `http://127.0.0.1:8000/`.
-
-## Licensing summary
-
-| Edition | License | Key | Users |
-|---------|---------|-----|-------|
-| **Community** | AGPL v3 | Free community key | Up to 100 |
-| **Enterprise** | Commercial | Paid key | Per contract |
-
-- **Forks:** allowed under AGPL; network use requires source availability.
-- **Sanctions:** community/commercial keys are not issued for restricted jurisdictions (see [Terms of Service](/terms-of-service/)).
-- **No redistribution of proprietary forks** without AGPL compliance (Community) or Commercial License (Enterprise scenarios).
-
-Full details: [LICENSING.md](LICENSING.md) · [LICENSE](LICENSE) · [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL) · [CONTRIBUTING.md](CONTRIBUTING.md)
-
-## Production deployment
-
-See `deploy/secboard_base.service.example` and `deploy/nginx.example.conf`.
-
-1. Install app under `/opt/secboard-base`
-2. Configure `.env` with `DEBUG=0`
-3. Activate license key
-4. `collectstatic`, `migrate`
-5. systemd + nginx + gunicorn (port 9006 by default)
-
-## Building a release archive
-
-```bash
-./scripts/build_release.sh 1.0.0
+```text
+/about/license/activate/
 ```
 
-## Extending the platform
+Open:
 
-See `SDK/README.md` for conventions when adding custom Django apps.
+```text
+http://127.0.0.1:8000/
+```
 
-## Documentation
+---
 
-- `commands.txt` — common Django/Celery commands (EN/UK)
-- `.env.example` — configuration reference
-- `LICENSING.md` — Open Core + Dual License model
+## 📊 Licensing
 
-## Security
+| Edition            | License    | Users        |
+| ------------------ | ---------- | ------------ |
+| Community Edition  | AGPL v3    | Up to 100    |
+| Enterprise Edition | Commercial | Per Contract |
 
-- Never commit `.env` or license keys
-- Rotate `SECRET_KEY` and database passwords per installation
-- Set `DEBUG=0` in production
+Full details:
+
+* LICENSE
+* LICENSE-COMMERCIAL
+* LICENSING.md
+* CONTRIBUTING.md
+
+---
+
+## 🎥 Demo Videos
+
+Available on the SecBoard YouTube Channel:
+
+* Platform Overview
+* Installation Guide
+* Risk Management
+* Compliance Management
+* Asset Inventory
+* Incident Management
+* Access Reviews
+* PCI DSS Workflows
+* ISO 27001 Workflows
+
+https://www.youtube.com/@SecBoard
+
+---
+
+## 🚀 Production Deployment
+
+Deployment examples:
+
+* deploy/secboard_base.service.example
+* deploy/nginx.example.conf
+
+Production checklist:
+
+1. Install under `/opt/secboard-base`
+2. Configure `.env`
+3. Set `DEBUG=0`
+4. Activate license
+5. Run migrations
+6. Collect static files
+7. Configure Gunicorn + Nginx + Systemd
+
+---
+
+## 🔒 Security
+
+* Never commit `.env`
+* Never commit license keys
+* Rotate database credentials
+* Rotate SECRET_KEY when required
+* Set `DEBUG=0` in production
+
+---
+
+## 🤝 Contributing
+
+Contributions, bug reports, feature requests and pull requests are welcome.
+
+See:
+
+* CONTRIBUTING.md
+* SDK/README.md
+
+---
+
+## 🌐 Community
+
+Website: https://secboard.online
+
+GitHub: https://github.com/Dimcas2012/SecBoard
+
+YouTube: https://www.youtube.com/@SecBoard
+
+Open. Secure. Together.
